@@ -8,6 +8,7 @@ Gear inventory for a Scout group. Tracks what we own, where it lives, who has it
 
 | File                                               | What it holds                     |
 | -------------------------------------------------- | --------------------------------- |
+| `docs/architecture.md`                             | How it is built, and why          |
 | `docs/requirements/README.md`                      | Context, people, scale, locations |
 | `docs/requirements/functional-requirements.md`     | What the system must do (FR-\*)   |
 | `docs/requirements/non-functional-requirements.md` | How well it must do it (NFR-\*)   |
