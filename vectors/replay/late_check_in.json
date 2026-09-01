@@ -10,7 +10,9 @@
       "device_id": "a",
       "device_seq": 1,
       "effective_at": 1000,
-      "payload": { "holder_id": "bob" }
+      "payload": {
+        "holder_id": "bob"
+      }
     },
     {
       "id": "01000000000000000000000003",
@@ -21,7 +23,9 @@
       "device_id": "a",
       "device_seq": 2,
       "effective_at": 90000000,
-      "payload": { "holder_id": "carol" }
+      "payload": {
+        "holder_id": "carol"
+      }
     },
     {
       "id": "01000000000000000000000002",
@@ -37,7 +41,19 @@
   ],
   "state": {
     "item": {
-      "tent-1": { "status": "out", "holder_id": "carol", "since": 90000000 }
+      "tent-1": {
+        "status": "out",
+        "holder_id": "carol",
+        "since": 90000000,
+        "movement": {
+          "id": "01000000000000000000000003",
+          "type": "checked_out",
+          "holder_id": "carol",
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 90000000
+        }
+      }
     }
   }
 }

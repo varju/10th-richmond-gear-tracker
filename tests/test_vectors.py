@@ -47,4 +47,4 @@ def test_vector(path: Path):
         with pytest.raises(ERRORS[vector["error"]]):
             replay(events)
     else:
-        assert replay(events) == vector["state"], vector["name"]
+        assert replay(events, vector.get("base")) == vector["state"], vector["name"]

@@ -88,9 +88,21 @@ def test_check_out_then_in():
 
     after_out = replay([out])["item"]["tent-1"]
     assert (after_out["status"], after_out["holder_id"], after_out["since"]) == ("out", "bob", T0 + 1)
+    assert after_out["movement"]["id"] == out.id
 
     after_in = replay([out, back])["item"]["tent-1"]
     assert (after_in["status"], after_in["holder_id"], after_in["since"]) == ("in", None, T0 + 2)
+    assert after_in["movement"]["type"] == "checked_in"
+
+
+def test_replay_continues_from_a_snapshot():
+    out = ev(device_id="a", device_seq=1, effective_at=T0 + 1, type="checked_out", payload={"holder_id": "bob"})
+    snapshot = replay([out])
+    later = ev(device_id="b", device_seq=1, effective_at=T0 + 2, type="checked_out", payload={"holder_id": "carol"})
+
+    incremental = replay([later], snapshot)
+    assert incremental == replay([out, later]), "a snapshot plus the rest equals the whole log"
+    assert snapshot["item"]["tent-1"]["holder_id"] == "bob", "the base is not mutated"
 
 
 def test_a_late_arriving_check_in_does_not_undo_a_later_check_out():
@@ -114,8 +126,22 @@ def test_two_check_outs_from_different_devices_are_a_conflict():
         {
             "kind": "double_checkout",
             "events": [
-                {"id": first.id, "holder_id": "bob", "actor_id": "alice", "device_id": "a", "at": T0 + 1},
-                {"id": second.id, "holder_id": "carol", "actor_id": "alice", "device_id": "b", "at": T0 + 2},
+                {
+                    "id": first.id,
+                    "type": "checked_out",
+                    "holder_id": "bob",
+                    "actor_id": "alice",
+                    "device_id": "a",
+                    "at": T0 + 1,
+                },
+                {
+                    "id": second.id,
+                    "type": "checked_out",
+                    "holder_id": "carol",
+                    "actor_id": "alice",
+                    "device_id": "b",
+                    "at": T0 + 2,
+                },
             ],
         }
     ]

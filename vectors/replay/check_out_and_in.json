@@ -10,7 +10,9 @@
       "device_id": "a",
       "device_seq": 1,
       "effective_at": 1000,
-      "payload": { "name": "Tent" }
+      "payload": {
+        "name": "Tent"
+      }
     },
     {
       "id": "01000000000000000000000002",
@@ -21,7 +23,9 @@
       "device_id": "a",
       "device_seq": 2,
       "effective_at": 2000,
-      "payload": { "holder_id": "bob" }
+      "payload": {
+        "holder_id": "bob"
+      }
     },
     {
       "id": "01000000000000000000000003",
@@ -32,7 +36,9 @@
       "device_id": "a",
       "device_seq": 3,
       "effective_at": 2500,
-      "payload": { "holder_id": "bob" }
+      "payload": {
+        "holder_id": "bob"
+      }
     },
     {
       "id": "01000000000000000000000004",
@@ -48,8 +54,33 @@
   ],
   "state": {
     "item": {
-      "tent-1": { "name": "Tent", "status": "in", "holder_id": null, "since": 3000 },
-      "stove-1": { "status": "out", "holder_id": "bob", "since": 2500 }
+      "tent-1": {
+        "name": "Tent",
+        "status": "in",
+        "holder_id": null,
+        "since": 3000,
+        "movement": {
+          "id": "01000000000000000000000004",
+          "type": "checked_in",
+          "holder_id": null,
+          "actor_id": "carol",
+          "device_id": "b",
+          "at": 3000
+        }
+      },
+      "stove-1": {
+        "status": "out",
+        "holder_id": "bob",
+        "since": 2500,
+        "movement": {
+          "id": "01000000000000000000000003",
+          "type": "checked_out",
+          "holder_id": "bob",
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 2500
+        }
+      }
     }
   }
 }

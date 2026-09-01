@@ -10,7 +10,9 @@
       "device_id": "b",
       "device_seq": 1,
       "effective_at": 2000,
-      "payload": { "holder_id": "carol" }
+      "payload": {
+        "holder_id": "carol"
+      }
     },
     {
       "id": "01000000000000000000000001",
@@ -21,7 +23,9 @@
       "device_id": "a",
       "device_seq": 1,
       "effective_at": 1000,
-      "payload": { "holder_id": "bob" }
+      "payload": {
+        "holder_id": "bob"
+      }
     },
     {
       "id": "01000000000000000000000003",
@@ -32,7 +36,9 @@
       "device_id": "a",
       "device_seq": 2,
       "effective_at": 3000,
-      "payload": { "holder_id": "dave" }
+      "payload": {
+        "holder_id": "dave"
+      }
     }
   ],
   "state": {
@@ -41,12 +47,21 @@
         "status": "out",
         "holder_id": "dave",
         "since": 3000,
+        "movement": {
+          "id": "01000000000000000000000003",
+          "type": "checked_out",
+          "holder_id": "dave",
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 3000
+        },
         "conflicts": [
           {
             "kind": "double_checkout",
             "events": [
               {
                 "id": "01000000000000000000000001",
+                "type": "checked_out",
                 "holder_id": "bob",
                 "actor_id": "alice",
                 "device_id": "a",
@@ -54,6 +69,7 @@
               },
               {
                 "id": "01000000000000000000000002",
+                "type": "checked_out",
                 "holder_id": "carol",
                 "actor_id": "carol",
                 "device_id": "b",
@@ -66,6 +82,7 @@
             "events": [
               {
                 "id": "01000000000000000000000002",
+                "type": "checked_out",
                 "holder_id": "carol",
                 "actor_id": "carol",
                 "device_id": "b",
@@ -73,6 +90,7 @@
               },
               {
                 "id": "01000000000000000000000003",
+                "type": "checked_out",
                 "holder_id": "dave",
                 "actor_id": "alice",
                 "device_id": "a",

@@ -25,6 +25,8 @@ or, for a case that must fail:
 }
 ```
 
+An optional `base` is the state to replay onto, as a device does after a bootstrap.
+
 Events carry only what replay reads: `id`, `entity_type`, `entity_id`, `type`, `actor_id`, `device_id`, `device_seq`,
 `effective_at`, `payload`. Events are listed in arrival order, which is deliberately not replay order. Timestamps are
 integer milliseconds.

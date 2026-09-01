@@ -1,0 +1,77 @@
+{
+  "name": "replay continues from a snapshot: the item's last movement is in the state, so a conflict is still seen",
+  "base": {
+    "item": {
+      "tent-1": {
+        "name": "Tent",
+        "status": "out",
+        "holder_id": "bob",
+        "since": 1000,
+        "movement": {
+          "id": "01000000000000000000000001",
+          "type": "checked_out",
+          "holder_id": "bob",
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 1000
+        }
+      }
+    }
+  },
+  "events": [
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_out",
+      "actor_id": "carol",
+      "device_id": "b",
+      "device_seq": 1,
+      "effective_at": 2000,
+      "payload": {
+        "holder_id": "carol"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-1": {
+        "name": "Tent",
+        "status": "out",
+        "holder_id": "carol",
+        "since": 2000,
+        "movement": {
+          "id": "01000000000000000000000002",
+          "type": "checked_out",
+          "holder_id": "carol",
+          "actor_id": "carol",
+          "device_id": "b",
+          "at": 2000
+        },
+        "conflicts": [
+          {
+            "kind": "double_checkout",
+            "events": [
+              {
+                "id": "01000000000000000000000001",
+                "type": "checked_out",
+                "holder_id": "bob",
+                "actor_id": "alice",
+                "device_id": "a",
+                "at": 1000
+              },
+              {
+                "id": "01000000000000000000000002",
+                "type": "checked_out",
+                "holder_id": "carol",
+                "actor_id": "carol",
+                "device_id": "b",
+                "at": 2000
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
