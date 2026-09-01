@@ -27,7 +27,7 @@ from pydantic import (
 )
 
 from gear_tracker.replay import DERIVED_FIELDS
-from gear_tracker.ulid import is_ulid
+from gear_tracker.ulid import is_ulid, new_ulid
 
 EntityType = Literal["item", "user", "location", "code", "reservation", "repair", "setting"]
 ENTITY_TYPES = frozenset(get_args(EntityType))
@@ -81,8 +81,11 @@ class Payload(Strict):
 
 
 class FieldChange(Payload):
+    """The field, its new value, and its old one (FR-USR-05). `old` may be null; it may not be missing."""
+
     field: Annotated[NonEmpty, AfterValidator(_not_derived)]
     value: Any
+    old: Any
 
 
 class NoteText(Payload):
@@ -280,6 +283,44 @@ def append(conn: sqlite3.Connection, incoming: Any, received_at: int | None = No
     except BaseException:
         conn.execute("ROLLBACK")
         raise
+
+
+SERVER_DEVICE = "server"
+"""device_id for events the server originates itself, such as an Admin inviting a user."""
+
+
+def append_server(
+    conn: sqlite3.Connection,
+    actor_id: str,
+    entity_type: str,
+    entity_id: str,
+    type: str,
+    payload: dict[str, Any],
+    now: int | None = None,
+) -> Event:
+    """Record something the server did, on the same log and under the same rules as a device."""
+    now = now_ms() if now is None else now
+    # One statement, so two requests cannot take the same number. A burned
+    # number on a later failure is a gap, and gaps are allowed.
+    seq = conn.execute(
+        "UPDATE meta SET value = CAST(value AS INTEGER) + 1 WHERE key = 'server_seq' RETURNING CAST(value AS INTEGER)"
+    ).fetchone()[0]
+    return append(
+        conn,
+        {
+            "id": new_ulid(now),
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "type": type,
+            "actor_id": actor_id,
+            "device_id": SERVER_DEVICE,
+            "device_seq": seq,
+            "occurred_at": now,
+            "clock_offset": 0,
+            "payload": payload,
+        },
+        received_at=now,
+    )
 
 
 def dump_payload(payload: dict[str, Any]) -> str:

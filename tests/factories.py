@@ -20,7 +20,7 @@ def incoming(**overrides: Any) -> dict[str, Any]:
         "device_seq": 1,
         "occurred_at": T0,
         "clock_offset": 0,
-        "payload": {"field": "name", "value": "Tent"},
+        "payload": {"field": "name", "value": "Tent", "old": None},
     }
     e.update(overrides)
     return e

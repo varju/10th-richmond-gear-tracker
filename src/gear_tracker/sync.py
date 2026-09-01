@@ -13,8 +13,11 @@ from typing import Any
 from pydantic import ValidationError
 
 from gear_tracker import derived, events
+from gear_tracker.errors import ApiError, BadRequest, Deactivated, Forbidden, Rebootstrap
 from gear_tracker.events import NonEmpty, Rejected, Strict, now_ms
 from gear_tracker.flags import add_flag
+
+SyncError = ApiError
 
 RETENTION_MS = 90 * 24 * 3_600_000
 """How far back a device keeps history (NFR-DATA-03). A cursor older than this re-bootstraps instead."""
@@ -32,41 +35,7 @@ class Principal:
     user_id: str
     device_id: str
     active: bool = True
-
-
-class SyncError(Exception):
-    status = 500
-    code = "error"
-
-    def __init__(self, message: str):
-        super().__init__(message)
-        self.message = message
-
-
-class BadRequest(SyncError):
-    status = 400
-    code = "bad_request"
-
-
-class Unauthorized(SyncError):
-    status = 401
-    code = "unauthorized"
-
-
-class Forbidden(SyncError):
-    status = 403
-    code = "forbidden"
-
-
-class Deactivated(Forbidden):
-    code = "deactivated"
-
-
-class Rebootstrap(SyncError):
-    """The cursor cannot be honoured. Not silence: the device must start again from a snapshot."""
-
-    status = 410
-    code = "re-bootstrap"
+    role: str = "user"
 
 
 class PushBody(Strict):
@@ -121,6 +90,8 @@ def push(conn: sqlite3.Connection, principal: Principal, body: Any, now: int | N
                 raise Rejected("actor_id must be the signed-in user")
             if incoming.get("device_id") != principal.device_id:
                 raise Rejected("device_id must be this device")
+            if incoming.get("entity_type") == "user":
+                raise Rejected("user changes go through the accounts API")
             seen_before = events.get(conn, incoming["id"]) is not None if isinstance(incoming.get("id"), str) else False
             stored = events.append(conn, incoming, received_at=now)
             if not seen_before:

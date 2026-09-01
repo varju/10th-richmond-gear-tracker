@@ -98,7 +98,7 @@ def test_every_entity_type_is_on_the_log(db):
 
 
 def test_stored_row_round_trips(db):
-    e = incoming(payload={"field": "name", "value": "Tent, 4 person", "note": None})
+    e = incoming(payload={"field": "name", "value": "Tent, 4 person", "old": "Tent", "note": None})
     stored = append(db, e, received_at=T0 + 5)
 
     assert get(db, e["id"]) == stored

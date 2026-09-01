@@ -54,6 +54,13 @@ def snapshot(conn: sqlite3.Connection) -> State:
     return state
 
 
+def get_entity(conn: sqlite3.Connection, entity_type: str, entity_id: str) -> dict | None:
+    row = conn.execute(
+        "SELECT state FROM entities WHERE entity_type = ? AND entity_id = ?", (entity_type, entity_id)
+    ).fetchone()
+    return json.loads(row["state"]) if row is not None else None
+
+
 def cursor(conn: sqlite3.Connection) -> int:
     """The event seq the cache is true at."""
     return int(conn.execute("SELECT value FROM meta WHERE key = 'derived_seq'").fetchone()[0])

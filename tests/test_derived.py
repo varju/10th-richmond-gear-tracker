@@ -86,15 +86,16 @@ def test_a_rejected_event_leaves_the_cache_alone(db):
 
 def test_derived_fields_cannot_be_set_directly(db):
     with pytest.raises(Rejected, match="derived"):
-        append(db, incoming(payload={"field": "status", "value": "in"}), received_at=T0)
+        append(db, incoming(payload={"field": "status", "value": "in", "old": "out"}), received_at=T0)
 
 
 @pytest.mark.parametrize(
     ("event_type", "payload", "reason"),
     [
-        ("field_changed", {"value": 1}, "payload.field: Field required"),
-        ("field_changed", {"field": "name"}, "payload.value: Field required"),
-        ("field_changed", {"field": "name", "value": 1, "extra": 2}, None),
+        ("field_changed", {"value": 1, "old": 0}, "payload.field: Field required"),
+        ("field_changed", {"field": "name", "old": 0}, "payload.value: Field required"),
+        ("field_changed", {"field": "name", "value": 1}, "payload.old: Field required"),
+        ("field_changed", {"field": "name", "value": 1, "old": None, "extra": 2}, None),
         ("note_added", {}, "payload.text: Field required"),
         ("note_added", {"text": 7}, "payload.text: Input should be a valid string"),
         ("note_corrected", {"text": "x"}, "payload.note_id: Field required"),

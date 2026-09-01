@@ -210,7 +210,7 @@ def test_pull_returns_whole_events(db):
     [pulled] = pull(db, ALICE, cursor=0, now=T0 + 7)["events"]
     assert pulled["id"] == event
     assert pulled["received_at"] == T0 + 7
-    assert pulled["payload"] == {"field": "name", "value": "Tent"}
+    assert pulled["payload"] == {"field": "name", "value": "Tent", "old": None}
 
 
 def test_an_event_committing_out_of_time_order_is_still_delivered(db):
