@@ -9,6 +9,11 @@ if ! command -v uv >/dev/null 2>&1; then
   export PATH="$HOME/.local/bin:$PATH"
 fi
 
+# uv fetches a standalone interpreter, so this works on a distro that has not
+# packaged 3.14 yet (NFR-MAINT-03).
+echo "Ensuring Python 3.14..."
+uv python install 3.14
+
 echo "Syncing dependencies..."
 uv sync
 
