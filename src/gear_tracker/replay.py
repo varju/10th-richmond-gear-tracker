@@ -17,7 +17,8 @@ State = dict[str, dict[str, dict[str, Any]]]
 """entity_type -> entity_id -> fields"""
 
 # Set by movement events only. A field_changed that names one is rejected.
-DERIVED_FIELDS = frozenset({"status", "holder_id", "since", "notes"})
+DERIVED_FIELDS = frozenset({"status", "holder_id", "since", "notes", "conflicts"})
+MOVEMENTS = frozenset({"checked_out", "checked_in"})
 
 
 class UnknownEventType(ValueError):
@@ -27,14 +28,22 @@ class UnknownEventType(ValueError):
 def replay(events: Iterable[Event]) -> State:
     """Build state from scratch. Input order does not matter; replay order does."""
     state: State = {}
+    last_movement: dict[tuple[str, str], Event] = {}
     for event in sorted(events, key=lambda e: (e.effective_at, e.device_id, e.device_seq)):
+        key = (event.entity_type, event.entity_id)
         entity = state.setdefault(event.entity_type, {}).setdefault(event.entity_id, {})
-        apply(entity, event)
+        apply(entity, event, last_movement.get(key))
+        if event.type in MOVEMENTS:
+            last_movement[key] = event
     return state
 
 
-def apply(entity: dict[str, Any], event: Event) -> None:
-    """One event onto one entity's fields, in place."""
+def apply(entity: dict[str, Any], event: Event, last_movement: Event | None = None) -> None:
+    """One event onto one entity's fields, in place.
+
+    last_movement is the item's previous check-out or check-in in replay
+    order, or None. It is what makes a double check-out detectable.
+    """
     p = event.payload
     match event.type:
         case "created":
@@ -54,6 +63,16 @@ def apply(entity: dict[str, Any], event: Event) -> None:
                 if note["id"] == p["note_id"]:
                     note["text"] = p["text"]
         case "checked_out":
+            # Two check-outs from different devices with no check-in between:
+            # the machine picks the later one and queues both (FR-OFF-10).
+            if (
+                last_movement is not None
+                and last_movement.type == "checked_out"
+                and last_movement.device_id != event.device_id
+            ):
+                entity.setdefault("conflicts", []).append(
+                    {"kind": "double_checkout", "events": [_movement(last_movement), _movement(event)]}
+                )
             entity["status"] = "out"
             entity["holder_id"] = p["holder_id"]
             entity["since"] = event.effective_at
@@ -63,3 +82,13 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             entity["since"] = event.effective_at
         case other:
             raise UnknownEventType(other)
+
+
+def _movement(event: Event) -> dict[str, Any]:
+    return {
+        "id": event.id,
+        "holder_id": event.payload.get("holder_id"),
+        "actor_id": event.actor_id,
+        "device_id": event.device_id,
+        "at": event.effective_at,
+    }

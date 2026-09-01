@@ -104,6 +104,64 @@ def test_a_late_arriving_check_in_does_not_undo_a_later_check_out():
     assert state["holder_id"] == "bob"
 
 
+def test_two_check_outs_from_different_devices_are_a_conflict():
+    first = ev(device_id="a", device_seq=1, effective_at=T0 + 1, type="checked_out", payload={"holder_id": "bob"})
+    second = ev(device_id="b", device_seq=1, effective_at=T0 + 2, type="checked_out", payload={"holder_id": "carol"})
+
+    tent = replay([first, second])["item"]["tent-1"]
+    assert tent["holder_id"] == "carol", "replay still picks an answer"
+    assert tent["conflicts"] == [
+        {
+            "kind": "double_checkout",
+            "events": [
+                {"id": first.id, "holder_id": "bob", "actor_id": "alice", "device_id": "a", "at": T0 + 1},
+                {"id": second.id, "holder_id": "carol", "actor_id": "alice", "device_id": "b", "at": T0 + 2},
+            ],
+        }
+    ]
+
+
+def test_two_check_outs_from_one_device_are_a_transfer_not_a_conflict():
+    events = [
+        ev(device_id="a", device_seq=1, effective_at=T0 + 1, type="checked_out", payload={"holder_id": "bob"}),
+        ev(device_id="a", device_seq=2, effective_at=T0 + 2, type="checked_out", payload={"holder_id": "carol"}),
+    ]
+    assert "conflicts" not in replay(events)["item"]["tent-1"]
+
+
+def test_a_check_in_between_two_check_outs_is_not_a_conflict():
+    events = [
+        ev(device_id="a", device_seq=1, effective_at=T0 + 1, type="checked_out", payload={"holder_id": "bob"}),
+        ev(device_id="c", device_seq=1, effective_at=T0 + 2, type="checked_in", payload={}),
+        ev(device_id="b", device_seq=1, effective_at=T0 + 3, type="checked_out", payload={"holder_id": "carol"}),
+    ]
+    assert "conflicts" not in replay(events)["item"]["tent-1"]
+
+
+def test_conflicts_are_per_item():
+    events = [
+        ev(
+            entity_id="tent-1",
+            device_id="a",
+            device_seq=1,
+            effective_at=T0 + 1,
+            type="checked_out",
+            payload={"holder_id": "bob"},
+        ),
+        ev(
+            entity_id="tent-2",
+            device_id="b",
+            device_seq=1,
+            effective_at=T0 + 2,
+            type="checked_out",
+            payload={"holder_id": "carol"},
+        ),
+    ]
+    state = replay(events)["item"]
+    assert "conflicts" not in state["tent-1"]
+    assert "conflicts" not in state["tent-2"]
+
+
 def test_notes_are_appended_and_corrected_in_place():
     first = ev(device_seq=1, effective_at=T0 + 1, type="note_added", payload={"text": "pole bent"})
     second = ev(device_seq=2, effective_at=T0 + 2, type="note_added", payload={"text": "peg missing"})

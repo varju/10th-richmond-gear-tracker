@@ -1,0 +1,87 @@
+{
+  "name": "two check-outs from different devices with no check-in between: the later wins and both are queued",
+  "events": [
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_out",
+      "actor_id": "carol",
+      "device_id": "b",
+      "device_seq": 1,
+      "effective_at": 2000,
+      "payload": { "holder_id": "carol" }
+    },
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": { "holder_id": "bob" }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 3000,
+      "payload": { "holder_id": "dave" }
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-1": {
+        "status": "out",
+        "holder_id": "dave",
+        "since": 3000,
+        "conflicts": [
+          {
+            "kind": "double_checkout",
+            "events": [
+              {
+                "id": "01000000000000000000000001",
+                "holder_id": "bob",
+                "actor_id": "alice",
+                "device_id": "a",
+                "at": 1000
+              },
+              {
+                "id": "01000000000000000000000002",
+                "holder_id": "carol",
+                "actor_id": "carol",
+                "device_id": "b",
+                "at": 2000
+              }
+            ]
+          },
+          {
+            "kind": "double_checkout",
+            "events": [
+              {
+                "id": "01000000000000000000000002",
+                "holder_id": "carol",
+                "actor_id": "carol",
+                "device_id": "b",
+                "at": 2000
+              },
+              {
+                "id": "01000000000000000000000003",
+                "holder_id": "dave",
+                "actor_id": "alice",
+                "device_id": "a",
+                "at": 3000
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
