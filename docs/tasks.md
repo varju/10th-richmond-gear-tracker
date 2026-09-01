@@ -57,6 +57,7 @@ Scanning tasks here reuse the camera and decode loop proven in M0.
 - [ ] Storage locations: create, rename, reassign items between them (FR-SET-01, FR-SET-02)
 - [ ] Deleting a location still in use is blocked, and names what blocks it (FR-SET-05)
 - [ ] Free-form sub-location label on an item; no list, no hierarchy (FR-SET-03, FR-SET-04)
+- [ ] Types: define, assign items, block deleting one in use (FR-SET-10, FR-SET-05)
 - [ ] Item CRUD with retire and unretire (FR-INV-01, FR-INV-04, FR-INV-05)
 - [ ] Date added and date modified, set by the system (FR-INV-03)
 - [ ] Search as you type over 500 items, under 200 ms (FR-INV-07, NFR-PERF-01)
@@ -122,6 +123,8 @@ Public pages come before the labelling walk, not after it. From the moment stick
 - [ ] Unlisted scans append silently (FR-RES-07)
 - [ ] Conflicting reservations named (FR-RES-05)
 - [ ] Duplicate a reservation (FR-RES-10)
+- [ ] Reserve a quantity of a type; any item of the type ticks it off at check-out (FR-RES-13)
+- [ ] A type reservation conflicts when demand exceeds the unretired items of that type (FR-RES-15)
 
 ## M12 — Found gear
 
