@@ -37,13 +37,13 @@ scans. NFR-USE-01 and NFR-USE-02 are unreachable without both.
 
 The core of the system. Get this right before anything is built on it.
 
-- [ ] `events` table: id, entity_type, entity_id, type, actor, device, device_seq, occurred_at, effective_at,
-      received_at, seq, payload
+- [ ] `events` table: id, entity_type, entity_id, type, actor, device, device_seq, occurred_at, clock_offset,
+      effective_at, received_at, seq, payload
 - [ ] Every entity that changes offline is on this log: items, users, locations, codes, reservations, tickets, settings
 - [ ] Event ids are ULIDs, unique per event, so push is idempotent
 - [ ] `seq` assigned by the server inside the insert transaction; it is the sync cursor
-- [ ] Clamp `occurred_at` on arrival into `effective_at`: never after `received_at`, never before the previous event
-      from the same device
+- [ ] Clamp `occurred_at + clock_offset` on arrival into `effective_at`: never after `received_at`, never before the
+      previous event from the same device
 - [ ] Replay order is `(effective_at, device_id, device_seq)`, total and stable
 - [ ] Append-only enforcement: no update or delete path exists
 - [ ] Derived state built by replaying the log
@@ -54,6 +54,10 @@ The core of the system. Get this right before anything is built on it.
 ## M3 — Sync
 
 - [ ] `GET /sync/bootstrap`: current state plus the cursor it was true at (FR-OFF-14)
+- [ ] Every sync response carries `server_time`; the client stores the measured clock offset (NFR-DATA-13)
+- [ ] Events are stamped with the offset in force when they were recorded, beside the raw device time
+- [ ] A fresh offset far from the stored one flags events recorded under the old estimate
+- [ ] Test: a device 3 hours fast, syncing 2 days later, still records the right time
 - [ ] `POST /sync/push`, idempotent on event id, batched, returning accepted and rejected with reasons
 - [ ] `GET /sync/pull?since=<cursor>`, cursor over `seq`, exclusive, ordered by `seq`
 - [ ] A cursor the server cannot honour returns "re-bootstrap", not silence

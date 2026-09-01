@@ -38,8 +38,9 @@ events
   actor_id
   device_id
   device_seq    per-device counter, never reused, gapless
-  occurred_at   device clock, when it happened
-  effective_at  occurred_at after clamping; see Ordering
+  occurred_at   device clock, raw, when it happened
+  clock_offset  the device's estimate of its own clock error at that moment
+  effective_at  occurred_at + clock_offset, then clamped; see Ordering
   received_at   server clock, when it arrived
   seq           server counter, assigned on insert; the sync cursor
   payload       json
@@ -70,8 +71,19 @@ America/Vancouver, converted at the edge (NFR-DATA-12).
 Status is derived by replay, so replay order is part of the data model, not a display choice. Two clients and the server
 must reach the same answer from the same events.
 
-`occurred_at` comes from a device clock and can be wrong by years. The server clamps it once, on arrival, and stores the
-result as `effective_at`:
+`occurred_at` comes from a device clock. Getting from that to a time worth storing takes two steps: correct it, then
+bound it.
+
+**Correct it.** Every sync measures the gap between the two clocks. The client sends its time, the server replies with
+its own, and the client halves the round trip to estimate the difference. It keeps that estimate and stamps it onto each
+event it records afterwards, as `clock_offset`. Sign-in needs a network, so every device has a measurement before its
+first offline evening.
+
+The offset is stored beside the raw reading, never folded into it. If we later learn an estimate was wrong, the events
+recorded under it can be recomputed. Destroying the original observation would be the one edit an append-only log cannot
+undo.
+
+**Bound it.** The server then clamps `occurred_at + clock_offset` on arrival and stores the result as `effective_at`:
 
 - never later than `received_at` — a device cannot know the future
 - never earlier than the `effective_at` of the previous event from the same `device_seq`
@@ -79,23 +91,40 @@ result as `effective_at`:
 The second rule is what stops a check-in replaying before its own check-out. Causality within a device is preserved by
 construction; the raw `occurred_at` is kept, but nothing orders on it.
 
+The two steps catch different things, and the clamp alone is not enough. Its window runs from the device's last event to
+the moment of arrival, which for a phone that syncs two days later is two days wide. A clock three hours fast passes
+through it untouched. Clamping only catches absurd values; the offset catches the likely ones.
+
+What neither catches is a clock that changes between recording and sync — a flat battery, or someone setting it by hand.
+The offset measured on Sunday was not the offset that applied on Friday, and a web app has no monotonic clock surviving
+a reload to notice the jump. The partial signal is worth taking: when a fresh measurement differs sharply from the
+stored one, the events recorded under the old estimate are suspect, and are flagged rather than trusted.
+
 **Replay order is `(effective_at, device_id, device_seq)`.** Every field is server-assigned or device-monotonic, so the
 order is total, stable, and identical everywhere. "Current" — an item's status, its holder, the text of a corrected note
 (FR-OUT-16) — means the last event in that order.
 
-Across devices, clamped time is still only a guess at what really happened first. Where the guess could be wrong in a
-way that matters — two check-outs of one item from different devices with no check-in between (FR-OFF-10) — replay picks
-an answer and flags the pair for the Quartermaster. It does not silently pick and move on.
+Across devices, corrected time is still only a guess at what really happened first, and better clocks do not change
+that. Two people scanning the same tent seconds apart cannot be separated by any clock we could build. Where the guess
+could be wrong in a way that matters — two check-outs of one item from different devices with no check-in between
+(FR-OFF-10) — replay picks an answer and flags the pair for the Quartermaster. It does not silently pick and move on.
+
+So the offset is not what makes ordering correct; `device_seq` and the clamp do that. It is what stops the history
+reading wrong. A movement logged at 14:20 that happened at 11:20 is the kind of error a Quartermaster notices, and it
+costs more trust than it looks like it should.
 
 ## Sync
 
 Three endpoints. No framework.
 
 ```
-GET  /sync/bootstrap                            -> { snapshot: {...}, cursor }
-POST /sync/push   { device_id, events: [...] }  -> { accepted: [ids], rejected: [{id, reason}] }
-GET  /sync/pull?since=<cursor>                  -> { events: [...], cursor }
+GET  /sync/bootstrap                            -> { snapshot: {...}, cursor, server_time }
+POST /sync/push   { device_id, client_time, events: [...] }
+                                                -> { accepted: [ids], rejected: [{id, reason}], server_time }
+GET  /sync/pull?since=<cursor>                  -> { events: [...], cursor, server_time }
 ```
+
+Every response carries `server_time`, so each sync re-measures the clock offset described in [Ordering](#ordering).
 
 **Bootstrap** is how a device gets a working copy. Replaying 90 days of log cannot produce one: a tent last touched two
 years ago would simply not exist on the new phone. So the server derives current state itself and ships it — items,
