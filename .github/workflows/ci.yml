@@ -9,6 +9,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Stated here rather than inherited, so a change to the repository default
+# cannot silently widen what a workflow can do.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
