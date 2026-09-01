@@ -22,19 +22,6 @@ Deferred until we have Avery 6576 stock. Not blocked on us, and not holding anyt
 - [ ] Confirm the sheet registers on real stock, and record the margins for FR-TAG-02
 - [ ] Test through a scuffed sticker and a wet one
 
-## M4 — Accounts
-
-- [ ] First Admin created from the command line at install; no open sign-up (FR-USR-13)
-- [ ] Sign in with email and password, hashed with argon2 (NFR-SEC-02)
-- [ ] Invites and password resets are one-time links; the server sends no email (FR-USR-12)
-- [ ] Sign-in exchanged once for a long-lived local token; sessions never expire (FR-USR-07, FR-USR-08)
-- [ ] Supply `authenticate` to `create_app`: credential in, `Principal` out, deactivated accounts marked inactive
-- [ ] Two roles, Admin and User (FR-USR-02)
-- [ ] Invite, deactivate, change role (FR-USR-04)
-- [ ] The last Admin cannot be demoted or deactivated (FR-USR-03)
-- [ ] User and role changes write audit events (FR-USR-05)
-- [ ] Deactivation does not remove anyone from the log (FR-USR-06)
-
 ## M5 — The client shell
 
 - [ ] TypeScript PWA that installs to a home screen (NFR-DEP-01, NFR-DEP-06)

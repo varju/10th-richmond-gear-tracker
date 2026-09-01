@@ -5,9 +5,15 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from argon2 import PasswordHasher
 
+from gear_tracker import accounts
 from gear_tracker.db import connect
 from gear_tracker.migrate import migrate
+
+# Real argon2, minimum work. Production parameters are tuned to be slow, and
+# the suite hashes a password in most account tests.
+accounts._hasher = PasswordHasher(time_cost=1, memory_cost=8, parallelism=1)
 
 
 def write(directory: Path, name: str, sql: str) -> Path:

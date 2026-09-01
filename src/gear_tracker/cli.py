@@ -1,0 +1,67 @@
+"""gear-admin: the things that have to happen at the server's keyboard.
+
+Creating the first Admin (FR-USR-13), and getting back in when every Admin
+has lost their password.
+"""
+
+from __future__ import annotations
+
+import argparse
+import getpass
+import sys
+
+from gear_tracker import accounts
+from gear_tracker.db import open_db
+from gear_tracker.errors import ApiError
+from gear_tracker.migrate import migrate
+
+
+def read_password(args: argparse.Namespace) -> str:
+    if args.password_stdin:
+        return sys.stdin.readline().rstrip("\n")
+    first = getpass.getpass("Password: ")
+    if first != getpass.getpass("Again: "):
+        raise SystemExit("Passwords do not match.")
+    return first
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="gear-admin", description="Gear Tracker server administration.")
+    parser.add_argument("--db", required=True, help="path to the SQLite file")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    create = sub.add_parser("create-admin", help="create the first Admin account")
+    create.add_argument("--name", required=True)
+    create.add_argument("--email", required=True)
+    create.add_argument("--password-stdin", action="store_true", help="read the password from stdin")
+
+    reset = sub.add_parser("reset-link", help="print a one-time password reset link token for a user")
+    reset.add_argument("--email", required=True)
+
+    args = parser.parse_args(argv)
+    migrate(args.db)
+    with open_db(args.db) as conn:
+        try:
+            if args.command == "create-admin":
+                password = read_password(args)
+                if len(password) < 8:
+                    print("error: password must be at least 8 characters", file=sys.stderr)
+                    return 1
+                user_id = accounts.create_admin(conn, args.name, args.email, password)
+                print(f"created Admin {args.email} ({user_id})")
+            else:
+                row = conn.execute("SELECT user_id FROM accounts WHERE email = ?", (args.email.lower(),)).fetchone()
+                if row is None:
+                    print(f"error: no account for {args.email}", file=sys.stderr)
+                    return 1
+                # The keyboard is the credential here, so no Admin principal is needed.
+                token = accounts._issue_link(conn, row["user_id"], "reset", accounts.now_ms())
+                print(token)
+        except ApiError as exc:
+            print(f"error: {exc.message}", file=sys.stderr)
+            return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

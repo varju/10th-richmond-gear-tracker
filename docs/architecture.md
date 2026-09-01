@@ -286,8 +286,31 @@ tunnel rather than a forwarded port, so no home network is exposed (NFR-DEP-05).
 Backups are a nightly copy of the SQLite file to somewhere off the machine (NFR-DATA-05, NFR-DATA-06). Restore is tested
 before go-live and written down (NFR-DATA-07).
 
-Sessions never expire (FR-USR-07). Sign-in is exchanged once for a long-lived local token; the app never needs to reach
-an identity provider from a locker (FR-USR-08).
+### Accounts
+
+A user is two things, kept apart.
+
+The person — name, role, active — is an entity on the event log like everything else. Inviting, deactivating,
+reactivating and changing a role are `created` and `field_changed` events with the Admin as actor, so the audit trail
+(FR-USR-05) is the log and nobody is ever removed from it (FR-USR-06). Every `field_changed` carries the old value
+beside the new one.
+
+The credential — email, argon2 password hash, sessions, one-time links — lives in server-only tables and never reaches a
+device. Twenty phones hold the inventory; they do not need to hold twenty email addresses.
+
+Sessions never expire (FR-USR-07). Sign-in is exchanged once for a long-lived token per device; the app never needs to
+reach an identity provider from a locker (FR-USR-08). The token is stored hashed. A deactivated account's sessions are
+kept, marked inactive, so the final push can land (FR-OFF-06); everything else they ask for is refused.
+
+Invite and reset links are one-time tokens the Admin passes on by hand (FR-USR-12). They die after seven days unused;
+sessions do not expire, links do. Redeeming a reset revokes the sessions the old password opened.
+
+The first Admin is made at the keyboard with `gear-admin create-admin` (FR-USR-13). `gear-admin reset-link` is the way
+back in when every Admin has lost their password; the keyboard is the credential.
+
+User changes come only through the accounts API, never as events pushed from a device. That is where the last-Admin rule
+(FR-USR-03) and the role check live, and it is why they hold. Events the server originates carry `device_id = "server"`
+and their own `device_seq`, under the same rules as any phone.
 
 ## Public pages
 

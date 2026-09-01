@@ -6,12 +6,16 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.14"
 dependencies = [
+    "argon2-cffi>=25.1.0",
     "fastapi>=0.141.1",
-    "pydantic>=2.13.5",
+    "pydantic[email]>=2.13.5",
+    "uvicorn>=0.52.4",
 ]
 
 [project.scripts]
 gear-migrate = "gear_tracker.migrate:main"
+gear-admin = "gear_tracker.cli:main"
+gear-serve = "gear_tracker.app:main"
 
 [dependency-groups]
 dev = [

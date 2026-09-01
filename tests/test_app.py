@@ -6,13 +6,15 @@ import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
 
+from gear_tracker import accounts
 from gear_tracker.app import create_app
+from gear_tracker.db import open_db
 from gear_tracker.sync import Principal
 from tests.factories import T0, incoming
 
 
-def authenticate(request: Request) -> Principal | None:
-    """Test-only: the caller says who they are in headers. M4 replaces this with credentials."""
+def authenticate(request: Request, _conn) -> Principal | None:
+    """Test-only: the caller says who they are in headers, so sync can be tested without passwords."""
     user = request.headers.get("X-Test-User")
     if user is None:
         return None
@@ -20,12 +22,21 @@ def authenticate(request: Request) -> Principal | None:
         user_id=user,
         device_id=request.headers.get("X-Test-Device", "phone"),
         active=request.headers.get("X-Test-Active", "yes") == "yes",
+        role=request.headers.get("X-Test-Role", "user"),
     )
 
 
 @pytest.fixture
 def client(db_path):
     return TestClient(create_app(db_path, authenticate))
+
+
+@pytest.fixture
+def real(db_path):
+    """The real authenticator, with the first Admin already created."""
+    with open_db(db_path) as conn:
+        accounts.create_admin(conn, "Alex", "alex@example.org", "correct horse")
+    return TestClient(create_app(db_path))
 
 
 def as_alice(**extra):
@@ -116,4 +127,94 @@ def test_each_request_gets_its_own_connection(client):
 
 def test_the_schema_is_published(client):
     paths = client.get("/openapi.json").json()["paths"]
-    assert set(paths) == {"/sync/bootstrap", "/sync/push", "/sync/pull"}
+    assert {"/sync/bootstrap", "/sync/push", "/sync/pull", "/auth/sign-in", "/users/invite"} <= set(paths)
+
+
+# --- accounts, over HTTP with real tokens ---------------------------------------------------
+
+
+def sign_in(client, email="alex@example.org", password="correct horse", device="phone-a"):
+    r = client.post("/auth/sign-in", json={"email": email, "password": password, "device_id": device})
+    assert r.status_code == 200, r.text
+    return {"Authorization": f"Bearer {r.json()['token']}"}
+
+
+def test_sign_in_then_sync_with_a_bearer_token(real):
+    auth = sign_in(real)
+    assert real.get("/sync/bootstrap", headers=auth).status_code == 200
+    assert real.get("/sync/bootstrap").status_code == 401
+    assert real.get("/sync/bootstrap", headers={"Authorization": "Bearer nope"}).status_code == 401
+    assert real.get("/sync/bootstrap", headers={"Authorization": "Basic abc"}).status_code == 401
+
+
+def test_wrong_password_is_401_with_no_hint(real):
+    r = real.post("/auth/sign-in", json={"email": "alex@example.org", "password": "nope", "device_id": "p"})
+    assert r.status_code == 401
+    assert r.json()["message"] == "wrong email or password"
+
+
+def test_sign_in_body_is_validated(real):
+    r = real.post("/auth/sign-in", json={"email": "not-an-email", "password": "x", "device_id": "p"})
+    assert r.status_code == 400
+    assert r.json()["message"].startswith("email:")
+
+
+def test_invite_redeem_and_manage(real):
+    admin = sign_in(real)
+
+    invited = real.post("/users/invite", json={"name": "Bea", "email": "bea@example.org"}, headers=admin)
+    assert invited.status_code == 200, invited.text
+    user_id, token = invited.json()["user_id"], invited.json()["token"]
+
+    joined = real.post("/auth/redeem", json={"token": token, "password": "battery staple", "device_id": "phone-b"})
+    assert joined.status_code == 200, joined.text
+    bea = {"Authorization": f"Bearer {joined.json()['token']}"}
+    assert joined.json()["user"]["role"] == "user"
+
+    # Bea can sync but not manage users.
+    assert real.get("/sync/pull?since=0", headers=bea).status_code == 200
+    assert real.get("/users", headers=bea).status_code == 403
+
+    promoted = real.post(f"/users/{user_id}/role", json={"role": "admin"}, headers=admin)
+    assert promoted.json()["user"]["role"] == "admin"
+    assert real.get("/users", headers=bea).status_code == 200
+
+    # Now Alex can step down, and the last-Admin rule protects Bea.
+    alex_id = real.get("/users", headers=admin).json()["users"][0]["id"]
+    assert real.post(f"/users/{alex_id}/role", json={"role": "user"}, headers=bea).status_code == 200
+    r = real.post(f"/users/{user_id}/deactivate", headers=bea)
+    assert r.status_code == 409
+    assert r.json()["message"] == "this is the last Admin"
+
+
+def test_deactivated_over_http(real):
+    admin = sign_in(real)
+    invited = real.post("/users/invite", json={"name": "Bea", "email": "bea@example.org"}, headers=admin).json()
+    bea_token = real.post(
+        "/auth/redeem", json={"token": invited["token"], "password": "battery staple", "device_id": "phone-b"}
+    ).json()["token"]
+    bea = {"Authorization": f"Bearer {bea_token}"}
+
+    assert real.post(f"/users/{invited['user_id']}/deactivate", headers=admin).status_code == 200
+
+    push = real.post("/sync/push", json={"device_id": "phone-b", "client_time": T0, "events": []}, headers=bea)
+    assert push.status_code == 200, "the final push is accepted (FR-OFF-06)"
+    assert real.get("/sync/pull?since=0", headers=bea).json()["error"] == "deactivated"
+    r = real.post("/auth/sign-in", json={"email": "bea@example.org", "password": "battery staple", "device_id": "p"})
+    assert r.status_code == 403
+
+
+def test_sign_out(real):
+    auth = sign_in(real)
+    assert real.post("/auth/sign-out", headers=auth).status_code == 200
+    assert real.get("/sync/bootstrap", headers=auth).status_code == 401
+
+
+def test_reset_link_over_http(real):
+    admin = sign_in(real)
+    alex_id = real.get("/users", headers=admin).json()["users"][0]["id"]
+    token = real.post(f"/users/{alex_id}/reset-link", headers=admin).json()["token"]
+    r = real.post("/auth/redeem", json={"token": token, "password": "a new password", "device_id": "phone-z"})
+    assert r.status_code == 200
+    assert real.get("/sync/bootstrap", headers=admin).status_code == 401, "old sessions are revoked by a reset"
+    sign_in(real, password="a new password")
