@@ -5,7 +5,9 @@ description = "Offline-first gear inventory for a Scout group"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "flask>=3.1.3",
+]
 
 [project.scripts]
 gear-migrate = "gear_tracker.migrate:main"

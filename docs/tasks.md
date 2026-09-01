@@ -22,30 +22,13 @@ Deferred until we have Avery 6576 stock. Not blocked on us, and not holding anyt
 - [ ] Confirm the sheet registers on real stock, and record the margins for FR-TAG-02
 - [ ] Test through a scuffed sticker and a wet one
 
-## M3 — Sync
-
-- [ ] `GET /sync/bootstrap`: current state plus the cursor it was true at (FR-OFF-14)
-- [ ] Every sync response carries `server_time`; the client stores the measured clock offset (NFR-DATA-13)
-- [ ] Events are stamped with the offset in force when they were recorded, beside the raw device time
-- [ ] A fresh offset far from the stored one flags events recorded under the old estimate
-- [ ] Test: a device 3 hours fast, syncing 2 days later, still records the right time
-- [ ] `POST /sync/push`, idempotent on event id, batched, returning accepted and rejected with reasons
-- [ ] `GET /sync/pull?since=<cursor>`, cursor over `seq`, exclusive, ordered by `seq`
-- [ ] A cursor the server cannot honour returns "re-bootstrap", not silence
-- [ ] Devices keep a snapshot plus the last 90 days; unsent events are never trimmed (NFR-DATA-03)
-- [ ] Test: two devices append offline to the same item, both land, neither is lost (FR-OFF-05)
-- [ ] Test: the same push replayed twice changes nothing
-- [ ] Test: a deactivated account's pending push is accepted, attributed, and is the last thing it can do (FR-OFF-06)
-- [ ] Test: an event committing out of timestamp order is still delivered by the `seq` cursor
-- [ ] Test: bootstrap includes an item last touched two years ago
-- [ ] Two check-outs of one item, different devices, no check-in between: queued, not guessed (FR-OFF-10)
-
 ## M4 — Accounts
 
 - [ ] First Admin created from the command line at install; no open sign-up (FR-USR-13)
 - [ ] Sign in with email and password, hashed with argon2 (NFR-SEC-02)
 - [ ] Invites and password resets are one-time links; the server sends no email (FR-USR-12)
 - [ ] Sign-in exchanged once for a long-lived local token; sessions never expire (FR-USR-07, FR-USR-08)
+- [ ] Supply `authenticate` to `create_app`: credential in, `Principal` out, deactivated accounts marked inactive
 - [ ] Two roles, Admin and User (FR-USR-02)
 - [ ] Invite, deactivate, change role (FR-USR-04)
 - [ ] The last Admin cannot be demoted or deactivated (FR-USR-03)
@@ -58,6 +41,8 @@ Deferred until we have Avery 6576 stock. Not blocked on us, and not holding anyt
 - [ ] Request persistent storage; tell the user if it is refused (NFR-DATA-11)
 - [ ] Prompt to install, and explain why: an uninstalled tab loses unsent work after 7 days on iOS
 - [ ] Bootstrap on first run, then pull; replay shared with the server via the M2 test vectors
+- [ ] Keep a snapshot plus the last 90 days; never trim an unsent event (NFR-DATA-03)
+- [ ] Store the clock offset from every sync response and stamp it on each event recorded after (NFR-DATA-13)
 - [ ] Service worker caches the app shell; cold start under 3 seconds offline (NFR-PERF-03)
 - [ ] IndexedDB persistence; full item set held in memory (NFR-PERF-07)
 - [ ] Sync on app open, on regaining connectivity, and after every movement (FR-OFF-03)
