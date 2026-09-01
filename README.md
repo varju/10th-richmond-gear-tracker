@@ -23,7 +23,7 @@ Early build. The requirements are settled and the scanner is proven; the applica
 
 ## Getting started
 
-Needs Python 3.11 or newer. One command sets up everything else, including `uv` if you do not have it:
+Needs Python 3.14 or newer. One command sets up everything else, including `uv` if you do not have it:
 
 ```sh
 ./bin/setup
