@@ -65,7 +65,7 @@ def test_a_rejection_leaves_the_database_untouched(db):
         ("id", "not-a-ulid", "ULID"),
         ("entity_type", "spaceship", "entity_type"),
         ("entity_id", "", "entity_id"),
-        ("type", "teleported", "event type"),
+        ("type", "teleported", "does not match any of the expected tags"),
         ("actor_id", "", "actor_id"),
         ("device_id", None, "device_id"),
         ("device_seq", 0, "device_seq"),
@@ -83,7 +83,11 @@ def test_rejects_malformed_events(db, field, value, reason):
 
 def test_movement_events_apply_only_to_items(db):
     with pytest.raises(Rejected, match="only to items"):
-        append(db, incoming(entity_type="user", entity_id="alice", type="checked_out", payload={}), received_at=T0)
+        append(
+            db,
+            incoming(entity_type="user", entity_id="alice", type="checked_out", payload={"holder_id": "bob"}),
+            received_at=T0,
+        )
 
 
 def test_every_entity_type_is_on_the_log(db):

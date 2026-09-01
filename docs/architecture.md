@@ -10,7 +10,7 @@ The server is small. The client is where the work is.
 | -------- | ---------------------- | ----------------------------------------------------------------------------------- |
 | Backend  | Python                 | The maintainer's strongest language. Nothing in the requirements argues against it. |
 | Database | SQLite                 | One file. Backups and moving house become a file copy (NFR-DATA-06, NFR-MAINT-05).  |
-| API      | HTTP + JSON, on Flask  | Three endpoints carry the sync. No schema layer worth its weight at this size.      |
+| API      | FastAPI + Pydantic     | Three endpoints carry the sync. Pydantic models are the only schema.                |
 | Client   | TypeScript PWA         | The only way to meet NFR-DEP-01 without an app store.                               |
 | Local    | IndexedDB              | Persistence only. Not a query engine; see [In memory](#in-memory).                  |
 | Scanning | WebAssembly QR decoder | iOS has no platform API; see [Scanning](#scanning).                                 |

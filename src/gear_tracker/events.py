@@ -13,17 +13,24 @@ import sqlite3
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any
+from typing import Annotated, Any, Literal, get_args
+
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    TypeAdapter,
+    ValidationError,
+    model_validator,
+)
 
 from gear_tracker.replay import DERIVED_FIELDS
 from gear_tracker.ulid import is_ulid
 
-ENTITY_TYPES = frozenset({"item", "user", "location", "code", "reservation", "repair", "setting"})
-
-# What the log understands today. Later milestones add to this; replay must
-# grow with it, and the two replays must agree (NFR-MAINT-04).
-EVENT_TYPES = frozenset({"created", "field_changed", "note_added", "note_corrected", "checked_out", "checked_in"})
-ITEM_ONLY = frozenset({"checked_out", "checked_in"})
+EntityType = Literal["item", "user", "location", "code", "reservation", "repair", "setting"]
+ENTITY_TYPES = frozenset(get_args(EntityType))
 
 
 class Rejected(ValueError):
@@ -32,6 +39,137 @@ class Rejected(ValueError):
     def __init__(self, reason: str):
         super().__init__(reason)
         self.reason = reason
+
+    @classmethod
+    def from_validation(cls, exc: ValidationError) -> Rejected:
+        """One reason, the first one. A device shows it to a person; a list would not help."""
+        first = exc.errors()[0]
+        msg = first["msg"].removeprefix("Value error, ")
+        parts = [str(part) for part in first["loc"]]
+        if parts and parts[0] in EVENT_TYPES:
+            parts = parts[1:]  # the union member's tag is not a field the device sent
+        loc = ".".join(parts)
+        return cls(f"{loc}: {msg}" if loc else msg)
+
+
+def _ulid(value: str) -> str:
+    if not is_ulid(value):
+        raise ValueError("not a ULID")
+    return value
+
+
+def _not_derived(value: str) -> str:
+    if value in DERIVED_FIELDS:
+        raise ValueError(f"{value} is derived from movements, not set directly")
+    return value
+
+
+Ulid = Annotated[str, AfterValidator(_ulid)]
+NonEmpty = Annotated[str, StringConstraints(min_length=1)]
+
+
+class Strict(BaseModel):
+    """No coercion: "1" is not 1 and True is not 1. What the device sent is what we judge."""
+
+    model_config = ConfigDict(strict=True, frozen=True)
+
+
+class Payload(Strict):
+    """Payloads keep keys we do not know about. A newer client must not lose data to an older server."""
+
+    model_config = ConfigDict(strict=True, frozen=True, extra="allow")
+
+
+class FieldChange(Payload):
+    field: Annotated[NonEmpty, AfterValidator(_not_derived)]
+    value: Any
+
+
+class NoteText(Payload):
+    text: str
+
+
+class NoteCorrection(Payload):
+    note_id: Ulid
+    text: str
+
+
+class CheckOut(Payload):
+    holder_id: NonEmpty
+
+
+class _Incoming(Strict):
+    """What every event carries. Each subclass pins `type` and the shape of `payload`."""
+
+    id: Ulid
+    entity_type: EntityType
+    entity_id: NonEmpty
+    type: str
+    actor_id: NonEmpty
+    device_id: NonEmpty
+    device_seq: Annotated[int, Field(ge=1)]
+    occurred_at: int
+    clock_offset: int
+    payload: Any
+
+    def payload_dict(self) -> dict[str, Any]:
+        return self.payload if isinstance(self.payload, dict) else self.payload.model_dump()
+
+
+class _ItemOnly(_Incoming):
+    @model_validator(mode="after")
+    def _items_only(self):
+        if self.entity_type != "item":
+            raise ValueError(f"{self.type} applies only to items")
+        return self
+
+
+class Created(_Incoming):
+    type: Literal["created"]
+    payload: dict[str, Any]
+
+
+class FieldChanged(_Incoming):
+    type: Literal["field_changed"]
+    payload: FieldChange
+
+
+class NoteAdded(_Incoming):
+    type: Literal["note_added"]
+    payload: NoteText
+
+
+class NoteCorrected(_Incoming):
+    type: Literal["note_corrected"]
+    payload: NoteCorrection
+
+
+class CheckedOut(_ItemOnly):
+    type: Literal["checked_out"]
+    payload: CheckOut
+
+
+class CheckedIn(_ItemOnly):
+    type: Literal["checked_in"]
+    payload: dict[str, Any]
+
+
+IncomingEvent = Annotated[
+    Created | FieldChanged | NoteAdded | NoteCorrected | CheckedOut | CheckedIn,
+    Field(discriminator="type"),
+]
+_incoming = TypeAdapter(IncomingEvent)
+# Keep in step with the union above. Later milestones add to both; replay must
+# grow with them, and the two replays must agree (NFR-MAINT-04).
+EVENT_TYPES = frozenset({"created", "field_changed", "note_added", "note_corrected", "checked_out", "checked_in"})
+
+
+def validate(incoming: Any) -> _Incoming:
+    """Refuse what the log cannot hold. Raises Rejected with a reason."""
+    try:
+        return _incoming.validate_python(incoming)
+    except ValidationError as exc:
+        raise Rejected.from_validation(exc) from None
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,64 +215,7 @@ def clamp(occurred_at: int, clock_offset: int, received_at: int, previous_effect
     return effective
 
 
-def _is_int(value: object) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool)
-
-
-def _non_empty_str(value: object) -> bool:
-    return isinstance(value, str) and value != ""
-
-
-def validate(incoming: dict[str, Any]) -> None:
-    """Refuse what the log cannot hold. Raises Rejected with a reason."""
-    if not is_ulid(incoming.get("id")):
-        raise Rejected("id is not a ULID")
-    if incoming.get("entity_type") not in ENTITY_TYPES:
-        raise Rejected("unknown entity_type")
-    if not _non_empty_str(incoming.get("entity_id")):
-        raise Rejected("entity_id is required")
-    if incoming.get("type") not in EVENT_TYPES:
-        raise Rejected("unknown event type")
-    if incoming["type"] in ITEM_ONLY and incoming["entity_type"] != "item":
-        raise Rejected(f"{incoming['type']} applies only to items")
-    if not _non_empty_str(incoming.get("actor_id")):
-        raise Rejected("actor_id is required")
-    if not _non_empty_str(incoming.get("device_id")):
-        raise Rejected("device_id is required")
-    if not _is_int(incoming.get("device_seq")) or incoming["device_seq"] < 1:
-        raise Rejected("device_seq must be a positive integer")
-    if not _is_int(incoming.get("occurred_at")):
-        raise Rejected("occurred_at must be an integer (ms since epoch)")
-    if not _is_int(incoming.get("clock_offset")):
-        raise Rejected("clock_offset must be an integer (ms)")
-    if not isinstance(incoming.get("payload"), dict):
-        raise Rejected("payload must be a JSON object")
-    _validate_payload(incoming["type"], incoming["payload"])
-
-
-def _validate_payload(event_type: str, p: dict[str, Any]) -> None:
-    match event_type:
-        case "field_changed":
-            if not _non_empty_str(p.get("field")):
-                raise Rejected("field_changed needs a field")
-            if p["field"] in DERIVED_FIELDS:
-                raise Rejected(f"{p['field']} is derived from movements, not set directly")
-            if "value" not in p:
-                raise Rejected("field_changed needs a value")
-        case "note_added":
-            if not isinstance(p.get("text"), str):
-                raise Rejected("note_added needs text")
-        case "note_corrected":
-            if not is_ulid(p.get("note_id")):
-                raise Rejected("note_corrected needs the note's event id")
-            if not isinstance(p.get("text"), str):
-                raise Rejected("note_corrected needs text")
-        case "checked_out":
-            if not _non_empty_str(p.get("holder_id")):
-                raise Rejected("checked_out needs a holder_id")
-
-
-def append(conn: sqlite3.Connection, incoming: dict[str, Any], received_at: int | None = None) -> Event:
+def append(conn: sqlite3.Connection, incoming: Any, received_at: int | None = None) -> Event:
     """Take one event from a device. Idempotent on id.
 
     One transaction: the clamp reads the device's last event, the insert
@@ -142,27 +223,27 @@ def append(conn: sqlite3.Connection, incoming: dict[str, Any], received_at: int 
     after a dropped connection finds the id already stored and returns that
     row unchanged.
     """
-    validate(incoming)
+    e = validate(incoming)
     if received_at is None:
         received_at = now_ms()
 
     conn.execute("BEGIN IMMEDIATE")
     try:
-        existing = get(conn, incoming["id"])
+        existing = get(conn, e.id)
         if existing is not None:
             conn.execute("COMMIT")
             return existing
 
         previous = conn.execute(
             "SELECT device_seq, effective_at FROM events WHERE device_id = ? ORDER BY device_seq DESC LIMIT 1",
-            (incoming["device_id"],),
+            (e.device_id,),
         ).fetchone()
-        if previous is not None and incoming["device_seq"] <= previous["device_seq"]:
-            raise Rejected(f"device_seq {incoming['device_seq']} is not above the last seen, {previous['device_seq']}")
+        if previous is not None and e.device_seq <= previous["device_seq"]:
+            raise Rejected(f"device_seq {e.device_seq} is not above the last seen, {previous['device_seq']}")
 
         effective_at = clamp(
-            incoming["occurred_at"],
-            incoming["clock_offset"],
+            e.occurred_at,
+            e.clock_offset,
             received_at,
             previous["effective_at"] if previous is not None else None,
         )
@@ -173,21 +254,21 @@ def append(conn: sqlite3.Connection, incoming: dict[str, Any], received_at: int 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                incoming["id"],
-                incoming["entity_type"],
-                incoming["entity_id"],
-                incoming["type"],
-                incoming["actor_id"],
-                incoming["device_id"],
-                incoming["device_seq"],
-                incoming["occurred_at"],
-                incoming["clock_offset"],
+                e.id,
+                e.entity_type,
+                e.entity_id,
+                e.type,
+                e.actor_id,
+                e.device_id,
+                e.device_seq,
+                e.occurred_at,
+                e.clock_offset,
                 effective_at,
                 received_at,
-                dump_payload(incoming["payload"]),
+                dump_payload(e.payload_dict()),
             ),
         )
-        stored = get(conn, incoming["id"])
+        stored = get(conn, e.id)
         assert stored is not None and stored.seq == cursor.lastrowid
 
         # Imported here, not at the top: derived reads the log, so the modules would be circular.

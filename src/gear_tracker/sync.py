@@ -10,8 +10,10 @@ import sqlite3
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from pydantic import ValidationError
+
 from gear_tracker import derived, events
-from gear_tracker.events import Rejected, now_ms
+from gear_tracker.events import NonEmpty, Rejected, Strict, now_ms
 from gear_tracker.flags import add_flag
 
 RETENTION_MS = 90 * 24 * 3_600_000
@@ -67,13 +69,16 @@ class Rebootstrap(SyncError):
     code = "re-bootstrap"
 
 
+class PushBody(Strict):
+    device_id: NonEmpty
+    client_time: int
+    events: list[Any]
+    """Each event is judged on its own, so a bad one is a rejection, not a 400."""
+
+
 def _require_active(principal: Principal) -> None:
     if not principal.active:
         raise Deactivated("this account has been deactivated")
-
-
-def _is_int(value: object) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool)
 
 
 def bootstrap(conn: sqlite3.Connection, principal: Principal, now: int | None = None) -> dict[str, Any]:
@@ -97,19 +102,17 @@ def push(conn: sqlite3.Connection, principal: Principal, body: Any, now: int | N
     does not take the device's word for either.
     """
     now = now_ms() if now is None else now
-    if not isinstance(body, dict):
-        raise BadRequest("body must be a JSON object")
-    if body.get("device_id") != principal.device_id:
+    try:
+        batch = PushBody.model_validate(body)
+    except ValidationError as exc:
+        raise BadRequest(Rejected.from_validation(exc).reason) from None
+    if batch.device_id != principal.device_id:
         raise Forbidden("device_id does not match the credential")
-    if not _is_int(body.get("client_time")):
-        raise BadRequest("client_time must be an integer (ms since epoch)")
-    if not isinstance(body.get("events"), list):
-        raise BadRequest("events must be a list")
 
-    measured_offset = now - body["client_time"]
+    measured_offset = now - batch.client_time
     accepted: list[str] = []
     rejected: list[dict[str, Any]] = []
-    for incoming in body["events"]:
+    for incoming in batch.events:
         if not isinstance(incoming, dict):
             rejected.append({"id": None, "reason": "event must be a JSON object"})
             continue
@@ -145,7 +148,7 @@ def pull(conn: sqlite3.Connection, principal: Principal, cursor: int, now: int |
     """Events after a cursor, in seq order. The device calls again until it gets none."""
     _require_active(principal)
     now = now_ms() if now is None else now
-    if not _is_int(cursor) or cursor < 0:
+    if cursor < 0:
         raise BadRequest("since must be a non-negative integer")
 
     conn.execute("BEGIN")

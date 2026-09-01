@@ -92,14 +92,23 @@ def test_derived_fields_cannot_be_set_directly(db):
 @pytest.mark.parametrize(
     ("event_type", "payload", "reason"),
     [
-        ("field_changed", {"value": 1}, "needs a field"),
-        ("field_changed", {"field": "name"}, "needs a value"),
-        ("note_added", {}, "needs text"),
-        ("note_corrected", {"text": "x"}, "note's event id"),
-        ("note_corrected", {"note_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV"}, "needs text"),
-        ("checked_out", {}, "needs a holder_id"),
+        ("field_changed", {"value": 1}, "payload.field: Field required"),
+        ("field_changed", {"field": "name"}, "payload.value: Field required"),
+        ("field_changed", {"field": "name", "value": 1, "extra": 2}, None),
+        ("note_added", {}, "payload.text: Field required"),
+        ("note_added", {"text": 7}, "payload.text: Input should be a valid string"),
+        ("note_corrected", {"text": "x"}, "payload.note_id: Field required"),
+        ("note_corrected", {"note_id": "nope", "text": "x"}, "payload.note_id: not a ULID"),
+        ("note_corrected", {"note_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV"}, "payload.text: Field required"),
+        ("checked_out", {}, "payload.holder_id: Field required"),
+        ("checked_out", {"holder_id": ""}, "payload.holder_id: String should have at least 1 character"),
     ],
 )
 def test_payload_shape_is_checked_at_the_door(db, event_type, payload, reason):
-    with pytest.raises(Rejected, match=reason):
+    if reason is None:
+        stored = append(db, incoming(type=event_type, payload=payload), received_at=T0)
+        assert stored.payload == payload, "unknown keys are kept, not dropped"
+        return
+    with pytest.raises(Rejected) as exc:
         append(db, incoming(type=event_type, payload=payload), received_at=T0)
+    assert exc.value.reason == reason

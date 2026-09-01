@@ -45,7 +45,9 @@ def test_push_accepts_and_rejects_per_event(db):
     result = push(db, ALICE, batch(ALICE, good, bad), now=T0)
 
     assert result["accepted"] == [good["id"]]
-    assert result["rejected"] == [{"id": bad["id"], "reason": "unknown entity_type"}]
+    [rejection] = result["rejected"]
+    assert rejection["id"] == bad["id"]
+    assert rejection["reason"].startswith("entity_type: Input should be 'item', 'user'")
     assert result["server_time"] == T0
 
 
