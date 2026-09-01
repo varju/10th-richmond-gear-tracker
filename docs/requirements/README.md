@@ -33,7 +33,7 @@ dies at the locker door will not get used.
 | Garry Point yard | Outdoors. Holds trailers.           |
 
 Each splits into numbered shelves or a specific trailer. Every item has a **home**: location plus sub-location, e.g.
-"Warm locker / shelf 4" (FR-SET-03a). Telling Scouters where gear goes back is where inventories usually break down.
+"Warm locker / shelf 4" (FR-SET-03). Telling Scouters where gear goes back is where inventories usually break down.
 
 Two of the three locations are too cold or too wet for a tablet left on site, so we use personal phones only.
 

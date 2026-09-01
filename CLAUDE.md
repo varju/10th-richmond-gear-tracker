@@ -28,18 +28,14 @@ the tent and the data goes wrong.
 
 ## Writing requirements
 
-- IDs are `FR-<area>-<nn>` and `NFR-<area>-<nn>`, and are stable. Never reuse a number. Mark dropped requirements
-  withdrawn.
+- Each section is sorted by descending priority: Must, Should, Could, Won't. IDs run linearly from 01 within a section.
+- IDs are stable from the September 2026 renumber onward. Never reuse a number. A dropped requirement stays in place,
+  moves to Won't, and says what replaced it.
+- A new requirement goes at the end of its priority band and takes the next free number. Do not renumber to keep the
+  sort perfect; resort only when asked.
 - Priorities are MoSCoW: Must, Should, Could, Won't.
 - One requirement per row. Testable. No compound "and also".
-
-## House style
-
-- As terse as possible while still making the point. Cut every sentence that adds nothing.
-- ISO 24495-1 plain language. Short sentences, active voice, common words.
-- This will be open sourced. Never name commercial competitors in the repo. Describe what we need, not what someone else
-  sells.
-- No contact details, youth names, or member data in the repo.
+- No trailing rationale. Explain why only when the reason constrains the build or stops a withdrawn idea coming back.
 
 ## Formatting
 
