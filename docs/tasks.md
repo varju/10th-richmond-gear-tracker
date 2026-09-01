@@ -133,7 +133,7 @@ First real use, not the finished release. Musts in repairs, reservations and fou
 going live early buys feedback while the inventory is fresh from the labelling walk. MoSCoW priorities say what the
 system needs before it is done, not what M9 needs.
 
-- [ ] Register the group's domain and point it at the server (NFR-DEP-09)
+- [ ] Point the group's domain at the server (NFR-DEP-09)
 - [ ] Deploy to the home server behind an outbound tunnel (NFR-DEP-05)
 - [ ] HTTPS (NFR-SEC-01)
 - [ ] Nightly backup of the SQLite file, off the machine, kept 30 days (NFR-DATA-05, NFR-DATA-06)

@@ -192,9 +192,9 @@ one by scanning it.
 A full URL, because a stranger's camera app has to do something useful with it (FR-PUB-01). That URL is printed 400
 times onto stickers that will outlive several server moves, so the hostname in it cannot be the server's.
 
-The group registers its own domain and points it wherever the server currently runs (NFR-DEP-09). That is the one
-running cost beyond electricity, and it buys the ability to move house without reprinting the inventory. The path is the
-random code; the same URL opens the public page when signed out and the item in the app when signed in.
+So the URL uses a domain the group already owns, pointed at wherever the server currently runs (NFR-DEP-09). The server
+can then move house without reprinting the inventory. The path is the random code; the same URL opens the public page
+when signed out and the item in the app when signed in.
 
 ### Code lifecycle
 
