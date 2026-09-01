@@ -1,0 +1,173 @@
+"""The three sync operations, with no HTTP in them. app.py puts HTTP in front.
+
+See docs/architecture.md, "Sync". Every result carries server_time so the
+device can re-measure its clock offset (NFR-DATA-13).
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from dataclasses import asdict, dataclass
+from typing import Any
+
+from gear_tracker import derived, events
+from gear_tracker.events import Rejected, now_ms
+from gear_tracker.flags import add_flag
+
+RETENTION_MS = 90 * 24 * 3_600_000
+"""How far back a device keeps history (NFR-DATA-03). A cursor older than this re-bootstraps instead."""
+
+DRIFT_THRESHOLD_MS = 60_000
+"""A stored clock offset this far from a fresh measurement means the device clock moved. Flag, do not trust."""
+
+PAGE_SIZE = 1000
+
+
+@dataclass(frozen=True)
+class Principal:
+    """Who is calling. M4 builds one from a credential; until then tests build them directly."""
+
+    user_id: str
+    device_id: str
+    active: bool = True
+
+
+class SyncError(Exception):
+    status = 500
+    code = "error"
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
+
+
+class BadRequest(SyncError):
+    status = 400
+    code = "bad_request"
+
+
+class Unauthorized(SyncError):
+    status = 401
+    code = "unauthorized"
+
+
+class Forbidden(SyncError):
+    status = 403
+    code = "forbidden"
+
+
+class Deactivated(Forbidden):
+    code = "deactivated"
+
+
+class Rebootstrap(SyncError):
+    """The cursor cannot be honoured. Not silence: the device must start again from a snapshot."""
+
+    status = 410
+    code = "re-bootstrap"
+
+
+def _require_active(principal: Principal) -> None:
+    if not principal.active:
+        raise Deactivated("this account has been deactivated")
+
+
+def _is_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def bootstrap(conn: sqlite3.Connection, principal: Principal, now: int | None = None) -> dict[str, Any]:
+    """Current state and the cursor it was true at, read in one transaction (FR-OFF-14)."""
+    _require_active(principal)
+    now = now_ms() if now is None else now
+    conn.execute("BEGIN")
+    try:
+        snapshot = derived.snapshot(conn)
+        cursor = derived.cursor(conn)
+    finally:
+        conn.execute("COMMIT")
+    return {"snapshot": snapshot, "cursor": cursor, "server_time": now}
+
+
+def push(conn: sqlite3.Connection, principal: Principal, body: Any, now: int | None = None) -> dict[str, Any]:
+    """Take a batch of events from one device. Idempotent on event id.
+
+    A deactivated account is still allowed here, and only here (FR-OFF-06).
+    Every event is attributed to the signed-in user and device; the server
+    does not take the device's word for either.
+    """
+    now = now_ms() if now is None else now
+    if not isinstance(body, dict):
+        raise BadRequest("body must be a JSON object")
+    if body.get("device_id") != principal.device_id:
+        raise Forbidden("device_id does not match the credential")
+    if not _is_int(body.get("client_time")):
+        raise BadRequest("client_time must be an integer (ms since epoch)")
+    if not isinstance(body.get("events"), list):
+        raise BadRequest("events must be a list")
+
+    measured_offset = now - body["client_time"]
+    accepted: list[str] = []
+    rejected: list[dict[str, Any]] = []
+    for incoming in body["events"]:
+        if not isinstance(incoming, dict):
+            rejected.append({"id": None, "reason": "event must be a JSON object"})
+            continue
+        try:
+            if incoming.get("actor_id") != principal.user_id:
+                raise Rejected("actor_id must be the signed-in user")
+            if incoming.get("device_id") != principal.device_id:
+                raise Rejected("device_id must be this device")
+            seen_before = events.get(conn, incoming["id"]) is not None if isinstance(incoming.get("id"), str) else False
+            stored = events.append(conn, incoming, received_at=now)
+            if not seen_before:
+                _check_drift(conn, stored, measured_offset, now)
+            accepted.append(stored.id)
+        except Rejected as exc:
+            rejected.append({"id": incoming.get("id"), "reason": exc.reason})
+    return {"accepted": accepted, "rejected": rejected, "server_time": now}
+
+
+def _check_drift(conn: sqlite3.Connection, event: events.Event, measured_offset: int, now: int) -> None:
+    """The offset the device recorded under should match what we measure now. If not, its clock moved."""
+    drift = measured_offset - event.clock_offset
+    if abs(drift) > DRIFT_THRESHOLD_MS:
+        add_flag(
+            conn,
+            event.id,
+            "clock_drift",
+            {"recorded_offset": event.clock_offset, "measured_offset": measured_offset, "drift": drift},
+            now,
+        )
+
+
+def pull(conn: sqlite3.Connection, principal: Principal, cursor: int, now: int | None = None) -> dict[str, Any]:
+    """Events after a cursor, in seq order. The device calls again until it gets none."""
+    _require_active(principal)
+    now = now_ms() if now is None else now
+    if not _is_int(cursor) or cursor < 0:
+        raise BadRequest("since must be a non-negative integer")
+
+    conn.execute("BEGIN")
+    try:
+        last = conn.execute("SELECT coalesce(max(seq), 0) FROM events").fetchone()[0]
+        if cursor > last:
+            raise Rebootstrap("cursor is ahead of the log; the database was probably restored from backup")
+        if last > 0:
+            if cursor == 0:
+                base = conn.execute("SELECT min(received_at) FROM events").fetchone()[0]
+            else:
+                base = conn.execute(
+                    "SELECT received_at FROM events WHERE seq <= ? ORDER BY seq DESC LIMIT 1", (cursor,)
+                ).fetchone()[0]
+            if base < now - RETENTION_MS:
+                raise Rebootstrap("cursor is older than the retention window")
+        page = events.since(conn, cursor, PAGE_SIZE)
+    finally:
+        conn.execute("COMMIT")
+
+    return {
+        "events": [asdict(e) for e in page],
+        "cursor": page[-1].seq if page else cursor,
+        "server_time": now,
+    }

@@ -10,7 +10,7 @@ The server is small. The client is where the work is.
 | -------- | ---------------------- | ----------------------------------------------------------------------------------- |
 | Backend  | Python                 | The maintainer's strongest language. Nothing in the requirements argues against it. |
 | Database | SQLite                 | One file. Backups and moving house become a file copy (NFR-DATA-06, NFR-MAINT-05).  |
-| API      | HTTP + JSON            | Three endpoints carry the sync. No schema layer worth its weight at this size.      |
+| API      | HTTP + JSON, on Flask  | Three endpoints carry the sync. No schema layer worth its weight at this size.      |
 | Client   | TypeScript PWA         | The only way to meet NFR-DEP-01 without an app store.                               |
 | Local    | IndexedDB              | Persistence only. Not a query engine; see [In memory](#in-memory).                  |
 | Scanning | WebAssembly QR decoder | iOS has no platform API; see [Scanning](#scanning).                                 |
@@ -99,7 +99,9 @@ through it untouched. Clamping only catches absurd values; the offset catches th
 What neither catches is a clock that changes between recording and sync — a flat battery, or someone setting it by hand.
 The offset measured on Sunday was not the offset that applied on Friday, and a web app has no monotonic clock surviving
 a reload to notice the jump. The partial signal is worth taking: when a fresh measurement differs sharply from the
-stored one, the events recorded under the old estimate are suspect, and are flagged rather than trusted.
+stored one, the events recorded under the old estimate are suspect, and are flagged rather than trusted. "Sharply" is
+more than a minute. The flag is a row in the `flags` table, a work queue for a person; the event itself is stored as it
+arrived.
 
 **Replay order is `(effective_at, device_id, device_seq)`.** Every field is server-assigned or device-monotonic, so the
 order is total, stable, and identical everywhere. "Current" — an item's status, its holder, the text of a corrected note
@@ -109,6 +111,8 @@ Across devices, corrected time is still only a guess at what really happened fir
 that. Two people scanning the same tent seconds apart cannot be separated by any clock we could build. Where the guess
 could be wrong in a way that matters — two check-outs of one item from different devices with no check-in between
 (FR-OFF-10) — replay picks an answer and flags the pair for the Quartermaster. It does not silently pick and move on.
+The pair lands in the item's derived state as a `conflicts` entry, so it is part of replay, covered by the shared
+vectors, and shipped to every device with the snapshot.
 
 So the offset is not what makes ordering correct; `device_seq` and the clamp do that. It is what stops the history
 reading wrong. A movement logged at 14:20 that happened at 11:20 is the kind of error a Quartermaster notices, and it
@@ -145,7 +149,10 @@ reason; the device keeps it and shows it rather than dropping it (NFR-DATA-01).
 time cursor skips work silently. `seq` cannot. Pull returns `seq > cursor`, ordered by `seq`.
 
 A cursor the server can no longer honour — older than retention, or from a database that was restored — gets an answer
-that says so, and the device bootstraps again.
+that says so (HTTP 410, `re-bootstrap`), and the device bootstraps again.
+
+Who is calling is settled before any of this runs. The app takes an `authenticate` callable and hands each route a
+`Principal`: user, device, and whether the account is still active. M4 supplies the real one.
 
 Sync runs on app open, on regaining connectivity, and after every movement (FR-OFF-03). It never blocks the screen
 (NFR-PERF-06).
