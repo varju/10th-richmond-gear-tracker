@@ -11,34 +11,16 @@ Milestones are ordered by risk, not by feature value. M0 comes first because a b
 
 ## M0 — Prove the scanner
 
-Nothing else matters if a phone cannot decode a QR code fast enough in a dark locker. Build the smallest thing that
-answers that.
+Passed indoors on two iPhones: worst single acquisition 1.58 s against a 2 s bar, no camera dropouts. Numbers are in
+[architecture.md](architecture.md#what-m0-measured). What is left needs a locker, or label stock.
 
-- [x] Throwaway page: open the camera, decode a QR code with a WebAssembly decoder, show the result
-- [x] Print a test sheet of codes on plain paper
-- [x] Measure decode time on two iPhones, indoors
-- [x] Measure ten consecutive scans without tearing down the camera between them
-- [x] Write the indoor result into architecture.md, including the numbers
 - [ ] Repeat in an unlit locker, and with gloves on
 - [ ] Add those numbers to architecture.md
 
-Deferred until we have Avery 6576 stock. Not blocked on us, and not a reason to hold M1:
+Deferred until we have Avery 6576 stock. Not blocked on us, and not holding anything up:
 
 - [ ] Confirm the sheet registers on real stock, and record the margins for FR-TAG-02
 - [ ] Test through a scuffed sticker and a wet one
-
-**Gate passed indoors.** Worst single acquisition 1.58 s against a 2 s bar, no camera dropouts on either phone. The gate
-still applies to the conditions below: a single scan over about two seconds, or a camera that cannot stay alive, puts
-NFR-USE-01 and NFR-USE-02 out of reach.
-
-## M1 — Foundations
-
-- [ ] Repository, licence, README, `.gitignore`
-- [ ] Python project with dependency management and a formatter
-- [ ] One command sets up a dev environment on a clean machine (NFR-MAINT-03)
-- [ ] CI runs tests on every pull request (NFR-MAINT-06)
-- [ ] SQLite schema and a migration tool (NFR-MAINT-07)
-- [ ] Vulnerability scan on dependencies in CI (NFR-SEC-09)
 
 ## M2 — The event log
 
