@@ -14,15 +14,19 @@ Milestones are ordered by risk, not by feature value. M0 comes first because a b
 Nothing else matters if a phone cannot decode a QR code fast enough in a dark locker. Build the smallest thing that
 answers that.
 
-- [ ] Throwaway page: open the camera, decode a QR code with a WebAssembly decoder, show the result
-- [ ] Print a test sheet of codes on Avery 6576 stock
-- [ ] Measure decode time on the oldest iPhone we can borrow, indoors and in a dark locker
-- [ ] Measure ten consecutive scans without tearing down the camera between them
+- [x] Throwaway page: open the camera, decode a QR code with a WebAssembly decoder, show the result
+- [x] Print a test sheet of codes on Avery 6576 stock
+- [x] Measure decode time on two iPhones, indoors
+- [x] Measure ten consecutive scans without tearing down the camera between them
+- [x] Write the indoor result into architecture.md, including the numbers
+- [ ] Confirm the sheet registers on real Avery 6576 stock, and record the margins for FR-TAG-02
+- [ ] Repeat in an unlit locker, and with gloves on
 - [ ] Test through a scuffed sticker and a wet one
-- [ ] Write the result into architecture.md, including the numbers
+- [ ] Add those numbers to architecture.md
 
-**Stop and reconsider if:** a single scan takes more than about two seconds, or the camera cannot stay alive between
-scans. NFR-USE-01 and NFR-USE-02 are unreachable without both.
+**Gate passed indoors.** Worst single acquisition 1.58 s against a 2 s bar, no camera dropouts on either phone. The gate
+still applies to the conditions below: a single scan over about two seconds, or a camera that cannot stay alive, puts
+NFR-USE-01 and NFR-USE-02 out of reach.
 
 ## M1 — Foundations
 

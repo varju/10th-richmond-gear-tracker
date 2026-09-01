@@ -204,12 +204,33 @@ would lose the evening's work, which is exactly the failure NFR-DATA-01 forbids.
 No browser on iOS implements the BarcodeDetector API, and the experimental flag from iOS 17 does not work on iOS 18. So
 the decoder is WebAssembly, running frames pulled off a `getUserMedia` video stream.
 
-**This is the highest-risk piece in the build.** NFR-USE-01 allows 5 seconds from scan to confirmed move, on a cold
-phone in gloves, and NFR-USE-02 wants ten of those back to back. If decode latency is poor on an older iPhone, the
-product premise is in trouble. Spike this before anything else.
+Keep the camera and the decode loop alive across scans rather than tearing them down per item, so the cost is paid once
+per session and not once per tent.
 
-Design around it: keep the camera and the decode loop alive across scans rather than tearing them down per item, so the
-cost is paid once per session and not once per tent.
+### What M0 measured
+
+This was the highest-risk piece in the build. It is no longer. Two iPhones, indoor light, codes on a printed Avery
+sheet, zxing-wasm decoding a 640px-wide frame in fast mode:
+
+|                                        | Newer phone, Safari     | Older phone, Chrome               |
+| -------------------------------------- | ----------------------- | --------------------------------- |
+| Time to acquire — median / p90 / worst | not captured            | 0.13 / 0.63 / 1.58 s over 41 aims |
+| Ten codes back to back                 | 4.0 s, worst gap 1.33 s | 2.5 s, worst gap 0.63 s           |
+| Decoder CPU per frame — median / max   | 3 / 6 ms                | 7 / 37 ms                         |
+| Decode attempts per second             | 30.0                    | 23.4                              |
+| Frames yielding a code                 | 96%                     | 87%                               |
+| Camera dropouts                        | 0                       | 0                                 |
+
+The gate was two seconds for a single scan, and a camera that survives a session. Worst single acquisition was 1.58 s,
+and neither device dropped the video track. NFR-USE-02's ten-in-a-row is met with room to spare.
+
+The headroom matters as much as the result. Decoding costs under a fifth of the frame budget even on the slower phone,
+so `tryHarder` and a 960px decode are both affordable when conditions get bad. Spend them there, not by default.
+
+**Still untested:** an unlit locker, gloved hands, and scuffed or wet stickers. Those were the reasons for the spike and
+they remain open. What M0 settles is narrower and worth stating exactly: decoding is not the bottleneck, and the
+WebAssembly route works on iOS. NFR-USE-01's 5 seconds covers the whole scan-to-confirmed-move loop, most of which is a
+person handling a tent, and no bench test reaches that.
 
 ## Codes and labels
 
@@ -235,6 +256,17 @@ Code identifiers must not be guessable (NFR-SEC-04), so they are random, not seq
 
 An item has one current code and any number of replaced ones. A sticker that turns up in a field two years later
 resolves correctly.
+
+**Keep the URL short.** Length costs physical module size, which is what survives a scuffed sticker in a dim locker. In
+a 0.95in printed box including the quiet zone, at error correction M:
+
+| Encoded                                                         | QR version | Module pitch |
+| --------------------------------------------------------------- | ---------- | ------------ |
+| `https://www.varju.ca/alex/gear-m0/i.html?c=XXXXXXXXXX` (52 ch) | 4, 33x33   | 0.59 mm      |
+| `varju.ca/g/XXXXXXXXXX` (22 ch)                                 | 2, 25x25   | 0.73 mm      |
+
+24% larger modules, for nothing but a shorter path. Decode margin is cheap at design time and impossible to retrofit
+once the stickers are on the gear, so the public route is a short path on a short domain (FR-TAG-13).
 
 ## Server
 
