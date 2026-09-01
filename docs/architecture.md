@@ -61,10 +61,11 @@ path to forget to call.
 original stands. The item page renders the current text.
 
 Derived state (current status, holder, home) is a cache. Rebuild it from the log at any time. Never let a write reach it
-except through an event.
+except through an event. Append-only is not a convention: triggers on the table refuse `UPDATE` and `DELETE`.
 
-Every timestamp is UTC. Anything a person reads or picks — a reservation's dates, the 30-day overdue window — is
-America/Vancouver, converted at the edge (NFR-DATA-12).
+Every timestamp is UTC, stored as integer milliseconds since the Unix epoch. Integers sort and subtract without a
+parser, and both replays read them the same way. Anything a person reads or picks — a reservation's dates, the 30-day
+overdue window — is America/Vancouver, converted at the edge (NFR-DATA-12).
 
 ### Ordering
 

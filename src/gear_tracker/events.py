@@ -15,6 +15,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
 
+from gear_tracker.replay import DERIVED_FIELDS
 from gear_tracker.ulid import is_ulid
 
 ENTITY_TYPES = frozenset({"item", "user", "location", "code", "reservation", "repair", "setting"})
@@ -108,14 +109,38 @@ def validate(incoming: dict[str, Any]) -> None:
         raise Rejected("clock_offset must be an integer (ms)")
     if not isinstance(incoming.get("payload"), dict):
         raise Rejected("payload must be a JSON object")
+    _validate_payload(incoming["type"], incoming["payload"])
+
+
+def _validate_payload(event_type: str, p: dict[str, Any]) -> None:
+    match event_type:
+        case "field_changed":
+            if not _non_empty_str(p.get("field")):
+                raise Rejected("field_changed needs a field")
+            if p["field"] in DERIVED_FIELDS:
+                raise Rejected(f"{p['field']} is derived from movements, not set directly")
+            if "value" not in p:
+                raise Rejected("field_changed needs a value")
+        case "note_added":
+            if not isinstance(p.get("text"), str):
+                raise Rejected("note_added needs text")
+        case "note_corrected":
+            if not is_ulid(p.get("note_id")):
+                raise Rejected("note_corrected needs the note's event id")
+            if not isinstance(p.get("text"), str):
+                raise Rejected("note_corrected needs text")
+        case "checked_out":
+            if not _non_empty_str(p.get("holder_id")):
+                raise Rejected("checked_out needs a holder_id")
 
 
 def append(conn: sqlite3.Connection, incoming: dict[str, Any], received_at: int | None = None) -> Event:
     """Take one event from a device. Idempotent on id.
 
-    One transaction: the clamp reads the device's last event and the insert
-    assigns seq. A retry after a dropped connection finds the id already
-    stored and returns that row unchanged.
+    One transaction: the clamp reads the device's last event, the insert
+    assigns seq, and the entity's derived state is brought up to date. A retry
+    after a dropped connection finds the id already stored and returns that
+    row unchanged.
     """
     validate(incoming)
     if received_at is None:
@@ -164,6 +189,11 @@ def append(conn: sqlite3.Connection, incoming: dict[str, Any], received_at: int 
         )
         stored = get(conn, incoming["id"])
         assert stored is not None and stored.seq == cursor.lastrowid
+
+        # Imported here, not at the top: derived reads the log, so the modules would be circular.
+        from gear_tracker import derived
+
+        derived.refresh_entity(conn, stored.entity_type, stored.entity_id, stored.seq)
         conn.execute("COMMIT")
         return stored
     except BaseException:

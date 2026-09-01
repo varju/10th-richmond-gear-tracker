@@ -26,8 +26,6 @@ Deferred until we have Avery 6576 stock. Not blocked on us, and not holding anyt
 
 The core of the system. Get this right before anything is built on it.
 
-- [ ] Derived state built by replaying the log
-- [ ] Rebuild-from-log routine, and a test that proves derived state matches a fresh replay
 - [ ] Shared JSON test vectors: events in, derived state out. The Python and TypeScript suites both run them
       (NFR-MAINT-04)
 
