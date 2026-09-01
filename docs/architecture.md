@@ -300,7 +300,7 @@ device. Twenty phones hold the inventory; they do not need to hold twenty email 
 
 Sessions never expire (FR-USR-07). Sign-in is exchanged once for a long-lived token per device; the app never needs to
 reach an identity provider from a locker (FR-USR-08). The token is stored hashed. A deactivated account's sessions are
-kept, marked inactive, so the final push can land (FR-OFF-06); everything else they ask for is refused.
+kept, marked inactive, so the final push can land (FR-OFF-06). That push ends the session; nothing else is accepted.
 
 Invite and reset links are one-time tokens the Admin passes on by hand (FR-USR-12). They die after seven days unused;
 sessions do not expire, links do. Redeeming a reset revokes the sessions the old password opened.

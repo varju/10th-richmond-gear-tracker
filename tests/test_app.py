@@ -197,9 +197,12 @@ def test_deactivated_over_http(real):
 
     assert real.post(f"/users/{invited['user_id']}/deactivate", headers=admin).status_code == 200
 
+    assert real.get("/sync/pull?since=0", headers=bea).json()["error"] == "deactivated"
+
     push = real.post("/sync/push", json={"device_id": "phone-b", "client_time": T0, "events": []}, headers=bea)
     assert push.status_code == 200, "the final push is accepted (FR-OFF-06)"
-    assert real.get("/sync/pull?since=0", headers=bea).json()["error"] == "deactivated"
+    again = real.post("/sync/push", json={"device_id": "phone-b", "client_time": T0, "events": []}, headers=bea)
+    assert again.status_code == 401, "and it was the last thing that session could do"
     r = real.post("/auth/sign-in", json={"email": "bea@example.org", "password": "battery staple", "device_id": "p"})
     assert r.status_code == 403
 

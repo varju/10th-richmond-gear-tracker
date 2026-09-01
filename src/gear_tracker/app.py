@@ -75,8 +75,12 @@ def create_app(db_path: str | Path, authenticate: Authenticator = by_token) -> F
         return sync.bootstrap(conn, who)
 
     @app.post("/sync/push")
-    def push(conn: Db, who: Who, body: Annotated[Any, Body()]) -> dict[str, Any]:
-        return sync.push(conn, who, body)
+    def push(request: Request, conn: Db, who: Who, body: Annotated[Any, Body()]) -> dict[str, Any]:
+        result = sync.push(conn, who, body)
+        if not who.active:
+            # That was the one push a deactivated account gets (FR-OFF-06). The session ends here.
+            accounts.sign_out(conn, bearer(request) or "")
+        return result
 
     @app.get("/sync/pull")
     def pull(conn: Db, who: Who, since: Annotated[int, Query(ge=0)]) -> dict[str, Any]:
