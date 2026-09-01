@@ -26,16 +26,6 @@ Deferred until we have Avery 6576 stock. Not blocked on us, and not holding anyt
 
 The core of the system. Get this right before anything is built on it.
 
-- [ ] Test fixture: a migrated SQLite file per test under `tmp_path`, real database, no mocks
-- [ ] `events` table: id, entity_type, entity_id, type, actor, device, device_seq, occurred_at, clock_offset,
-      effective_at, received_at, seq, payload
-- [ ] Every entity that changes offline is on this log: items, users, locations, codes, reservations, tickets, settings
-- [ ] Event ids are ULIDs, unique per event, so push is idempotent
-- [ ] `seq` assigned by the server inside the insert transaction; it is the sync cursor
-- [ ] Clamp `occurred_at + clock_offset` on arrival into `effective_at`: never after `received_at`, never before the
-      previous event from the same device
-- [ ] Replay order is `(effective_at, device_id, device_seq)`, total and stable
-- [ ] Append-only enforcement: no update or delete path exists
 - [ ] Derived state built by replaying the log
 - [ ] Rebuild-from-log routine, and a test that proves derived state matches a fresh replay
 - [ ] Shared JSON test vectors: events in, derived state out. The Python and TypeScript suites both run them
