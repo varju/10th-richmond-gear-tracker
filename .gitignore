@@ -14,4 +14,6 @@ __pycache__/
 
 # Local
 .env
+.envrc
+.direnv/
 .DS_Store
