@@ -11,11 +11,10 @@ dies at the locker door will not get used.
 
 ## Documents
 
-| Document                                                         | Purpose              |
-| ---------------------------------------------------------------- | -------------------- |
-| [functional-requirements.md](functional-requirements.md)         | What it must do      |
-| [non-functional-requirements.md](non-functional-requirements.md) | How well             |
-| [open-questions.md](open-questions.md)                           | Decisions still open |
+| Document                                                         | Purpose         |
+| ---------------------------------------------------------------- | --------------- |
+| [functional-requirements.md](functional-requirements.md)         | What it must do |
+| [non-functional-requirements.md](non-functional-requirements.md) | How well        |
 
 ## People
 
@@ -36,7 +35,7 @@ dies at the locker door will not get used.
 Each splits into numbered shelves or a specific trailer. Every item has a **home**: location plus sub-location, e.g.
 "Warm locker / shelf 4" (FR-SET-03a). Telling Scouters where gear goes back is where inventories usually break down.
 
-Two of the three locations are too cold or too wet for a tablet left on site. See [Q3](open-questions.md).
+Two of the three locations are too cold or too wet for a tablet left on site, so we use personal phones only.
 
 ## Scale
 

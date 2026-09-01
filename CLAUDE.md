@@ -9,9 +9,8 @@ Gear inventory for a Scout group. Tracks what we own, where it lives, who has it
 | File                                               | What it holds                     |
 | -------------------------------------------------- | --------------------------------- |
 | `docs/requirements/README.md`                      | Context, people, scale, locations |
-| `docs/requirements/functional-requirements.md`     | What the system must do (FR-*)    |
-| `docs/requirements/non-functional-requirements.md` | How well it must do it (NFR-*)    |
-| `docs/requirements/open-questions.md`              | Decisions still open              |
+| `docs/requirements/functional-requirements.md`     | What the system must do (FR-\*)   |
+| `docs/requirements/non-functional-requirements.md` | How well it must do it (NFR-\*)   |
 
 ## Constraints that shape every decision
 
@@ -41,6 +40,13 @@ the tent and the data goes wrong.
 - This will be open sourced. Never name commercial competitors in the repo. Describe what we need, not what someone else
   sells.
 - No contact details, youth names, or member data in the repo.
+
+## Formatting
+
+Pre-configured hooks format files automatically on write. Do not hand-align markdown tables, wrap lines to a column, or
+otherwise tidy whitespace — the hooks do it. Never reformat a file just to fix layout.
+
+This covers layout only. The House style rules above are about what you write, and still apply.
 
 ## Git
 
