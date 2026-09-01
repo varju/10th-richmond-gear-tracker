@@ -22,13 +22,6 @@ Deferred until we have Avery 6576 stock. Not blocked on us, and not holding anyt
 - [ ] Confirm the sheet registers on real stock, and record the margins for FR-TAG-02
 - [ ] Test through a scuffed sticker and a wet one
 
-## M2 — The event log
-
-The core of the system. Get this right before anything is built on it.
-
-- [ ] Shared JSON test vectors: events in, derived state out. The Python and TypeScript suites both run them
-      (NFR-MAINT-04)
-
 ## M3 — Sync
 
 - [ ] `GET /sync/bootstrap`: current state plus the cursor it was true at (FR-OFF-14)

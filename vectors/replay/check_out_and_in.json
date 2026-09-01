@@ -1,0 +1,55 @@
+{
+  "name": "check-out sets holder and since; check-in clears the holder",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": { "name": "Tent" }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": { "holder_id": "bob" }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "stove-1",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 2500,
+      "payload": { "holder_id": "bob" }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_in",
+      "actor_id": "carol",
+      "device_id": "b",
+      "device_seq": 1,
+      "effective_at": 3000,
+      "payload": {}
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-1": { "name": "Tent", "status": "in", "holder_id": null, "since": 3000 },
+      "stove-1": { "status": "out", "holder_id": "bob", "since": 2500 }
+    }
+  }
+}

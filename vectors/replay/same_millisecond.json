@@ -1,0 +1,43 @@
+{
+  "name": "ties on effective_at break on device_id, then device_seq",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "field_changed",
+      "actor_id": "alice",
+      "device_id": "b",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": { "field": "name", "value": "from b" }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "field_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 1000,
+      "payload": { "field": "name", "value": "from a, second" }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "field_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": { "field": "name", "value": "from a, first" }
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-1": { "name": "from b" }
+    }
+  }
+}

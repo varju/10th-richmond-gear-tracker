@@ -164,7 +164,8 @@ inherits this.
 
 The cost is that replay exists twice: once in Python on the server, once in TypeScript on the client. They must agree or
 the client shows something the server does not believe. Keep the ordering rules in one place — a set of JSON test
-vectors, each a list of events and the state they must produce — and run them from both test suites (NFR-MAINT-04).
+vectors under `vectors/replay/`, each a list of events and the state they must produce — and run them from both test
+suites (NFR-MAINT-04).
 
 ## Client
 

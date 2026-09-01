@@ -1,0 +1,59 @@
+{
+  "name": "notes append; a correction replaces the text of one note and nothing else",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "note_added",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": { "text": "pole bent" }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "note_added",
+      "actor_id": "bob",
+      "device_id": "b",
+      "device_seq": 1,
+      "effective_at": 2000,
+      "payload": { "text": "peg missing" }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "note_corrected",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 3000,
+      "payload": { "note_id": "01000000000000000000000001", "text": "pole snapped" }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "note_corrected",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 4000,
+      "payload": { "note_id": "01000000000000000000000099", "text": "no such note" }
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-1": {
+        "notes": [
+          { "id": "01000000000000000000000001", "text": "pole snapped", "actor_id": "alice", "at": 1000 },
+          { "id": "01000000000000000000000002", "text": "peg missing", "actor_id": "bob", "at": 2000 }
+        ]
+      }
+    }
+  }
+}

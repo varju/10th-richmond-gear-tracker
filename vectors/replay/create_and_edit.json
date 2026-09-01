@@ -1,0 +1,46 @@
+{
+  "name": "created merges its fields; field_changed overwrites one; items default to in",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": { "name": "Tent", "category": "shelter" }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "field_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": { "field": "name", "value": "Tent, 4 person" }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "user",
+      "entity_id": "alice",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "payload": { "name": "Alice" }
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-1": { "name": "Tent, 4 person", "category": "shelter", "status": "in", "holder_id": null }
+    },
+    "user": {
+      "alice": { "name": "Alice" }
+    }
+  }
+}

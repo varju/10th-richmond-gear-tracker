@@ -1,0 +1,17 @@
+{
+  "name": "an event type replay does not know is an error, not a skip",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "teleported",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {}
+    }
+  ],
+  "error": "unknown_event_type"
+}

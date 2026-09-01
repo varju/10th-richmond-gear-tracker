@@ -1,0 +1,43 @@
+{
+  "name": "a check-in that arrives late replays in its own time; a later check-out still stands",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": { "holder_id": "bob" }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 90000000,
+      "payload": { "holder_id": "carol" }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_in",
+      "actor_id": "bob",
+      "device_id": "slow-phone",
+      "device_seq": 1,
+      "effective_at": 86400000,
+      "payload": {}
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-1": { "status": "out", "holder_id": "carol", "since": 90000000 }
+    }
+  }
+}
