@@ -7,12 +7,15 @@
 -- seq is the sync cursor. AUTOINCREMENT makes it monotonic and never reused,
 -- even across a restore. SQLite has one writer at a time, so seq order is
 -- commit order, which is what makes it safe to page over.
+--
+-- The allowed entity and event types are not CHECK constraints. They grow
+-- with the product, and SQLite cannot alter a CHECK without rebuilding the
+-- table. gear_tracker.events validates them on the way in.
 
 CREATE TABLE events (
     seq          INTEGER PRIMARY KEY AUTOINCREMENT,
     id           TEXT    NOT NULL UNIQUE,
-    entity_type  TEXT    NOT NULL CHECK (entity_type IN
-                     ('item', 'user', 'location', 'code', 'reservation', 'repair', 'setting')),
+    entity_type  TEXT    NOT NULL,
     entity_id    TEXT    NOT NULL,
     type         TEXT    NOT NULL,
     actor_id     TEXT    NOT NULL,
