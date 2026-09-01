@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Sets up a working development environment on a clean machine (NFR-MAINT-03).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+if ! command -v uv >/dev/null 2>&1; then
+  echo "Installing uv..."
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+
+echo "Syncing dependencies..."
+uv sync
+
+echo "Installing git hooks..."
+uv run pre-commit install
+
+echo
+echo "Ready. Try: make test"
