@@ -152,18 +152,18 @@ Reachable by scanning a label, with no sign-in.
 
 ## 9. Reports and data (RPT)
 
-| ID        | Priority | Requirement                                                                                                    |
-| --------- | -------- | -------------------------------------------------------------------------------------------------------------- |
-| FR-RPT-01 | Must     | One report: what is out, and who has it. The group's biggest pain point today.                                 |
-| FR-RPT-02 | Could    | Export the full inventory to CSV. No lock-in, and our backup of record.                                        |
-| FR-RPT-03 | Could    | Export any filtered list to CSV.                                                                               |
-| FR-RPT-04 | Could    | Overdue report: gear out longer than the group-wide period (FR-OUT-10).                                        |
-| FR-RPT-05 | Should   | Repair report: open tickets, and repair history over a date range.                                             |
-| FR-RPT-06 | Could    | Valuation: total purchase value by category and location, for insurance.                                       |
-| FR-RPT-07 | Could    | Usage: which gear moves, and which has not left the locker in a year.                                          |
-| FR-RPT-08 | Could    | Printable pick list for a reservation, grouped by home so one walk collects everything. Also a paper fallback. |
-| FR-RPT-09 | Could    | Misplaced gear: items in, but not at their home. Falls out of a stock check.                                   |
-| FR-RPT-10 | Could    | Printable contents sheet per sub-location, listing what belongs there.                                         |
+| ID        | Priority | Requirement                                                                                                               |
+| --------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| FR-RPT-01 | Must     | One report: what is out, and who has it. The group's biggest pain point today.                                            |
+| FR-RPT-02 | Could    | Export the full inventory to CSV. Useful for spreadsheets and for leaving, but not the backup of record: NFR-DATA-03a is. |
+| FR-RPT-03 | Could    | Export any filtered list to CSV.                                                                                          |
+| FR-RPT-04 | Could    | Overdue report: gear out longer than the group-wide period (FR-OUT-10).                                                   |
+| FR-RPT-05 | Should   | Repair report: open tickets, and repair history over a date range.                                                        |
+| FR-RPT-06 | Could    | Valuation: total purchase value by category and location, for insurance.                                                  |
+| FR-RPT-07 | Could    | Usage: which gear moves, and which has not left the locker in a year.                                                     |
+| FR-RPT-08 | Could    | Printable pick list for a reservation, grouped by home so one walk collects everything. Also a paper fallback.            |
+| FR-RPT-09 | Could    | Misplaced gear: items in, but not at their home. Falls out of a stock check.                                              |
+| FR-RPT-10 | Could    | Printable contents sheet per sub-location, listing what belongs there.                                                    |
 
 ## 10. Offline and sync (OFF)
 
