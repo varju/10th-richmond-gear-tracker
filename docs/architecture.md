@@ -209,8 +209,8 @@ per session and not once per tent.
 
 ### What M0 measured
 
-This was the highest-risk piece in the build. It is no longer. Two iPhones, indoor light, codes on a printed Avery
-sheet, zxing-wasm decoding a 640px-wide frame in fast mode:
+This was the highest-risk piece in the build. It is no longer. Two iPhones, indoor light, codes printed on plain paper,
+zxing-wasm decoding a 640px-wide frame in fast mode:
 
 |                                        | Newer phone, Safari     | Older phone, Chrome               |
 | -------------------------------------- | ----------------------- | --------------------------------- |
@@ -228,7 +228,8 @@ The headroom matters as much as the result. Decoding costs under a fifth of the 
 so `tryHarder` and a 960px decode are both affordable when conditions get bad. Spend them there, not by default.
 
 **Still untested:** an unlit locker, gloved hands, and scuffed or wet stickers. Those were the reasons for the spike and
-they remain open. What M0 settles is narrower and worth stating exactly: decoding is not the bottleneck, and the
+they remain open. Anything involving real label stock is waiting on the stock itself; paper does not gloss, scuff or wet
+the way a sticker does. What M0 settles is narrower and worth stating exactly: decoding is not the bottleneck, and the
 WebAssembly route works on iOS. NFR-USE-01's 5 seconds covers the whole scan-to-confirmed-move loop, most of which is a
 person handling a tent, and no bench test reaches that.
 

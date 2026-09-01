@@ -15,14 +15,17 @@ Nothing else matters if a phone cannot decode a QR code fast enough in a dark lo
 answers that.
 
 - [x] Throwaway page: open the camera, decode a QR code with a WebAssembly decoder, show the result
-- [x] Print a test sheet of codes on Avery 6576 stock
+- [x] Print a test sheet of codes on plain paper
 - [x] Measure decode time on two iPhones, indoors
 - [x] Measure ten consecutive scans without tearing down the camera between them
 - [x] Write the indoor result into architecture.md, including the numbers
-- [ ] Confirm the sheet registers on real Avery 6576 stock, and record the margins for FR-TAG-02
 - [ ] Repeat in an unlit locker, and with gloves on
-- [ ] Test through a scuffed sticker and a wet one
 - [ ] Add those numbers to architecture.md
+
+Deferred until we have Avery 6576 stock. Not blocked on us, and not a reason to hold M1:
+
+- [ ] Confirm the sheet registers on real stock, and record the margins for FR-TAG-02
+- [ ] Test through a scuffed sticker and a wet one
 
 **Gate passed indoors.** Worst single acquisition 1.58 s against a 2 s bar, no camera dropouts on either phone. The gate
 still applies to the conditions below: a single scan over about two seconds, or a camera that cannot stay alive, puts
