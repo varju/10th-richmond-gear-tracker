@@ -26,6 +26,7 @@ Deferred until we have Avery 6576 stock. Not blocked on us, and not holding anyt
 
 The core of the system. Get this right before anything is built on it.
 
+- [ ] Test fixture: a migrated SQLite file per test under `tmp_path`, real database, no mocks
 - [ ] `events` table: id, entity_type, entity_id, type, actor, device, device_seq, occurred_at, clock_offset,
       effective_at, received_at, seq, payload
 - [ ] Every entity that changes offline is on this log: items, users, locations, codes, reservations, tickets, settings

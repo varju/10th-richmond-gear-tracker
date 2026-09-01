@@ -288,6 +288,42 @@ check-out (FR-PUB-06).
 
 Rate-limited, because it is the one door anyone can knock on.
 
+## Testing
+
+Real dependencies, no mocks. SQLite is fast enough that a fake would cost more than it saves: a full migration into a
+fresh temporary database takes 1.5 ms, and 10,000 event inserts in one transaction take 12 ms. Database code is tested
+against the database.
+
+Three layers, in ascending cost:
+
+**Pure functions, no database.** The clamp and the replay comparator described in [Ordering](#ordering) are pure. They
+carry the combinatorial load — hundreds of cases, microseconds each.
+
+**Real SQLite for anything that touches the log.** `seq` assignment inside the insert transaction, idempotent insert on
+event id, append-only enforcement, rebuild-from-log. Each test gets its own migrated file under pytest's `tmp_path`. If
+setup ever shows up in a profile, copy a pre-migrated template instead; that is 0.8 ms.
+
+Use a file, never `:memory:`. An in-memory database silently ignores `journal_mode = WAL`, so any test about locking,
+`busy_timeout` or concurrent readers would pass against settings we do not ship.
+
+**Shared JSON vectors.** Events in, derived state out, run from both the Python and TypeScript suites — see
+[Why not a sync framework](#why-not-a-sync-framework). They are data, not code, so they cost almost nothing in either
+place, and they are the only thing keeping the two replays honest (NFR-MAINT-04).
+
+### Browser tests
+
+These are the ones that cost seconds rather than milliseconds: a service worker, IndexedDB, and an offline toggle. Keep
+them few — one per risk, not one per feature. Scan-to-move, offline merge, and the unsent banner earn one each.
+
+The server side of sync does not need a browser. Test it through real HTTP, in process, against a real SQLite file. That
+covers most of what a browser would otherwise be asked to prove.
+
+Browser tests get their own `make` target, separate from `make check`. CI runs both.
+
+### What stays manual
+
+The real-phone-in-a-real-locker test (M7), and everything waiting on label stock. No suite reaches those.
+
 ## What we are not building
 
 - A sync framework. See above.

@@ -46,6 +46,12 @@ the tent and the data goes wrong.
 `docs/tasks.md` is a shrinking list, not a changelog. Delete a task when its work is committed. Git is the record of
 what was done.
 
+## Testing
+
+Real dependencies, no mocks. Database code runs against real SQLite — a migrated file per test, never `:memory:`,
+because in-memory databases ignore the WAL setting we ship. Pure logic is tested without a database. See
+[architecture.md](docs/architecture.md#testing) for the layers and what each costs.
+
 ## Formatting
 
 Pre-configured hooks format files automatically on write. Do not hand-align markdown tables, wrap lines to a column, or
