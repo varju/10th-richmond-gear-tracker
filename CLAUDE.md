@@ -38,6 +38,11 @@ the tent and the data goes wrong.
 - One requirement per row. Testable. No compound "and also".
 - No trailing rationale. Explain why only when the reason constrains the build or stops a withdrawn idea coming back.
 
+## Tasks
+
+`docs/tasks.md` is a shrinking list, not a changelog. Delete a task when its work is committed. Git is the record of
+what was done.
+
 ## Formatting
 
 Pre-configured hooks format files automatically on write. Do not hand-align markdown tables, wrap lines to a column, or
