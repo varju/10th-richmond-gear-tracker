@@ -37,26 +37,39 @@ scans. NFR-USE-01 and NFR-USE-02 are unreachable without both.
 
 The core of the system. Get this right before anything is built on it.
 
-- [ ] `events` table: id, item_id, type, actor, device, occurred_at, received_at, payload
-- [ ] Event ids are ULIDs generated on the device, so push is idempotent
+- [ ] `events` table: id, entity_type, entity_id, type, actor, device, device_seq, occurred_at, effective_at,
+      received_at, seq, payload
+- [ ] Every entity that changes offline is on this log: items, users, locations, codes, reservations, tickets, settings
+- [ ] Event ids are ULIDs, unique per event, so push is idempotent
+- [ ] `seq` assigned by the server inside the insert transaction; it is the sync cursor
+- [ ] Clamp `occurred_at` on arrival into `effective_at`: never after `received_at`, never before the previous event
+      from the same device
+- [ ] Replay order is `(effective_at, device_id, device_seq)`, total and stable
 - [ ] Append-only enforcement: no update or delete path exists
 - [ ] Derived state built by replaying the log
 - [ ] Rebuild-from-log routine, and a test that proves derived state matches a fresh replay
-- [ ] Tests for the movement event types (NFR-MAINT-04)
+- [ ] Shared JSON test vectors: events in, derived state out. The Python and TypeScript suites both run them
+      (NFR-MAINT-04)
 
 ## M3 — Sync
 
-- [ ] `POST /sync/push`, idempotent on event id, batched
-- [ ] `GET /sync/pull?since=<cursor>`, cursor over received_at
-- [ ] Devices receive only the last 90 days (NFR-DATA-03)
+- [ ] `GET /sync/bootstrap`: current state plus the cursor it was true at (FR-OFF-14)
+- [ ] `POST /sync/push`, idempotent on event id, batched, returning accepted and rejected with reasons
+- [ ] `GET /sync/pull?since=<cursor>`, cursor over `seq`, exclusive, ordered by `seq`
+- [ ] A cursor the server cannot honour returns "re-bootstrap", not silence
+- [ ] Devices keep a snapshot plus the last 90 days; unsent events are never trimmed (NFR-DATA-03)
 - [ ] Test: two devices append offline to the same item, both land, neither is lost (FR-OFF-05)
 - [ ] Test: the same push replayed twice changes nothing
-- [ ] Test: a deactivated account's pending push is accepted and attributed (FR-OFF-06)
-- [ ] Conflicts a machine cannot settle are queued rather than guessed (FR-OFF-10)
+- [ ] Test: a deactivated account's pending push is accepted, attributed, and is the last thing it can do (FR-OFF-06)
+- [ ] Test: an event committing out of timestamp order is still delivered by the `seq` cursor
+- [ ] Test: bootstrap includes an item last touched two years ago
+- [ ] Two check-outs of one item, different devices, no check-in between: queued, not guessed (FR-OFF-10)
 
 ## M4 — Accounts
 
+- [ ] First Admin created from the command line at install; no open sign-up (FR-USR-13)
 - [ ] Sign in with email and password, hashed with argon2 (NFR-SEC-02)
+- [ ] Invites and password resets are one-time links; the server sends no email (FR-USR-12)
 - [ ] Sign-in exchanged once for a long-lived local token; sessions never expire (FR-USR-07, FR-USR-08)
 - [ ] Two roles, Admin and User (FR-USR-02)
 - [ ] Invite, deactivate, change role (FR-USR-04)
@@ -67,15 +80,23 @@ The core of the system. Get this right before anything is built on it.
 ## M5 — The client shell
 
 - [ ] TypeScript PWA that installs to a home screen (NFR-DEP-01, NFR-DEP-06)
+- [ ] Request persistent storage; tell the user if it is refused (NFR-DATA-11)
+- [ ] Prompt to install, and explain why: an uninstalled tab loses unsent work after 7 days on iOS
+- [ ] Bootstrap on first run, then pull; replay shared with the server via the M2 test vectors
 - [ ] Service worker caches the app shell; cold start under 3 seconds offline (NFR-PERF-03)
 - [ ] IndexedDB persistence; full item set held in memory (NFR-PERF-07)
 - [ ] Sync on app open, on regaining connectivity, and after every movement (FR-OFF-03)
 - [ ] Persistent unsent-count banner on every screen (FR-OFF-04)
-- [ ] Escalate records pending more than a few days (FR-OFF-09)
+- [ ] Records pending more than 3 days interrupt on open (FR-OFF-09)
 - [ ] Dark, gloved, one-handed layout: 44 px targets, actions in the lower half (NFR-USE-03)
 
 ## M6 — Items and codes
 
+Scanning tasks here reuse the camera and decode loop proven in M0.
+
+- [ ] Storage locations: create, rename, reassign items between them (FR-SET-01, FR-SET-02)
+- [ ] Deleting a location still in use is blocked, and names what blocks it (FR-SET-05)
+- [ ] Free-form sub-location label on an item; no list, no hierarchy (FR-SET-03, FR-SET-04)
 - [ ] Item CRUD with retire and unretire (FR-INV-01, FR-INV-04, FR-INV-05)
 - [ ] Date added and date modified, set by the system (FR-INV-03)
 - [ ] Search as you type over 500 items, under 200 ms (FR-INV-07, NFR-PERF-01)
@@ -108,14 +129,20 @@ The vertical slice. After this the system is usable for its main purpose.
 
 ## M9 — Go live
 
-The system is usable at this point. Everything after M9 is improvement.
+First real use, not the finished release. Musts in repairs, reservations and found gear are still to come in M10-M12;
+going live early buys feedback while the inventory is fresh from the labelling walk. MoSCoW priorities say what the
+system needs before it is done, not what M9 needs.
 
+- [ ] Register the group's domain and point it at the server (NFR-DEP-09)
 - [ ] Deploy to the home server behind an outbound tunnel (NFR-DEP-05)
 - [ ] HTTPS (NFR-SEC-01)
 - [ ] Nightly backup of the SQLite file, off the machine, kept 30 days (NFR-DATA-05, NFR-DATA-06)
 - [ ] Restore tested and written down (NFR-DATA-07)
 - [ ] Document how to move the server to another house (NFR-MAINT-05)
+- [ ] Public item page: name, group name, contact route, nothing else (FR-PUB-01, NFR-SEC-03)
 - [ ] Print code sheets and do the labelling walk (S-BOOT-02, S-BOOT-03)
+
+Public pages come before the labelling walk, not after it. From the moment stickers go on gear, a stranger can scan one.
 
 ## M10 — Repairs
 
@@ -136,9 +163,8 @@ The system is usable at this point. Everything after M9 is improvement.
 - [ ] Conflicting reservations named (FR-RES-05)
 - [ ] Duplicate a reservation (FR-RES-10)
 
-## M12 — Public pages
+## M12 — Found gear
 
-- [ ] Public item page: item name, group name, contact route, nothing else (FR-PUB-01, NFR-SEC-03)
 - [ ] Found-gear form with note and optional contact (FR-PUB-02)
 - [ ] Reports reach the Quartermaster in the app (FR-PUB-03)
 - [ ] Rate limiting and spam resistance (FR-PUB-04)
@@ -147,9 +173,12 @@ The system is usable at this point. Everything after M9 is improvement.
 
 Pulled forward only when someone asks for them.
 
-- [ ] Photos on items and tickets, server-only (FR-INV-11)
+- [ ] Mark an item missing; clears on the next scan (FR-INV-19)
+- [ ] Revoke one device without deactivating its account (FR-USR-14)
+- [ ] Screen for reviewing queued conflicts (FR-OFF-10)
+- [ ] Photos: never cached, captured offline, uploaded at next sync (FR-INV-11)
 - [ ] Purchase date, price, supplier (FR-INV-12)
-- [ ] Merge duplicate items (FR-INV-13)
+- [ ] Merge duplicate items, once the append-only design for it is settled (FR-INV-13)
 - [ ] Browse by location and sub-location (FR-INV-10)
 - [ ] Repair report (FR-RPT-02)
 - [ ] Misplaced gear report (FR-RPT-09)

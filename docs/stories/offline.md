@@ -18,7 +18,7 @@ While records are unsent, the app says so on every screen, because there is no m
 - A persistent banner shows the unsent count
 - It stays until the records go
 
-Covers: FR-OFF-04, FR-OFF-13
+Covers: FR-OFF-04
 
 ## S-OFF-03 Getting home
 
@@ -34,11 +34,22 @@ Covers: FR-OFF-02, FR-OFF-03, NFR-PERF-06
 
 A Scouter never reopens the app. Nothing syncs, because nothing on iOS can sync a closed app.
 
-- The records are safe on the device
 - The count is waiting when they next open it
-- After a few days the device escalates the warning
+- After 3 days, opening the app interrupts rather than showing a banner
+- The records survive the wait: the app is installed to the home screen, so iOS does not clear its storage after 7 days
 
-Covers: FR-OFF-09, FR-OFF-08
+Covers: FR-OFF-04, FR-OFF-09, NFR-DEP-06, NFR-DATA-11
+
+## S-OFF-06 A new phone
+
+A Scouter replaces their phone and signs in on the new one. The whole inventory is there, including gear nobody has
+touched in two years.
+
+- Setup fetches current state, not two years of history
+- Items last moved outside the retention window are still present
+- Nothing on the old phone had to be exported
+
+Covers: FR-OFF-14, NFR-DATA-03
 
 ## S-OFF-05 Two phones, one tent
 

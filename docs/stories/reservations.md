@@ -18,7 +18,7 @@ On the Friday, a Scouter opens the reservation. It becomes a scanning session sh
 - The event name is taken from the reservation, not typed again
 - Each scan ticks an item off the list
 - The remaining list is always visible
-- Nothing is checked out unless it is scanned
+- Nothing is checked out unless it is scanned, or ticked off the list if it has no sticker
 
 Covers: FR-RES-02, FR-RES-03
 
@@ -55,4 +55,4 @@ Gear returns over the following week, in pieces, carried by whoever had room. Th
 - Returns use the ordinary check-in
 - The reservation is not involved
 
-Covers: FR-RES-14, FR-OUT-06
+Covers: FR-OUT-06, FR-OUT-08

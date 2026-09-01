@@ -49,3 +49,34 @@ The Quartermaster wants to know why a tent's home moved last month.
 - An item's history is readable from its page
 
 Covers: FR-USR-05, FR-USR-09
+
+## S-ADM-06 Retire a tent, then change your mind
+
+A tent is written off after a pole snaps beyond repair. Months later a replacement pole turns up and it goes back into
+service.
+
+- Retiring hides the item and blocks check-out; it does not delete it
+- Retired items can be listed on demand and brought back
+- An unretired item keeps its code and its whole history
+
+Covers: FR-INV-04, FR-INV-05
+
+## S-ADM-07 A lost phone
+
+A Scouter loses their phone. It holds a full copy of the inventory. The Admin revokes that device without closing the
+account, and the Scouter carries on from a new one.
+
+- One device can be revoked without deactivating the person
+- The account keeps working everywhere else
+- What was on the lost phone is protected by the device lock
+
+Covers: FR-USR-14, NFR-SEC-06
+
+## S-ADM-08 A forgotten password
+
+A Scouter cannot sign in. The Admin generates a reset link and sends it however they normally talk.
+
+- Reset is a one-time link, not an email from the server
+- No mail service has to be run or paid for
+
+Covers: FR-USR-12

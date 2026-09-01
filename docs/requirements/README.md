@@ -24,6 +24,9 @@ dies at the locker door will not get used.
 | Scouter       | 5-15  | Takes gear out, brings it back, reports damage.                             |
 | Public        | Any   | Scans found gear and reports it. No account.                                |
 
+Quartermaster and Scouter are what the group calls people. The system has two roles (FR-USR-02): a Quartermaster holds
+**Admin**, a Scouter holds **User**.
+
 ## Where gear lives
 
 | Location         | Notes                               |

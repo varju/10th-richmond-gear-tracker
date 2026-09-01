@@ -3,6 +3,17 @@
 Getting the inventory in for the first time. This happens once, over several evenings, and it is the largest single
 piece of work in the project.
 
+## S-BOOT-06 Stand the server up
+
+A volunteer installs Gear Tracker on the box in their basement. They create the first Admin from the command line, point
+the group's domain at it, and hand out an invite link.
+
+- The first Admin is made at the command line; there is no open sign-up
+- The domain is the group's, so the server can move later without reprinting stickers
+- Invites are links the Admin passes on; the server sends no email
+
+Covers: FR-USR-12, FR-USR-13, FR-TAG-13, NFR-DEP-09
+
 ## S-BOOT-01 Set up the group
 
 The Quartermaster creates the group, adds the three storage locations (Cold locker, Warm locker, Garry Point yard), and

@@ -7,7 +7,7 @@ Reporting broken gear and getting it fixed.
 Any Scouter raises a ticket against an item, with a description and, if they are in signal, a photo.
 
 - Any signed-in user can raise a ticket
-- A photo is optional and needs a connection
+- A photo is optional; taken offline, it uploads at the next sync
 
 Covers: FR-REP-01, FR-REP-02, FR-INV-11
 
@@ -28,7 +28,7 @@ The Quartermaster asks for detail in a comment, gets a reply, and updates the st
 - Cost, time and parts go in a comment; there are no structured fields
 - States run open, in progress, resolved, won't fix
 
-Covers: FR-REP-03, FR-REP-06, FR-REP-09
+Covers: FR-REP-03, FR-REP-06
 
 ## S-REP-04 Remember what happened
 

@@ -79,3 +79,24 @@ A Scouter checks out a compass and gives it to a Scout for the weekend. They add
 - No account is needed for the person holding it
 
 Covers: FR-OUT-13, FR-OUT-15, FR-OUT-16
+
+## S-MOVE-09 The sticker came off
+
+A tarp comes back with its label missing. A Scouter finds the item by search, sticks a fresh code on it, and binds it.
+
+- An unassigned code can be bound to an item that already exists
+- The item keeps its identity, its history, and its reservations
+- The old code still resolves to the same item if it turns up later
+
+Covers: FR-TAG-04, FR-TAG-05, FR-TAG-07
+
+## S-MOVE-10 It never came back
+
+A stove is recorded as out, but nobody knows who has it. The Quartermaster marks it missing rather than deleting it or
+leaving it on the out list forever.
+
+- Missing gear drops off the what-is-out report
+- It stays in the inventory and can still be found by search
+- Scanning it or checking it in clears the mark
+
+Covers: FR-INV-19, FR-RPT-01

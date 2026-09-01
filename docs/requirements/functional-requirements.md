@@ -11,8 +11,8 @@ Priorities are Must, Should, Could, Won't.
 | FR-SET-01 | Must     | Holds the inventory for one Scout group. The group name appears on labels and printed reports.                                                                                   |
 | FR-SET-02 | Must     | The Quartermaster can define **storage locations** and reassign items between them. Today these are Cold locker, Warm locker, and Garry Point yard.                              |
 | FR-SET-03 | Must     | An item's home has an optional free-form sub-location label, e.g. "shelf 4" or "trailer 2". No fixed list, no hierarchy, no referential integrity. It is a label, not an entity. |
-| FR-SET-04 | Must     | Changing a sub-location label across several items at once is a bulk edit (FR-INV-18), not a rename of anything.                                                                 |
-| FR-SET-05 | Must     | Deleting a category or location still in use is blocked. The message names the items blocking it.                                                                                |
+| FR-SET-04 | Must     | A sub-location label cannot be renamed in one place, because it is not stored in one place. Changing several items means editing those items.                                    |
+| FR-SET-05 | Must     | Deleting a location still in use is blocked. The message names the items blocking it. The same rule applies to categories if they are built (FR-SET-07).                         |
 | FR-SET-06 | Should   | Condition is an optional free-form text field on an item. No fixed values.                                                                                                       |
 | FR-SET-07 | Could    | The Quartermaster can define **categories** (tents, stoves, tarps, cooking gear) and reassign items between them.                                                                |
 | FR-SET-08 | Won't    | Withdrawn: import an initial inventory from CSV. Nothing to import; the first load is the labelling walk (FR-TAG-07).                                                            |
@@ -20,92 +20,94 @@ Priorities are Must, Should, Could, Won't.
 
 ## 2. Inventory (INV)
 
-| ID        | Priority | Requirement                                                                                                                                                                     |
-| --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FR-INV-01 | Must     | Create, view, edit, and retire a gear item. Fields: name, category, home location, home sub-location, condition, quantity, notes, tags.                                         |
-| FR-INV-02 | Must     | **Home** is where an item belongs when not out, e.g. "Warm locker / shelf 4". Distinct from where it is right now.                                                              |
-| FR-INV-03 | Must     | Every item records **date added** and **date modified**. Set by the system, not editable. Modified means a change to the item's own fields, not a check-out or a repair.        |
-| FR-INV-04 | Must     | Retire an item rather than delete it, so history survives. Retired items are hidden by default and cannot be checked out.                                                       |
-| FR-INV-05 | Must     | Show retired items on demand, and unretire one. An unretired item keeps its original code (FR-TAG-01).                                                                          |
-| FR-INV-06 | Must     | Every item is a **tracked asset**: one thing, one label, checked out individually.                                                                                              |
-| FR-INV-07 | Must     | Search by name. Results appear as the user types, on 500 items.                                                                                                                 |
-| FR-INV-08 | Must     | Filter the list by category, location, sub-location, condition, and status (in, out, reserved, in repair).                                                                      |
-| FR-INV-09 | Must     | The item page shows status and holder, home, access history, repair history, and upcoming reservations.                                                                         |
-| FR-INV-10 | Should   | Browse by location then sub-location, to answer "what belongs on shelf 4?".                                                                                                     |
-| FR-INV-11 | Should   | Attach photos to an item. Photos live on the server only, never in the offline copy. Viewing and adding both need a connection, so damage cannot be photographed at the locker. |
-| FR-INV-12 | Should   | Record purchase date, price, and supplier.                                                                                                                                      |
-| FR-INV-13 | Should   | Merge duplicate items. Both histories move to the survivor.                                                                                                                     |
-| FR-INV-14 | Could    | A second kind, **consumables**: a stock count, e.g. fuel canisters, drawn down rather than checked out.                                                                         |
-| FR-INV-15 | Could    | Consumable stock decrements on issue and can be adjusted manually with a reason.                                                                                                |
-| FR-INV-16 | Could    | Group items into **kits** ("Patrol box 3": stove, 2 pots, lighter) and check the kit out in one action.                                                                         |
-| FR-INV-17 | Could    | Low-stock alert on consumables when the count drops below a per-item threshold.                                                                                                 |
-| FR-INV-18 | Could    | Bulk edit: change category, home, or condition on several items at once.                                                                                                        |
+| ID        | Priority | Requirement                                                                                                                                                                                                                |
+| --------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-INV-01 | Must     | Create, view, edit, and retire a gear item. Required fields: name, home location, home sub-location, notes. Condition (FR-SET-06) and category (FR-SET-07) appear when those are built.                                    |
+| FR-INV-02 | Must     | **Home** is where an item belongs when not out, e.g. "Warm locker / shelf 4". Distinct from where it is right now.                                                                                                         |
+| FR-INV-03 | Must     | Every item records **date added** and **date modified**. Set by the system, not editable. Modified means a change to the item's own fields, not a check-out or a repair.                                                   |
+| FR-INV-04 | Must     | Retire an item rather than delete it, so history survives. Retired items are hidden by default and cannot be checked out.                                                                                                  |
+| FR-INV-05 | Must     | Show retired items on demand, and unretire one. An unretired item keeps its original code (FR-TAG-01).                                                                                                                     |
+| FR-INV-06 | Must     | Every item is a **tracked asset**: one thing, one label, checked out individually.                                                                                                                                         |
+| FR-INV-07 | Must     | Search by name. Results appear as the user types, on 500 items.                                                                                                                                                            |
+| FR-INV-08 | Must     | Filter the list by location, sub-location, and status (in, out, reserved, in repair, missing). Category and condition join the filters when they are built.                                                                |
+| FR-INV-09 | Must     | The item page shows status and holder, home, access history, repair history, and upcoming reservations.                                                                                                                    |
+| FR-INV-10 | Should   | Browse by location then sub-location, to answer "what belongs on shelf 4?".                                                                                                                                                |
+| FR-INV-11 | Should   | Attach photos to an item. Photos are never held in the offline copy. A photo taken with no signal is queued on the device and uploaded at the next sync; viewing one always needs a connection.                            |
+| FR-INV-12 | Should   | Record purchase date, price, and supplier.                                                                                                                                                                                 |
+| FR-INV-19 | Should   | Mark an item **missing**. It stays in the inventory, is excluded from what-is-out (FR-RPT-01), and clears on the next scan or check-in. Retire (FR-INV-04) is for gear written off; missing is for gear that is only lost. |
+| FR-INV-14 | Could    | A second kind, **consumables**: a stock count, e.g. fuel canisters, drawn down rather than checked out.                                                                                                                    |
+| FR-INV-15 | Could    | Consumable stock decrements on issue and can be adjusted manually with a reason.                                                                                                                                           |
+| FR-INV-16 | Could    | Group items into **kits** ("Patrol box 3": stove, 2 pots, lighter) and check the kit out in one action.                                                                                                                    |
+| FR-INV-17 | Could    | Low-stock alert on consumables when the count drops below a per-item threshold.                                                                                                                                            |
+| FR-INV-18 | Could    | Bulk edit: change category, home, or condition on several items at once.                                                                                                                                                   |
+| FR-INV-13 | Could    | Merge duplicate items. Both histories move to the survivor. A Could because an append-only per-item log (NFR-DATA-02) makes a merge a rewrite, and the design for that is not settled.                                     |
 
 ## 3. Labels and QR codes (TAG)
 
 Codes are code-first, not item-first. We print sheets of unassigned codes, stick them on gear, and bind each one to an
 item by scanning it. A code is never generated for a specific item.
 
-| ID        | Priority | Requirement                                                                                                                                   |
-| --------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| FR-TAG-01 | Must     | Every tracked asset has a unique ID in a QR code. The item's identity is permanent; its current code is not (FR-TAG-04).                      |
-| FR-TAG-02 | Must     | Generate a PDF sheet of new **unassigned** codes, laid out for Avery 6576 (1.75" x 1.25"). One hardcoded layout; not configurable.            |
-| FR-TAG-03 | Must     | Labels carry the QR code and the group name. Nothing else.                                                                                    |
-| FR-TAG-04 | Must     | Assign a new code to an item whose sticker was lost or damaged, by binding an unassigned code to it. The item keeps its identity and history. |
-| FR-TAG-05 | Must     | Replaced codes still resolve to their item, and are never reused. A sticker found later must not point at the wrong gear.                     |
-| FR-TAG-06 | Must     | Scanning an **assigned** code opens its item.                                                                                                 |
-| FR-TAG-07 | Must     | Scanning an **unassigned** code offers two choices: create a new item, or bind the code to an existing item.                                  |
-| FR-TAG-08 | Won't    | Withdrawn: print a label for one item. All codes come from pre-printed sheets (FR-TAG-02).                                                    |
-| FR-TAG-09 | Won't    | Withdrawn: merged into FR-TAG-03. Labels carry nothing but the QR code and the group name.                                                    |
-| FR-TAG-10 | Won't    | Reprint a label using the same ID. Cheaper to take a code off a pre-printed sheet and rebind it (FR-TAG-04).                                  |
-| FR-TAG-11 | Won't    | Withdrawn: merged into FR-TAG-02. Every printed code starts unassigned, so this is no longer a separate feature.                              |
-| FR-TAG-12 | Won't    | Withdrawn: merged into FR-TAG-07.                                                                                                             |
+| ID        | Priority | Requirement                                                                                                                                                            |
+| --------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-TAG-01 | Must     | Every tracked asset has a unique ID in a QR code. The item's identity is permanent; its current code is not (FR-TAG-04).                                               |
+| FR-TAG-02 | Must     | Generate a PDF sheet of new **unassigned** codes, laid out for Avery 6576 (1.75" x 1.25"). One hardcoded layout; not configurable.                                     |
+| FR-TAG-03 | Must     | Labels carry the QR code and the group name. Nothing else.                                                                                                             |
+| FR-TAG-04 | Must     | Assign a new code to an item whose sticker was lost or damaged, by binding an unassigned code to it. The item keeps its identity and history.                          |
+| FR-TAG-05 | Must     | Replaced codes still resolve to their item, and are never reused. A sticker found later must not point at the wrong gear.                                              |
+| FR-TAG-06 | Must     | Scanning an **assigned** code opens its item.                                                                                                                          |
+| FR-TAG-07 | Must     | Scanning an **unassigned** code offers two choices: create a new item, or bind the code to an existing item.                                                           |
+| FR-TAG-13 | Must     | A code's QR contains a full URL on a domain the group owns, not the server's address. Stickers are printed once and must survive the server moving house (NFR-DEP-09). |
+| FR-TAG-08 | Won't    | Withdrawn: print a label for one item. All codes come from pre-printed sheets (FR-TAG-02).                                                                             |
+| FR-TAG-09 | Won't    | Withdrawn: merged into FR-TAG-03. Labels carry nothing but the QR code and the group name.                                                                             |
+| FR-TAG-10 | Won't    | Reprint a label using the same ID. Cheaper to take a code off a pre-printed sheet and rebind it (FR-TAG-04).                                                           |
+| FR-TAG-11 | Won't    | Withdrawn: merged into FR-TAG-02. Every printed code starts unassigned, so this is no longer a separate feature.                                                       |
+| FR-TAG-12 | Won't    | Withdrawn: merged into FR-TAG-07.                                                                                                                                      |
 
 ## 4. Check-out and check-in (OUT)
 
 The core workflow. It happens in an unheated locker or an outdoor yard, on a phone, in gloves.
 
-| ID        | Priority | Requirement                                                                                                                                                                                         |
-| --------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FR-OUT-01 | Must     | Check out an item by scanning its label.                                                                                                                                                            |
-| FR-OUT-02 | Must     | Check out an item found by search or browse, no scan. Not all gear is labelled.                                                                                                                     |
-| FR-OUT-03 | Must     | One scan, one tap. The scan shows the item so the user can check it against what is in their hand, and a single button confirms the move. The scanner is then ready for the next item.              |
-| FR-OUT-04 | Must     | Check-out records who, when, and optionally which event.                                                                                                                                            |
-| FR-OUT-05 | Must     | Set the event once at the start of a scanning session. It applies to every item checked out until the user changes or clears it.                                                                    |
-| FR-OUT-06 | Must     | Scanning is contextual. A signed-in user who scans an item that is **out** checks it in, and gets the check-in workflow (FR-OUT-09, FR-OUT-10). Scanning an item that is **in** starts a check-out. |
-| FR-OUT-07 | Must     | Check an item in from search or browse, no scan. Mirrors FR-OUT-02 for unlabelled gear.                                                                                                             |
-| FR-OUT-08 | Must     | Anyone can check in gear someone else took out.                                                                                                                                                     |
-| FR-OUT-09 | Must     | Raise a repair ticket from the check-in screen ("zipper broken on tent bag"), without leaving the flow.                                                                                             |
-| FR-OUT-10 | Must     | Check-in shows the item's home prominently, so the Scouter knows where to put it.                                                                                                                   |
-| FR-OUT-11 | Must     | Edit the item from the check-in screen: condition, home, notes, any field.                                                                                                                          |
-| FR-OUT-12 | Must     | Checking out gear that is already out shows who has it and offers to transfer. Reached by search, or by overriding the contextual default (FR-OUT-06).                                              |
-| FR-OUT-13 | Should   | Within a session, add a per-item note without changing the event, e.g. "handed to Sam" (FR-OUT-15).                                                                                                 |
-| FR-OUT-14 | Should   | Flag gear that has been out longer than a group-wide period, e.g. 30 days. One setting, no per-item dates.                                                                                          |
-| FR-OUT-15 | Should   | Every movement event carries an optional free-form note, e.g. "taken by a parent for the weekend". Covers holders who are not system users.                                                         |
-| FR-OUT-16 | Should   | A note can be edited later. The edit appends a correction to the log; the original event is never rewritten (NFR-DATA-02). The item page shows the current text.                                    |
-| FR-OUT-17 | Won't    | Withdrawn: no batch check-in. FR-OUT-10 shows the home at the scan, while the Scouter is holding the item.                                                                                          |
-| FR-OUT-18 | Won't    | Withdrawn: merged into FR-OUT-11. Changing the home is just an edit.                                                                                                                                |
-| FR-OUT-19 | Won't    | Withdrawn: set an expected return date at check-out. Too much work for a Scouter in a locker, so it would not get filled in.                                                                        |
-| FR-OUT-20 | Won't    | Withdrawn: merged into FR-OUT-11. Changing the condition is just an edit.                                                                                                                           |
+| ID        | Priority | Requirement                                                                                                                                                                                                     |
+| --------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-OUT-01 | Must     | Check out an item by scanning its label.                                                                                                                                                                        |
+| FR-OUT-02 | Must     | Check out an item found by search or browse, no scan. Not all gear is labelled.                                                                                                                                 |
+| FR-OUT-03 | Must     | One scan, one tap. The scan shows the item so the user can check it against what is in their hand, and a single button confirms the move. The scanner is then ready for the next item.                          |
+| FR-OUT-04 | Must     | Check-out records who, when, and optionally which event.                                                                                                                                                        |
+| FR-OUT-05 | Must     | Set the event once at the start of a scanning session. It applies to every item scanned until the user changes it, clears it, or ends the session. The session is a setting on one device, not a shared record. |
+| FR-OUT-06 | Must     | Scanning is contextual. A signed-in user who scans an item that is **out** checks it in, and gets the check-in workflow (FR-OUT-09, FR-OUT-10). Scanning an item that is **in** starts a check-out.             |
+| FR-OUT-07 | Must     | Check an item in from search or browse, no scan. Mirrors FR-OUT-02 for unlabelled gear.                                                                                                                         |
+| FR-OUT-08 | Must     | Anyone can check in gear someone else took out.                                                                                                                                                                 |
+| FR-OUT-09 | Must     | Raise a repair ticket from the check-in screen ("zipper broken on tent bag"), without leaving the flow.                                                                                                         |
+| FR-OUT-10 | Must     | Check-in shows the item's home prominently, so the Scouter knows where to put it.                                                                                                                               |
+| FR-OUT-11 | Must     | Edit the item from the check-in screen: condition, home, notes, any field.                                                                                                                                      |
+| FR-OUT-12 | Must     | Checking out gear that is already out shows who has it and offers to transfer. Reached by search, or by overriding the contextual default (FR-OUT-06).                                                          |
+| FR-OUT-13 | Should   | Within a session, add a per-item note without changing the event, e.g. "handed to a patrol leader" (FR-OUT-15).                                                                                                 |
+| FR-OUT-14 | Should   | Flag gear that has been out longer than a group-wide period, e.g. 30 days. One setting, no per-item dates.                                                                                                      |
+| FR-OUT-15 | Should   | Every movement event carries an optional free-form note, e.g. "taken by a parent for the weekend". Covers holders who are not system users.                                                                     |
+| FR-OUT-16 | Should   | A note can be edited later. The edit appends a correction to the log; the original event is never rewritten (NFR-DATA-02). The item page shows the current text.                                                |
+| FR-OUT-17 | Won't    | Withdrawn: no batch check-in. FR-OUT-10 shows the home at the scan, while the Scouter is holding the item.                                                                                                      |
+| FR-OUT-18 | Won't    | Withdrawn: merged into FR-OUT-11. Changing the home is just an edit.                                                                                                                                            |
+| FR-OUT-19 | Won't    | Withdrawn: set an expected return date at check-out. Too much work for a Scouter in a locker, so it would not get filled in.                                                                                    |
+| FR-OUT-20 | Won't    | Withdrawn: merged into FR-OUT-11. Changing the condition is just an edit.                                                                                                                                       |
 
 ## 5. Reservations (RES)
 
-| ID        | Priority | Requirement                                                                                                                                                                                             |
-| --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FR-RES-01 | Must     | Create a reservation with an event name, a date range, and a list of items.                                                                                                                             |
-| FR-RES-02 | Must     | Checking out a reservation starts a scanning session seeded with its item list. Each scan ticks one off. The screen always shows what is still unscanned. Nothing is checked out without being scanned. |
-| FR-RES-03 | Must     | The session's event name comes from the reservation (FR-OUT-05). The user does not type it again.                                                                                                       |
-| FR-RES-04 | Must     | Finishing a session with items unscanned warns and names them. The user can finish anyway.                                                                                                              |
-| FR-RES-05 | Should   | Block a conflicting reservation. The message names the conflicting event.                                                                                                                               |
-| FR-RES-06 | Should   | The unscanned list is ordered by home.                                                                                                                                                                  |
-| FR-RES-07 | Should   | Scanning an item that is not on the reservation appends it to the check-out. No warning, no special handling.                                                                                           |
-| FR-RES-08 | Should   | Warn, but allow, when a reserved item has an open repair ticket.                                                                                                                                        |
-| FR-RES-09 | Should   | Warn when checking out an item someone else reserved for an overlapping date.                                                                                                                           |
-| FR-RES-10 | Should   | Duplicate a reservation, carrying the gear list over.                                                                                                                                                   |
-| FR-RES-11 | Could    | Reserve a quantity of a consumable, not just tracked assets.                                                                                                                                            |
-| FR-RES-12 | Could    | Calendar view of reservations alongside the list view.                                                                                                                                                  |
-| FR-RES-13 | Could    | Reserve a category ("4 tents"), resolved to specific items at check-out.                                                                                                                                |
-| FR-RES-14 | Won't    | Withdrawn: no return session. Returns use the standard check-in (FR-OUT-06). Anyone can return gear, piecemeal, with no reference to the reservation.                                                   |
+| ID        | Priority | Requirement                                                                                                                                                                                                                                                                        |
+| --------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-RES-01 | Must     | Create a reservation with an event name, a date range, and a list of items.                                                                                                                                                                                                        |
+| FR-RES-02 | Must     | Checking out a reservation starts a scanning session seeded with its item list. Each scan ticks one off, and the screen always shows what is still unscanned. Unlabelled items are ticked off from the list itself (FR-OUT-02); nothing else is checked out without being scanned. |
+| FR-RES-03 | Must     | The session's event name comes from the reservation (FR-OUT-05). The user does not type it again.                                                                                                                                                                                  |
+| FR-RES-04 | Must     | Finishing a session with items unscanned warns and names them. The user can finish anyway.                                                                                                                                                                                         |
+| FR-RES-05 | Should   | Block a conflicting reservation. The message names the conflicting event.                                                                                                                                                                                                          |
+| FR-RES-06 | Should   | The unscanned list is ordered by home.                                                                                                                                                                                                                                             |
+| FR-RES-07 | Should   | Scanning an item that is not on the reservation appends it to the check-out. No warning, no special handling.                                                                                                                                                                      |
+| FR-RES-08 | Should   | Warn, but allow, when a reserved item has an open repair ticket.                                                                                                                                                                                                                   |
+| FR-RES-09 | Should   | Warn when checking out an item someone else reserved for an overlapping date.                                                                                                                                                                                                      |
+| FR-RES-10 | Should   | Duplicate a reservation, carrying the gear list over.                                                                                                                                                                                                                              |
+| FR-RES-11 | Could    | Reserve a quantity of a consumable, not just tracked assets.                                                                                                                                                                                                                       |
+| FR-RES-12 | Could    | Calendar view of reservations alongside the list view.                                                                                                                                                                                                                             |
+| FR-RES-13 | Could    | Reserve a category ("4 tents"), resolved to specific items at check-out.                                                                                                                                                                                                           |
+| FR-RES-14 | Won't    | Withdrawn: no return session. Returns use the standard check-in (FR-OUT-06). Anyone can return gear, piecemeal, with no reference to the reservation.                                                                                                                              |
 
 ## 6. Repairs and maintenance (REP)
 
@@ -146,7 +148,10 @@ Reachable by scanning a label, with no sign-in.
 | FR-USR-06 | Must     | Deactivating a user does not remove them from the audit log.                                                                                                                                                                                    |
 | FR-USR-07 | Must     | Sessions never expire. A signed-in device stays signed in until the user signs out or an Admin deactivates the account.                                                                                                                         |
 | FR-USR-08 | Must     | Sign-in is exchanged once for a long-lived local session (FR-USR-07). The app never needs to reach an identity provider at the lockers.                                                                                                         |
+| FR-USR-12 | Must     | Invites and password resets are one-time links. An Admin generates a link and passes it on by whatever channel the group already uses. The server sends no email, so there is no mail service to run or pay for (NFR-DEP-04).                   |
+| FR-USR-13 | Must     | The first Admin account is created from the command line when the server is installed. There is no open sign-up.                                                                                                                                |
 | FR-USR-09 | Should   | The Quartermaster can read an item's audit history from its detail page.                                                                                                                                                                        |
+| FR-USR-14 | Should   | An Admin can revoke one device without deactivating its account, for a phone that was lost or sold.                                                                                                                                             |
 | FR-USR-10 | Could    | Sign in with Google, to avoid managing passwords (NFR-SEC-02).                                                                                                                                                                                  |
 | FR-USR-11 | Won't    | Withdrawn: shared-device mode. Personal phones only.                                                                                                                                                                                            |
 
@@ -169,22 +174,24 @@ Reachable by scanning a label, with no sign-in.
 
 Applies if we adopt the offline model. See [NFR-DEP](non-functional-requirements.md#1-deployment-model-dep).
 
-iOS Safari does not support the Background Sync API and is not expected to. A closed app on a locked iPhone will not
-sync. Everything below is written around that: sync happens while the app is open, and the pending state is made visible
-enough that nobody walks away unaware.
+Two iOS facts shape this whole section. Safari does not support the Background Sync API and is not expected to, so a
+closed app on a locked iPhone will not sync. Safari also clears a browser tab's storage after 7 days without a visit,
+which would take unsent work with it. So: sync happens while the app is open, the app is installed to the home screen to
+escape eviction (NFR-DEP-06), and pending work is visible enough that nobody walks away unaware.
 
-| ID        | Priority | Requirement                                                                                                                                           |
-| --------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FR-OFF-01 | Must     | Check-out, check-in, and search work with no network.                                                                                                 |
-| FR-OFF-02 | Must     | Offline work is stored on device and uploads whenever the app is open and a connection is available. There is no sync button to press.                |
-| FR-OFF-03 | Must     | Sync is attempted on every app open, on regaining connectivity, and after every movement. Opening the app is the reliable trigger on iOS.             |
-| FR-OFF-04 | Must     | Whenever anything is unsent, a persistent banner shows the count on every screen. It stays until the records are sent.                                |
-| FR-OFF-05 | Must     | Two devices acting offline on one item lose nothing. Movements are an ordered event log per item, not status overwrites.                              |
-| FR-OFF-06 | Must     | A deactivated account can still push its pending records one last time. Accept the work, attribute it to them in the audit log, then end the session. |
-| FR-OFF-07 | Must     | Revocation never discards data (NFR-DATA-01).                                                                                                         |
-| FR-OFF-08 | Should   | Use Background Sync where the platform supports it, e.g. Chrome on Android. Treat it as a bonus. Never design as though it will run.                  |
-| FR-OFF-09 | Should   | Records pending longer than a few days are escalated on the device.                                                                                   |
-| FR-OFF-10 | Should   | Conflicts a machine cannot resolve queue for the Quartermaster, showing both versions.                                                                |
-| FR-OFF-11 | Should   | Sync on a slow connection without re-downloading the whole inventory.                                                                                 |
-| FR-OFF-12 | Could    | The server pushes a reminder when a device has movements it has not seen, using web push. Needs the server to infer a device is behind.               |
-| FR-OFF-13 | Won't    | Withdrawn: warn at the end of a session. Ad-hoc scanning has no end; people just stop. FR-OFF-04 carries the warning continuously instead.            |
+| ID        | Priority | Requirement                                                                                                                                                                                                  |
+| --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| FR-OFF-01 | Must     | Check-out, check-in, and search work with no network.                                                                                                                                                        |
+| FR-OFF-02 | Must     | Offline work is stored on device and uploads whenever the app is open and a connection is available. There is no sync button to press.                                                                       |
+| FR-OFF-03 | Must     | Sync is attempted on every app open, on regaining connectivity, and after every movement. Opening the app is the reliable trigger on iOS.                                                                    |
+| FR-OFF-04 | Must     | Whenever anything is unsent, a persistent banner shows the count on every screen. It stays until the records are sent.                                                                                       |
+| FR-OFF-05 | Must     | Two devices acting offline on one item lose nothing. Movements are an ordered event log per item, not status overwrites.                                                                                     |
+| FR-OFF-06 | Must     | A deactivated account can still push its pending records one last time. Accept the work, attribute it to them in the audit log, then refuse everything else from that credential.                            |
+| FR-OFF-07 | Must     | Revocation never discards data (NFR-DATA-01).                                                                                                                                                                |
+| FR-OFF-14 | Must     | A new or reset device is set up from a current-state snapshot, not by replaying the whole log. Retention (NFR-DATA-03) trims history on the device, never the state derived from it.                         |
+| FR-OFF-08 | Should   | Use Background Sync where the platform supports it, e.g. Chrome on Android. Treat it as a bonus. Never design as though it will run.                                                                         |
+| FR-OFF-09 | Should   | Records pending more than 3 days interrupt on app open, rather than sitting in the banner (FR-OFF-04).                                                                                                       |
+| FR-OFF-10 | Should   | Conflicts a machine cannot resolve queue for the Quartermaster, showing both versions. The trigger is defined, not guessed: two check-outs of one item from different devices with no check-in between them. |
+| FR-OFF-11 | Should   | Sync on a slow connection without re-downloading the whole inventory.                                                                                                                                        |
+| FR-OFF-12 | Could    | The server pushes a reminder when a device has movements it has not seen, using web push. Needs the server to infer a device is behind.                                                                      |
+| FR-OFF-13 | Won't    | Withdrawn: warn at the end of a session. Ad-hoc scanning has no end; people just stop. FR-OFF-04 carries the warning continuously instead.                                                                   |

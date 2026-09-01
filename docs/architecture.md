@@ -10,7 +10,7 @@ The server is small. The client is where the work is.
 | -------- | ---------------------- | ----------------------------------------------------------------------------------- |
 | Backend  | Python                 | The maintainer's strongest language. Nothing in the requirements argues against it. |
 | Database | SQLite                 | One file. Backups and moving house become a file copy (NFR-DATA-06, NFR-MAINT-05).  |
-| API      | HTTP + JSON            | Two endpoints carry the sync. No schema layer worth its weight at this size.        |
+| API      | HTTP + JSON            | Three endpoints carry the sync. No schema layer worth its weight at this size.      |
 | Client   | TypeScript PWA         | The only way to meet NFR-DEP-01 without an app store.                               |
 | Local    | IndexedDB              | Persistence only. Not a query engine; see [In memory](#in-memory).                  |
 | Scanning | WebAssembly QR decoder | iOS has no platform API; see [Scanning](#scanning).                                 |
@@ -26,17 +26,26 @@ design hangs off, so it is worth being precise.
 
 We do not store `item.status = "out"`. We store the events that happened, and compute status by replaying them.
 
+The log is not only about items. Users, locations, codes, reservations, tickets and settings all change offline too, so
+they are all events on one log. One replay builds every table the client reads.
+
 ```
 events
-  id            ulid, sortable by time, generated on the device
-  item_id
+  id            ulid, generated on the device, unique
+  entity_type   item | user | location | code | reservation | repair | setting
+  entity_id
   type          checked_out | checked_in | note_added | note_corrected | field_changed | ...
   actor_id
   device_id
+  device_seq    per-device counter, never reused, gapless
   occurred_at   device clock, when it happened
+  effective_at  occurred_at after clamping; see Ordering
   received_at   server clock, when it arrived
+  seq           server counter, assigned on insert; the sync cursor
   payload       json
 ```
+
+Photos are the exception. They are files, not events, and they never reach a device's offline copy (FR-INV-11).
 
 Three things fall out of this for free:
 
@@ -53,42 +62,79 @@ original stands. The item page renders the current text.
 Derived state (current status, holder, home) is a cache. Rebuild it from the log at any time. Never let a write reach it
 except through an event.
 
-### The one hard part
+Every timestamp is UTC. Anything a person reads or picks — a reservation's dates, the 30-day overdue window — is
+America/Vancouver, converted at the edge (NFR-DATA-12).
 
-`occurred_at` comes from a device clock, which can be wrong. Order events by `(occurred_at, device_id)` for display, but
-never trust device time for anything that must be correct — use `received_at` for retention windows and `id` for
-idempotency.
+### Ordering
 
-Conflicts a machine cannot settle (two people check the same item out to different events while both offline) queue for
-the Quartermaster with both versions (FR-OFF-10). Do not try to resolve these automatically.
+Status is derived by replay, so replay order is part of the data model, not a display choice. Two clients and the server
+must reach the same answer from the same events.
+
+`occurred_at` comes from a device clock and can be wrong by years. The server clamps it once, on arrival, and stores the
+result as `effective_at`:
+
+- never later than `received_at` — a device cannot know the future
+- never earlier than the `effective_at` of the previous event from the same `device_seq`
+
+The second rule is what stops a check-in replaying before its own check-out. Causality within a device is preserved by
+construction; the raw `occurred_at` is kept, but nothing orders on it.
+
+**Replay order is `(effective_at, device_id, device_seq)`.** Every field is server-assigned or device-monotonic, so the
+order is total, stable, and identical everywhere. "Current" — an item's status, its holder, the text of a corrected note
+(FR-OUT-16) — means the last event in that order.
+
+Across devices, clamped time is still only a guess at what really happened first. Where the guess could be wrong in a
+way that matters — two check-outs of one item from different devices with no check-in between (FR-OFF-10) — replay picks
+an answer and flags the pair for the Quartermaster. It does not silently pick and move on.
 
 ## Sync
 
-Two endpoints. No framework.
+Three endpoints. No framework.
 
 ```
-POST /sync/push   { device_id, events: [...] }  -> { accepted: [ids] }
+GET  /sync/bootstrap                            -> { snapshot: {...}, cursor }
+POST /sync/push   { device_id, events: [...] }  -> { accepted: [ids], rejected: [{id, reason}] }
 GET  /sync/pull?since=<cursor>                  -> { events: [...], cursor }
 ```
 
-Push is idempotent on event `id`, so a retry after a dropped connection is safe. Events are batched into one request,
-never one call per event (NFR-PERF-05). A day's work is about 100 events and roughly 30 KB, so the 5-second target
-(NFR-PERF-04) is spent on round trips, not payload.
+**Bootstrap** is how a device gets a working copy. Replaying 90 days of log cannot produce one: a tent last touched two
+years ago would simply not exist on the new phone. So the server derives current state itself and ships it — items,
+users, locations, unassigned codes, open reservations, open tickets, settings — with the cursor it was true at. History
+older than the retention window is never on the device; the state it produced is (FR-OFF-14).
 
-Pull is a cursor over `received_at`. Devices take the last 90 days (NFR-DATA-03); the server keeps everything.
+The same asymmetry applies to trimming. A device drops history past 90 days, and derives nothing from what it dropped.
+It never drops an event it has not yet pushed (NFR-DATA-03).
+
+**Push** is idempotent on event `id`, so a retry after a dropped connection is safe. Events are batched into one
+request, never one call per event (NFR-PERF-05). A day's work is about 100 events and roughly 30 KB, so the 5-second
+target (NFR-PERF-04) is spent on round trips, not payload. Anything the server refuses comes back in `rejected` with a
+reason; the device keeps it and shows it rather than dropping it (NFR-DATA-01).
+
+**Pull** is a cursor over `seq`, a server counter assigned inside the insert transaction. It is not a cursor over
+`received_at`: two events can share a timestamp, and an event can commit after a later one has already been read, so a
+time cursor skips work silently. `seq` cannot. Pull returns `seq > cursor`, ordered by `seq`.
+
+A cursor the server can no longer honour — older than retention, or from a database that was restored — gets an answer
+that says so, and the device bootstraps again.
 
 Sync runs on app open, on regaining connectivity, and after every movement (FR-OFF-03). It never blocks the screen
 (NFR-PERF-06).
 
 **A deactivated account still gets one final push accepted** (FR-OFF-06). The records are gear movements and they are
-true regardless of who has since left the group. Accept them, attribute them, then end the session. Rejecting them would
-violate NFR-DATA-01.
+true regardless of who has since left the group. Accept them, attribute them, then refuse everything else that
+credential asks for. Rejecting the push instead would violate NFR-DATA-01.
+
+An Admin can also revoke one device without touching the account, for a phone that was lost (FR-USR-14).
 
 ### Why not a sync framework
 
 The append-only log makes sync small enough to own. A framework would be the largest and least familiar dependency in
 the project, which is the opposite of what NFR-MAINT-02 asks for. Roughly a few hundred lines, readable by whoever
 inherits this.
+
+The cost is that replay exists twice: once in Python on the server, once in TypeScript on the client. They must agree or
+the client shows something the server does not believe. Keep the ordering rules in one place — a set of JSON test
+vectors, each a list of events and the state they must produce — and run them from both test suites (NFR-MAINT-04).
 
 ## Client
 
@@ -111,8 +157,18 @@ Caches the app shell so it starts offline within 3 seconds (NFR-PERF-03). It doe
 not support it, so the app opening is the reliable trigger (FR-OFF-03). Use Background Sync on Android as a bonus, never
 as a design assumption (FR-OFF-08).
 
-Because nothing can sync a closed app on iOS, the unsent count is a persistent banner on every screen (FR-OFF-04).
-Visibility is the mitigation.
+Because nothing can sync a closed app on iOS, the unsent count is a persistent banner on every screen (FR-OFF-04), and
+work pending more than 3 days interrupts on open (FR-OFF-09). Visibility is the mitigation.
+
+### Keeping the data alive
+
+iOS deletes a website's storage after 7 days without a visit. A phone that scans gear on Friday and is not opened again
+would lose the evening's work, which is exactly the failure NFR-DATA-01 forbids. Two defences, both required:
+
+- **Install to the home screen** (NFR-DEP-06). Home-screen apps are exempt from the 7-day rule. This is why that
+  requirement is a Must and not a nicety.
+- **Ask for persistent storage** via `navigator.storage.persist()` (NFR-DATA-11). If it is refused, say so rather than
+  assuming the data is safe.
 
 ## Scanning
 
@@ -130,6 +186,17 @@ cost is paid once per session and not once per tent.
 
 Codes are code-first, not item-first (FR-TAG-02). We print sheets of unassigned codes, stick them on gear, and bind each
 one by scanning it.
+
+### What the QR contains
+
+A full URL, because a stranger's camera app has to do something useful with it (FR-PUB-01). That URL is printed 400
+times onto stickers that will outlive several server moves, so the hostname in it cannot be the server's.
+
+The group registers its own domain and points it wherever the server currently runs (NFR-DEP-09). That is the one
+running cost beyond electricity, and it buys the ability to move house without reprinting the inventory. The path is the
+random code; the same URL opens the public page when signed out and the item in the app when signed in.
+
+### Code lifecycle
 
 Code identifiers must not be guessable (NFR-SEC-04), so they are random, not sequential. A code has three states:
 
@@ -166,11 +233,12 @@ Rate-limited, because it is the one door anyone can knock on.
 - Postgres, for now. Revisit if concurrent writes become real.
 - Native apps. NFR-DEP-01 rules them out and nothing has argued back.
 - Background sync as a design assumption. iOS will not honour it.
+- Automatic conflict resolution. Where time cannot settle it, a person does.
 
 ## Build order
 
 1. **Spike the iOS scanner.** Everything else is reworkable; this is not.
 2. Event log and derived state, server-side, with tests (NFR-MAINT-04).
-3. Sync push and pull, including the offline merge case.
+3. Sync bootstrap, push and pull, including the offline merge case.
 4. The scan-to-move flow, end to end on a real phone.
 5. Labels, reservations, repairs, reports.
