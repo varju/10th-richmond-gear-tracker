@@ -69,6 +69,8 @@ arrives:
 location /gear/ {
   rewrite    ^/gear/(.*)$ /$1 break;
   proxy_pass http://gear:8000;
+  # Photos are uploaded whole. The app refuses anything over 5 MB; the proxy must not refuse first.
+  client_max_body_size 6m;
 }
 location = /gear {
   return 301 https://$host/gear/;
