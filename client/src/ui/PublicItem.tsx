@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
-import { type Api, Offline, type PublicCode } from "../lib/api";
+import { type FormEvent, useEffect, useState } from "react";
+import { type Api, ApiError, Offline, type PublicCode } from "../lib/api";
+import { Contact } from "./Contact";
 import { Page } from "./Page";
 
 /**
  * What a stranger sees when they scan a sticker: the item, whose it is, and how
- * to reach us (FR-PUB-01). The same URL a member scans, answered without an
- * account. It fetches one public route and shows what comes back, so there is
- * nothing here to leak (NFR-SEC-03).
+ * to reach us (FR-PUB-01), with a form to say where it is (FR-PUB-02). The same
+ * URL a member scans, answered without an account. It talks to two public
+ * routes and shows what comes back, so there is nothing here to leak (NFR-SEC-03).
  */
 export function PublicItem({ api, code, onSignIn }: { api: Api; code: string; onSignIn: () => void }) {
   const [found, setFound] = useState<PublicCode | null>(null);
@@ -58,7 +59,73 @@ export function PublicItem({ api, code, onSignIn }: { api: Api; code: string; on
           <Contact contact={found.group.contact} />
         </p>
       )}
+      <FoundForm api={api} code={code} />
     </Shell>
+  );
+}
+
+/** The one thing the public can do: a note, and a way to reach them if they want (S-PUB-02). */
+function FoundForm({ api, code }: { api: Api; code: string }) {
+  const [note, setNote] = useState("");
+  const [contact, setContact] = useState("");
+  const [website, setWebsite] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function send(e: FormEvent) {
+    e.preventDefault();
+    if (!note.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.reportFound(code, { note: note.trim(), contact: contact.trim(), website });
+      setSent(true);
+    } catch (err) {
+      if (err instanceof Offline) setError("No connection. Try again when you have one.");
+      else if (err instanceof ApiError) setError(err.message);
+      else setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (sent)
+    return (
+      <p className="confirmed" role="status">
+        Thanks. We will be in touch.
+      </p>
+    );
+
+  return (
+    <form className="found-form" onSubmit={send}>
+      <label>
+        <span>Where is it?</span>
+        <textarea required rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
+      </label>
+      <label>
+        <span>How can we reach you? (optional)</span>
+        <input value={contact} onChange={(e) => setContact(e.target.value)} autoComplete="off" />
+      </label>
+      {/* Off screen. A person never fills it; a bot does, and the server drops the report (FR-PUB-04). */}
+      <div className="hp" aria-hidden="true">
+        <input
+          name="website"
+          tabIndex={-1}
+          autoComplete="off"
+          value={website}
+          onChange={(e) => setWebsite(e.target.value)}
+        />
+      </div>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <button type="submit" className="primary" disabled={busy || !note.trim()}>
+        Send
+      </button>
+    </form>
   );
 }
 
@@ -71,14 +138,4 @@ function Shell({ title, actions, children }: { title: string; actions?: React.Re
       </Page>
     </div>
   );
-}
-
-/** A tappable contact when we can tell what it is, and the plain text when we cannot. */
-function Contact({ contact }: { contact: string }) {
-  const href = /^https?:\/\//i.test(contact)
-    ? contact
-    : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)
-      ? `mailto:${contact}`
-      : null;
-  return href ? <a href={href}>{contact}</a> : <>{contact}</>;
 }

@@ -179,3 +179,38 @@ test("a half-typed note asks on Back; Save records it", async () => {
   expect(store.pending.filter((e) => e.type === "note_added").map((e) => e.payload)).toEqual([{ text: "pole bent" }]);
   expect(location.pathname).toBe("/");
 });
+
+test("a found report shows on the item until someone resolves it (FR-PUB-03)", async () => {
+  const T0 = 1_756_684_800_000;
+  await store.receive(
+    [
+      {
+        id: "01000000000000000000000001",
+        entity_type: "found_report",
+        entity_id: "01000000000000000000000001",
+        type: "created",
+        actor_id: "public",
+        device_id: "server",
+        device_seq: 1,
+        occurred_at: T0,
+        clock_offset: 0,
+        effective_at: T0,
+        received_at: T0,
+        seq: 1,
+        payload: { code: "AAAAAAAAAA", item_id: tent, note: "by the gate", contact: "" },
+      },
+    ],
+    1,
+  );
+  renderInShell(<ItemPage store={store} id={tent} />);
+  const notice = screen.getByRole("note");
+  expect(notice).toHaveTextContent("Reported found · by the gate");
+
+  await user.click(within(notice).getByRole("button", { name: "Resolve" }));
+  expect(screen.queryByRole("note")).not.toBeInTheDocument();
+  expect(store.pending.at(-1)).toMatchObject({
+    entity_type: "found_report",
+    type: "field_changed",
+    payload: { field: "resolved", value: true },
+  });
+});

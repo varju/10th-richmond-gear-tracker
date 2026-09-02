@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { foundReports } from "../lib/found";
 import { type Filter, homeLabel, items, itemTypes, locations, search, subLocations } from "../lib/inventory";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -18,6 +19,7 @@ export function Inventory({ store }: Props) {
   const results = search(state, { ...filter, query });
   const empty = items(state).length === 0;
   const out = items(state).filter((it) => it.status === "out").length;
+  const found = foundReports(state).length;
 
   return (
     <>
@@ -35,6 +37,11 @@ export function Inventory({ store }: Props) {
         {out > 0 && (
           <button className="link" type="button" onClick={() => navigate("/out")}>
             What is out · {out}
+          </button>
+        )}
+        {found > 0 && (
+          <button className="link" type="button" onClick={() => navigate("/found")}>
+            Found gear · {found}
           </button>
         )}
         {empty ? (

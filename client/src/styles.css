@@ -701,3 +701,50 @@ h3.section {
   letter-spacing: 0.08em;
   color: var(--muted);
 }
+
+/* --- found gear ----------------------------------------------------------------------- */
+
+/* The honeypot: present in the form, never on screen (FR-PUB-04). */
+.hp {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.found-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* One report: the item, the finder's words, and a way back to them. */
+.found {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.found p {
+  margin: 8px 0;
+}
+
+.found .prose {
+  white-space: pre-wrap;
+}
+
+.found-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.found-notice span {
+  flex: 1;
+}
+
+.found-notice button {
+  width: auto;
+  margin: 0;
+  padding: 0 16px;
+}

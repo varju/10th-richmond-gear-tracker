@@ -117,5 +117,8 @@ export function createApi(options: ApiOptions = {}) {
       request<Session>("POST", "/auth/sign-in", { email, password, device_id }),
     signOut: () => request<Record<string, never>>("POST", "/auth/sign-out"),
     publicCode: (code: string) => request<PublicCode>("GET", `/public/codes/${code}`),
+    /** A finder's note (FR-PUB-02). `website` is a honeypot: people never see it, so it is sent empty. */
+    reportFound: (code: string, body: { note: string; contact: string; website: string }) =>
+      request<Record<string, never>>("POST", `/public/codes/${code}/found`, body),
   };
 }

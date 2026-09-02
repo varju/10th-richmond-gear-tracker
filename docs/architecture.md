@@ -391,6 +391,24 @@ exist, and a sticker that reads in capitals. Settled in September 2026: the stic
 that has to outlive 400 labels is a standing obligation on whoever inherits this, and 0.65 mm modules already cleared
 M0's bar. Recorded so the question is not reopened by the next person who reads a QR specification.
 
+## Found gear
+
+A stranger who scans a sticker gets the public page and one form: where is it, and, if they like, how to reach them
+(FR-PUB-02). The server takes that at `POST /public/codes/<code>/found` and writes a `found_report` event itself, under
+the actor `public`. It is on the same log as everything else, so it reaches every phone with the next pull and is read
+offline like the rest (FR-PUB-03). The report is the finder's words: a device may not create one, and the only change it
+may make is to set `resolved` when someone has dealt with it. The report stays in the log after that, like everything
+else.
+
+What is stored is the code, the item it was on at the time, the note, and the contact. The route reads nothing else
+about the item and returns nothing but the server time (NFR-SEC-03).
+
+Three rate limits stand in front of it (FR-PUB-04): five an hour per address, three a day per sticker, and thirty an
+hour in all. They live in memory in the one server process, which is all there is. The address is the first hop of
+`X-Forwarded-For`, because the app sits behind the group's proxy. The form also carries a field no person sees; a
+submission that fills it is thanked and thrown away. None of this stops a determined person, and it does not have to. It
+stops scripts, and it caps what one bored teenager can put on the log in an evening.
+
 ## Server
 
 A single self-hosted instance on a box at a volunteer's house (NFR-DEP-03, NFR-DEP-04). Reachable through an outbound

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { type ItemInput, retireItem, unretireItem, updateItem } from "../lib/actions";
+import { foundFor, resolveFound } from "../lib/found";
 import { codesFor, homeLabel, item, typeName } from "../lib/inventory";
 import { history, type HistoryEntry } from "../lib/movement";
 import type { Note, State } from "../lib/replay";
@@ -121,6 +122,14 @@ export function ItemPage({ store, id }: Props) {
           Two check-outs overlapped; the Quartermaster will sort it out.
         </p>
       )}
+      {foundFor(state, id).map((r) => (
+        <p key={r.id} className="notice found-notice" role="note">
+          <span>Reported found · {r.note}</span>
+          <button type="button" className="minor" onClick={() => resolveFound(store, r.id)}>
+            Resolve
+          </button>
+        </p>
+      ))}
       <dl className="facts">
         <dt>Status</dt>
         <dd>{statusLabel(state, it) + (isOverdue(state, it, now()) ? " · Overdue" : "")}</dd>
