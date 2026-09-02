@@ -372,6 +372,22 @@ The step at 43 is the one to stay under, and `https://www.10thrichmond.ca/gear/g
 is enough to clear it; dropping the scheme as well leaves real headroom, and is what the shorter example above does. Set
 the group's code URL accordingly before any sheet is printed.
 
+**Capitals would buy a step, and are not done yet.** All of the above is byte mode, at 8 bits a character. QR also has
+an alphanumeric mode at 5.5, whose charset is digits, uppercase A-Z and a few symbols — a whole URL, so long as nothing
+in it is lowercase. Crockford is uppercase already, so the codes encode that way today; the host and path do not.
+
+| Encoded                             | QR version | Module pitch |
+| ----------------------------------- | ---------- | ------------ |
+| `10thrichmond.ca/gear/g/XXXXXXXXXX` | 3, 29x29   | 0.65 mm      |
+| `10THRICHMOND.CA/GEAR/G/XXXXXXXXXX` | 2, 25x25   | 0.73 mm      |
+
+The same 33 characters, the same code, the same 50 bits, and 12% larger modules. In that mode 38 characters fit at
+25x25, so there are five to spare. A denser alphabet goes the other way: base62 saves a character and loses the mode,
+because mixed case forces byte mode back on, and stays at 29x29 with no gain.
+
+The costs are a redirect from the capitalised path to the canonical lowercase one, kept for as long as the stickers
+exist, and a sticker that reads in capitals. Deferred, not rejected: decide before the first sheet is printed.
+
 ## Server
 
 A single self-hosted instance on a box at a volunteer's house (NFR-DEP-03, NFR-DEP-04). Reachable through an outbound

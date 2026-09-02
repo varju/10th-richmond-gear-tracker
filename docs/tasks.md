@@ -49,6 +49,8 @@ system needs before it is done, not what M9 needs.
 - [ ] Restore tested and written down (NFR-DATA-07)
 - [ ] Document how to move the server to another house (NFR-MAINT-05)
 - [ ] Public item page: name, group name, contact route, nothing else (FR-PUB-01, NFR-SEC-03)
+- [ ] Settle the sticker URL: capitals buy 25x25 over 29x29 and cost a redirect
+      ([architecture.md](architecture.md#keep-the-url-short))
 - [ ] Print code sheets and do the labelling walk (S-BOOT-02, S-BOOT-03)
 
 Public pages come before the labelling walk, not after it. From the moment stickers go on gear, a stranger can scan one.
