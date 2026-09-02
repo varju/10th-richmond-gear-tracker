@@ -649,26 +649,26 @@ main:has(> .viewfinder) {
   border-bottom: 1px solid var(--rule);
 }
 
-.notes li {
+li.note {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 4px 12px;
   align-items: center;
 }
 
-.notes .note-text {
+li.note .note-text {
   grid-column: 1;
   white-space: pre-wrap;
 }
 
-.notes li > button {
+li.note > button {
   grid-row: 1 / span 2;
   grid-column: 2;
   width: auto;
   padding: 0 16px;
 }
 
-.notes .note-edit {
+li.note .note-edit {
   grid-column: 1 / -1;
 }
 

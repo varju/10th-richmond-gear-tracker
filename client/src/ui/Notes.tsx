@@ -18,7 +18,8 @@ export function NoteList({ store, on, notes }: { store: Store; on: EntityRef; no
   );
 }
 
-function NoteLine({ store, on, note }: { store: Store; on: EntityRef; note: Note }) {
+/** One note as a list row: the text, who and when, and an Edit. */
+export function NoteLine({ store, on, note }: { store: Store; on: EntityRef; note: Note }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const text = draft?.trim() ?? "";

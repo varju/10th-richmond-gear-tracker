@@ -41,8 +41,8 @@ A read-through of the built app. Everything here is small except the mail server
 
 Item page:
 
-- [ ] One timeline: notes and movements interleaved, not two lists
 - [ ] Retire moves to a checkbox at the foot of Edit; it is not a front-page action
+- [ ] Notes should be deletable
 
 New item:
 

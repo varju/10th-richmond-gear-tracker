@@ -12,11 +12,12 @@ import { changes } from "../lib/audit";
 import { hasOpenConflict } from "../lib/conflicts";
 import { foundFor, resolveFound } from "../lib/found";
 import { aliases, codesFor, homeLabel, item, search, typeName } from "../lib/inventory";
-import { history, type HistoryEntry } from "../lib/movement";
+import type { HistoryEntry } from "../lib/movement";
 import { openRepairs, raiseTicket, type Repair, repairsFor, stateLabel } from "../lib/repairs";
 import type { Note, State } from "../lib/replay";
 import { isOverdue } from "../lib/reports";
 import { navigate, useRoute } from "../lib/router";
+import { timeline } from "../lib/timeline";
 import type { Store } from "../lib/store";
 import { isoDate } from "../lib/time";
 import { guard, useUnsaved } from "../lib/unsaved";
@@ -25,7 +26,7 @@ import { useStore } from "../useStore";
 import { ItemFields } from "./ItemFields";
 import { boughtLabel, statusLabel, userName } from "./labels";
 import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
-import { AddNote, NoteList } from "./Notes";
+import { AddNote, NoteLine, NoteList } from "./Notes";
 import { Page } from "./Page";
 import { Photos } from "./Photos";
 
@@ -99,8 +100,6 @@ export function ItemPage({ store, id }: Props) {
 
   const codes = codesFor(state, id);
   const current = codes[0];
-  const notes = (it.notes ?? []) as Note[];
-  const itemNotes = notes.filter((n) => !n.movement_id);
   const onItem = { entity_type: "item", entity_id: id };
   const open = openRepairs(state, id);
   const mergedFrom = aliases(state, id).slice(1);
@@ -130,8 +129,8 @@ export function ItemPage({ store, id }: Props) {
             {survivor?.name ?? "(unknown item)"}
           </button>
         </p>
-        <h3 className="section">Notes</h3>
-        <NoteList store={store} on={onItem} notes={itemNotes} />
+        <h3 className="section">History</h3>
+        <History store={store} id={id} />
         <h3 className="section">Changes</h3>
         <Changes store={store} id={id} />
       </Page>
@@ -263,15 +262,12 @@ export function ItemPage({ store, id }: Props) {
       <h3 className="section">Photos</h3>
       <Photos store={store} on={onItem} />
 
-      <h3 className="section">Notes</h3>
-      <NoteList store={store} on={onItem} notes={itemNotes} />
-      <AddNote store={store} on={onItem} />
-
       <h3 className="section">Repairs</h3>
       <Repairs store={store} id={id} />
 
       <h3 className="section">History</h3>
       <History store={store} id={id} />
+      <AddNote store={store} on={onItem} />
 
       <h3 className="section">Changes</h3>
       <Changes store={store} id={id} />
@@ -359,20 +355,26 @@ function ReportFault({ store, id }: Props) {
   );
 }
 
+/** Movements and notes in one list, newest first. A note made on a movement sits under it. */
 function History({ store, id }: Props) {
-  const entries = history(store, id);
+  const entries = timeline(store, id);
+  const on = { entity_type: "item", entity_id: id };
   return (
     <>
       {entries.length === 0 ? (
-        <p className="muted">No movements.</p>
+        <p className="muted">Nothing yet.</p>
       ) : (
         <ol className="history">
-          {entries.map((e) => (
-            <li key={e.id}>
-              <span>{describeMovement(store.state, e)}</span>
-              <NoteList store={store} on={{ entity_type: "item", entity_id: id }} notes={e.notes} />
-            </li>
-          ))}
+          {entries.map((e) =>
+            e.kind === "movement" ? (
+              <li key={e.id}>
+                <span>{describeMovement(store.state, e.movement)}</span>
+                <NoteList store={store} on={on} notes={e.movement.notes} />
+              </li>
+            ) : (
+              <NoteLine key={e.id} store={store} on={on} note={e.note} />
+            ),
+          )}
         </ol>
       )}
       <p className="muted small">What this phone knows: the last 90 days.</p>

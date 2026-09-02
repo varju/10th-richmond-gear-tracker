@@ -85,17 +85,19 @@ test("a retired item has no movement buttons", async () => {
   expect(screen.getByText("Retired. Cannot be checked out.")).toBeInTheDocument();
 });
 
-test("history lists movements newest first, with their notes (FR-INV-09)", async () => {
+test("history lists movements and notes together, newest first (FR-INV-09)", async () => {
   await mv.checkOut(store, tent, { event: "Spring camp", note: "to a patrol" });
   await mv.checkIn(store, tent, { note: "muddy" });
   await store.setMeta({ user: carol });
   await mv.checkOut(store, tent);
   await store.setMeta({ user: alice });
   await mv.transfer(store, tent, { event: "Cub camp" });
+  await mv.addNote(store, tent, "pole repaired");
   renderInShell(<ItemPage store={store} id={tent} />);
 
   const rows = [...section("History").querySelectorAll(":scope > li")];
   expect(rows.map((r) => r.textContent)).toEqual([
+    "pole repairedAlice · 2025-09-01Edit",
     "Transferred to Alice for Cub camp · 2025-09-01",
     "Checked out by Carol · 2025-09-01",
     "Checked in by Alice · 2025-09-01muddyAlice · 2025-09-01Edit",
@@ -108,10 +110,10 @@ test("history lists movements newest first, with their notes (FR-INV-09)", async
 test("a note is corrected in place and the correction is appended (FR-OUT-16)", async () => {
   const note = await mv.addNote(store, tent, "handed to a Scout");
   renderInShell(<ItemPage store={store} id={tent} />);
-  const notes = section("Notes") as HTMLElement;
-  expect(notes).toHaveTextContent("handed to a Scout");
+  const timeline = section("History") as HTMLElement;
+  expect(timeline).toHaveTextContent("handed to a Scout");
 
-  await user.click(within(notes).getByRole("button", { name: "Edit" }));
+  await user.click(within(timeline).getByRole("button", { name: "Edit" }));
   await user.clear(screen.getByLabelText("Note text"));
   await user.type(screen.getByLabelText("Note text"), "handed to a Scout for the weekend");
   await user.click(screen.getByRole("button", { name: "Save" }));
