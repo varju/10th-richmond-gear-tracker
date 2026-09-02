@@ -330,6 +330,16 @@ The first report, what is out and who has it, is derived on the phone from local
 server query. Items are grouped by holder. The overdue period is one group setting; there are no per-item due dates.
 Days out is the whole days since the check-out, rounded down.
 
+Missing is a field on the item, not a status (FR-INV-19). An item can be out and missing: the check-out is still true,
+and nobody knows where the gear went. It drops off what-is-out, and the next scan or check-in clears it, because either
+one means the item is in someone's hand. Retire is for gear written off; missing is for gear that is only lost.
+
+A stock check (FR-RPT-09) records no event. The phone knows which shelf it is at only because a person picked it, and
+"in but not at home" is true for the length of the walk and no longer: the next check-in puts the item wherever the
+person puts it. So the walk is a device setting — where, and what has been scanned there — and the two lists, misplaced
+here and not seen yet, are computed against state as the person goes. Each scan does clear missing, and that is an
+event. Browsing by location (FR-INV-10) is the same question at rest: what state says belongs on each shelf.
+
 ## Reservations
 
 A reservation is one entity: `created` with the event name, its days, the items it names and the types it wants so many

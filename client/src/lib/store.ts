@@ -34,6 +34,15 @@ export interface Meta {
   token?: string;
   user?: User;
   last_sync_at?: number;
+  /** A stock check in progress (FR-RPT-09). Where the person is, and what they have scanned there. */
+  stock_check?: StockCheck;
+}
+
+export interface StockCheck {
+  location_id: string;
+  sub_location?: string;
+  seen: string[];
+  started_at: number;
 }
 
 /** A photo taken here and not yet on the server (FR-INV-11). These bytes are the only copy until then. */
