@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""Draw the app icons into client/public/.
+
+A QR code's three finder squares, white on the group's navy. It is what the app
+does, and it is legible at 40 px on a home screen, which a tent or a knot is not.
+
+Everything is axis-aligned rectangles on integer pixels, so there is nothing to
+anti-alias and no image library to install. Run it after changing the design:
+
+    bin/make-icons
+"""
+
+from __future__ import annotations
+
+import struct
+import zlib
+from pathlib import Path
+
+NAVY = (0x00, 0x1A, 0x70)
+WHITE = (0xFF, 0xFF, 0xFF)
+
+# The mark is laid out on a grid of modules, as a real QR code is. Android crops
+# a maskable icon to a circle 80% of its width, and a square fitting inside that
+# circle is 56% — so the 512, which the manifest offers as maskable, keeps to
+# that. The 192 is never cropped and fills more of its frame.
+MODULES = 18
+
+MASKABLE = 0.5625
+"""How wide the mark is on the icon Android may crop. 0.5625 of 512 is 288, and 18 modules of 16."""
+
+PLAIN = 0.75
+"""And on the one nothing crops, where a margin that wide would just look timid."""
+
+
+def draw(size: int, mark: float) -> bytes:
+    pixels = [[NAVY] * size for _ in range(size)]
+    module = size * mark / MODULES
+    origin = (size - size * mark) / 2
+
+    def box(col: float, row: float, wide: float, high: float, colour: tuple[int, int, int]) -> None:
+        x0, y0 = round(origin + col * module), round(origin + row * module)
+        x1, y1 = round(origin + (col + wide) * module), round(origin + (row + high) * module)
+        for y in range(y0, y1):
+            pixels[y][x0:x1] = [colour] * (x1 - x0)
+
+    def finder(col: float, row: float) -> None:
+        """Seven modules: a one-module ring, a one-module gap, a three-module core."""
+        box(col, row, 7, 7, WHITE)
+        box(col + 1, row + 1, 5, 5, NAVY)
+        box(col + 2, row + 2, 3, 3, WHITE)
+
+    finder(0, 0)
+    finder(11, 0)
+    finder(0, 11)
+    # Where a real QR carries its bottom-right alignment pattern.
+    box(12, 12, 5, 5, WHITE)
+    box(13, 13, 3, 3, NAVY)
+    box(14, 14, 1, 1, WHITE)
+
+    raw = b"".join(b"\x00" + bytes(v for pixel in row for v in pixel) for row in pixels)
+    return png(size, raw)
+
+
+def png(size: int, raw: bytes) -> bytes:
+    def chunk(kind: bytes, body: bytes) -> bytes:
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+
+    header = struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0)  # 8-bit RGB, no interlace
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b"")
+
+
+def main() -> None:
+    public = Path(__file__).resolve().parent.parent / "client" / "public"
+    for size, mark in ((192, PLAIN), (512, MASKABLE)):
+        target = public / f"icon-{size}.png"
+        target.write_bytes(draw(size, mark))
+        print(target)
+
+
+if __name__ == "__main__":
+    main()

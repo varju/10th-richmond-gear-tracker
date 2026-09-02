@@ -41,7 +41,6 @@ First real use, not the finished release. Musts in repairs, reservations and fou
 going live early buys feedback while the inventory is fresh from the labelling walk. MoSCoW priorities say what the
 system needs before it is done, not what M9 needs.
 
-- [ ] Replace the placeholder app icons in `client/public/`
 - [ ] Put the nightly `gear-backup` in the host's cron, and rehearse a restore once ([deploy.md](deploy.md#restoring))
 - [ ] Print code sheets and do the labelling walk (S-BOOT-02, S-BOOT-03)
 
