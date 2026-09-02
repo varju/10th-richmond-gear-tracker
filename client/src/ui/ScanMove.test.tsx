@@ -44,6 +44,19 @@ async function typeCode(text: string) {
 const card = () => screen.getByRole("region", { name: "Tent 1" });
 const pending = (type: string) => store.pending.filter((e) => e.type === type);
 
+test("scanning a missing item clears the mark before the card shows (FR-INV-19)", async () => {
+  await act.markMissing(store, tent);
+  renderInShell(<Scan store={store} />);
+  await typeCode("AAAAAAAAAA");
+  expect(within(card()).getByRole("heading")).toHaveTextContent("Tent 1");
+  await waitFor(() => expect(item(store.state, tent)?.missing).toBe(false));
+  expect(card()).toHaveTextContent("In");
+  expect(store.pending.at(-1)).toMatchObject({
+    type: "field_changed",
+    payload: { field: "missing", value: false, old: true },
+  });
+});
+
 test("an assigned code shows the card; one tap checks out under the session event and syncs", async () => {
   await store.setMeta({ session_event: "Spring camp" });
   renderInShell(<Scan store={store} />);

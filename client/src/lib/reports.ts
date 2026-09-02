@@ -38,12 +38,12 @@ export function isOverdue(state: State, it: Item, now: number): boolean {
 const holderName = (state: State, id: string): string =>
   (state.user?.[id]?.name as string | undefined) ?? "(unknown person)";
 
-/** Everyone who has something, by name; each person's gear longest out first. */
+/** Everyone who has something, by name; each person's gear longest out first. Missing gear is not out (FR-INV-19). */
 export function whatIsOut(state: State, now: number): OutReport {
   const byHolder = new Map<string, OutItem[]>();
   let overdue = 0;
   for (const it of items(state)) {
-    if (it.status !== "out") continue;
+    if (it.status !== "out" || it.missing) continue;
     const entry: OutItem = {
       item: it,
       days: daysOut(it, now),

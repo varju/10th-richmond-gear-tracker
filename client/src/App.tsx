@@ -14,6 +14,7 @@ import { Conflicts } from "./ui/Conflicts";
 import { Found } from "./ui/Found";
 import { InstallPrompt } from "./ui/InstallPrompt";
 import { Inventory } from "./ui/Inventory";
+import { LocationPage, Locations } from "./ui/Locations";
 import { ItemPage } from "./ui/ItemPage";
 import { Join } from "./ui/Join";
 import { LeaveDialog } from "./ui/LeaveDialog";
@@ -29,6 +30,7 @@ import { ReservationPage } from "./ui/ReservationPage";
 import { Reservations } from "./ui/Reservations";
 import { Scan } from "./ui/Scan";
 import { Settings } from "./ui/Settings";
+import { StockCheck } from "./ui/StockCheck";
 import { SignIn } from "./ui/SignIn";
 import { Users } from "./ui/Users";
 import { type Shell, ShellContext } from "./shell";
@@ -170,6 +172,10 @@ function Screen({ store, api, route, shell }: { store: Store; api: Api; route: R
       return <Found store={store} />;
     case "conflicts":
       return <Conflicts store={store} />;
+    case "locations":
+      return second ? <LocationPage store={store} id={second} /> : <Locations store={store} />;
+    case "stock-check":
+      return <StockCheck store={store} />;
     case "repairs":
       return second ? <RepairPage store={store} id={second} /> : <Repairs store={store} />;
     case "reservations":

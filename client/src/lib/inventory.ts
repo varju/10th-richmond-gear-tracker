@@ -13,6 +13,8 @@ export interface Item {
   type_id?: string | null;
   condition?: string;
   retired?: boolean;
+  /** Lost, not written off (FR-INV-19). Cleared by the next scan or check-in. */
+  missing?: boolean;
   status: "in" | "out";
   holder_id: string | null;
   since?: number;
@@ -104,7 +106,7 @@ export interface Filter {
   location_id?: string;
   sub_location?: string;
   type_id?: string;
-  status?: "in" | "out";
+  status?: "in" | "out" | "missing";
   retired?: boolean;
 }
 
@@ -116,7 +118,7 @@ export function search(state: State, filter: Filter): Item[] {
     .filter((it) => !filter.location_id || it.home_location_id === filter.location_id)
     .filter((it) => !filter.sub_location || it.sub_location === filter.sub_location)
     .filter((it) => !filter.type_id || it.type_id === filter.type_id)
-    .filter((it) => !filter.status || it.status === filter.status)
+    .filter((it) => !filter.status || (filter.status === "missing" ? Boolean(it.missing) : it.status === filter.status))
     .filter((it) => {
       if (words.length === 0) return true;
       const hay = `${it.name} ${homeLabel(state, it)} ${typeName(state, it.type_id)}`.toLowerCase();
@@ -132,6 +134,28 @@ export function subLocations(state: State, locationId?: string): string[] {
     if (it.sub_location && (!locationId || it.home_location_id === locationId)) seen.add(it.sub_location);
   }
   return [...seen].sort();
+}
+
+/** Live items whose home is this location, for browsing (FR-INV-10). */
+export const atLocation = (state: State, locationId: string): Item[] =>
+  items(state).filter((it) => !it.retired && it.home_location_id === locationId);
+
+export interface Shelf {
+  /** Empty for items with no sub-location. */
+  sub_location: string;
+  items: Item[];
+}
+
+/** What belongs on each shelf (FR-INV-10). Shelves by name; items with none last. */
+export function bySubLocation(state: State, locationId: string): Shelf[] {
+  const groups = new Map<string, Item[]>();
+  for (const it of atLocation(state, locationId)) {
+    const key = it.sub_location ?? "";
+    groups.set(key, [...(groups.get(key) ?? []), it]);
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)))
+    .map(([sub_location, list]) => ({ sub_location, items: list.sort((a, b) => a.name.localeCompare(b.name)) }));
 }
 
 /** Items that stop a location or type being deleted (FR-SET-05). Retired items count: they can come back. */

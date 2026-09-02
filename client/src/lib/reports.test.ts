@@ -59,3 +59,10 @@ test("the day count floors, and a clock behind the check-out reads zero", () => 
   expect(isOverdue(state, { ...it, since: T0 - 30 * DAY_MS }, T0)).toBe(true);
   expect(isOverdue(state, { ...it, since: T0 - 29 * DAY_MS }, T0)).toBe(false);
 });
+
+test("missing gear is not out, even with a check-out standing (FR-INV-19)", () => {
+  const lost: State = { ...state, item: { ...state.item, axe: { ...state.item!.axe!, missing: true } } };
+  const report = whatIsOut(lost, T0);
+  expect(report.total).toBe(3);
+  expect(report.holders.flatMap((h) => h.items.map((i) => i.item.name))).not.toContain("Axe");
+});

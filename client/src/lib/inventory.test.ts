@@ -119,3 +119,35 @@ test("group settings are created once, then changed", async () => {
   });
   expect(store.pending.map((e) => e.type)).toEqual(["created", "field_changed"]);
 });
+
+test("missing is a field, filterable, and does not change status (FR-INV-19)", async () => {
+  const f = await fixture();
+  await act.markMissing(store, f.stove);
+  expect(inv.item(store.state, f.stove)).toMatchObject({ missing: true, status: "in" });
+  const names = (filter: inv.Filter) => inv.search(store.state, filter).map((i) => i.name);
+  expect(names({ status: "missing" })).toEqual(["Stove"]);
+  expect(names({ status: "in" })).toEqual(["Stove", "Tent 1", "Tent 2"]);
+  await act.seen(store, f.stove);
+  expect(inv.item(store.state, f.stove)?.missing).toBe(false);
+  // Seen again records nothing.
+  const before = store.pending.length;
+  await act.seen(store, f.stove);
+  expect(store.pending.length).toBe(before);
+});
+
+test("a location is browsed shelf by shelf, no sub-location last, retired gear left out (FR-INV-10)", async () => {
+  const f = await fixture();
+  const bag = await act.createItem(store, { name: "Bag", home_location_id: f.cold, sub_location: "" });
+  await act.createItem(store, { name: "Axe", home_location_id: f.cold, sub_location: "bin 1" });
+  const old = await act.createItem(store, { name: "Old tent", home_location_id: f.cold, sub_location: "shelf 4" });
+  await act.retireItem(store, old);
+  expect(inv.bySubLocation(store.state, f.cold).map((s) => [s.sub_location, s.items.map((i) => i.name)])).toEqual([
+    ["bin 1", ["Axe"]],
+    ["shelf 4", ["Tent 1", "Tent 2"]],
+    ["", ["Bag"]],
+  ]);
+  expect(inv.atLocation(store.state, f.cold).map((i) => i.id)).toContain(bag);
+  expect(inv.bySubLocation(store.state, f.warm).map((s) => [s.sub_location, s.items.map((i) => i.name)])).toEqual([
+    ["", ["Stove"]],
+  ]);
+});

@@ -10,8 +10,9 @@ export function userName(state: State, id: string | null | undefined): string {
   return (state.user?.[id]?.name as string | undefined) ?? "(unknown person)";
 }
 
-/** "In", or "Out · Alice". */
+/** "In", "Out · Alice", or "Missing" (FR-INV-19). */
 export function statusLabel(state: State, it: Item): string {
+  if (it.missing) return "Missing";
   return it.status === "out" ? `Out · ${userName(state, it.holder_id)}` : "In";
 }
 

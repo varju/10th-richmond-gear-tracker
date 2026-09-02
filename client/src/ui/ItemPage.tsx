@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { type ItemInput, retireItem, unretireItem, updateItem } from "../lib/actions";
+import { type ItemInput, markMissing, retireItem, unretireItem, updateItem } from "../lib/actions";
 import { hasOpenConflict } from "../lib/conflicts";
 import { foundFor, resolveFound } from "../lib/found";
 import { codesFor, homeLabel, item, typeName } from "../lib/inventory";
@@ -32,6 +32,7 @@ export function ItemPage({ store, id }: Props) {
   const openInEdit = useRoute().query.get("edit") === "1";
   const [editing, setEditing] = useState(openInEdit);
   const [confirmRetire, setConfirmRetire] = useState(false);
+  const [confirmMissing, setConfirmMissing] = useState(false);
   const [moved, confirm] = useFlash(CONFIRM_MS);
   const state = store.state;
   const it = item(state, id);
@@ -86,6 +87,16 @@ export function ItemPage({ store, id }: Props) {
     setConfirmRetire(false);
   }
 
+  // Lost, not written off (FR-INV-19). The next scan or check-in clears it.
+  async function missing() {
+    if (!confirmMissing) {
+      setConfirmMissing(true);
+      return;
+    }
+    await markMissing(store, id);
+    setConfirmMissing(false);
+  }
+
   return (
     <Page
       title="Item"
@@ -106,9 +117,16 @@ export function ItemPage({ store, id }: Props) {
               Unretire
             </button>
           ) : (
-            <button type="button" className={confirmRetire ? "warn" : ""} onClick={retire}>
-              {confirmRetire ? "Really retire?" : "Retire"}
-            </button>
+            <div className="row">
+              {!it.missing && (
+                <button type="button" className={confirmMissing ? "warn" : ""} onClick={missing}>
+                  {confirmMissing ? "Really missing?" : "Mark missing"}
+                </button>
+              )}
+              <button type="button" className={confirmRetire ? "warn" : ""} onClick={retire}>
+                {confirmRetire ? "Really retire?" : "Retire"}
+              </button>
+            </div>
           )}
         </>
       }
@@ -121,7 +139,13 @@ export function ItemPage({ store, id }: Props) {
       <h2 className="item-title">
         {it.name}
         {it.retired && <span className="badge">Retired</span>}
+        {it.missing && <span className="badge">Missing</span>}
       </h2>
+      {it.missing && (
+        <p className="notice" role="note">
+          Missing. Scanning it or checking it in clears this.
+        </p>
+      )}
       {hasOpenConflict(state, id) && (
         <p className="notice notice-row" role="note">
           <span>Two check-outs overlapped.</span>

@@ -3,6 +3,7 @@
  * or two events on the store. Nothing here talks to the server; the caller
  * syncs afterwards (FR-OFF-03).
  */
+import { seen } from "./actions";
 import { item, type Item } from "./inventory";
 import * as notes from "./notes";
 import type { Movement, Note } from "./replay";
@@ -57,7 +58,9 @@ export async function checkOut(store: Store, itemId: string, options: MoveOption
 export async function checkIn(store: Store, itemId: string, options: MoveOptions = {}) {
   const it = current(store, itemId);
   if (it.status !== "out") throw new Error("already in");
-  return move(store, itemId, "checked_in", {}, options.note);
+  const movement = await move(store, itemId, "checked_in", {}, options.note);
+  await seen(store, itemId);
+  return movement;
 }
 
 /** Take something someone else has (FR-OUT-12). Names the check-out it replaces, so replay knows it is not a conflict. */

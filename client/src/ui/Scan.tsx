@@ -1,5 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { bindCode } from "../lib/actions";
+import { bindCode, seen } from "../lib/actions";
 import { parseCode } from "../lib/codes";
 import { code as codeOf, codeStatus, homeLabel, item } from "../lib/inventory";
 import { checkOut } from "../lib/movement";
@@ -51,7 +51,9 @@ export function Scan({ store }: { store: Store }) {
       if (status === "unknown") return say("Not one of our codes");
       if (!forItem) {
         if (status === "unassigned") return navigate(`/g/${id}`);
-        return showCard(codeOf(store.state, id)?.item_id ?? null);
+        const itemId = codeOf(store.state, id)?.item_id ?? null;
+        if (itemId) await seen(store, itemId);
+        return showCard(itemId);
       }
       if (status !== "unassigned") {
         const owner = item(store.state, codeOf(store.state, id)?.item_id ?? "");

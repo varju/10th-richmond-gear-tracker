@@ -46,6 +46,15 @@ export const updateItem = (store: Store, id: string, patch: Partial<ItemInput>) 
 export const retireItem = (store: Store, id: string) => changed(store, "item", id, { retired: true });
 export const unretireItem = (store: Store, id: string) => changed(store, "item", id, { retired: false });
 
+/** Lost, not written off (FR-INV-19). A field, not a status: it can be out and missing. */
+export const markMissing = (store: Store, id: string) => changed(store, "item", id, { missing: true });
+export const clearMissing = (store: Store, id: string) => changed(store, "item", id, { missing: false });
+
+/** The item turned up: a scan, a check-in, a stock check. Clears missing; records nothing otherwise. */
+export async function seen(store: Store, id: string): Promise<void> {
+  if (item(store.state, id)?.missing) await clearMissing(store, id);
+}
+
 function clean<T extends object>(input: T): Record<string, unknown> {
   // Empty strings are absence. Keep nulls: they clear a field.
   return Object.fromEntries(

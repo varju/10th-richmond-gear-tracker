@@ -171,6 +171,28 @@ test("closed tickets stay on the item, after the open ones (FR-REP-04)", async (
   ]);
 });
 
+test("marking an item missing takes two taps and flags it without moving it (FR-INV-19)", async () => {
+  await mv.checkOut(store, tent);
+  renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Mark missing" }));
+  expect(item(store.state, tent)?.missing).toBeUndefined();
+  await user.click(screen.getByRole("button", { name: "Really missing?" }));
+
+  expect(await screen.findByText("Missing", { selector: ".badge" })).toBeInTheDocument();
+  expect(screen.getByRole("note")).toHaveTextContent("Missing. Scanning it or checking it in clears this.");
+  expect(screen.queryByRole("button", { name: "Mark missing" })).not.toBeInTheDocument();
+  expect(item(store.state, tent)).toMatchObject({ status: "out", missing: true });
+  expect(store.pending.at(-1)).toMatchObject({
+    type: "field_changed",
+    payload: { field: "missing", value: true, old: null },
+  });
+
+  // Checking it in clears the mark (FR-INV-19).
+  await user.click(screen.getByRole("button", { name: "Check in" }));
+  await waitFor(() => expect(screen.queryByRole("note")).not.toBeInTheDocument());
+  expect(item(store.state, tent)).toMatchObject({ status: "in", missing: false });
+});
+
 test("?edit=1 opens the form straight away, and saving drops it from the URL", async () => {
   navigate(`/items/${tent}?edit=1`);
   renderInShell(<ItemPage store={store} id={tent} />);
@@ -212,8 +234,10 @@ test("a half-typed note asks on Back; Save records it", async () => {
   await user.type(screen.getByLabelText("New note"), "pole bent");
   await user.click(screen.getByRole("button", { name: "Back" }));
   await user.click(within(await dialog()).getByRole("button", { name: "Save" }));
-  expect(store.pending.filter((e) => e.type === "note_added").map((e) => e.payload)).toEqual([{ text: "pole bent" }]);
-  expect(location.pathname).toBe("/");
+  await waitFor(() =>
+    expect(store.pending.filter((e) => e.type === "note_added").map((e) => e.payload)).toEqual([{ text: "pole bent" }]),
+  );
+  await waitFor(() => expect(location.pathname).toBe("/"));
 });
 
 test("a found report shows on the item until someone resolves it (FR-PUB-03)", async () => {

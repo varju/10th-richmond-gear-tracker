@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { seen } from "../lib/actions";
 import { code as codeOf, codeStatus } from "../lib/inventory";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -16,8 +17,11 @@ export function CodeLanding({ store, code }: { store: Store; code: string }) {
   const itemId = codeOf(store.state, code)?.item_id;
 
   useEffect(() => {
-    if ((status === "assigned" || status === "replaced") && itemId) navigate(`/items/${itemId}`, true);
-  }, [status, itemId]);
+    if ((status === "assigned" || status === "replaced") && itemId) {
+      void seen(store, itemId);
+      navigate(`/items/${itemId}`, true);
+    }
+  }, [store, status, itemId]);
 
   const scanAgain = (
     <button type="button" onClick={() => navigate("/scan")}>

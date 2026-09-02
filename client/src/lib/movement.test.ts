@@ -74,3 +74,15 @@ test("history excludes rejected events and is newest first", async () => {
   expect(mv.history(store, tent).map((e) => e.id)).not.toContain(b.id);
   expect(mv.history(store, tent).at(-1)?.id).toBe(a.id);
 });
+
+test("a check-in clears missing (FR-INV-19)", async () => {
+  await mv.checkOut(store, tent);
+  await act.markMissing(store, tent);
+  expect(item(store.state, tent)).toMatchObject({ status: "out", missing: true });
+  await mv.checkIn(store, tent);
+  expect(item(store.state, tent)).toMatchObject({ status: "in", missing: false });
+  expect(store.pending.slice(-2).map((e) => [e.type, e.payload])).toEqual([
+    ["checked_in", {}],
+    ["field_changed", { field: "missing", value: false, old: true }],
+  ]);
+});

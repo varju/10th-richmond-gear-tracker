@@ -23,7 +23,8 @@ export function Inventory({ store }: Props) {
   const state = store.state;
   const results = search(state, { ...filter, query });
   const empty = items(state).length === 0;
-  const out = items(state).filter((it) => it.status === "out").length;
+  // Missing gear is not out (FR-INV-19); the report agrees.
+  const out = items(state).filter((it) => it.status === "out" && !it.missing).length;
   const found = foundReports(state).length;
   const clashes = openConflicts(state).length;
   const broken = openTickets(state).length;
@@ -65,6 +66,16 @@ export function Inventory({ store }: Props) {
         <button className="link" type="button" onClick={() => navigate("/reservations")}>
           Reservations · {booked} upcoming
         </button>
+        {!empty && (
+          <>
+            <button className="link" type="button" onClick={() => navigate("/locations")}>
+              Browse by location
+            </button>
+            <button className="link" type="button" onClick={() => navigate("/stock-check")}>
+              {store.meta.stock_check ? "Stock check · in progress" : "Stock check"}
+            </button>
+          </>
+        )}
         {empty ? (
           <p>Nothing here yet. Scan a code or add a new item.</p>
         ) : (
@@ -77,9 +88,10 @@ export function Inventory({ store }: Props) {
                     <span>
                       <span className="item-name">{it.name}</span>
                       {openRepairs(state, it.id).length > 0 && <span className="badge">Repair</span>}
+                      {it.missing && <span className="badge">Missing</span>}
                     </span>
                     <span className="muted small">
-                      {[homeLabel(state, it), it.status === "out" ? statusLabel(state, it) : ""]
+                      {[homeLabel(state, it), it.status === "out" && !it.missing ? statusLabel(state, it) : ""]
                         .filter(Boolean)
                         .join(" · ")}
                     </span>
@@ -171,6 +183,7 @@ function Filters({ store, filter, onChange }: { store: Store; filter: Filter; on
             <option value="">Any</option>
             <option value="in">In</option>
             <option value="out">Out</option>
+            <option value="missing">Missing</option>
           </select>
         </label>
       </div>
