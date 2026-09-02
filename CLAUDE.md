@@ -69,6 +69,14 @@ This covers layout only. The House style rules above are about what you write, a
 - Prefer `git grep` and `git ls-files` over `find`.
 - Pull requests are created as drafts.
 
-## Agent notes
+## Delegating
 
-When delegating to agents for subtasks, use a lesser agent whenever possible. Fable should never be used for subagents.
+Non-trivial edits go to the `implementer` agent. Non-trivial means more than a few lines, or more than one file.
+
+The top-level session keeps the parts that need this conversation: reading code, deciding the design, writing the spec,
+reviewing what comes back, and the commit.
+
+Do the edit yourself when writing the spec would take longer than the edit.
+
+Agents defined in `.claude/agents/` pin their own model. For anything spawned without one, pick the smallest model that
+will do. Never Fable.
