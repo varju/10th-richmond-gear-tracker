@@ -1,0 +1,109 @@
+{
+  "name": "a photo the server recorded is listed on the entity; a removed one is dropped, and modified_at does not move",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": { "name": "Tent" }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "photo_added",
+      "actor_id": "alice",
+      "device_id": "server",
+      "device_seq": 1,
+      "effective_at": 2000,
+      "payload": { "photo_id": "01000000000000000000000AAA", "content_type": "image/jpeg", "size": 12345 }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "photo_added",
+      "actor_id": "carol",
+      "device_id": "server",
+      "device_seq": 2,
+      "effective_at": 3000,
+      "payload": { "photo_id": "01000000000000000000000BBB", "content_type": "image/png", "size": 999 }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "photo_removed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 4000,
+      "payload": { "photo_id": "01000000000000000000000AAA" }
+    },
+    {
+      "id": "01000000000000000000000005",
+      "entity_type": "repair",
+      "entity_id": "rep-1",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 5000,
+      "payload": { "item_id": "tent-1", "description": "pole bent" }
+    },
+    {
+      "id": "01000000000000000000000006",
+      "entity_type": "repair",
+      "entity_id": "rep-1",
+      "type": "photo_added",
+      "actor_id": "alice",
+      "device_id": "server",
+      "device_seq": 3,
+      "effective_at": 6000,
+      "payload": { "photo_id": "01000000000000000000000CCC", "content_type": "image/webp", "size": 4321 }
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-1": {
+        "name": "Tent",
+        "status": "in",
+        "holder_id": null,
+        "added_at": 1000,
+        "modified_at": 1000,
+        "photos": [
+          {
+            "id": "01000000000000000000000BBB",
+            "content_type": "image/png",
+            "size": 999,
+            "actor_id": "carol",
+            "at": 3000
+          }
+        ]
+      }
+    },
+    "repair": {
+      "rep-1": {
+        "item_id": "tent-1",
+        "description": "pole bent",
+        "state": "open",
+        "added_at": 5000,
+        "modified_at": 5000,
+        "photos": [
+          {
+            "id": "01000000000000000000000CCC",
+            "content_type": "image/webp",
+            "size": 4321,
+            "actor_id": "alice",
+            "at": 6000
+          }
+        ]
+      }
+    }
+  }
+}

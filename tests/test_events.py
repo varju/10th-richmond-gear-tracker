@@ -249,3 +249,16 @@ def test_a_found_report_can_only_be_resolved():
     ):
         with pytest.raises(Rejected, match="can only be resolved"):
             validate(incoming(entity_type="found_report", entity_id="f-1", payload=payload))
+
+
+def test_a_photo_goes_on_an_item_or_a_ticket_and_nothing_else():
+    photo = {"photo_id": "01000000000000000000000AAA", "content_type": "image/jpeg", "size": 10}
+    validate(incoming(type="photo_added", payload=photo))
+    validate(incoming(entity_type="repair", entity_id="rep-1", type="photo_added", payload=photo))
+    validate(incoming(type="photo_removed", payload={"photo_id": "01000000000000000000000AAA"}))
+    with pytest.raises(Rejected, match="applies only to items and repair tickets"):
+        validate(incoming(entity_type="location", entity_id="loc-1", type="photo_added", payload=photo))
+    with pytest.raises(Rejected, match="content_type"):
+        validate(incoming(type="photo_added", payload={**photo, "content_type": "image/gif"}))
+    with pytest.raises(Rejected, match="photo_id: not a ULID"):
+        validate(incoming(type="photo_removed", payload={"photo_id": "nope"}))

@@ -369,3 +369,17 @@ def test_a_device_cannot_file_a_found_report(db):
     )
     result = push(db, ALICE, batch(ALICE, forged), now=T0)
     assert result["rejected"][0]["reason"] == "found reports come from the public page"
+
+
+def test_a_device_cannot_say_a_photo_was_stored(db):
+    """The server writes photo_added itself, after it has the file. A device only removes."""
+    forged = own(
+        ALICE,
+        device_seq=1,
+        type="photo_added",
+        payload={"photo_id": "01000000000000000000000AAA", "content_type": "image/jpeg", "size": 10},
+    )
+    removed = own(ALICE, device_seq=2, type="photo_removed", payload={"photo_id": "01000000000000000000000AAA"})
+    result = push(db, ALICE, batch(ALICE, forged, removed), now=T0)
+    assert result["rejected"][0]["reason"] == "photos are uploaded, not pushed"
+    assert result["accepted"] == [removed["id"]]

@@ -114,6 +114,8 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
             raise Rejected("retired items cannot be checked out (FR-INV-04)")
     if entity_type == "found_report" and kind == "created":
         raise Rejected("found reports come from the public page")
+    if kind == "photo_added":
+        raise Rejected("photos are uploaded, not pushed")
     if entity_type == "code":
         if kind == "created":
             raise Rejected("codes come from printed sheets")

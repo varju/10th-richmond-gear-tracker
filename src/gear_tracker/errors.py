@@ -36,6 +36,11 @@ class NotFound(ApiError):
     code = "not_found"
 
 
+class TooLarge(ApiError):
+    status = 413
+    code = "too_large"
+
+
 class Conflict(ApiError):
     status = 409
     code = "conflict"

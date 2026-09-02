@@ -19,7 +19,19 @@ State = dict[str, dict[str, dict[str, Any]]]
 
 # Set by replay, never by a device. A created or field_changed that names one is rejected.
 DERIVED_FIELDS = frozenset(
-    {"status", "holder_id", "since", "movement", "notes", "conflicts", "added_at", "modified_at", "item_id", "bound_at"}
+    {
+        "status",
+        "holder_id",
+        "since",
+        "movement",
+        "notes",
+        "conflicts",
+        "added_at",
+        "modified_at",
+        "item_id",
+        "bound_at",
+        "photos",
+    }
 )
 
 
@@ -92,6 +104,20 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             entity["holder_id"] = None
             entity["since"] = event.effective_at
             entity["movement"] = _movement(event)
+        case "photo_added":
+            # The file is on the server; this is what a device knows about it (FR-INV-11).
+            entity.setdefault("photos", []).append(
+                {
+                    "id": p["photo_id"],
+                    "content_type": p["content_type"],
+                    "size": p["size"],
+                    "actor_id": event.actor_id,
+                    "at": event.effective_at,
+                }
+            )
+        case "photo_removed":
+            # The file stays on disk; the log says it is no longer shown.
+            entity["photos"] = [ph for ph in entity.get("photos", []) if ph["id"] != p["photo_id"]]
         case "code_bound":
             # A code binds once. Whether it is the item's current code or a replaced
             # one is a question about the item's other codes, answered by whoever asks.

@@ -121,6 +121,25 @@ class CodeBinding(Payload):
     item_id: NonEmpty
 
 
+PHOTO_TYPES = ("image/jpeg", "image/png", "image/webp")
+"""What a phone camera produces, and nothing else. The extension on disk follows from it."""
+
+PHOTO_ENTITIES = ("item", "repair")
+"""Where a photo can go (FR-INV-11, FR-REP-01)."""
+
+
+class PhotoInfo(Payload):
+    """A file the server has stored. Only the server writes this; a device uploads and the server records."""
+
+    photo_id: Ulid
+    content_type: Literal["image/jpeg", "image/png", "image/webp"]
+    size: Annotated[int, Field(ge=1)]
+
+
+class PhotoRef(Payload):
+    photo_id: Ulid
+
+
 class RepairTicket(Payload):
     """What a ticket is raised with (FR-REP-01). Its state starts open; replay sets that."""
 
@@ -257,6 +276,24 @@ class CheckedIn(_ItemOnly):
     payload: dict[str, Any]
 
 
+class _PhotoBearer(_Incoming):
+    @model_validator(mode="after")
+    def _items_and_tickets(self):
+        if self.entity_type not in PHOTO_ENTITIES:
+            raise ValueError(f"{self.type} applies only to items and repair tickets")
+        return self
+
+
+class PhotoAdded(_PhotoBearer):
+    type: Literal["photo_added"]
+    payload: PhotoInfo
+
+
+class PhotoRemoved(_PhotoBearer):
+    type: Literal["photo_removed"]
+    payload: PhotoRef
+
+
 class CodeBound(_Incoming):
     """A printed code goes on a thing (FR-TAG-04, FR-TAG-07). The code is the entity; the item is in the payload."""
 
@@ -271,14 +308,24 @@ class CodeBound(_Incoming):
 
 
 IncomingEvent = Annotated[
-    Created | FieldChanged | NoteAdded | NoteCorrected | CheckedOut | CheckedIn | CodeBound,
+    Created | FieldChanged | NoteAdded | NoteCorrected | CheckedOut | CheckedIn | CodeBound | PhotoAdded | PhotoRemoved,
     Field(discriminator="type"),
 ]
 _incoming = TypeAdapter(IncomingEvent)
 # Keep in step with the union above. Later milestones add to both; replay must
 # grow with them, and the two replays must agree (NFR-MAINT-04).
 EVENT_TYPES = frozenset(
-    {"created", "field_changed", "note_added", "note_corrected", "checked_out", "checked_in", "code_bound"}
+    {
+        "created",
+        "field_changed",
+        "note_added",
+        "note_corrected",
+        "checked_out",
+        "checked_in",
+        "code_bound",
+        "photo_added",
+        "photo_removed",
+    }
 )
 
 

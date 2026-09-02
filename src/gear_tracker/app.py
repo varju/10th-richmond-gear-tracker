@@ -17,16 +17,21 @@ from pydantic import Field, StringConstraints
 
 from gear_tracker import accounts, codes, derived, events, labels, sync
 from gear_tracker.db import connect
-from gear_tracker.errors import ApiError, BadRequest, Conflict, NotFound, TooMany, Unauthorized
-from gear_tracker.events import PUBLIC_ACTOR, Strict, now_ms
+from gear_tracker.errors import ApiError, BadRequest, Conflict, Deactivated, NotFound, TooLarge, TooMany, Unauthorized
+from gear_tracker.events import PHOTO_ENTITIES, PHOTO_TYPES, PUBLIC_ACTOR, Strict, now_ms
 from gear_tracker.ratelimit import RateLimit
 from gear_tracker.sync import Principal
-from gear_tracker.ulid import new_ulid
+from gear_tracker.ulid import is_ulid, new_ulid
 
 Authenticator = Callable[[Request, sqlite3.Connection], Principal | None]
 
 HOUR_MS = 3_600_000
 DAY_MS = 24 * HOUR_MS
+
+PHOTO_MAX_BYTES = 5 * 1024 * 1024
+"""A phone shrinks a photo before sending it; this is the ceiling for one that did not."""
+
+PHOTO_EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 
 FOUND_PER_ADDRESS = (5, HOUR_MS)
 FOUND_PER_CODE = (3, DAY_MS)
@@ -50,10 +55,18 @@ def by_token(request: Request, conn: sqlite3.Connection) -> Principal | None:
 
 
 def create_app(
-    db_path: str | Path, authenticate: Authenticator = by_token, static: str | Path | None = None
+    db_path: str | Path,
+    authenticate: Authenticator = by_token,
+    static: str | Path | None = None,
+    photos: str | Path | None = None,
 ) -> FastAPI:
-    """`static` is the built client (client/dist). Without it the server is API only, as in development."""
+    """`static` is the built client (client/dist). Without it the server is API only, as in development.
+
+    `photos` is the file store (FR-INV-11). By default a directory beside the database, so
+    whatever backs up the one backs up the other.
+    """
     app = FastAPI(title="Gear Tracker")
+    photo_dir = Path(photos) if photos is not None else Path(db_path).parent / "photos"
 
     # In memory, in this process. One uvicorn worker serves the group, so that is the whole picture.
     found_limits = {
@@ -199,6 +212,69 @@ def create_app(
             raise NotFound("not one of our codes")
         return stamped({"code": code, "item_id": state.get("item_id")})
 
+    # --- photos ----------------------------------------------------------------------------
+
+    def photo_path(photo_id: str) -> Path | None:
+        for ext in PHOTO_EXTENSIONS.values():
+            candidate = photo_dir / f"{photo_id}{ext}"
+            if candidate.is_file():
+                return candidate
+        return None
+
+    @app.put("/photos/{photo_id}")
+    async def put_photo(
+        request: Request, conn: Db, who: Who, photo_id: str, entity_type: str, entity_id: str
+    ) -> dict[str, Any]:
+        """A device sends the bytes with an id it made; the server keeps the file and records the event (FR-INV-11).
+
+        Idempotent on the id, like push: a retry after a dropped connection finds the photo
+        already on the entity and writes nothing.
+        """
+        if not who.active:
+            raise Deactivated("this account has been deactivated")
+        if not is_ulid(photo_id):
+            raise BadRequest("photo_id must be a ULID")
+        if entity_type not in PHOTO_ENTITIES:
+            raise BadRequest(f"entity_type must be one of {', '.join(PHOTO_ENTITIES)}")
+        content_type = request.headers.get("Content-Type", "").split(";")[0].strip().lower()
+        if content_type not in PHOTO_TYPES:
+            raise BadRequest(f"Content-Type must be one of {', '.join(PHOTO_TYPES)}")
+        entity = derived.get_entity(conn, entity_type, entity_id)
+        if entity is None:
+            raise NotFound(f"no such {entity_type}")
+        if any(ph["id"] == photo_id for ph in entity.get("photos", [])):
+            return stamped({})
+        declared = request.headers.get("Content-Length")
+        if declared is not None and declared.isdigit() and int(declared) > PHOTO_MAX_BYTES:
+            raise TooLarge(f"a photo may be at most {PHOTO_MAX_BYTES // (1024 * 1024)} MB")
+        data = await request.body()
+        if len(data) == 0:
+            raise BadRequest("the photo is empty")
+        if len(data) > PHOTO_MAX_BYTES:
+            raise TooLarge(f"a photo may be at most {PHOTO_MAX_BYTES // (1024 * 1024)} MB")
+        photo_dir.mkdir(parents=True, exist_ok=True)
+        (photo_dir / f"{photo_id}{PHOTO_EXTENSIONS[content_type]}").write_bytes(data)
+        events.append_server(
+            conn,
+            who.user_id,
+            entity_type,
+            entity_id,
+            "photo_added",
+            {"photo_id": photo_id, "content_type": content_type, "size": len(data)},
+        )
+        return stamped({})
+
+    @app.get("/photos/{photo_id}")
+    def get_photo(_who: Who, photo_id: str) -> FileResponse:
+        """Never cached, anywhere: the offline copy stays small (FR-INV-11, NFR-PERF-07)."""
+        if not is_ulid(photo_id):
+            raise BadRequest("photo_id must be a ULID")
+        path = photo_path(photo_id)
+        if path is None:
+            raise NotFound("no such photo")
+        media_type = next(ct for ct, ext in PHOTO_EXTENSIONS.items() if ext == path.suffix)
+        return FileResponse(path, media_type=media_type, headers={"Cache-Control": "no-store"})
+
     # --- public -------------------------------------------------------------------------
 
     @app.get("/public/codes/{code}")
@@ -296,6 +372,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--static", help="serve the built client from this directory")
+    parser.add_argument("--photos", help="where photos are kept; default is a photos/ directory beside the database")
     args = parser.parse_args(argv)
-    uvicorn.run(create_app(args.db, static=args.static), host=args.host, port=args.port)
+    uvicorn.run(create_app(args.db, static=args.static, photos=args.photos), host=args.host, port=args.port)
     return 0
