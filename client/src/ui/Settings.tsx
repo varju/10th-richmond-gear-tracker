@@ -87,14 +87,20 @@ export function Settings({ store, shell }: Props) {
 }
 
 function GroupForm({ store }: { store: Store }) {
+  // Drafts sit over the current value, so a bootstrap that lands after the
+  // page opens fills the fields, and only typing makes them dirty.
   const current = group(store.state);
-  const [name, setName] = useState(current.name ?? "");
-  const [codeUrl, setCodeUrl] = useState(current.code_url ?? "");
+  const [draft, setDraft] = useState<{ name?: string; code_url?: string }>({});
   const [saved, setSaved] = useState(false);
+  const name = draft.name ?? current.name ?? "";
+  const codeUrl = draft.code_url ?? current.code_url ?? "";
   const dirty = name !== (current.name ?? "") || codeUrl !== (current.code_url ?? "");
+  const setName = (v: string) => setDraft((d) => ({ ...d, name: v }));
+  const setCodeUrl = (v: string) => setDraft((d) => ({ ...d, code_url: v }));
 
   async function save() {
     await setGroup(store, { name, code_url: codeUrl });
+    setDraft({});
     setSaved(true);
   }
 

@@ -161,6 +161,24 @@ test("deleting a location in use is refused and names the items", async () => {
   await waitFor(() => expect(inv.locations(store.state).map((l) => l.name)).toEqual(["Cold locker", "Dry locker"]));
 });
 
+test("a group name that arrives after the settings page opens fills the form", async () => {
+  navigate("/settings");
+  mount();
+  const nameField = screen.getByLabelText("Group name");
+  expect(nameField).toHaveValue("");
+  expect(screen.getByRole("button", { name: "Save group" })).toBeDisabled();
+
+  await act.setGroup(store, { name: "10th Richmond" });
+  await waitFor(() => expect(nameField).toHaveValue("10th Richmond"));
+  expect(screen.getByRole("button", { name: "Save group" })).toBeDisabled();
+
+  const user = userEvent.setup();
+  await user.type(nameField, " Sea Scouts");
+  await user.click(screen.getByRole("button", { name: "Save group" }));
+  await waitFor(() => expect(inv.group(store.state).name).toBe("10th Richmond Sea Scouts"));
+  expect(await screen.findByText("Saved")).toBeInTheDocument();
+});
+
 test("settings are for admins; others see their account only", async () => {
   await store.setMeta({ user: { id: "u2", name: "Bob", role: "user", active: true } });
   navigate("/settings");
