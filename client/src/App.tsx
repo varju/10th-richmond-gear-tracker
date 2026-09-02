@@ -17,21 +17,13 @@ import { PendingInterrupt } from "./ui/PendingInterrupt";
 import { Scan } from "./ui/Scan";
 import { Settings } from "./ui/Settings";
 import { SignIn } from "./ui/SignIn";
+import { type Shell, ShellContext } from "./shell";
 import { useStore } from "./useStore";
 
 interface Props {
   store: Store;
   api: Api;
   now?: () => number;
-}
-
-/** What the screens that need it get from the shell. */
-export interface Shell {
-  busy: boolean;
-  outcome: SyncOutcome | null;
-  now: () => number;
-  sync: () => Promise<void>;
-  signOut: () => Promise<void>;
 }
 
 export function App({ store, api, now = Date.now }: Props) {
@@ -88,32 +80,35 @@ export function App({ store, api, now = Date.now }: Props) {
   const pending = store.pending;
   const stale = pending.filter((e) => e.occurred_at < now() - STALE_PENDING_MS);
   return (
-    <div className="app">
-      <Banner pending={pending.length} busy={busy} outcome={outcome} />
-      {persistence === "refused" && !storageNoticeSeen && (
-        <p className="notice" role="alert">
-          The browser refused to protect this app’s storage. Unsent records could be deleted to free space. Sync often.
-          <button type="button" onClick={() => setStorageNoticeSeen(true)}>
-            Understood
-          </button>
-        </p>
-      )}
-      {stale.length > 0 && !interruptSeen ? (
-        <PendingInterrupt
-          count={stale.length}
-          oldest={Math.min(...stale.map((e) => e.occurred_at))}
-          now={now()}
-          busy={busy}
-          onSync={runSync}
-          onContinue={() => setInterruptSeen(true)}
-        />
-      ) : (
-        <>
-          {route.segments.length === 0 && <InstallPrompt />}
-          <Screen store={store} api={api} route={route} shell={shell} />
-        </>
-      )}
-    </div>
+    <ShellContext value={shell}>
+      <div className="app">
+        <Banner pending={pending.length} busy={busy} outcome={outcome} />
+        {persistence === "refused" && !storageNoticeSeen && (
+          <p className="notice" role="alert">
+            The browser refused to protect this app’s storage. Unsent records could be deleted to free space. Sync
+            often.
+            <button type="button" onClick={() => setStorageNoticeSeen(true)}>
+              Understood
+            </button>
+          </p>
+        )}
+        {stale.length > 0 && !interruptSeen ? (
+          <PendingInterrupt
+            count={stale.length}
+            oldest={Math.min(...stale.map((e) => e.occurred_at))}
+            now={now()}
+            busy={busy}
+            onSync={runSync}
+            onContinue={() => setInterruptSeen(true)}
+          />
+        ) : (
+          <>
+            {route.segments.length === 0 && <InstallPrompt />}
+            <Screen store={store} api={api} route={route} shell={shell} />
+          </>
+        )}
+      </div>
+    </ShellContext>
   );
 }
 

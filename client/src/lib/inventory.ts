@@ -2,7 +2,7 @@
  * Reading the state: what an item, a location, a code look like, and the
  * questions the screens ask of them. Pure functions over Store.state.
  */
-import type { Fields, State } from "./replay";
+import type { Fields, Movement, Note, State } from "./replay";
 
 export interface Item {
   id: string;
@@ -16,6 +16,9 @@ export interface Item {
   status: "in" | "out";
   holder_id: string | null;
   since?: number;
+  movement?: Movement;
+  notes?: Note[];
+  conflicts?: unknown[];
   added_at?: number;
   modified_at?: number;
 }

@@ -1,0 +1,51 @@
+{
+  "name": "a check-out that names the check-out it replaces is a transfer, not a conflict",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "type": "checked_out",
+      "payload": {
+        "holder_id": "bob",
+        "event": "Spring camp"
+      }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "actor_id": "carol",
+      "device_id": "b",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "type": "checked_out",
+      "payload": {
+        "holder_id": "carol",
+        "supersedes": "01000000000000000000000001"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-1": {
+        "status": "out",
+        "holder_id": "carol",
+        "since": 2000,
+        "movement": {
+          "id": "01000000000000000000000002",
+          "type": "checked_out",
+          "holder_id": "carol",
+          "event": null,
+          "actor_id": "carol",
+          "device_id": "b",
+          "at": 2000
+        }
+      }
+    }
+  }
+}

@@ -89,7 +89,10 @@ class FieldChange(Payload):
 
 
 class NoteText(Payload):
+    """A note on the item, or on one of its movements when movement_id names the check-out or check-in (FR-OUT-15)."""
+
     text: str
+    movement_id: Ulid | None = None
 
 
 class NoteCorrection(Payload):
@@ -98,7 +101,12 @@ class NoteCorrection(Payload):
 
 
 class CheckOut(Payload):
+    """Who has it, for which event (FR-OUT-04). `supersedes` names the check-out this one knowingly replaces:
+    a transfer (FR-OUT-12), not a conflict (FR-OFF-10)."""
+
     holder_id: NonEmpty
+    event: str | None = None
+    supersedes: Ulid | None = None
 
 
 class CodeBinding(Payload):

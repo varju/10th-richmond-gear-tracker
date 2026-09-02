@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Shell } from "../App";
+import type { Shell } from "../shell";
 import {
   createLocation,
   createType,

@@ -13,7 +13,8 @@
           "holder_id": "bob",
           "actor_id": "alice",
           "device_id": "a",
-          "at": 1000
+          "at": 1000,
+          "event": null
         }
       }
     }
@@ -44,6 +45,7 @@
           "id": "01000000000000000000000002",
           "type": "checked_out",
           "holder_id": "carol",
+          "event": null,
           "actor_id": "carol",
           "device_id": "b",
           "at": 2000
@@ -58,12 +60,14 @@
                 "holder_id": "bob",
                 "actor_id": "alice",
                 "device_id": "a",
-                "at": 1000
+                "at": 1000,
+                "event": null
               },
               {
                 "id": "01000000000000000000000002",
                 "type": "checked_out",
                 "holder_id": "carol",
+                "event": null,
                 "actor_id": "carol",
                 "device_id": "b",
                 "at": 2000

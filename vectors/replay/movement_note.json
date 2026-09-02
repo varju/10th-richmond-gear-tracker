@@ -1,5 +1,5 @@
 {
-  "name": "added_at and modified_at are set by replay; movements and notes leave modified_at alone",
+  "name": "a note can point at the movement it belongs to; the movement carries its event",
   "events": [
     {
       "id": "01000000000000000000000001",
@@ -9,9 +9,10 @@
       "device_id": "a",
       "device_seq": 1,
       "effective_at": 1000,
-      "type": "created",
+      "type": "checked_out",
       "payload": {
-        "name": "Tent"
+        "holder_id": "bob",
+        "event": "Spring camp"
       }
     },
     {
@@ -22,11 +23,10 @@
       "device_id": "a",
       "device_seq": 2,
       "effective_at": 2000,
-      "type": "field_changed",
+      "type": "note_added",
       "payload": {
-        "field": "name",
-        "value": "Big tent",
-        "old": "Tent"
+        "text": "handed to a patrol leader",
+        "movement_id": "01000000000000000000000001"
       }
     },
     {
@@ -37,49 +37,40 @@
       "device_id": "a",
       "device_seq": 3,
       "effective_at": 3000,
-      "type": "checked_out",
-      "payload": {
-        "holder_id": "bob"
-      }
-    },
-    {
-      "id": "01000000000000000000000004",
-      "entity_type": "item",
-      "entity_id": "tent-1",
-      "actor_id": "alice",
-      "device_id": "a",
-      "device_seq": 4,
-      "effective_at": 4000,
       "type": "note_added",
       "payload": {
-        "text": "muddy"
+        "text": "smells of smoke"
       }
     }
   ],
   "state": {
     "item": {
       "tent-1": {
-        "name": "Big tent",
-        "added_at": 1000,
-        "modified_at": 2000,
         "status": "out",
         "holder_id": "bob",
-        "since": 3000,
+        "since": 1000,
         "movement": {
-          "id": "01000000000000000000000003",
+          "id": "01000000000000000000000001",
           "type": "checked_out",
           "holder_id": "bob",
-          "event": null,
+          "event": "Spring camp",
           "actor_id": "alice",
           "device_id": "a",
-          "at": 3000
+          "at": 1000
         },
         "notes": [
           {
-            "id": "01000000000000000000000004",
-            "text": "muddy",
+            "id": "01000000000000000000000002",
+            "text": "handed to a patrol leader",
             "actor_id": "alice",
-            "at": 4000
+            "at": 2000,
+            "movement_id": "01000000000000000000000001"
+          },
+          {
+            "id": "01000000000000000000000003",
+            "text": "smells of smoke",
+            "actor_id": "alice",
+            "at": 3000
           }
         ]
       }

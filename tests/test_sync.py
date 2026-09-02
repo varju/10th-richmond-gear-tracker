@@ -338,3 +338,21 @@ def test_devices_bind_codes_but_do_not_make_them(db):
 def test_created_may_not_set_system_fields(db):
     made = own(USER, type="created", payload={"name": "Tent", "added_at": 1})
     assert reasons(db, USER, made) == ["payload: added_at is set by the system, not by created"]
+
+
+def test_retired_items_cannot_be_checked_out(db):
+    push(
+        db,
+        USER,
+        {
+            "device_id": "phone-a",
+            "client_time": T0,
+            "events": [
+                own(USER, type="created", payload={"name": "Tent"}, device_seq=1),
+                own(USER, payload={"field": "retired", "value": True, "old": None}, device_seq=2),
+            ],
+        },
+        now=T0,
+    )
+    out = own(USER, type="checked_out", payload={"holder_id": "alice"}, device_seq=3)
+    assert reasons(db, USER, out) == ["retired items cannot be checked out (FR-INV-04)"]

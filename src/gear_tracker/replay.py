@@ -57,9 +57,10 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             entity[p["field"]] = p["value"]
             entity["modified_at"] = event.effective_at
         case "note_added":
-            entity.setdefault("notes", []).append(
-                {"id": event.id, "text": p["text"], "actor_id": event.actor_id, "at": event.effective_at}
-            )
+            note = {"id": event.id, "text": p["text"], "actor_id": event.actor_id, "at": event.effective_at}
+            if p.get("movement_id") is not None:
+                note["movement_id"] = p["movement_id"]
+            entity.setdefault("notes", []).append(note)
         case "note_corrected":
             # The original event stands in the log; only the rendered text moves.
             for note in entity.get("notes", []):
@@ -68,8 +69,15 @@ def apply(entity: dict[str, Any], event: Event) -> None:
         case "checked_out":
             # Two check-outs from different devices with no check-in between:
             # the machine picks the later one and queues both (FR-OFF-10).
+            # Unless the later one says which check-out it replaces: that is a
+            # transfer, made by someone who saw the first (FR-OUT-12).
             previous = entity.get("movement")
-            if previous is not None and previous["type"] == "checked_out" and previous["device_id"] != event.device_id:
+            if (
+                previous is not None
+                and previous["type"] == "checked_out"
+                and previous["device_id"] != event.device_id
+                and p.get("supersedes") != previous["id"]
+            ):
                 entity.setdefault("conflicts", []).append(
                     {"kind": "double_checkout", "events": [previous, _movement(event)]}
                 )
@@ -96,6 +104,7 @@ def _movement(event: Event) -> dict[str, Any]:
         "id": event.id,
         "type": event.type,
         "holder_id": event.payload.get("holder_id"),
+        "event": event.payload.get("event"),
         "actor_id": event.actor_id,
         "device_id": event.device_id,
         "at": event.effective_at,

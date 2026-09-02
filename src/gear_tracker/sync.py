@@ -108,6 +108,10 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
         raise Rejected("user changes go through the accounts API")
     if entity_type == "setting" and principal.role != "admin":
         raise Rejected("settings are changed by an Admin")
+    if entity_type == "item" and kind == "checked_out":
+        item = derived.get_entity(conn, "item", str(incoming.get("entity_id")))
+        if item is not None and item.get("retired"):
+            raise Rejected("retired items cannot be checked out (FR-INV-04)")
     if entity_type == "code":
         if kind == "created":
             raise Rejected("codes come from printed sheets")

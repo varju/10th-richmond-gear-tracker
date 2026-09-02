@@ -9,7 +9,7 @@
 import type { OutgoingEvent, ServerEvent, User } from "./api";
 import { RETENTION_MS } from "./clock";
 import { done, req } from "./db";
-import { type Fields, replay, type ReplayEvent, type State } from "./replay";
+import { type Fields, replay, type ReplayEvent, replayOrder, type State } from "./replay";
 import { newUlid } from "./ulid";
 
 /** no: waiting to push. yes: the server has it. rejected: the server refused it; kept for the record, not replayed. */
@@ -29,6 +29,8 @@ export interface Meta {
   device_seq: number;
   clock_offset: number;
   cursor?: number;
+  /** The event name scans are for, until changed or cleared (FR-OUT-05). A device setting, not a record. */
+  session_event?: string;
   token?: string;
   user?: User;
   last_sync_at?: number;
@@ -92,6 +94,13 @@ export class Store {
 
   get items(): Record<string, Fields> {
     return this.state.item ?? {};
+  }
+
+  /** What this device knows happened to one entity, in replay order. History, not state: the last 90 days at most. */
+  eventsFor(entity_type: string, entity_id: string): StoredEvent[] {
+    return [...this.events.values()]
+      .filter((e) => e.entity_type === entity_type && e.entity_id === entity_id && e.sent !== "rejected")
+      .sort(replayOrder);
   }
 
   async setMeta(patch: Partial<Meta>): Promise<void> {

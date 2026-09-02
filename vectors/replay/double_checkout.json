@@ -51,6 +51,7 @@
           "id": "01000000000000000000000003",
           "type": "checked_out",
           "holder_id": "dave",
+          "event": null,
           "actor_id": "alice",
           "device_id": "a",
           "at": 3000
@@ -63,6 +64,7 @@
                 "id": "01000000000000000000000001",
                 "type": "checked_out",
                 "holder_id": "bob",
+                "event": null,
                 "actor_id": "alice",
                 "device_id": "a",
                 "at": 1000
@@ -71,6 +73,7 @@
                 "id": "01000000000000000000000002",
                 "type": "checked_out",
                 "holder_id": "carol",
+                "event": null,
                 "actor_id": "carol",
                 "device_id": "b",
                 "at": 2000
@@ -84,6 +87,7 @@
                 "id": "01000000000000000000000002",
                 "type": "checked_out",
                 "holder_id": "carol",
+                "event": null,
                 "actor_id": "carol",
                 "device_id": "b",
                 "at": 2000
@@ -92,6 +96,7 @@
                 "id": "01000000000000000000000003",
                 "type": "checked_out",
                 "holder_id": "dave",
+                "event": null,
                 "actor_id": "alice",
                 "device_id": "a",
                 "at": 3000

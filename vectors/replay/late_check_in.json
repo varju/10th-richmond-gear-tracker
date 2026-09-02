@@ -49,6 +49,7 @@
           "id": "01000000000000000000000003",
           "type": "checked_out",
           "holder_id": "carol",
+          "event": null,
           "actor_id": "alice",
           "device_id": "a",
           "at": 90000000

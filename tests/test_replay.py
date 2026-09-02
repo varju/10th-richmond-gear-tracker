@@ -152,6 +152,7 @@ def test_two_check_outs_from_different_devices_are_a_conflict():
                     "id": first.id,
                     "type": "checked_out",
                     "holder_id": "bob",
+                    "event": None,
                     "actor_id": "alice",
                     "device_id": "a",
                     "at": T0 + 1,
@@ -160,6 +161,7 @@ def test_two_check_outs_from_different_devices_are_a_conflict():
                     "id": second.id,
                     "type": "checked_out",
                     "holder_id": "carol",
+                    "event": None,
                     "actor_id": "alice",
                     "device_id": "b",
                     "at": T0 + 2,
@@ -175,6 +177,32 @@ def test_two_check_outs_from_one_device_are_a_transfer_not_a_conflict():
         ev(device_id="a", device_seq=2, effective_at=T0 + 2, type="checked_out", payload={"holder_id": "carol"}),
     ]
     assert "conflicts" not in replay(events)["item"]["tent-1"]
+
+
+def test_a_check_out_that_names_the_one_it_replaces_is_a_transfer():
+    first = ev(device_id="a", device_seq=1, effective_at=T0 + 1, type="checked_out", payload={"holder_id": "bob"})
+    taken = ev(
+        device_id="b",
+        device_seq=1,
+        effective_at=T0 + 2,
+        type="checked_out",
+        payload={"holder_id": "carol", "supersedes": first.id},
+    )
+    tent = replay([first, taken])["item"]["tent-1"]
+    assert "conflicts" not in tent
+    assert tent["holder_id"] == "carol"
+
+
+def test_a_movement_carries_its_event_and_a_note_can_point_at_it():
+    out = ev(device_seq=1, type="checked_out", payload={"holder_id": "bob", "event": "Spring camp"})
+    note = ev(
+        device_seq=2, effective_at=T0 + 1, type="note_added", payload={"text": "to a patrol", "movement_id": out.id}
+    )
+    tent = replay([out, note])["item"]["tent-1"]
+    assert tent["movement"]["event"] == "Spring camp"
+    assert tent["notes"] == [
+        {"id": note.id, "text": "to a patrol", "actor_id": "alice", "at": T0 + 1, "movement_id": out.id}
+    ]
 
 
 def test_a_check_in_between_two_check_outs_is_not_a_conflict():

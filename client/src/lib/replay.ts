@@ -23,17 +23,19 @@ export interface ReplayEvent {
   payload: Record<string, unknown>;
 }
 
-interface Note {
+export interface Note {
   id: string;
   text: string;
   actor_id: string;
   at: number;
+  movement_id?: string;
 }
 
-interface Movement {
+export interface Movement {
   id: string;
   type: string;
   holder_id: unknown;
+  event: unknown;
   actor_id: string;
   device_id: string;
   at: number;
@@ -80,9 +82,12 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       entity[p.field as string] = p.value;
       entity.modified_at = event.effective_at;
       break;
-    case "note_added":
-      notes(entity).push({ id: event.id, text: p.text as string, actor_id: event.actor_id, at: event.effective_at });
+    case "note_added": {
+      const note: Note = { id: event.id, text: p.text as string, actor_id: event.actor_id, at: event.effective_at };
+      if (p.movement_id != null) note.movement_id = p.movement_id as string;
+      notes(entity).push(note);
       break;
+    }
     case "note_corrected":
       // The original event stands in the log; only the rendered text moves.
       for (const note of notes(entity)) {
@@ -92,8 +97,15 @@ export function apply(entity: Fields, event: ReplayEvent): void {
     case "checked_out": {
       // Two check-outs from different devices with no check-in between:
       // the machine picks the later one and queues both (FR-OFF-10).
+      // Unless the later one says which check-out it replaces: that is a
+      // transfer, made by someone who saw the first (FR-OUT-12).
       const previous = entity.movement as Movement | null | undefined;
-      if (previous && previous.type === "checked_out" && previous.device_id !== event.device_id) {
+      if (
+        previous &&
+        previous.type === "checked_out" &&
+        previous.device_id !== event.device_id &&
+        p.supersedes !== previous.id
+      ) {
         ((entity.conflicts ??= []) as unknown[]).push({
           kind: "double_checkout",
           events: [previous, movement(event)],
@@ -131,6 +143,7 @@ function movement(event: ReplayEvent): Movement {
     id: event.id,
     type: event.type,
     holder_id: event.payload.holder_id ?? null,
+    event: event.payload.event ?? null,
     actor_id: event.actor_id,
     device_id: event.device_id,
     at: event.effective_at,
