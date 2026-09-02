@@ -52,6 +52,8 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             if event.entity_type == "item":
                 entity.setdefault("status", "in")
                 entity.setdefault("holder_id", None)
+            if event.entity_type == "repair":
+                entity.setdefault("state", "open")
         case "field_changed":
             # Modified means the entity's own fields (FR-INV-03). Movements and notes do not count.
             entity[p["field"]] = p["value"]

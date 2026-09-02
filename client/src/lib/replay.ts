@@ -76,6 +76,7 @@ export function apply(entity: Fields, event: ReplayEvent): void {
         if (!("status" in entity)) entity.status = "in";
         if (!("holder_id" in entity)) entity.holder_id = null;
       }
+      if (event.entity_type === "repair" && !("state" in entity)) entity.state = "open";
       break;
     case "field_changed":
       // Modified means the entity's own fields (FR-INV-03). Movements and notes do not count.

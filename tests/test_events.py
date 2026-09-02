@@ -7,7 +7,7 @@ import sqlite3
 import pytest
 
 from gear_tracker.db import connect
-from gear_tracker.events import ENTITY_TYPES, Rejected, append, get, in_replay_order, since
+from gear_tracker.events import ENTITY_TYPES, Rejected, append, get, in_replay_order, since, validate
 from tests.factories import T0, incoming
 
 
@@ -91,8 +91,11 @@ def test_movement_events_apply_only_to_items(db):
 
 
 def test_every_entity_type_is_on_the_log(db):
+    # A note is the one event every entity takes; a field change is judged per entity.
     for n, entity_type in enumerate(sorted(ENTITY_TYPES), start=1):
-        append(db, incoming(entity_type=entity_type, entity_id=f"{entity_type}-1", device_seq=n), received_at=T0)
+        e = incoming(entity_type=entity_type, entity_id=f"{entity_type}-1", device_seq=n)
+        e.update(type="note_added", payload={"text": "hello"})
+        append(db, e, received_at=T0)
     types = {r["entity_type"] for r in db.execute("SELECT entity_type FROM events")}
     assert types == ENTITY_TYPES
 
@@ -197,3 +200,52 @@ def test_seq_order_is_commit_order_not_time_order(db):
     assert late.seq == 2
     assert [e.seq for e in since(db, cursor=1)] == [2]
     assert [e.seq for e in in_replay_order(db)] == [2, 1]
+
+
+# --- shaped payloads: repairs, reservations, found reports -----------------------------------
+
+
+def created(entity_type: str, payload: dict) -> dict:
+    return incoming(entity_type=entity_type, entity_id=f"{entity_type}-1", type="created", payload=payload)
+
+
+def test_a_repair_ticket_names_its_item_and_the_fault():
+    validate(created("repair", {"item_id": "tent-1", "description": "zipper broken"}))
+    with pytest.raises(Rejected, match="item_id: Field required"):
+        validate(created("repair", {"description": "zipper broken"}))
+    with pytest.raises(Rejected, match="description: String should have at least 1 character"):
+        validate(created("repair", {"item_id": "tent-1", "description": ""}))
+
+
+def test_a_repair_state_is_one_of_four():
+    change = incoming(entity_type="repair", entity_id="rep-1", payload={"field": "state", "value": "open", "old": None})
+    validate(change)
+    change["payload"]["value"] = "fixed"
+    with pytest.raises(Rejected, match="state must be one of open, in_progress, resolved, wont_fix"):
+        validate(change)
+
+
+def test_a_reservation_has_an_event_and_days_in_order():
+    base = {"event": "Fall Camp", "starts": "2026-10-02", "ends": "2026-10-04"}
+    validate(created("reservation", base))
+    validate(created("reservation", {**base, "items": ["tent-1"], "types": [{"type_id": "t", "quantity": 2}]}))
+    with pytest.raises(Rejected, match="ends before it starts"):
+        validate(created("reservation", {**base, "ends": "2026-10-01"}))
+    with pytest.raises(Rejected, match="starts: String should match pattern"):
+        validate(created("reservation", {**base, "starts": "Oct 2"}))
+    with pytest.raises(Rejected, match="types.0.quantity"):
+        validate(created("reservation", {**base, "types": [{"type_id": "t", "quantity": 0}]}))
+
+
+def test_a_found_report_can_only_be_resolved():
+    validate(created("found_report", {"code": "AAAAAAAAAA", "item_id": None, "note": "by the gate"}))
+    ok = incoming(
+        entity_type="found_report", entity_id="f-1", payload={"field": "resolved", "value": True, "old": None}
+    )
+    validate(ok)
+    for payload in (
+        {"field": "note", "value": "edited", "old": "by the gate"},
+        {"field": "resolved", "value": "yes", "old": None},
+    ):
+        with pytest.raises(Rejected, match="can only be resolved"):
+            validate(incoming(entity_type="found_report", entity_id="f-1", payload=payload))

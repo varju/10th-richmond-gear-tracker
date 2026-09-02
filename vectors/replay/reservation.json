@@ -1,0 +1,50 @@
+{
+  "name": "a reservation is created whole; an edit replaces one list and keeps the old one in the log",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "reservation",
+      "entity_id": "res-1",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "event": "Fall Camp",
+        "starts": "2026-10-02",
+        "ends": "2026-10-04",
+        "items": ["tent-1", "stove-1"],
+        "types": [{ "type_id": "tarp", "quantity": 2 }]
+      }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "reservation",
+      "entity_id": "res-1",
+      "type": "field_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": {
+        "field": "items",
+        "value": ["tent-1"],
+        "old": ["tent-1", "stove-1"]
+      }
+    }
+  ],
+  "state": {
+    "reservation": {
+      "res-1": {
+        "event": "Fall Camp",
+        "starts": "2026-10-02",
+        "ends": "2026-10-04",
+        "items": ["tent-1"],
+        "types": [{ "type_id": "tarp", "quantity": 2 }],
+        "added_at": 1000,
+        "modified_at": 2000
+      }
+    }
+  }
+}

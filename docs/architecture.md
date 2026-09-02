@@ -32,7 +32,7 @@ they are all events on one log. One replay builds every table the client reads.
 ```
 events
   id            ulid, generated on the device, unique
-  entity_type   item | user | location | code | reservation | repair | setting
+  entity_type   item | item_type | user | location | code | reservation | repair | found_report | setting
   entity_id
   type          checked_out | checked_in | note_added | note_corrected | field_changed | ...
   actor_id

@@ -356,3 +356,16 @@ def test_retired_items_cannot_be_checked_out(db):
     )
     out = own(USER, type="checked_out", payload={"holder_id": "alice"}, device_seq=3)
     assert reasons(db, USER, out) == ["retired items cannot be checked out (FR-INV-04)"]
+
+
+def test_a_device_cannot_file_a_found_report(db):
+    forged = own(
+        ALICE,
+        device_seq=1,
+        entity_type="found_report",
+        entity_id="f-1",
+        type="created",
+        payload={"code": "AAAAAAAAAA", "item_id": None, "note": "by the gate"},
+    )
+    result = push(db, ALICE, batch(ALICE, forged), now=T0)
+    assert result["rejected"][0]["reason"] == "found reports come from the public page"

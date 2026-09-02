@@ -29,8 +29,16 @@ from pydantic import (
 from gear_tracker.replay import DERIVED_FIELDS
 from gear_tracker.ulid import is_ulid, new_ulid
 
-EntityType = Literal["item", "item_type", "user", "location", "code", "reservation", "repair", "setting"]
+EntityType = Literal[
+    "item", "item_type", "user", "location", "code", "reservation", "repair", "found_report", "setting"
+]
 ENTITY_TYPES = frozenset(get_args(EntityType))
+
+REPAIR_STATES = ("open", "in_progress", "resolved", "wont_fix")
+"""A ticket's life (FR-REP-03). The first two are open: the item is flagged (FR-REP-05)."""
+
+PUBLIC_ACTOR = "public"
+"""actor_id on a found report. Not a user: a stranger with our gear (FR-PUB-02)."""
 
 
 class Rejected(ValueError):
@@ -113,11 +121,60 @@ class CodeBinding(Payload):
     item_id: NonEmpty
 
 
-def _no_derived_keys(payload: dict[str, Any]) -> dict[str, Any]:
-    for key in payload:
-        if key in DERIVED_FIELDS:
-            raise ValueError(f"{key} is set by the system, not by created")
-    return payload
+class RepairTicket(Payload):
+    """What a ticket is raised with (FR-REP-01). Its state starts open; replay sets that."""
+
+    item_id: NonEmpty
+    description: NonEmpty
+
+
+IsoDate = Annotated[str, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+"""A calendar day as a person picked it, not an instant. Compared as text."""
+
+
+class TypeQuantity(Payload):
+    type_id: NonEmpty
+    quantity: Annotated[int, Field(ge=1)]
+
+
+class ReservationDetails(Payload):
+    """An event, its days, and what it needs: named items, or so many of a type (FR-RES-01, FR-RES-13)."""
+
+    event: NonEmpty
+    starts: IsoDate
+    ends: IsoDate
+    items: list[NonEmpty] = []
+    types: list[TypeQuantity] = []
+
+    @model_validator(mode="after")
+    def _in_order(self):
+        if self.ends < self.starts:
+            raise ValueError("ends before it starts")
+        return self
+
+
+class FoundReport(Payload):
+    """A stranger's note, recorded by the server (FR-PUB-02). `item_id` is null for a code not yet on anything."""
+
+    code: NonEmpty
+    item_id: str | None
+    note: NonEmpty
+    contact: str = ""
+
+
+CREATED_PAYLOADS: dict[str, type[Payload]] = {
+    "repair": RepairTicket,
+    "reservation": ReservationDetails,
+    "found_report": FoundReport,
+}
+"""Entities whose `created` has a shape. The rest take any fields."""
+
+
+def _first_error(exc: ValidationError) -> str:
+    first = exc.errors()[0]
+    loc = ".".join(str(part) for part in first["loc"])
+    msg = first["msg"].removeprefix("Value error, ")
+    return f"{loc}: {msg}" if loc else msg
 
 
 class _Incoming(Strict):
@@ -148,12 +205,36 @@ class _ItemOnly(_Incoming):
 
 class Created(_Incoming):
     type: Literal["created"]
-    payload: Annotated[dict[str, Any], AfterValidator(_no_derived_keys)]
+    payload: dict[str, Any]
+
+    @model_validator(mode="after")
+    def _shaped(self):
+        model = CREATED_PAYLOADS.get(self.entity_type)
+        for key in self.payload:
+            # item_id is derived on a code, and plain data on a ticket or a found report.
+            if key in DERIVED_FIELDS and not (key == "item_id" and model is not None):
+                raise ValueError(f"payload: {key} is set by the system, not by created")
+        if model is not None:
+            try:
+                model.model_validate(self.payload)
+            except ValidationError as exc:
+                raise ValueError(_first_error(exc)) from None
+        return self
 
 
 class FieldChanged(_Incoming):
     type: Literal["field_changed"]
     payload: FieldChange
+
+    @model_validator(mode="after")
+    def _known_values(self):
+        field, value = self.payload.field, self.payload.value
+        if self.entity_type == "repair" and field == "state" and value not in REPAIR_STATES:
+            raise ValueError(f"state must be one of {', '.join(REPAIR_STATES)}")
+        if self.entity_type == "found_report" and (field != "resolved" or not isinstance(value, bool)):
+            # The report is the finder's words. A member marks it dealt with, and changes nothing else.
+            raise ValueError("a found report can only be resolved")
+        return self
 
 
 class NoteAdded(_Incoming):

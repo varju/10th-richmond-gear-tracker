@@ -1,0 +1,66 @@
+{
+  "name": "a repair ticket opens open, moves state by field_changed, and carries comments as notes",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "repair",
+      "entity_id": "rep-1",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "item_id": "tent-1",
+        "description": "zipper broken"
+      }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "repair",
+      "entity_id": "rep-1",
+      "type": "field_changed",
+      "actor_id": "bob",
+      "device_id": "b",
+      "device_seq": 1,
+      "effective_at": 3000,
+      "payload": {
+        "field": "state",
+        "value": "in_progress",
+        "old": "open"
+      }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "repair",
+      "entity_id": "rep-1",
+      "type": "note_added",
+      "actor_id": "bob",
+      "device_id": "b",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": {
+        "text": "new slider ordered, $8"
+      }
+    }
+  ],
+  "state": {
+    "repair": {
+      "rep-1": {
+        "item_id": "tent-1",
+        "description": "zipper broken",
+        "state": "in_progress",
+        "added_at": 1000,
+        "modified_at": 3000,
+        "notes": [
+          {
+            "id": "01000000000000000000000002",
+            "text": "new slider ordered, $8",
+            "actor_id": "bob",
+            "at": 2000
+          }
+        ]
+      }
+    }
+  }
+}
