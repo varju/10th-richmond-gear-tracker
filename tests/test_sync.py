@@ -430,7 +430,7 @@ def test_a_generic_item_takes_no_code(db):
     assert reasons(db, USER, {**bind, "device_seq": 2}) == refused
 
     # Its unit does take one.
-    unit = own(USER, entity_id="tent-1-1", type="created", payload={"parent_id": "tent-1", "number": 1}, device_seq=3)
+    unit = own(USER, entity_id="tent-1-1", type="created", payload={"parent_id": "tent-1", "number": "1"}, device_seq=3)
     assert reasons(db, USER, unit) == []
     on_unit = own(
         USER,
@@ -451,10 +451,10 @@ def test_a_unit_may_take_the_number_another_phone_used(db):
         batch(USER, own(USER, type="created", payload={"name": "3x3 tarp", "generic": True}, device_seq=1)),
         now=T0,
     )
-    mine = own(USER, entity_id="tarp-a", type="created", payload={"parent_id": "tent-1", "number": 2}, device_seq=2)
-    theirs = own(BOB, entity_id="tarp-b", type="created", payload={"parent_id": "tent-1", "number": 2}, device_seq=1)
+    mine = own(USER, entity_id="tarp-a", type="created", payload={"parent_id": "tent-1", "number": "2"}, device_seq=2)
+    theirs = own(BOB, entity_id="tarp-b", type="created", payload={"parent_id": "tent-1", "number": "2"}, device_seq=1)
     assert reasons(db, USER, mine) == []
     result = push(db, BOB, {"device_id": "phone-b", "client_time": T0, "events": [theirs]}, now=T0)
     assert result["accepted"] == [theirs["id"]]
-    assert snapshot(db)["item"]["tarp-a"]["number"] == 2
-    assert snapshot(db)["item"]["tarp-b"]["number"] == 2
+    assert snapshot(db)["item"]["tarp-a"]["number"] == "2"
+    assert snapshot(db)["item"]["tarp-b"]["number"] == "2"

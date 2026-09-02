@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
 import { DAY_MS } from "../lib/clock";
-import { item } from "../lib/inventory";
+import { currentCode, generics, item, nameOf, unitsOf } from "../lib/inventory";
 import * as mv from "../lib/movement";
 import * as rep from "../lib/repairs";
 import { navigate } from "../lib/router";
@@ -103,8 +103,8 @@ test("history lists movements and notes together, newest first (FR-INV-09)", asy
     "Checked in by Alice · 2025-09-01muddyAlice · 2025-09-01EditDelete",
     "Checked out by Alice for Spring camp · 2025-09-01to a patrolAlice · 2025-09-01EditDelete",
   ]);
-  // Once under History, once under Changes.
-  expect(screen.getAllByText(/last 90 days/)).toHaveLength(2);
+  // No shell api here, so this is what the device knows: said once under History, once under Changes.
+  expect(screen.getAllByText("Offline: what this device knows, the last 90 days.")).toHaveLength(2);
 });
 
 test("a note is corrected in place and the correction is appended (FR-OUT-16)", async () => {
@@ -305,7 +305,8 @@ test("the record's changes are listed with old and new values (FR-USR-09)", asyn
 test("an Admin merges a duplicate into the item it doubles, and lands on the survivor (FR-INV-13)", async () => {
   const other = await act.createItem(store, { name: "Tent 1 (again)" });
   renderInShell(<ItemPage store={store} id={other} />);
-  await user.click(screen.getByRole("button", { name: "Merge into another item…" }));
+  await user.click(screen.getByRole("button", { name: "This is a duplicate record…" }));
+  expect(screen.getByText(/second record of/)).toBeInTheDocument();
   await user.type(screen.getByLabelText("Search"), "tent 1");
   await user.click(screen.getByRole("button", { name: /^Tent 1$/ }));
   expect(screen.getByText("Merge Tent 1 (again) into Tent 1?")).toBeInTheDocument();
@@ -332,6 +333,88 @@ test("the survivor names what was merged into it, and a user sees no merge butto
   await act.mergeItem(store, other, tent);
   await store.setMeta({ user: carol });
   renderInShell(<ItemPage store={store} id={tent} />);
-  expect(screen.getByText("Merged from").nextElementSibling).toHaveTextContent("Tent 1 (again)");
-  expect(screen.queryByRole("button", { name: /Merge into/ })).not.toBeInTheDocument();
+  const line = screen.getByText("Merged from").nextElementSibling as HTMLElement;
+  expect(line).toHaveTextContent("Tent 1 (again)");
+  // The record it came from is a tap away; only an Admin may put it back (FR-INV-13).
+  expect(within(line).queryByRole("button", { name: "Unmerge" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /duplicate record/ })).not.toBeInTheDocument();
+
+  await user.click(within(line).getByRole("button", { name: "Tent 1 (again)" }));
+  expect(location.pathname).toBe(`/items/${other}`);
+});
+
+test("an Admin undoes a merge from the survivor's own page (FR-INV-13)", async () => {
+  const other = await act.createItem(store, { name: "Tent 1 (again)" });
+  const third = await act.createItem(store, { name: "Tent 1 (third)" });
+  await act.mergeItem(store, other, tent);
+  await act.mergeItem(store, third, tent);
+  renderInShell(<ItemPage store={store} id={tent} />);
+  // One line each, each with its own way back.
+  const lines = [...document.querySelectorAll(".merged-line")] as HTMLElement[];
+  expect(lines.map((l) => l.textContent)).toEqual(["Tent 1 (again)Unmerge", "Tent 1 (third)Unmerge"]);
+
+  await user.click(within(lines[0]!).getByRole("button", { name: "Unmerge" }));
+  await waitFor(() => expect(item(store.state, other)?.merged_into).toBeNull());
+  expect(item(store.state, third)?.merged_into).toBe(tent);
+  expect(document.querySelectorAll(".merged-line")).toHaveLength(1);
+});
+
+test("two of the same gear are grouped under one name, and both stay (FR-INV-30)", async () => {
+  const other = await act.createItem(store, { name: "Tent 2" });
+  await act.bindCode(store, "ABCDEFGH23", tent);
+  await store.setMeta({ user: carol });
+  renderInShell(<ItemPage store={store} id={tent} />);
+
+  // Grouping is an edit, so a user may do it; merging is still an Admin's (FR-INV-13, FR-INV-30).
+  expect(screen.queryByRole("button", { name: /duplicate record/ })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Group with another item…" }));
+  await user.click(screen.getByRole("button", { name: /^Tent 2/ }));
+  expect(screen.getByText("Tent 2 becomes a name for both, and each becomes one of them.")).toBeInTheDocument();
+  expect(screen.getByLabelText("The other one’s number")).toHaveValue("1");
+  expect(screen.getByLabelText("This one’s number")).toHaveValue("2");
+  await user.click(screen.getByRole("button", { name: "Group" }));
+
+  // One field at a time, and the name it no longer needs goes last. Wait for that.
+  await waitFor(() => expect(item(store.state, tent)?.name).toBeNull());
+  const generic = generics(store.state)[0]!;
+  expect(generic.name).toBe("Tent 2");
+  expect(nameOf(store.state, other)).toBe("Tent 2 #1");
+  expect(nameOf(store.state, tent)).toBe("Tent 2 #2");
+  // Neither is hidden, and the sticker stays where it was.
+  expect(item(store.state, tent)?.merged_into).toBeUndefined();
+  expect(unitsOf(store.state, generic.id)).toHaveLength(2);
+  expect(currentCode(store.state, tent)?.id).toBe("ABCDEFGH23");
+});
+
+test("grouping with a generic joins the one already there (FR-INV-30)", async () => {
+  const tents = await act.createGeneric(store, { name: "4-person tent" });
+  await act.addUnit(store, tents);
+  renderInShell(<ItemPage store={store} id={tent} />);
+
+  await user.click(screen.getByRole("button", { name: "Group with another item…" }));
+  await user.click(screen.getByRole("button", { name: "4-person tent 1 unit" }));
+  expect(screen.getByText("Tent 1 becomes one of 4-person tent.")).toBeInTheDocument();
+  // No second number to confirm: the generic is already named.
+  expect(screen.queryByLabelText("The other one’s number")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("This one’s number")).toHaveValue("2");
+  await user.click(screen.getByRole("button", { name: "Group" }));
+
+  await waitFor(() => expect(item(store.state, tent)?.name).toBeNull());
+  expect(nameOf(store.state, tent)).toBe("4-person tent #2");
+  expect(generics(store.state)).toHaveLength(1);
+});
+
+test("a group of two needs two different numbers (FR-INV-23, FR-INV-30)", async () => {
+  await act.createItem(store, { name: "Tent 2" });
+  renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Group with another item…" }));
+  await user.click(screen.getByRole("button", { name: /^Tent 2/ }));
+  await user.clear(screen.getByLabelText("This one’s number"));
+  await user.type(screen.getByLabelText("This one’s number"), "1");
+  await user.click(screen.getByRole("button", { name: "Group" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("the two need different numbers");
+  // Nothing was written, so neither item moved.
+  expect(generics(store.state)).toEqual([]);
+  expect(item(store.state, tent)?.parent_id).toBeUndefined();
 });

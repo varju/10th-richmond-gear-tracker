@@ -98,7 +98,8 @@ def test_units_hang_off_their_generic(db, tmp_path):
         key=lambda fields: fields["number"],
     )
 
-    assert [unit["number"] for unit in units] == [1, 2]
+    # A whole number in the file, text in the log: the gear may say "A" or "3b" (FR-INV-23).
+    assert [unit["number"] for unit in units] == ["1", "2"]
     assert [unit.get("nickname") for unit in units] == [None, "torn corner"]
     assert all(unit["status"] == "in" for unit in units)
     assert "name" not in units[0]
@@ -110,11 +111,11 @@ def test_a_unit_takes_its_home_from_the_generic(db, tmp_path):
     warm = next(k for k, v in state(db)["location"].items() if v["name"] == "Warm locker")
     units = [fields for fields in state(db)["item"].values() if fields.get("parent_id")]
 
-    first = next(unit for unit in units if unit["number"] == 1)
-    second = next(unit for unit in units if unit["number"] == 2)
+    first = next(unit for unit in units if unit["number"] == "1")
+    second = next(unit for unit in units if unit["number"] == "2")
 
     assert (first["home_location_id"], first["sub_location"]) == (cold, "bin 2")
-    # Its own home; the generic's sub-location, which it did not override.
+    # Its own home; the generic's shelf, which it did not override.
     assert (second["home_location_id"], second["sub_location"]) == (warm, "bin 2")
 
 

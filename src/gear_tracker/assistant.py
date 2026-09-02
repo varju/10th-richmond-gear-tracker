@@ -420,6 +420,7 @@ def list_locations() -> dict[str, Any]:
 # --- reservation tools -----------------------------------------------------------------------------
 
 IsoDate = Annotated[str, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class GenericLine(BaseModel):
@@ -612,7 +613,7 @@ class ItemFields(BaseModel):
     price: Annotated[float, Field(ge=0)] | None = None
     supplier: str | None = None
     nickname: str | None = None
-    number: Annotated[int, Field(ge=1)] | None = None
+    number: NonBlank | None = None
 
 
 def _home(state: dict[str, Any], location_id: str | None) -> None:
@@ -652,24 +653,28 @@ def create_item(
         return {"item_id": item_id, "name": payload["name"], "generic": generic}
 
 
-def add_unit(generic_id: str, number: int | None = None, nickname: str | None = None) -> dict[str, Any]:
+def _next_number(taken: set[str]) -> str:
+    """One after the largest whole number in use, or "1" under an empty generic (FR-INV-23)."""
+    used = [int(n) for n in taken if n.isdigit()]
+    return str(max(used) + 1 if used else 1)
+
+
+def add_unit(generic_id: str, number: str | None = None, nickname: str | None = None) -> dict[str, Any]:
     """One more of something the group owns several of (FR-INV-22).
 
-    It takes the next free number and its generic's home unless you say
-    otherwise. A number is unique under its generic (FR-INV-23).
+    The number is text, because the gear may be labelled "A" or "3b"
+    (FR-INV-23). Left out, it is one after the largest whole number in use. The
+    unit takes its generic's home unless you say otherwise.
     """
     with _open() as (conn, who):
         state = _state(conn)
         parent = _item(state, generic_id)
         if not parent.get("generic"):
             raise BadRequest("that item is not one the group owns several of")
-        taken = {unit.get("number") for unit in views.units_of(state, parent["id"])}
-        if number is None:
-            number = 1
-            while number in taken:
-                number += 1
-        if number < 1:
-            raise BadRequest("a number starts at 1")
+        taken = {str(unit.get("number") or "").strip() for unit in views.units_of(state, parent["id"])}
+        number = _next_number(taken) if number is None else number.strip()
+        if not number:
+            raise BadRequest("a unit needs a number")
         if number in taken:
             raise Conflict(f"#{number} is taken")
         payload: dict[str, Any] = {"parent_id": parent["id"], "number": number}
@@ -695,11 +700,13 @@ def update_item(item_id: str, fields: ItemFields) -> dict[str, Any]:
         _home(state, patch.get("home_location_id"))
         if "number" in patch and not it.get("parent_id"):
             raise BadRequest("only one of several has a number")
-        if "number" in patch and any(
-            unit.get("number") == patch["number"] and unit["id"] != it["id"]
-            for unit in views.units_of(state, it["parent_id"])
-        ):
-            raise Conflict(f"#{patch['number']} is taken")
+        if "number" in patch:
+            patch["number"] = patch["number"].strip()
+            if any(
+                str(unit.get("number") or "").strip() == patch["number"] and unit["id"] != it["id"]
+                for unit in views.units_of(state, it["parent_id"])
+            ):
+                raise Conflict(f"#{patch['number']} is taken")
         drafts = [
             _draft("item", it["id"], "field_changed", {"field": field, "value": value, "old": old})
             for field, value, old in _changes(it, patch)

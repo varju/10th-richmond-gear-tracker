@@ -122,7 +122,7 @@ export function NewItem({ store, code }: Props) {
 export function NewUnit({ store, parent, code }: Props & { parent: string }) {
   const state = store.state;
   const generic = item(state, parent);
-  const [number, setNumber] = useState(() => String(nextNumber(state, parent)));
+  const [number, setNumber] = useState(() => nextNumber(state, parent));
   const [nickname, setNickname] = useState("");
   const [home, setHome] = useState(() => ({
     home_location_id: generic?.home_location_id ?? null,
@@ -130,9 +130,9 @@ export function NewUnit({ store, parent, code }: Props & { parent: string }) {
   }));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const n = Number.parseInt(number, 10);
-  const taken = n > 0 && numberTaken(state, parent, n);
-  const canSave = n > 0 && !taken;
+  const n = number.trim();
+  const taken = n !== "" && numberTaken(state, parent, n);
+  const canSave = n !== "" && !taken;
   useUnsaved(nickname.trim() !== "", { save: () => save().then(() => true), canSave });
 
   if (!generic?.generic) {
@@ -184,14 +184,8 @@ export function NewUnit({ store, parent, code }: Props & { parent: string }) {
       )}
       <label>
         <span>Number</span>
-        <input
-          type="number"
-          min={1}
-          inputMode="numeric"
-          value={number}
-          autoFocus
-          onChange={(e) => setNumber(e.target.value)}
-        />
+        {/* Text, not a number field: the gear may be labelled "A" or "3b" (FR-INV-23). */}
+        <input value={number} autoFocus autoComplete="off" onChange={(e) => setNumber(e.target.value)} />
       </label>
       {taken && <p className="error">#{n} is already used here. Pick another.</p>}
       <label>

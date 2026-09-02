@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   addUnit,
+  groupWith,
   type ItemInput,
   makeGeneric,
   markMissing,
@@ -24,6 +25,7 @@ import {
   type Item,
   item,
   nameOf,
+  nextNumber,
   numberTaken,
   parentOf,
   search,
@@ -31,6 +33,7 @@ import {
 } from "../lib/inventory";
 import type { HistoryEntry } from "../lib/movement";
 import { openRepairs, raiseTicket, type Repair, repairsFor, stateLabel } from "../lib/repairs";
+import { type Log, useRecord } from "../lib/record";
 import type { Note, State } from "../lib/replay";
 import { isOverdue } from "../lib/reports";
 import { navigate, useRoute } from "../lib/router";
@@ -55,16 +58,21 @@ interface Props {
 /** One item: what it is, where it lives, who has it, and what has happened to it (FR-INV-09). */
 export function ItemPage({ store, id }: Props) {
   useStore(store);
-  const { now } = useShell();
+  const { now, api } = useShell();
   const openInEdit = useRoute().query.get("edit") === "1";
   const [editing, setEditing] = useState(openInEdit);
   const [confirmMissing, setConfirmMissing] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [grouping, setGrouping] = useState(false);
   const [moving, setMoving] = useState(false);
   const [moved, confirm] = useFlash(CONFIRM_MS);
   const state = store.state;
   const it = item(state, id);
   const admin = store.meta.user?.role === "admin";
+  // The whole record when there is signal, this phone's 90 days when there is
+  // not (FR-INV-31). Asked for once here, drawn by both blocks below. A merged
+  // duplicate's events belong to the survivor, so its ids come too.
+  const record = useRecord(store, "item", aliases(state, id), api);
 
   useEffect(() => {
     if (openInEdit) setEditing(true);
@@ -120,6 +128,10 @@ export function ItemPage({ store, id }: Props) {
     );
   }
 
+  if (grouping) {
+    return <GroupPicker store={store} id={id} onDone={() => setGrouping(false)} />;
+  }
+
   const codes = codesFor(state, id);
   const current = codes[0];
   const onItem = { entity_type: "item", entity_id: id };
@@ -152,9 +164,9 @@ export function ItemPage({ store, id }: Props) {
           </button>
         </p>
         <h3 className="section">History</h3>
-        <History store={store} id={id} />
+        <History store={store} id={id} record={record} />
         <h3 className="section">Changes</h3>
-        <Changes store={store} id={id} />
+        <Changes store={store} id={id} record={record} />
       </Page>
     );
   }
@@ -167,7 +179,7 @@ export function ItemPage({ store, id }: Props) {
         it={it}
         onEdit={() => setEditing(true)}
         photos={<Photos store={store} on={onItem} />}
-        changes={<Changes store={store} id={id} />}
+        changes={<Changes store={store} id={id} record={record} />}
       />
     );
   }
@@ -213,9 +225,14 @@ export function ItemPage({ store, id }: Props) {
               Move to another generic…
             </button>
           )}
+          {!it.generic && !it.parent_id && !it.retired && (
+            <button type="button" className="minor" onClick={() => setGrouping(true)}>
+              Group with another item…
+            </button>
+          )}
           {admin && !it.retired && it.status === "in" && (
             <button type="button" className="minor" onClick={() => setMerging(true)}>
-              Merge into another item…
+              This is a duplicate record…
             </button>
           )}
         </>
@@ -288,7 +305,19 @@ export function ItemPage({ store, id }: Props) {
             {mergedFrom.length > 0 && (
               <>
                 <dt>Merged from</dt>
-                <dd>{mergedFrom.map((a) => nameOf(state, a)).join(", ")}</dd>
+                {/* One line each, so the record it came from is a tap away and an Admin can put it back. */}
+                {mergedFrom.map((a) => (
+                  <dd key={a} className="merged-line">
+                    <button className="link" type="button" onClick={() => guard(() => navigate(`/items/${a}`))}>
+                      {nameOf(state, a)}
+                    </button>
+                    {admin && (
+                      <button type="button" className="minor" onClick={() => void unmergeItem(store, a)}>
+                        Unmerge
+                      </button>
+                    )}
+                  </dd>
+                ))}
               </>
             )}
             <dt>Code</dt>
@@ -310,11 +339,11 @@ export function ItemPage({ store, id }: Props) {
           <Repairs store={store} id={id} />
 
           <h3 className="section">History</h3>
-          <History store={store} id={id} />
+          <History store={store} id={id} record={record} />
           <AddNote store={store} on={onItem} />
 
           <h3 className="section">Changes</h3>
-          <Changes store={store} id={id} />
+          <Changes store={store} id={id} record={record} />
         </div>
       </div>
     </Page>
@@ -401,9 +430,13 @@ function ReportFault({ store, id }: Props) {
   );
 }
 
-/** Movements and notes in one list, newest first. A note made on a movement sits under it. */
-function History({ store, id }: Props) {
-  const entries = timeline(store, id);
+/**
+ * Movements and notes in one list, newest first. A note made on a movement sits
+ * under it. `record` is the server's whole answer, or null when this phone is
+ * on its own; either way the rows are drawn the same (FR-INV-31).
+ */
+function History({ store, id, record }: Props & { record: Log | null }) {
+  const entries = timeline(record ?? store, id);
   const on = { entity_type: "item", entity_id: id };
   return (
     <>
@@ -423,14 +456,14 @@ function History({ store, id }: Props) {
           )}
         </ol>
       )}
-      <p className="muted small">What this phone knows: the last 90 days.</p>
+      <Reach record={record} />
     </>
   );
 }
 
 /** What changed on the record, from what to what, by whom (FR-USR-09). */
-function Changes({ store, id }: Props) {
-  const entries = changes(store, id);
+function Changes({ store, id, record }: Props & { record: Log | null }) {
+  const entries = changes(record ?? store, id);
   const state = store.state;
   return (
     <>
@@ -447,14 +480,22 @@ function Changes({ store, id }: Props) {
           ))}
         </ol>
       )}
-      <p className="muted small">What this phone knows: the last 90 days.</p>
+      <Reach record={record} />
     </>
   );
 }
 
+/** How far back the list goes. Nothing to say when it is the whole record (FR-INV-31). */
+function Reach({ record }: { record: Log | null }) {
+  if (record) return null;
+  return <p className="muted small">Offline: what this device knows, the last 90 days.</p>;
+}
+
 /**
- * Pick the item this one doubles, then confirm (FR-INV-13). The list is the normal search, less this item;
- * merged and retired items are already out of it.
+ * Pick the record this one doubles, then confirm (FR-INV-13). One thing, entered
+ * twice: the duplicate points at the survivor and drops off the list. Two of the
+ * same gear that both exist are a group, not a merge (FR-INV-30). The list is the
+ * normal search, less this item; merged and retired items are already out of it.
  */
 function MergePicker({ store, id, onDone }: { store: Store; id: string; onDone: (survivor?: string) => void }) {
   const [query, setQuery] = useState("");
@@ -502,7 +543,7 @@ function MergePicker({ store, id, onDone }: { store: Store; id: string; onDone: 
         </p>
         <p className="muted">
           {myName} disappears from the list. Its stickers, movements and tickets go with {displayName(state, survivor)}.
-          This can be undone from {myName}’s page.
+          This can be undone from either page.
         </p>
       </Page>
     );
@@ -510,7 +551,7 @@ function MergePicker({ store, id, onDone }: { store: Store; id: string; onDone: 
 
   return (
     <Page
-      title="Merge into"
+      title="Duplicate record"
       actions={
         <>
           <label className="tight">
@@ -529,13 +570,146 @@ function MergePicker({ store, id, onDone }: { store: Store; id: string; onDone: 
         </>
       }
     >
-      <p className="muted">Which item does {myName} double?</p>
+      <p className="muted">
+        Which item is {myName} a second record of? Pick the same physical thing, entered twice. For two of the same gear
+        that both exist, go back and use “Group with another item…”.
+      </p>
       <ul className="items">
         {candidates.map((c) => (
           <li key={c.id}>
             <button className="item" type="button" onClick={() => setChosen(c.id)}>
               <span className="item-name">{displayName(state, c)}</span>
               <span className="muted small">{homeLabel(state, c)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Page>
+  );
+}
+
+/**
+ * Two of the same thing, each entered as its own item (FR-INV-30). Pick the
+ * other one and both become units of one generic: a single item lends its name
+ * to a new generic, a generic or one of its units is joined as it stands. Both
+ * keep their own home, code, movements and tickets. Not a merge (FR-INV-13):
+ * nothing here is a second record of one thing.
+ */
+function GroupPicker({ store, id, onDone }: { store: Store; id: string; onDone: () => void }) {
+  const state = store.state;
+  const [query, setQuery] = useState("");
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [mine, setMine] = useState("2");
+  const [theirs, setTheirs] = useState("1");
+  const [error, setError] = useState<string | null>(null);
+  const me = item(state, id);
+  const myName = me ? displayName(state, me) : "";
+  const other = chosen ? item(state, chosen) : undefined;
+  const words = query.trim().toLowerCase();
+  // Generics are not in search: they are a name, not a thing that moves. Both are offered here.
+  const shared = generics(state).filter(
+    (g) => !g.retired && !g.merged_into && displayName(state, g).toLowerCase().includes(words),
+  );
+  const candidates = [...shared, ...search(state, { query }).filter((c) => c.id !== id)];
+
+  function choose(otherId: string) {
+    const picked = item(state, otherId);
+    const generic = picked?.generic ? picked.id : picked?.parent_id;
+    setTheirs("1");
+    setMine(generic ? nextNumber(state, generic) : "2");
+    setChosen(otherId);
+  }
+
+  async function group() {
+    if (!chosen) return;
+    try {
+      await groupWith(store, id, chosen, { mine, other: theirs });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not group them");
+      return;
+    }
+    onDone();
+  }
+
+  if (other) {
+    // A single item lends its name to a new generic, so it needs a number too.
+    const fresh = !other.generic && !other.parent_id;
+    const parent = other.generic ? other : parentOf(state, other);
+    const sharedName = fresh ? other.name ?? "" : parent?.name ?? "(unknown item)";
+    return (
+      <Page
+        title="Group"
+        actions={
+          <>
+            <button type="button" className="primary" onClick={() => void group()} disabled={mine.trim() === ""}>
+              Group
+            </button>
+            <button type="button" onClick={() => setChosen(null)}>
+              Cancel
+            </button>
+          </>
+        }
+      >
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        <p>
+          {fresh
+            ? `${sharedName} becomes a name for both, and each becomes one of them.`
+            : `${myName} becomes one of ${sharedName}.`}
+        </p>
+        {fresh && (
+          <label>
+            <span>The other one’s number</span>
+            <input value={theirs} autoComplete="off" onChange={(e) => setTheirs(e.target.value)} />
+          </label>
+        )}
+        <label>
+          <span>This one’s number</span>
+          <input value={mine} autoFocus autoComplete="off" onChange={(e) => setMine(e.target.value)} />
+        </label>
+        <p className="muted">
+          Both stay in the inventory. Each keeps its own home, its sticker, its movements and its tickets.
+        </p>
+      </Page>
+    );
+  }
+
+  return (
+    <Page
+      title="Group with"
+      actions={
+        <>
+          <label className="tight">
+            <span>Search</span>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              autoComplete="off"
+              autoFocus
+            />
+          </label>
+          <button type="button" onClick={onDone}>
+            Cancel
+          </button>
+        </>
+      }
+    >
+      <p className="muted">
+        Which item is another of the same gear as {myName}? Both are kept. To fold away a second record of one thing, go
+        back and use “This is a duplicate record…”.
+      </p>
+      <ul className="items">
+        {candidates.map((c) => (
+          <li key={c.id}>
+            <button className="item" type="button" onClick={() => choose(c.id)}>
+              <span className="item-name">{displayName(state, c)}</span>
+              <span className="muted small">
+                {c.generic ? plural(unitsOf(state, c.id).length, "unit") : homeLabel(state, c)}
+              </span>
             </button>
           </li>
         ))}
@@ -566,21 +740,23 @@ function EditItem({
 }) {
   const unit = Boolean(it.parent_id);
   const [values, setValues] = useState(initial);
-  const [number, setNumber] = useState(String(it.number ?? ""));
+  const [number, setNumber] = useState(it.number ?? "");
   const [nickname, setNickname] = useState(it.nickname ?? "");
   const [nowRetired, setNowRetired] = useState(retired);
   const [several, setSeveral] = useState(false);
+  // What this one becomes when it turns into several. Offered "1", because it is the first (FR-INV-26).
+  const [firstNumber, setFirstNumber] = useState("1");
   const [asked, setAsked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const n = Number.parseInt(number, 10);
+  const n = number.trim();
   const named = (values.name ?? "").trim() !== "";
-  const numbered = n > 0 && !numberTaken(store.state, it.parent_id ?? "", n, id);
-  const canSave = unit ? numbered : named;
+  const numbered = n !== "" && !numberTaken(store.state, it.parent_id ?? "", n, id);
+  const canSave = unit ? numbered : named && (!several || firstNumber.trim() !== "");
   const dirty =
     nowRetired !== retired ||
     several ||
-    (unit && (number !== String(it.number ?? "") || nickname !== (it.nickname ?? ""))) ||
+    (unit && (number !== (it.number ?? "") || nickname !== (it.nickname ?? ""))) ||
     (Object.keys(values) as (keyof ItemInput)[]).some((k) => values[k] !== initial[k]);
   useUnsaved(dirty, { save: () => apply().then((ok) => ok), canSave });
 
@@ -590,7 +766,7 @@ function EditItem({
     try {
       if (unit) await updateUnit(store, id, { number: n, nickname: nickname.trim() || null });
       await updateItem(store, id, unit ? withoutName(values) : values);
-      if (several) await makeGeneric(store, id);
+      if (several) await makeGeneric(store, id, firstNumber);
       if (nowRetired !== retired) await (nowRetired ? retireItem : unretireItem)(store, id);
       return true;
     } catch (e) {
@@ -633,15 +809,10 @@ function EditItem({
         <>
           <label>
             <span>Number</span>
-            <input
-              type="number"
-              min={1}
-              inputMode="numeric"
-              value={number}
-              onChange={(e) => setNumber(e.target.value)}
-            />
+            {/* Text, not a number field: the gear may be labelled "A" or "3b" (FR-INV-23). */}
+            <input value={number} autoComplete="off" onChange={(e) => setNumber(e.target.value)} />
           </label>
-          {n > 0 && !numbered && <p className="error">#{n} is already used here. Pick another.</p>}
+          {n !== "" && !numbered && <p className="error">#{n} is already used here. Pick another.</p>}
           <label>
             <span>Nickname (optional)</span>
             <input value={nickname} onChange={(e) => setNickname(e.target.value)} autoComplete="off" />
@@ -678,10 +849,16 @@ function EditItem({
             <span>{SEVERAL}</span>
           </label>
           {several && (
-            <p className="notice" role="note">
-              {(values.name ?? "").trim()} becomes a name for several, and this one becomes #1 under it. Its code,
-              movements and tickets stay where they are.
-            </p>
+            <>
+              <label>
+                <span>This one’s number</span>
+                <input value={firstNumber} autoComplete="off" onChange={(e) => setFirstNumber(e.target.value)} />
+              </label>
+              <p className="notice" role="note">
+                {(values.name ?? "").trim()} becomes a name for several, and this one becomes #
+                {firstNumber.trim() || "?"} under it. Its code, movements and tickets stay where they are.
+              </p>
+            </>
           )}
         </>
       )}

@@ -593,14 +593,11 @@ def get(conn: sqlite3.Connection, event_id: str) -> Event | None:
 def in_replay_order(
     conn: sqlite3.Connection, entity_type: str | None = None, entity_id: str | None = None
 ) -> Iterator[Event]:
-    """The log, or one entity's slice of it, in the order replay reads it."""
-    if entity_type is None:
-        rows = conn.execute("SELECT * FROM events ORDER BY effective_at, device_id, device_seq")
-    else:
-        rows = conn.execute(
-            "SELECT * FROM events WHERE entity_type = ? AND entity_id = ? ORDER BY effective_at, device_id, device_seq",
-            (entity_type, entity_id),
-        )
+    """The log in the order replay reads it: all of it, one kind, or one entity's slice."""
+    clauses = [(c, v) for c, v in (("entity_type = ?", entity_type), ("entity_id = ?", entity_id)) if v is not None]
+    where = " WHERE " + " AND ".join(c for c, _ in clauses) if clauses else ""
+    args = tuple(v for _, v in clauses)
+    rows = conn.execute(f"SELECT * FROM events{where} ORDER BY effective_at, device_id, device_seq", args)
     for row in rows:
         yield from_row(row)
 

@@ -26,7 +26,7 @@
       "effective_at": 2000,
       "payload": {
         "parent_id": "tarp-3x3",
-        "number": 2
+        "number": "2"
       }
     },
     {
@@ -40,7 +40,7 @@
       "effective_at": 3000,
       "payload": {
         "parent_id": "tarp-3x3",
-        "number": 2
+        "number": "2"
       }
     }
   ],
@@ -54,7 +54,7 @@
       },
       "tarp-from-b": {
         "parent_id": "tarp-3x3",
-        "number": 2,
+        "number": "2",
         "status": "in",
         "holder_id": null,
         "added_at": 2000,
@@ -62,7 +62,7 @@
       },
       "tarp-from-a": {
         "parent_id": "tarp-3x3",
-        "number": 2,
+        "number": "2",
         "status": "in",
         "holder_id": null,
         "added_at": 3000,

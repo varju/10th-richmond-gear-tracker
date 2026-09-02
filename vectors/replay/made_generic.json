@@ -70,7 +70,7 @@
       "effective_at": 3000,
       "payload": {
         "field": "number",
-        "value": 1,
+        "value": "1",
         "old": null
       }
     },
@@ -102,7 +102,7 @@
       "stove-1": {
         "name": null,
         "parent_id": "stove",
-        "number": 1,
+        "number": "1",
         "home_location_id": "warm",
         "status": "out",
         "holder_id": "bob",

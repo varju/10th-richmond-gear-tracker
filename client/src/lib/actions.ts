@@ -15,10 +15,18 @@ export type ItemInput = Pick<
 /** What the unit form holds. A unit has no name: its number and nickname make it (FR-INV-23). */
 export interface UnitInput {
   parent_id: string;
-  number: number;
+  /** Text, because the gear may read "A" or "3b". Trimmed, never empty. */
+  number: string;
   nickname?: string | null;
   home_location_id?: string | null;
   sub_location?: string;
+}
+
+/** A number as it is stored: what was typed, trimmed. Blank is not a number (FR-INV-23). */
+export function unitNumber(value: string): string {
+  const number = value.trim();
+  if (!number) throw new Error("a unit needs a number");
+  return number;
 }
 
 function actor(store: Store): string {
@@ -62,9 +70,9 @@ export const createGeneric = (store: Store, input: ItemInput) =>
 export async function createUnit(store: Store, input: UnitInput): Promise<string> {
   const parent = item(store.state, input.parent_id);
   if (!parent?.generic) throw new Error("not a generic item");
-  if (!(input.number > 0)) throw new Error("a number starts at 1");
-  if (numberTaken(store.state, input.parent_id, input.number)) throw new Error(`#${input.number} is taken`);
-  return created(store, "item", clean(input));
+  const number = unitNumber(input.number);
+  if (numberTaken(store.state, input.parent_id, number)) throw new Error(`#${number} is taken`);
+  return created(store, "item", clean({ ...input, number }));
 }
 
 /** The next unit of a generic, taking its number and its default home (FR-INV-24, FR-INV-29). */
@@ -81,23 +89,25 @@ export function addUnit(store: Store, genericId: string): Promise<string> {
 
 /**
  * Mark a single item as generic (FR-INV-26). A new generic takes its name,
- * description and home; the item becomes unit #1 under it and loses the name
- * it no longer needs. Nothing in its history is rewritten, so its code,
- * movements and tickets stay where they are. Photos stay on the unit: only the
- * server may say a photo exists, so a device cannot copy one across.
+ * description and home; the item becomes a unit under it, with the number the
+ * person confirmed, and loses the name it no longer needs. Nothing in its
+ * history is rewritten, so its code, movements and tickets stay where they
+ * are. Photos stay on the unit: only the server may say a photo exists, so a
+ * device cannot copy one across.
  */
-export async function makeGeneric(store: Store, id: string): Promise<string> {
+export async function makeGeneric(store: Store, id: string, number = "1"): Promise<string> {
   const it = item(store.state, id);
   if (!it) throw new Error("no such item");
   if (it.generic) throw new Error("already generic");
   if (it.parent_id) throw new Error("this is already one of several");
+  const first = unitNumber(number);
   const genericId = await createGeneric(store, {
     name: it.name ?? "",
     description: it.description ?? "",
     home_location_id: it.home_location_id ?? null,
     sub_location: it.sub_location ?? "",
   });
-  await changed(store, "item", id, { parent_id: genericId, number: 1, name: null });
+  await changed(store, "item", id, { parent_id: genericId, number: first, name: null });
   return genericId;
 }
 
@@ -105,15 +115,17 @@ export async function makeGeneric(store: Store, id: string): Promise<string> {
 export async function updateUnit(
   store: Store,
   id: string,
-  patch: { number?: number; nickname?: string | null },
+  patch: { number?: string; nickname?: string | null },
 ): Promise<void> {
   const it = item(store.state, id);
   if (!it?.parent_id) throw new Error("not a unit");
+  const fields: Record<string, unknown> = { ...patch };
   if (patch.number !== undefined) {
-    if (!(patch.number > 0)) throw new Error("a number starts at 1");
-    if (numberTaken(store.state, it.parent_id, patch.number, id)) throw new Error(`#${patch.number} is taken`);
+    const number = unitNumber(patch.number);
+    if (numberTaken(store.state, it.parent_id, number, id)) throw new Error(`#${number} is taken`);
+    fields.number = number;
   }
-  await changed(store, "item", id, patch as Record<string, unknown>);
+  await changed(store, "item", id, fields);
 }
 
 /** A unit was filed under the wrong generic (FR-INV-28). Its history moves with it; a taken number is bumped. */
@@ -123,7 +135,7 @@ export async function moveUnit(store: Store, id: string, parentId: string): Prom
   if (!it?.parent_id) throw new Error("not a unit");
   if (!parent?.generic) throw new Error("not a generic item");
   if (parentId === it.parent_id) return;
-  const number = numberTaken(store.state, parentId, it.number ?? 0) ? nextNumber(store.state, parentId) : it.number;
+  const number = numberTaken(store.state, parentId, it.number ?? "") ? nextNumber(store.state, parentId) : it.number;
   await changed(store, "item", id, { parent_id: parentId, number });
 }
 
@@ -161,6 +173,54 @@ function clean<T extends object>(input: T): Record<string, unknown> {
 export function price(value: unknown): number | null {
   const n = typeof value === "number" ? value : typeof value === "string" ? Number(value.replace(/[$,\s]/g, "")) : NaN;
   return Number.isFinite(n) && n >= 0 && value !== "" ? Math.round(n * 100) / 100 : null;
+}
+
+/**
+ * A single item becomes one of a generic's units (FR-INV-30). It keeps its
+ * home, its code, its movements and its tickets, and loses the name it no
+ * longer needs; the generic's name is the one people read.
+ */
+export async function joinGeneric(store: Store, id: string, genericId: string, number: string): Promise<void> {
+  const it = item(store.state, id);
+  const parent = item(store.state, genericId);
+  if (!it) throw new Error("no such item");
+  if (it.generic) throw new Error("this is already a name for several");
+  if (it.parent_id) throw new Error("this is already one of several");
+  if (!parent?.generic) throw new Error("not a generic item");
+  const mine = unitNumber(number);
+  if (numberTaken(store.state, genericId, mine)) throw new Error(`#${mine} is taken`);
+  await changed(store, "item", id, { parent_id: genericId, number: mine, name: null });
+}
+
+/**
+ * The same thing, entered twice as two items, put under one name (FR-INV-30).
+ * Both are real, so neither disappears: they become units of one generic.
+ * Picking a single item makes a generic from that item's name; picking a
+ * generic, or any of its units, joins the generic already there.
+ *
+ * This is not a merge (FR-INV-13). A merge is for one thing recorded twice,
+ * where one record has to go.
+ */
+export async function groupWith(
+  store: Store,
+  id: string,
+  otherId: string,
+  numbers: { mine: string; other?: string },
+): Promise<string> {
+  const it = item(store.state, id);
+  const other = item(store.state, otherId);
+  if (!it || !other) throw new Error("no such item");
+  if (id === otherId) throw new Error("an item cannot be grouped with itself");
+  if (it.generic) throw new Error("this is already a name for several");
+  if (it.parent_id) throw new Error("this is already one of several");
+  const mine = unitNumber(numbers.mine);
+  const theirs = unitNumber(numbers.other ?? "1");
+  const fresh = !other.generic && !other.parent_id;
+  // Checked before anything is written, so a clash cannot leave half a group behind.
+  if (fresh && mine === theirs) throw new Error("the two need different numbers");
+  const genericId = fresh ? await makeGeneric(store, otherId, theirs) : other.parent_id ?? other.id;
+  await joinGeneric(store, id, genericId, mine);
+  return genericId;
 }
 
 /**

@@ -8,19 +8,19 @@
       },
       "t1": {
         "parent_id": "tents",
-        "number": 1,
+        "number": "1",
         "status": "in",
         "holder_id": null
       },
       "t2": {
         "parent_id": "tents",
-        "number": 2,
+        "number": "2",
         "status": "in",
         "holder_id": null
       },
       "t3": {
         "parent_id": "tents",
-        "number": 3,
+        "number": "3",
         "status": "in",
         "holder_id": null,
         "retired": true

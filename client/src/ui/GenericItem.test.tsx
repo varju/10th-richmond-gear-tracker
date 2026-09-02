@@ -28,7 +28,7 @@ const user = userEvent.setup();
 const show = (id: string) => inv.displayName(store.state, inv.item(store.state, id)!);
 const section = (name: string) => screen.getByRole("heading", { name }).nextElementSibling as HTMLElement;
 
-test("a single item becomes several: a new name above it, and it becomes #1 (FR-INV-26)", async () => {
+test("a single item becomes several: a new name above it, and it takes the number given (FR-INV-26)", async () => {
   const tent = await act.createItem(store, { name: "4-person tent", home_location_id: cold });
   await mv.checkOut(store, tent, { event: "Fall Camp" });
   navigate(`/items/${tent}?edit=1`);
@@ -36,16 +36,21 @@ test("a single item becomes several: a new name above it, and it becomes #1 (FR-
 
   await user.click(screen.getByLabelText("We have several of these"));
   expect(screen.getByRole("note")).toHaveTextContent("becomes a name for several, and this one becomes #1");
+  // The number is offered and can be changed before it happens: the gear may say "A" (FR-INV-23, FR-INV-26).
+  expect(screen.getByLabelText("This one’s number")).toHaveValue("1");
+  await user.clear(screen.getByLabelText("This one’s number"));
+  await user.type(screen.getByLabelText("This one’s number"), "A");
+  expect(screen.getByRole("note")).toHaveTextContent("this one becomes #A");
   // One tap asks; the second one does it.
   await user.click(screen.getByRole("button", { name: "Save" }));
   expect(inv.generics(store.state)).toEqual([]);
   await user.click(screen.getByRole("button", { name: "Yes, make it several" }));
 
-  await waitFor(() => expect(show(tent)).toBe("4-person tent #1"));
+  await waitFor(() => expect(show(tent)).toBe("4-person tent #A"));
   const generic = inv.generics(store.state)[0]!;
   expect(generic).toMatchObject({ name: "4-person tent", home_location_id: cold });
   // Nothing it did is rewritten: it is still out under the camp.
-  expect(inv.item(store.state, tent)).toMatchObject({ status: "out", parent_id: generic.id, number: 1 });
+  expect(inv.item(store.state, tent)).toMatchObject({ status: "out", parent_id: generic.id, number: "A" });
 });
 
 test("a generic lists its units, adds one, and is retired only once they all are (FR-INV-27)", async () => {
@@ -92,12 +97,12 @@ test("a unit points at its generic and can be filed under another (FR-INV-28)", 
   expect(inv.unitsOf(store.state, tents)).toEqual([]);
 });
 
-test("a new unit is offered the next free number, and takes the generic's home (FR-INV-22, FR-INV-29)", async () => {
+test("a new unit is offered the next number, and takes the generic's home (FR-INV-22, FR-INV-29)", async () => {
   const tents = await act.createGeneric(store, { name: "4-person tent", home_location_id: cold });
   await act.addUnit(store, tents);
   navigate(`/items/new?parent=${tents}`);
   renderInShell(<NewUnit store={store} parent={tents} code={null} />);
-  expect(screen.getByLabelText("Number")).toHaveValue(2);
+  expect(screen.getByLabelText("Number")).toHaveValue("2");
 
   // The gear may already have a number painted on it, and it may be one we used.
   await user.clear(screen.getByLabelText("Number"));
@@ -105,13 +110,14 @@ test("a new unit is offered the next free number, and takes the generic's home (
   expect(screen.getByText("#1 is already used here. Pick another.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 
+  // A number is what is written on the gear, letters and all (FR-INV-23).
   await user.clear(screen.getByLabelText("Number"));
-  await user.type(screen.getByLabelText("Number"), "7");
+  await user.type(screen.getByLabelText("Number"), "3b");
   await user.type(screen.getByLabelText("Nickname (optional)"), "patched fly");
   await user.click(screen.getByRole("button", { name: "Save" }));
 
   await waitFor(() => expect(inv.unitsOf(store.state, tents)).toHaveLength(2));
   const made = inv.unitsOf(store.state, tents)[1]!;
-  expect(inv.displayName(store.state, made)).toBe("4-person tent #7 (patched fly)");
-  expect(made).toMatchObject({ home_location_id: cold });
+  expect(inv.displayName(store.state, made)).toBe("4-person tent #3b (patched fly)");
+  expect(made).toMatchObject({ home_location_id: cold, number: "3b" });
 });

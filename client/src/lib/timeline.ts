@@ -8,17 +8,17 @@
  */
 import { aliases, item } from "./inventory";
 import { history, type HistoryEntry } from "./movement";
+import type { Log } from "./record";
 import type { Note } from "./replay";
-import type { Store } from "./store";
 
 export type TimelineEntry =
   | { kind: "movement"; id: string; at: number; movement: HistoryEntry }
   | { kind: "note"; id: string; at: number; note: Note };
 
-export function timeline(store: Store, itemId: string): TimelineEntry[] {
-  const notes = aliases(store.state, itemId).flatMap((id) => (item(store.state, id)?.notes ?? []) as Note[]);
+export function timeline(log: Log, itemId: string): TimelineEntry[] {
+  const notes = aliases(log.state, itemId).flatMap((id) => (item(log.state, id)?.notes ?? []) as Note[]);
   const entries: TimelineEntry[] = [
-    ...history(store, itemId).map((m) => ({ kind: "movement" as const, id: m.id, at: m.at, movement: m })),
+    ...history(log, itemId).map((m) => ({ kind: "movement" as const, id: m.id, at: m.at, movement: m })),
     ...notes.filter((n) => !n.movement_id).map((n) => ({ kind: "note" as const, id: n.id, at: n.at, note: n })),
   ];
   // Same millisecond: the later id wins. Both are ULIDs, so that is the later record.

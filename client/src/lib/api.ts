@@ -79,6 +79,9 @@ export interface Pull {
   events: ServerEvent[];
   cursor: number;
 }
+export interface History {
+  events: ServerEvent[];
+}
 export interface PushResult {
   accepted: string[];
   rejected: { id: string | null; reason: string }[];
@@ -178,6 +181,15 @@ export function createApi(options: ApiOptions = {}) {
   return {
     bootstrap: () => request<Bootstrap>("GET", "/sync/bootstrap"),
     pull: (since: number) => request<Pull>("GET", `/sync/pull?since=${since}`),
+    /**
+     * The whole record for one entity, or for every entity of a kind (FR-INV-31).
+     * A device holds 90 days; this reaches back as far as the log goes.
+     */
+    history: (entity_type: string, entity_id?: string) =>
+      request<History>(
+        "GET",
+        entity_id === undefined ? `/history/${entity_type}` : `/history/${entity_type}/${entity_id}`,
+      ),
     push: (device_id: string, client_time: number, events: OutgoingEvent[]) =>
       request<PushResult>("POST", "/sync/push", { device_id, client_time, events }),
     signIn: (email: string, password: string, device_id: string) =>

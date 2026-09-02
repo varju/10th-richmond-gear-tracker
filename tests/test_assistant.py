@@ -55,7 +55,7 @@ def inventory(db_path, who):
             made[key] = _new(conn, "location", {"name": name})
         made["stove"] = _new(conn, "item", {"name": "Camp stove", "home_location_id": made["warm"]})
         made["tents"] = _new(conn, "item", {"name": "4-person tent", "generic": True, "home_location_id": made["cold"]})
-        for number in (1, 2, 3):
+        for number in ("1", "2", "3"):
             made[f"t{number}"] = _new(conn, "item", {"parent_id": made["tents"], "number": number})
     return made
 
@@ -240,7 +240,7 @@ def test_get_item_carries_the_unit_its_generic_its_history_and_its_tickets(tools
     unit = assistant.get_item(tools["t1"])
 
     assert unit["name"] == "4-person tent #1"
-    assert unit["generic_id"] == tools["tents"] and unit["number"] == 1
+    assert unit["generic_id"] == tools["tents"] and unit["number"] == "1"
     assert unit["status"] == "out" and unit["holder"] == "Alice"
     assert unit["event"] == "Fall Camp"
     assert [t["description"] for t in unit["open_tickets"]] == ["bent pole"]
@@ -341,11 +341,14 @@ def test_creating_an_item_a_generic_and_its_units(db_path, tools):
     generic = assistant.create_item("Trangia", home_location_id=tools["cold"], generic=True)["item_id"]
     first = assistant.add_unit(generic)
     second = assistant.add_unit(generic, nickname="dented")
-    assert (first["number"], second["number"]) == (1, 2)
+    lettered = assistant.add_unit(generic, number=" 3b ")
+    assert (first["number"], second["number"], lettered["number"]) == ("1", "2", "3b")
     assert entity(db_path, "item", second["item_id"])["home_location_id"] == tools["cold"]
 
     with pytest.raises(Conflict):
-        assistant.add_unit(generic, number=1)
+        assistant.add_unit(generic, number="1")
+    with pytest.raises(BadRequest):
+        assistant.add_unit(generic, number="   ")
     with pytest.raises(BadRequest):
         assistant.add_unit(tools["stove"])
     with pytest.raises(NotFound):
@@ -363,9 +366,9 @@ def test_updating_an_item_records_only_what_differs(db_path, tools):
     assistant.update_item(tools["t2"], assistant.ItemFields(nickname="patched fly"))
     assert assistant.get_item(tools["t2"])["name"] == "4-person tent #2 (patched fly)"
     with pytest.raises(Conflict):
-        assistant.update_item(tools["t2"], assistant.ItemFields(number=3))
+        assistant.update_item(tools["t2"], assistant.ItemFields(number="3"))
     with pytest.raises(BadRequest):
-        assistant.update_item(tools["stove"], assistant.ItemFields(number=2))
+        assistant.update_item(tools["stove"], assistant.ItemFields(number="2"))
     with pytest.raises(BadRequest):
         assistant.update_item(tools["stove"], assistant.ItemFields())
 

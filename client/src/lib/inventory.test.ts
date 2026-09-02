@@ -30,7 +30,7 @@ async function withUnits() {
   const tents = await act.createGeneric(store, { name: "4-person tent", home_location_id: f.cold });
   const u1 = await act.addUnit(store, tents);
   const u2 = await act.addUnit(store, tents);
-  const u3 = await act.createUnit(store, { parent_id: tents, number: 7, nickname: "patched fly" });
+  const u3 = await act.createUnit(store, { parent_id: tents, number: "7", nickname: "patched fly" });
   return { ...f, tents, u1, u2, u3 };
 }
 
@@ -57,13 +57,26 @@ test("a unit is named by its generic, its number and its nickname (FR-INV-22)", 
   expect(inv.item(store.state, f.tents)?.status).toBeUndefined();
 });
 
-test("numbers are the next free one, unique under the parent (FR-INV-23)", async () => {
+test("the number offered follows the largest one in use, and is unique under the parent (FR-INV-23)", async () => {
   const f = await withUnits();
-  expect(inv.nextNumber(store.state, f.tents)).toBe(3);
-  expect(inv.numberTaken(store.state, f.tents, 7)).toBe(true);
-  expect(inv.numberTaken(store.state, f.tents, 7, f.u3)).toBe(false);
-  await expect(act.createUnit(store, { parent_id: f.tents, number: 7 })).rejects.toThrow("#7 is taken");
-  await expect(act.createUnit(store, { parent_id: f.t1, number: 1 })).rejects.toThrow("not a generic item");
+  expect(inv.nextNumber(store.state, f.tents)).toBe("8");
+  expect(inv.numberTaken(store.state, f.tents, "7")).toBe(true);
+  expect(inv.numberTaken(store.state, f.tents, "7", f.u3)).toBe(false);
+  await expect(act.createUnit(store, { parent_id: f.tents, number: " 7 " })).rejects.toThrow("#7 is taken");
+  await expect(act.createUnit(store, { parent_id: f.t1, number: "1" })).rejects.toThrow("not a generic item");
+  await expect(act.createUnit(store, { parent_id: f.tents, number: "  " })).rejects.toThrow("a unit needs a number");
+});
+
+test("a number is what is written on the gear, and units sort numbers first (FR-INV-23)", async () => {
+  const f = await withUnits();
+  const lettered = await act.createUnit(store, { parent_id: f.tents, number: " 3b " });
+  await act.createUnit(store, { parent_id: f.tents, number: "10" });
+  expect(inv.item(store.state, lettered)?.number).toBe("3b");
+  expect(inv.displayName(store.state, inv.item(store.state, lettered)!)).toBe("4-person tent #3b");
+  // Whole numbers in numeric order, so 7 comes before 10; the rest as text, after.
+  expect(inv.unitsOf(store.state, f.tents).map((u) => u.number)).toEqual(["1", "2", "7", "10", "3b"]);
+  // A letter in use is still offered a whole number.
+  expect(inv.nextNumber(store.state, f.tents)).toBe("11");
 });
 
 test("a unit is searched by its generic's name, its nickname and its number", async () => {
@@ -92,7 +105,7 @@ test("the list is one row per generic with counts, single items on their own (FR
   ]);
   const tents = list[0] as inv.GenericRow;
   expect(tents.counts).toEqual({ total: 3, in: 2 });
-  expect(tents.units.map((u) => u.number)).toEqual([1, 2, 7]);
+  expect(tents.units.map((u) => u.number)).toEqual(["1", "2", "7"]);
   expect(inv.countItems(list)).toBe(6);
 });
 
@@ -111,7 +124,7 @@ test("filters apply to units, and show the generics that have any (FR-INV-25)", 
   expect(empty).toBeTruthy();
 });
 
-test("marking an item generic keeps it, as unit #1 (FR-INV-26)", async () => {
+test("marking an item generic keeps it, under the number given (FR-INV-26)", async () => {
   const f = await fixture();
   await act.bindCode(store, "ABCDEFGH23", f.t1);
   await checkOut(store, f.t1, { event: "Fall Camp" });
@@ -120,12 +133,59 @@ test("marking an item generic keeps it, as unit #1 (FR-INV-26)", async () => {
   const generic = inv.item(store.state, genericId)!;
   const unit = inv.item(store.state, f.t1)!;
   expect(generic).toMatchObject({ name: "Tent 1", generic: true, home_location_id: f.cold });
-  expect(unit).toMatchObject({ parent_id: genericId, number: 1, name: null, status: "out" });
+  expect(unit).toMatchObject({ parent_id: genericId, number: "1", name: null, status: "out" });
   expect(inv.displayName(store.state, unit)).toBe("Tent 1 #1");
   // The sticker and the movement stay where they were.
   expect(inv.currentCode(store.state, f.t1)?.id).toBe("ABCDEFGH23");
   expect(unit.movement?.event).toBe("Fall Camp");
   await expect(act.makeGeneric(store, f.t1)).rejects.toThrow("already one of several");
+
+  // The number is the person's to pick: what is painted on the gear (FR-INV-23).
+  const lettered = await act.makeGeneric(store, f.t2, " B ");
+  expect(inv.displayName(store.state, inv.item(store.state, f.t2)!)).toBe("Tent 2 #B");
+  expect(lettered).toBeTruthy();
+  await expect(act.makeGeneric(store, f.stove, " ")).rejects.toThrow("a unit needs a number");
+});
+
+test("grouping two singles makes a generic from the picked item's name (FR-INV-30)", async () => {
+  const f = await fixture();
+  await act.bindCode(store, "ABCDEFGH23", f.t1);
+  await checkOut(store, f.t1, { event: "Fall Camp" });
+  const genericId = await act.groupWith(store, f.t1, f.t2, { mine: "2", other: "1" });
+
+  expect(inv.item(store.state, genericId)).toMatchObject({ name: "Tent 2", generic: true });
+  expect(inv.displayName(store.state, inv.item(store.state, f.t2)!)).toBe("Tent 2 #1");
+  expect(inv.displayName(store.state, inv.item(store.state, f.t1)!)).toBe("Tent 2 #2");
+  // Both stay: neither points at the other, and each keeps its own home and history.
+  expect(inv.item(store.state, f.t1)?.merged_into).toBeUndefined();
+  expect(inv.item(store.state, f.t1)?.home_location_id).toBe(f.cold);
+  expect(inv.currentCode(store.state, f.t1)?.id).toBe("ABCDEFGH23");
+  expect(inv.item(store.state, f.t1)?.movement?.event).toBe("Fall Camp");
+});
+
+test("grouping with a generic, or one of its units, joins the one already there (FR-INV-30)", async () => {
+  const f = await withUnits();
+  await act.groupWith(store, f.t1, f.tents, { mine: "8" });
+  expect(inv.displayName(store.state, inv.item(store.state, f.t1)!)).toBe("4-person tent #8");
+
+  // A unit stands for its generic: joining it joins the generic.
+  await act.groupWith(store, f.t2, f.u1, { mine: "9" });
+  expect(inv.displayName(store.state, inv.item(store.state, f.t2)!)).toBe("4-person tent #9");
+  expect(inv.generics(store.state)).toHaveLength(1);
+});
+
+test("a group is refused before anything is written (FR-INV-30)", async () => {
+  const f = await withUnits();
+  await expect(act.groupWith(store, f.t1, f.t1, { mine: "2" })).rejects.toThrow("cannot be grouped with itself");
+  await expect(act.groupWith(store, f.t1, f.t2, { mine: "1", other: "1" })).rejects.toThrow(
+    "the two need different numbers",
+  );
+  await expect(act.groupWith(store, f.t1, f.tents, { mine: "1" })).rejects.toThrow("#1 is taken");
+  await expect(act.groupWith(store, f.t1, f.tents, { mine: " " })).rejects.toThrow("a unit needs a number");
+  await expect(act.groupWith(store, f.u1, f.t1, { mine: "1" })).rejects.toThrow("already one of several");
+  // Nothing above got as far as a write.
+  expect(inv.generics(store.state).map((g) => g.id)).toEqual([f.tents]);
+  expect(inv.item(store.state, f.t1)?.parent_id).toBeUndefined();
 });
 
 test("a generic retires only when every unit has (FR-INV-27)", async () => {
@@ -139,9 +199,9 @@ test("a generic retires only when every unit has (FR-INV-27)", async () => {
 test("a unit moves to another generic, and a taken number is bumped (FR-INV-28)", async () => {
   const f = await withUnits();
   const other = await act.createGeneric(store, { name: "3-person tent" });
-  await act.createUnit(store, { parent_id: other, number: 1 });
+  await act.createUnit(store, { parent_id: other, number: "1" });
   await act.moveUnit(store, f.u1, other);
-  expect(inv.item(store.state, f.u1)).toMatchObject({ parent_id: other, number: 2 });
+  expect(inv.item(store.state, f.u1)).toMatchObject({ parent_id: other, number: "2" });
   expect(inv.unitsOf(store.state, f.tents).map((u) => u.id)).toEqual([f.u2, f.u3]);
   await expect(act.moveUnit(store, f.t1, other)).rejects.toThrow("not a unit");
 });
@@ -213,7 +273,7 @@ test("a location in use cannot be deleted, and the error names the items", async
   expect(inv.locationName(store.state, f.warm)).toBe("Warm locker"); // hidden from pickers, still named
 });
 
-test("sub-locations are the labels in use, optionally within one location", async () => {
+test("shelf labels are the ones in use, optionally within one location", async () => {
   const f = await fixture();
   await act.updateItem(store, f.stove, { sub_location: "bin 2" });
   expect(inv.subLocations(store.state)).toEqual(["bin 2", "shelf 4"]);
@@ -245,7 +305,7 @@ test("missing is a field, filterable, and does not change status (FR-INV-19)", a
   expect(store.pending.length).toBe(before);
 });
 
-test("a location is browsed shelf by shelf, no sub-location last, retired gear left out (FR-INV-10)", async () => {
+test("a location is browsed shelf by shelf, no shelf last, retired gear left out (FR-INV-10)", async () => {
   const f = await fixture();
   const bag = await act.createItem(store, { name: "Bag", home_location_id: f.cold, sub_location: "" });
   await act.createItem(store, { name: "Axe", home_location_id: f.cold, sub_location: "bin 1" });

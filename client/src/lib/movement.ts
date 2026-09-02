@@ -6,6 +6,7 @@
 import { seen } from "./actions";
 import { aliases, item, type Item } from "./inventory";
 import * as notes from "./notes";
+import type { Log } from "./record";
 import { type Movement, type Note, replayOrder } from "./replay";
 import type { Store } from "./store";
 
@@ -124,13 +125,13 @@ export interface HistoryEntry {
 }
 
 /**
- * The item's movements this device knows about, newest first, each with its notes (FR-INV-09).
- * A merged duplicate's movements belong to the survivor (FR-INV-13).
+ * The item's movements, newest first, each with its notes (FR-INV-09). A merged
+ * duplicate's movements belong to the survivor (FR-INV-13).
  */
-export function history(store: Store, itemId: string): HistoryEntry[] {
-  const notes = aliases(store.state, itemId).flatMap((id) => (item(store.state, id)?.notes ?? []) as Note[]);
-  const events = aliases(store.state, itemId)
-    .flatMap((id) => store.eventsFor("item", id))
+export function history(log: Log, itemId: string): HistoryEntry[] {
+  const notes = aliases(log.state, itemId).flatMap((id) => (item(log.state, id)?.notes ?? []) as Note[]);
+  const events = aliases(log.state, itemId)
+    .flatMap((id) => log.eventsFor("item", id))
     .sort(replayOrder);
   // The last correction wins, the same rule replay uses for the current movement (FR-RES-17).
   const corrected = new Map<string, string | null>();

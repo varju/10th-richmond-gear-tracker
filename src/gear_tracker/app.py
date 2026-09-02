@@ -8,6 +8,7 @@ accounts.authenticate.
 import sqlite3
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
+from dataclasses import asdict
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -154,6 +155,32 @@ def create_app(
     @app.get("/sync/pull")
     def pull(conn: Db, who: Who, since: Annotated[int, Query(ge=0)]) -> dict[str, Any]:
         return sync.pull(conn, who, since)
+
+    # --- history -----------------------------------------------------------------
+
+    def _entity_type(entity_type: str) -> str:
+        if entity_type not in events.ENTITY_TYPES:
+            raise BadRequest(f"entity_type must be one of {', '.join(sorted(events.ENTITY_TYPES))}")
+        return entity_type
+
+    @app.get("/history/{entity_type}/{entity_id}")
+    def history(conn: Db, _who: Who, entity_type: str, entity_id: str) -> dict[str, Any]:
+        """One entity's whole slice of the log, in replay order (FR-INV-31).
+
+        A device keeps 90 days (NFR-DATA-03); the server keeps everything. The
+        events are shaped as pull sends them, so the screen that renders what
+        the device holds renders this without knowing the difference. A merged
+        duplicate is its own entity, so a reader that follows the pointer asks
+        again for that id.
+        """
+        return stamped(
+            {"events": [asdict(e) for e in events.in_replay_order(conn, _entity_type(entity_type), entity_id)]}
+        )
+
+    @app.get("/history/{entity_type}")
+    def history_of_type(conn: Db, _who: Who, entity_type: str) -> dict[str, Any]:
+        """Every event of one kind, in replay order. The repair report reads its whole record this way."""
+        return stamped({"events": [asdict(e) for e in events.in_replay_order(conn, _entity_type(entity_type))]})
 
     # --- auth ----------------------------------------------------------------------
 

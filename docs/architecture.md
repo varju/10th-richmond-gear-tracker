@@ -176,6 +176,26 @@ the client shows something the server does not believe. Keep the ordering rules 
 vectors under `vectors/replay/`, each a list of events and the state they must produce — and run them from both test
 suites (NFR-MAINT-04).
 
+## History
+
+A device holds 90 days of events, which is right for a locker and wrong for "when did we buy this tent". So the history
+screens ask the server first, and fall back to what the device holds (FR-INV-31).
+
+```
+GET  /history/<entity_type>/<entity_id>         -> { events: [...], server_time }
+GET  /history/<entity_type>                     -> { events: [...], server_time }
+```
+
+Signed-in callers only. Events come back in replay order, shaped exactly as pull sends them, so the same code draws
+both. The screen adds anything this device has recorded and not yet pushed, matched by event id, because a note written
+a minute ago must not vanish when the signal returns. Nothing is cached: this is a read, and a stale answer would be
+worse than a slow one.
+
+A merged duplicate is its own entity, so an item page asks once per id it follows (FR-INV-13). The repair report asks
+for the whole `repair` type at once, because it is a list of tickets rather than one. On failure or with the device
+offline the screen says "Offline: what this device knows, the last 90 days."; on success it says nothing, because there
+is nothing missing.
+
 ## Client
 
 ### In memory
@@ -287,17 +307,18 @@ Making a single item generic creates a new generic and sets `parent_id` on the o
 old item's history is rewritten. Numbers are picked on the device and can collide when two phones label the same generic
 offline; the second to land keeps its number and the unit page says so, the same trade as every other offline race.
 
-Two things the requirements name differently from the data. The item field the requirements call notes is `description`,
-because `notes` in derived state is the list of per-movement notes (FR-OUT-13). And `added_at` and `modified_at` are
-written by replay from the event's effective time, not sent by the device, so a phone with a wrong clock cannot set them
-(FR-INV-03). Only `created` and `field_changed` move `modified_at`; movements and notes do not.
+Three things the app names differently from the data. The item field the requirements call notes is `description`,
+because `notes` in derived state is the list of per-movement notes (FR-OUT-13). The label the app calls a shelf is
+`sub_location`, named before the yard's trailers made "shelf" the word people used anyway (FR-SET-03). And `added_at`
+and `modified_at` are written by replay from the event's effective time, not sent by the device, so a phone with a wrong
+clock cannot set them (FR-INV-03). Only `created` and `field_changed` move `modified_at`; movements and notes do not.
 
 Locations are deleted by setting `deleted`; the row stays so items still pointing at it keep a name. The in-use check
 (FR-SET-05) runs on the device against its own state, which is the only state it has. Two phones offline at once can
 race it: one deletes a location while the other files an item there. The item wins, the location is hidden, and the
 item's home still reads correctly. That is rare enough to accept and cheap to fix by hand.
 
-Sub-locations are labels on items, not entities (FR-SET-03). The suggestion list is whatever labels are in use.
+Shelves are labels on items, not entities (FR-SET-03). The suggestion list is whatever labels are in use.
 
 ### Codes on the device
 
@@ -321,7 +342,15 @@ What follows the pointer: a sticker on the duplicate opens the survivor; the sur
 include the duplicate's; a reservation that named the duplicate packs the survivor; the list hides the duplicate; and
 the server refuses to check the duplicate out. What does not: notes stay on the duplicate's page, which is still
 reachable and says where it went. Only an Admin merges, and only an item that is in. Unmerging is another
-`field_changed`, setting `merged_into` back to null.
+`field_changed`, setting `merged_into` back to null, offered on both pages: the survivor lists what was merged into it,
+one line each, with the way back beside it.
+
+**Merging is not grouping.** A merge says two records are one thing, and one of them has to go. Grouping says two things
+are the same kind, and both stay (FR-INV-30). So grouping writes no `merged_into`: it makes a generic and sets
+`parent_id` and a number on each item, the same three fields FR-INV-26 writes, and nothing is hidden or followed
+afterwards. Picking a generic, or one of its units, joins the generic already there rather than making another. The tell
+is whether the gear exists twice in the locker. Two tents means a group; one tent entered twice means a merge. Grouping
+is an ordinary edit, so anyone signed in may do it; merging stays with an Admin, because it takes a record off the list.
 
 ## Movement
 
@@ -352,8 +381,9 @@ naming it (FR-RES-17). Replay carries the item's last movement only, so a correc
 decides what the item is out under; a correction to an older one is read back from the log, where the history is. The
 check-out itself is never rewritten, the same rule as a note (FR-OUT-16).
 
-The access history on an item page (FR-INV-09) is read from the events the device holds, so it reaches back 90 days
-(NFR-DATA-03). The server keeps everything; a full history is a report, not a phone screen.
+The access history on an item page (FR-INV-09) is read from a log: the server's, when there is signal, and otherwise the
+90 days of events the device holds (NFR-DATA-03). One render path draws either, so the rows do not change shape when the
+signal does; only the note under them does. See [History](#history).
 
 ## Repairs
 
@@ -370,8 +400,9 @@ A fault typed on the scan card is recorded after the movement, as a second event
 are one flow (FR-OUT-09). A ticket takes photos the same way an item does (FR-REP-01); see [Photos](#photos).
 
 The repair report (FR-RPT-02) is the open list followed by a history over a date range, both derived on the phone from
-the tickets it holds. Days are calendar days where the group is. Tickets are state, not history, so the range reaches
-back as far as the phone's copy does; the phone says so under the list.
+the tickets it holds. Days are calendar days where the group is. With signal the list is built from every `repair` event
+the server holds, so the range reaches back as far as the log; without it, as far as the phone's copy does, and the
+phone says so under the list.
 
 ## Reports
 

@@ -15,9 +15,9 @@ import sqlite3
 import tomllib
 from importlib import resources
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 
-from pydantic import Field, ValidationError, model_validator
+from pydantic import ValidationError, model_validator
 
 from gear_tracker import events
 from gear_tracker.errors import BadRequest, Conflict
@@ -30,12 +30,18 @@ BUNDLED = "demo"
 
 
 class Unit(Section):
-    """One of several of the same thing (FR-INV-23). Home and sub-location come from the generic unless set here."""
+    """One of several of the same thing (FR-INV-23). Home and shelf come from the generic unless set here."""
 
-    number: Annotated[int, Field(ge=1)]
+    number: int | NonEmpty
+    """Text once stored, because the gear may be labelled "A" or "3b". A whole number in the file is fine."""
+
     nickname: str = ""
     home: str = ""
     sub_location: str = ""
+
+    @property
+    def label(self) -> str:
+        return str(self.number).strip()
 
 
 class Item(Section):
@@ -52,7 +58,7 @@ class Item(Section):
 
     @model_validator(mode="after")
     def _numbered_once(self):
-        numbers = [unit.number for unit in self.units]
+        numbers = [unit.label for unit in self.units]
         if len(set(numbers)) != len(numbers):
             raise ValueError(f"{self.name}: two units with the same number")
         return self
@@ -126,7 +132,7 @@ def load(conn: sqlite3.Connection, spec: Inventory, actor_id: str, now: int | No
         item_id = _created(conn, actor_id, "item", fields, now)
 
         for unit in item.units:
-            under: dict[str, Any] = {"parent_id": item_id, "number": unit.number}
+            under: dict[str, Any] = {"parent_id": item_id, "number": unit.label}
             if unit.nickname:
                 under["nickname"] = unit.nickname
             _where(under, homes, unit.home or item.home, unit.sub_location or item.sub_location)

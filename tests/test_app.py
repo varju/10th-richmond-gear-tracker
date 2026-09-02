@@ -82,6 +82,49 @@ def test_the_round_trip(client):
     assert booted.json()["cursor"] == 1
 
 
+def test_history_is_the_whole_record_in_replay_order(client):
+    """The server keeps everything; a device keeps 90 days (FR-INV-31)."""
+    old = event(id="01AAAAAAAAAAAAAAAAAAAAAAAA", type="created", payload={"name": "Tent"}, occurred_at=T0, device_seq=1)
+    new = event(id="01BBBBBBBBBBBBBBBBBBBBBBBB", occurred_at=T0 + 60_000, device_seq=2)
+    other = event(entity_id="tarp-1", type="created", payload={"name": "Tarp"}, device_seq=3)
+    assert client.post("/sync/push", json=push_body(old, new, other), headers=as_alice()).status_code == 200
+
+    r = client.get("/history/item/tent-1", headers=as_alice())
+    assert r.status_code == 200
+    assert [e["id"] for e in r.json()["events"]] == [old["id"], new["id"]]
+    assert "server_time" in r.json()
+
+    # The same shape pull sends, so one renderer draws both.
+    pulled = client.get("/sync/pull?since=0", headers=as_alice()).json()["events"]
+    assert r.json()["events"][0] == next(e for e in pulled if e["id"] == old["id"])
+
+
+def test_history_of_a_kind_is_every_event_of_it(client):
+    """The repair report reads its whole record at once, not one ticket at a time."""
+    ticket = {"item_id": "tent-1", "description": "torn fly"}
+    one = event(entity_type="repair", entity_id="t-1", type="created", payload=ticket, device_seq=1)
+    two = event(entity_type="repair", entity_id="t-2", type="created", payload=ticket, device_seq=2)
+    item = event(type="created", payload={"name": "Tent"}, device_seq=3)
+    assert client.post("/sync/push", json=push_body(one, two, item), headers=as_alice()).status_code == 200
+
+    r = client.get("/history/repair", headers=as_alice())
+    assert {e["id"] for e in r.json()["events"]} == {one["id"], two["id"]}
+
+
+def test_history_of_something_that_never_existed_is_empty_not_404(client):
+    r = client.get("/history/item/no-such-thing", headers=as_alice())
+    assert r.status_code == 200
+    assert r.json()["events"] == []
+
+
+def test_history_needs_a_signed_in_caller_and_a_real_entity_type(client):
+    assert client.get("/history/item/tent-1").status_code == 401
+    assert client.get("/history/item").status_code == 401
+    r = client.get("/history/banana/tent-1", headers=as_alice())
+    assert r.status_code == 400
+    assert "entity_type must be one of" in r.json()["message"]
+
+
 def test_push_with_a_non_json_body_is_400(client):
     r = client.post("/sync/push", content=b"not json", headers=as_alice(**{"Content-Type": "application/json"}))
     assert r.status_code == 400
@@ -431,7 +474,7 @@ def test_a_unit_answers_with_its_generic_name(public):
                 entity_type="item",
                 entity_id="tarp-2",
                 type="created",
-                payload={"parent_id": "tarp", "number": 2, "nickname": "torn corner"},
+                payload={"parent_id": "tarp", "number": "2", "nickname": "torn corner"},
                 device_seq=4,
             ),
             event(

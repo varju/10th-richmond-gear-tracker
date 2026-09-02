@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { DAY_MS } from "../lib/clock";
 import { nameOf } from "../lib/inventory";
+import { useTypeRecord } from "../lib/record";
 import { openTickets, type Repair, repairHistory, stateLabel } from "../lib/repairs";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -46,10 +47,12 @@ function TicketList({ store, tickets, detail }: { store: Store; tickets: Repair[
 
 /** Tickets raised or changed in a date range, last change first (FR-RPT-02). The last 30 days to start. */
 function History({ store }: { store: Store }) {
-  const { now } = useShell();
+  const { now, api } = useShell();
   const [from, setFrom] = useState(() => localDate(now() - 30 * DAY_MS));
   const [to, setTo] = useState(() => localDate(now()));
-  const rows = repairHistory(store.state, from, to);
+  // Every ticket the server holds, or this phone's copy when there is no signal (FR-INV-31).
+  const record = useTypeRecord(store, "repair", api);
+  const rows = repairHistory(record ?? store.state, from, to);
   return (
     <section aria-label="History">
       <h2 className="section">History</h2>
@@ -80,7 +83,7 @@ function History({ store }: { store: Store }) {
           }
         />
       )}
-      <p className="muted small">What this phone knows: the last 90 days.</p>
+      {!record && <p className="muted small">Offline: what this device knows, the last 90 days.</p>}
     </section>
   );
 }

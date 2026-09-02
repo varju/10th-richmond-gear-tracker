@@ -81,11 +81,18 @@ def aliases(state: State, item_id: str) -> list[str]:
     return found
 
 
+def number_key(it: Fields) -> tuple[int, int, str]:
+    """Unit numbers as people read them: whole numbers first and in numeric order,
+    so 2 comes before 10, then everything else as text. The twin of byNumber in inventory.ts."""
+    number = str(it.get("number") or "").strip()
+    return (0, int(number), "") if number.isdigit() else (1, 0, number)
+
+
 def units_of(state: State, generic_id: str) -> list[Fields]:
     """The units under a generic, in number order. Retired ones included; callers filter."""
     return sorted(
         (it for it in items(state) if it.get("parent_id") == generic_id and not it.get("merged_into")),
-        key=lambda it: it.get("number") or 0,
+        key=number_key,
     )
 
 
@@ -199,7 +206,7 @@ def rows(
                 "kind": "generic",
                 "item": parent,
                 "name": display_name(state, parent),
-                "units": sorted(units, key=lambda u: u.get("number") or 0),
+                "units": sorted(units, key=number_key),
                 "counts": {
                     "total": len(units),
                     "in": sum(1 for u in units if u.get("status") == "in" and not u.get("missing")),
