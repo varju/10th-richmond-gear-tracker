@@ -1,10 +1,14 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { IDBFactory } from "fake-indexeddb";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, describe, expect, test } from "vitest";
 import * as act from "./actions";
 import type { ServerEvent } from "./api";
 import { hasOpenConflict, openConflicts, reviewConflict } from "./conflicts";
 import { openDb } from "./db";
 import * as mv from "./movement";
+import type { State } from "./replay";
+import { type Conflict, conflicts, type ReservationInput } from "./reservations";
 import { Store } from "./store";
 
 // Two phones, offline, both check out one tent (FR-OFF-10). Replay queues it; this decides when it is settled.
@@ -91,4 +95,30 @@ test("a reviewed conflict reopens if the same two phones clash again", async () 
 test("nothing open on an item with no conflicts, or none at all", () => {
   expect(openConflicts(store.state)).toEqual([]);
   expect(hasOpenConflict(store.state, tent)).toBe(false);
+});
+
+// --- reservation clashes, shared with the server ----------------------------------------
+
+/** The vectors gear_tracker/conflicts.py runs (FR-MCP-06). Both sides must give the same answer. */
+interface ClashVector {
+  name: string;
+  state: State;
+  draft: ReservationInput;
+  exclude?: string;
+  conflicts: Conflict[];
+}
+
+const dir = join(import.meta.dirname, "../../../vectors/reservations/");
+const vectors = readdirSync(dir)
+  .filter((f) => f.endsWith(".json"))
+  .map((f) => [f, JSON.parse(readFileSync(dir + f, "utf8")) as ClashVector] as const);
+
+describe("shared reservation vectors", () => {
+  test.each(vectors)("%s", (_file, vector) => {
+    expect(conflicts(vector.state, vector.draft, vector.exclude)).toStrictEqual(vector.conflicts);
+  });
+
+  test("there are vectors to run", () => {
+    expect(vectors.length).toBeGreaterThan(5);
+  });
 });

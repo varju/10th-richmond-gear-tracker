@@ -95,6 +95,11 @@ map $request_uri $gear_cache_control {
 
 `$request_uri`, not `$uri`: the rewrite above has already taken `/gear` off `$uri`.
 
+**Let the assistant's header through.** `/mcp` needs the `Authorization` header. nginx forwards it by default, but
+anything in front that strips or rewrites it turns every tool call into a 401. Replies are plain JSON rather than a
+stream, so no buffering setting matters. The URL a person pastes into an assistant includes the path,
+`https://example.org/gear/mcp`.
+
 One thing a path costs: a sticker's URL grows by its length, and QR module size shrinks to match
 ([architecture.md](architecture.md#keep-the-url-short)). If the stickers are printed against this hostname, give the
 public code route its own top-level location rather than putting it under the app's path.

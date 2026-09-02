@@ -6,7 +6,8 @@ accounts.authenticate.
 """
 
 import sqlite3
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -15,7 +16,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import Field, StringConstraints
 
-from gear_tracker import accounts, codes, derived, events, labels, mail, sync
+from gear_tracker import accounts, assistant, codes, derived, events, labels, mail, sync
 from gear_tracker.db import connect
 from gear_tracker.errors import ApiError, BadRequest, Conflict, Deactivated, NotFound, TooLarge, TooMany, Unauthorized
 from gear_tracker.events import PHOTO_ENTITIES, PHOTO_TYPES, PUBLIC_ACTOR, Strict, now_ms
@@ -66,7 +67,16 @@ def create_app(
     `photos` is the file store (FR-INV-11). By default a directory beside the database, so
     whatever backs up the one backs up the other.
     """
-    app = FastAPI(title="Gear Tracker")
+    # The assistant's endpoint, and the transport it needs running behind it (FR-MCP-01).
+    mcp = assistant.Endpoint(db_path, authenticate)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        async with mcp.session_manager.run():
+            yield
+
+    app = FastAPI(title="Gear Tracker", lifespan=lifespan)
+    app.router.routes.append(assistant.route(mcp))
     photo_dir = Path(photos) if photos is not None else Path(db_path).parent / "photos"
 
     # In memory, in this process. One uvicorn worker serves the group, so that is the whole picture.
@@ -162,6 +172,18 @@ def create_app(
     def sign_out(request: Request, conn: Db, _who: Who) -> dict[str, Any]:
         accounts.sign_out(conn, bearer(request) or "")
         return stamped({})
+
+    # --- assistants ------------------------------------------------------------------------
+
+    @app.post("/assistant/connect")
+    def connect_assistant(conn: Db, who: Who) -> dict[str, Any]:
+        """A token for an MCP client, minted by whoever is signed in (FR-MCP-01).
+
+        Shown once, like an invite link. It is a device session, so it is in the
+        user's device list and revoked the same way (FR-MCP-02).
+        """
+        device_id, session = accounts.connect_assistant(conn, who)
+        return stamped({"token": session.token, "device_id": device_id, "path": assistant.MCP_PATH})
 
     # --- users (Admins) ------------------------------------------------------------------
 

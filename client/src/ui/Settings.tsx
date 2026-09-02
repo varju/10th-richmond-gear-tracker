@@ -1,9 +1,9 @@
 import { useState } from "react";
 import type { Shell } from "../shell";
 import { createLocation, deleteLocation, renameLocation, setGroup } from "../lib/actions";
-import type { Api } from "../lib/api";
+import { type Api, ApiError, type AssistantToken, Offline } from "../lib/api";
 import { group, locations } from "../lib/inventory";
-import { navigate } from "../lib/router";
+import { BASE, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useUnsaved } from "../lib/unsaved";
 import { useStore } from "../useStore";
@@ -18,7 +18,7 @@ interface Props {
   shell: Shell;
 }
 
-export function Settings({ store, shell }: Props) {
+export function Settings({ store, api, shell }: Props) {
   useStore(store);
   const pending = store.pending.length;
   const admin = store.meta.user?.role === "admin";
@@ -78,6 +78,8 @@ export function Settings({ store, shell }: Props) {
           <PrintCodes store={store} onDone={shell.sync} />
         </>
       )}
+      <h2 className="section">Assistant</h2>
+      <ConnectAssistant api={api} />
       {/* The only way in to the guide (NFR-USE-11). */}
       <nav className="links" aria-label="Guide">
         <button className="link" type="button" onClick={() => navigate("/help")}>
@@ -172,5 +174,86 @@ function GroupForm({ store }: { store: Store }) {
       </button>
       {saved && !dirty && <span className="muted small"> Saved</span>}
     </>
+  );
+}
+
+/**
+ * A token for an MCP client, minted by whoever is signed in (FR-MCP-01). Shown
+ * once, like an invite link. It is a device session, so it is listed with the
+ * person's phones and revoked the same way (FR-MCP-02).
+ */
+function ConnectAssistant({ api }: { api: Api }) {
+  const [made, setMade] = useState<AssistantToken | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function connect() {
+    setBusy(true);
+    setError(null);
+    try {
+      setMade((await api.connectAssistant()).data);
+    } catch (e) {
+      if (e instanceof Offline) setError("Needs a connection. Tokens are made on the server.");
+      else if (e instanceof ApiError) setError(e.message);
+      else throw e;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copy() {
+    if (!made) return;
+    try {
+      await navigator.clipboard.writeText(made.token);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  if (!made) {
+    return (
+      <>
+        <p className="muted small">
+          Ask an assistant about the inventory, and let it book gear for you. It can do what you can do in the app, and
+          nothing an Admin does.
+        </p>
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        <button type="button" onClick={connect} disabled={busy}>
+          Connect an assistant
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <div className="notice" role="status">
+      <p>
+        Paste this token into your assistant. It is shown once.
+        <br />
+        <code className="wrap">{made.token}</code>
+      </p>
+      <p className="muted small">
+        Server: <code className="wrap">{`${location.origin}${BASE}${made.path}`}</code>
+        <br />
+        Send it as the header <code>Authorization: Bearer &lt;token&gt;</code>.
+      </p>
+      <p className="muted small">
+        It is now in your device list beside your phone. Ask an Admin to revoke it if it is ever lost.
+      </p>
+      <div className="row">
+        <button type="button" className="minor primary" onClick={copy}>
+          {copied ? "Copied" : "Copy"}
+        </button>
+        <button type="button" className="minor" onClick={() => setMade(null)}>
+          Done
+        </button>
+      </div>
+    </div>
   );
 }

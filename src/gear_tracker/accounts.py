@@ -32,6 +32,9 @@ Email = Annotated[EmailStr, StringConstraints(max_length=254)]
 LINK_TTL_MS = 7 * 24 * 3_600_000
 """An invite or reset link that has not been used in a week is dead. Sessions never expire; links do."""
 
+ASSISTANT_PREFIX = "mcp-"
+"""What makes a device_id an assistant's rather than a phone's (FR-MCP-02). The client reads the same prefix."""
+
 _hasher = PasswordHasher()
 
 
@@ -278,6 +281,19 @@ def sign_out(conn: sqlite3.Connection, token: str, now: int | None = None) -> No
     conn.execute(
         "UPDATE sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL", (now, _hash_token(token))
     )
+
+
+def connect_assistant(conn: sqlite3.Connection, who: Principal, now: int | None = None) -> tuple[str, Session]:
+    """A token a signed-in person mints for themselves, with no Admin involved (FR-MCP-01).
+
+    It is an ordinary device session (FR-MCP-02), so it is in the device list
+    and revoked like a lost phone. The device_id says which one it is.
+    """
+    if not who.active:
+        raise Deactivated("this account has been deactivated")
+    now = now_ms() if now is None else now
+    device_id = ASSISTANT_PREFIX + new_ulid(now)
+    return device_id, _open_session(conn, who.user_id, device_id, now)
 
 
 def authenticate(conn: sqlite3.Connection, token: str | None) -> Principal | None:

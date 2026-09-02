@@ -53,10 +53,22 @@ export interface LinkResult {
   mail_error?: string;
 }
 
-/** A phone with an open session (FR-USR-14). `created_at` is its latest sign-in. */
+/** A phone or an assistant with an open session (FR-USR-14). `created_at` is its latest sign-in. */
 export interface Device {
   device_id: string;
   created_at: number;
+}
+
+/** What makes a device an assistant rather than a phone (FR-MCP-02). Matches accounts.py. */
+export const ASSISTANT_PREFIX = "mcp-";
+
+export const isAssistant = (deviceId: string): boolean => deviceId.startsWith(ASSISTANT_PREFIX);
+
+/** A token for an MCP client, shown once (FR-MCP-01). `path` is where that client connects. */
+export interface AssistantToken {
+  token: string;
+  device_id: string;
+  path: string;
 }
 
 export interface Bootstrap {
@@ -171,6 +183,8 @@ export function createApi(options: ApiOptions = {}) {
     signIn: (email: string, password: string, device_id: string) =>
       request<Session>("POST", "/auth/sign-in", { email, password, device_id }),
     signOut: () => request<Record<string, never>>("POST", "/auth/sign-out"),
+    /** Mint a token for an assistant (FR-MCP-01). Any signed-in person; no Admin involved. */
+    connectAssistant: () => request<AssistantToken>("POST", "/assistant/connect"),
     /** Use an invite or reset link (FR-USR-12): set a password, open this device's session. */
     redeem: (token: string, password: string, device_id: string) =>
       request<Session>("POST", "/auth/redeem", { token, password, device_id }),

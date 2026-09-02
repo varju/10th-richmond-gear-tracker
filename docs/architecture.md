@@ -204,6 +204,21 @@ browser's own question covers closing or reloading the tab.
 The Python server serves the built client, so one process is the whole deployment. In development Vite serves the client
 and forwards API calls.
 
+### Wide layout
+
+One breakpoint at 900 px (`lib/wide.ts`, repeated in `styles.css`). Above it the same app is arranged for a table
+(NFR-USE-10): the sections move from the home screen into a sidebar that stays beside every screen, the home screen
+opens on exceptions and then what is out, and the inventory becomes a sortable table with search and filters always in
+view. Below it nothing changes; the phone layout is not adjusted to suit the desk.
+
+Most of the difference is CSS. `useWide()` is for the few screens whose element order must differ, because a grid cannot
+reorder what the DOM does not allow: the reservation form and the reservation page. The item page splits into two
+columns with wrapper elements alone, since its order already suits both. The desk home and the inventory table are
+separate components, chosen by the router, because they answer different questions from the same state.
+
+Tap targets keep their 44 px at every width. The same components are opened on a phone, and a mouse is happy with a big
+target (NFR-USE-03).
+
 ### Photos
 
 Photos are server-only and never cached (FR-INV-11). They are fetched on demand when online. This is what keeps the
@@ -589,22 +604,28 @@ and their own `device_seq`, under the same rules as any phone.
 
 ## Assistant access (MCP)
 
-The MCP server is the same FastAPI process, mounted at `/mcp` over Streamable HTTP, using the official Python SDK,
-pinned. One process to run; nothing new to deploy.
+The MCP server is the same FastAPI process, answering at `/mcp` over Streamable HTTP, using the official Python SDK,
+pinned. One process to run; nothing new to deploy. It is stateless and replies in plain JSON, so there is no session to
+keep and no stream for a proxy to buffer. Calls are rate limited per token, generously, by the same `RateLimit` the rest
+of the app uses.
 
 **A token is a device.** "Connect an assistant" in Settings opens a session whose `device_id` is `mcp-<ulid>`, and shows
 the token once. Everything that already works for a phone works for it: it is in the device list, it is revoked the same
-way, and a deactivated user's token dies with the account. No OAuth until a client forces it (FR-MCP-07).
+way, and a deactivated user's token dies with the account. Middleware resolves the bearer token before the SDK sees the
+request, so a bad one is a 401. A phone's token is refused too, with a 403: its `device_seq` belongs to the phone, and
+the server must not hand out numbers alongside it. No OAuth until a client forces it (FR-MCP-07).
 
 **A write is a push.** A tool call builds events server-side with the session's `device_id` and a `device_seq` the
-server keeps per MCP device, then hands them to `sync.push`. So the entity rules, validation, attribution, and drift
-checks all apply, and history reads "this Scouter, via the assistant". There is no second write path.
+server keeps per MCP device in a `device_seq:<device_id>` meta row, seeded from the log and bumped in one statement,
+then hands them to `sync.push`. So the entity rules, validation, attribution, and drift checks all apply, and history
+reads "this Scouter, via the assistant". There is no second write path.
 
-**A read is derived state.** Tools read what `bootstrap` already serves, plus history for one item.
+**A read is derived state.** Tools read what `bootstrap` already serves, plus recent movements for one item. The readers
+live in `views.py`, a Python twin of the client's `inventory`, `reservations`, `reports` and `repairs` modules.
 
 **Conflicts move to Python too.** Reservation clashes are checked on the device today. An assistant needs the answer in
 the reply, so `conflicts` gets a Python twin with shared vectors under `vectors/reservations/`, the same arrangement as
-replay.
+replay. A reservation tool that hits a clash refuses to save and names it, exactly as the app does.
 
 **What is not there.** Nothing an Admin does. The app gates locations to Admins, so MCP does too, though the server
 would let a device write them.

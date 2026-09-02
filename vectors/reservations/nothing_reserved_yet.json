@@ -1,0 +1,53 @@
+{
+  "name": "the first reservation of the season clashes with nothing",
+  "state": {
+    "item": {
+      "tents": {
+        "name": "4-person tent",
+        "generic": true
+      },
+      "t1": {
+        "parent_id": "tents",
+        "number": 1,
+        "status": "in",
+        "holder_id": null
+      },
+      "t2": {
+        "parent_id": "tents",
+        "number": 2,
+        "status": "in",
+        "holder_id": null
+      },
+      "t3": {
+        "parent_id": "tents",
+        "number": 3,
+        "status": "in",
+        "holder_id": null
+      },
+      "stove": {
+        "name": "Camp stove",
+        "status": "in",
+        "holder_id": null
+      },
+      "tarp": {
+        "name": "Tarp",
+        "status": "in",
+        "holder_id": null
+      }
+    },
+    "reservation": {}
+  },
+  "draft": {
+    "event": "Cubs",
+    "starts": "2026-10-02",
+    "ends": "2026-10-04",
+    "items": ["t1"],
+    "generics": [
+      {
+        "item_id": "tents",
+        "quantity": 3
+      }
+    ]
+  },
+  "conflicts": []
+}

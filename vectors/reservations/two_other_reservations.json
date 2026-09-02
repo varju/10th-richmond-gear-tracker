@@ -1,0 +1,74 @@
+{
+  "name": "one entry per other reservation, in date order",
+  "state": {
+    "item": {
+      "tents": {
+        "name": "4-person tent",
+        "generic": true
+      },
+      "t1": {
+        "parent_id": "tents",
+        "number": 1,
+        "status": "in",
+        "holder_id": null
+      },
+      "t2": {
+        "parent_id": "tents",
+        "number": 2,
+        "status": "in",
+        "holder_id": null
+      },
+      "t3": {
+        "parent_id": "tents",
+        "number": 3,
+        "status": "in",
+        "holder_id": null
+      },
+      "stove": {
+        "name": "Camp stove",
+        "status": "in",
+        "holder_id": null
+      },
+      "tarp": {
+        "name": "Tarp",
+        "status": "in",
+        "holder_id": null
+      }
+    },
+    "reservation": {
+      "r-fall": {
+        "event": "Fall Camp",
+        "starts": "2026-10-02",
+        "ends": "2026-10-04",
+        "items": ["t1"],
+        "generics": []
+      },
+      "r-cub": {
+        "event": "Cub camp",
+        "starts": "2026-10-03",
+        "ends": "2026-10-06",
+        "items": ["t2"],
+        "generics": []
+      }
+    }
+  },
+  "draft": {
+    "event": "Cubs",
+    "starts": "2026-10-02",
+    "ends": "2026-10-04",
+    "items": ["t1", "t2"],
+    "generics": []
+  },
+  "conflicts": [
+    {
+      "id": "r-fall",
+      "event": "Fall Camp",
+      "detail": "4-person tent #1"
+    },
+    {
+      "id": "r-cub",
+      "event": "Cub camp",
+      "detail": "4-person tent #2"
+    }
+  ]
+}

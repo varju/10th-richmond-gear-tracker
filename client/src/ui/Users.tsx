@@ -1,5 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react";
-import { type AccountUser, type Api, ApiError, type Device, Offline } from "../lib/api";
+import { type AccountUser, type Api, ApiError, type Device, isAssistant, Offline } from "../lib/api";
 import { BASE } from "../lib/router";
 import type { Store } from "../lib/store";
 import { isoDate } from "../lib/time";
@@ -317,10 +317,11 @@ function UserRow({
             <ul className="names" aria-label={`Devices of ${user.name}`}>
               {devices.map((d) => {
                 const mine = me && d.device_id === myDevice;
+                const kind = isAssistant(d.device_id) ? "Assistant" : mine ? "This phone" : "Phone";
                 return (
                   <li key={d.device_id} className="row">
                     <span className="small">
-                      {mine ? "This phone" : "Phone"} · signed in {isoDate(d.created_at)}
+                      {kind} · signed in {isoDate(d.created_at)}
                     </span>
                     <button
                       type="button"
@@ -340,6 +341,7 @@ function UserRow({
           )}
           <p className="muted small">
             Revoking a phone ends its access the next time it syncs. The person stays; sign them in on a new phone.
+            Revoking an assistant cuts its token off at once.
           </p>
         </div>
       )}
