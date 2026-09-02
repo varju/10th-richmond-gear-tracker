@@ -90,6 +90,10 @@ export const addNote = (store: Store, itemId: string, text: string, movementId?:
 export const correctNote = (store: Store, itemId: string, noteId: string, text: string) =>
   notes.correctNote(store, onItem(itemId), noteId, text);
 
+/** Gone from the item, still in the log (FR-OUT-21). */
+export const deleteNote = (store: Store, itemId: string, noteId: string) =>
+  notes.deleteNote(store, onItem(itemId), noteId);
+
 export interface HistoryEntry {
   id: string;
   type: "checked_out" | "checked_in";

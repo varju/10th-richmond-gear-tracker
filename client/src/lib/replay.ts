@@ -104,6 +104,10 @@ export function apply(entity: Fields, event: ReplayEvent): void {
         if (note.id === p.note_id) note.text = p.text as string;
       }
       break;
+    case "note_deleted":
+      // The note stops being shown; the log keeps it, with who wrote it and when (FR-OUT-21).
+      entity.notes = notes(entity).filter((n) => n.id !== p.note_id);
+      break;
     case "checked_out": {
       // Two check-outs from different devices with no check-in between:
       // the machine picks the later one and queues both (FR-OFF-10).

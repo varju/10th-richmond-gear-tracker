@@ -80,6 +80,9 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             for note in entity.get("notes", []):
                 if note["id"] == p["note_id"]:
                     note["text"] = p["text"]
+        case "note_deleted":
+            # The note stops being shown; the log keeps it, with who wrote it and when (FR-OUT-21).
+            entity["notes"] = [n for n in entity.get("notes", []) if n["id"] != p["note_id"]]
         case "checked_out":
             # Two check-outs from different devices with no check-in between:
             # the machine picks the later one and queues both (FR-OFF-10).

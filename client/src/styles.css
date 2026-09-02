@@ -651,24 +651,30 @@ main:has(> .viewfinder) {
 
 li.note {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 4px 12px;
   align-items: center;
 }
 
-li.note .note-text {
+li.note > .note-text {
   grid-column: 1;
+  grid-row: 1;
   white-space: pre-wrap;
+}
+
+/* Who and when, under the text; Edit and Delete beside both. */
+li.note > .muted {
+  grid-column: 1;
+  grid-row: 2;
 }
 
 li.note > button {
   grid-row: 1 / span 2;
-  grid-column: 2;
   width: auto;
   padding: 0 16px;
 }
 
-li.note .note-edit {
+li.note > .note-edit {
   grid-column: 1 / -1;
 }
 

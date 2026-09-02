@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import { addNote, correctNote, type EntityRef } from "../lib/notes";
+import { addNote, correctNote, deleteNote, type EntityRef } from "../lib/notes";
 import type { Note } from "../lib/replay";
 import type { Store } from "../lib/store";
 import { isoDate } from "../lib/time";
@@ -21,6 +21,7 @@ export function NoteList({ store, on, notes }: { store: Store; on: EntityRef; no
 /** One note as a list row: the text, who and when, and an Edit. */
 export function NoteLine({ store, on, note }: { store: Store; on: EntityRef; note: Note }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const text = draft?.trim() ?? "";
   useUnsaved(draft !== null && text !== "" && text !== note.text, { save: commit, canSave: text !== "" });
@@ -69,6 +70,16 @@ export function NoteLine({ store, on, note }: { store: Store; on: EntityRef; not
       </span>
       <button type="button" className="minor" onClick={() => setDraft(note.text)}>
         Edit
+      </button>
+      {/* Two taps, because there is no undo on the screen (NFR-USE-07). */}
+      <button
+        type="button"
+        className={confirming ? "minor warn" : "minor"}
+        aria-label={confirming ? `Really delete “${note.text}”?` : `Delete “${note.text}”`}
+        onClick={() => (confirming ? void deleteNote(store, on, note.id) : setConfirming(true))}
+        onBlur={() => setConfirming(false)}
+      >
+        {confirming ? "Really?" : "Delete"}
       </button>
     </li>
   );

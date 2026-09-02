@@ -97,11 +97,11 @@ test("history lists movements and notes together, newest first (FR-INV-09)", asy
 
   const rows = [...section("History").querySelectorAll(":scope > li")];
   expect(rows.map((r) => r.textContent)).toEqual([
-    "pole repairedAlice · 2025-09-01Edit",
+    "pole repairedAlice · 2025-09-01EditDelete",
     "Transferred to Alice for Cub camp · 2025-09-01",
     "Checked out by Carol · 2025-09-01",
-    "Checked in by Alice · 2025-09-01muddyAlice · 2025-09-01Edit",
-    "Checked out by Alice for Spring camp · 2025-09-01to a patrolAlice · 2025-09-01Edit",
+    "Checked in by Alice · 2025-09-01muddyAlice · 2025-09-01EditDelete",
+    "Checked out by Alice for Spring camp · 2025-09-01to a patrolAlice · 2025-09-01EditDelete",
   ]);
   // Once under History, once under Changes.
   expect(screen.getAllByText(/last 90 days/)).toHaveLength(2);
@@ -123,6 +123,17 @@ test("a note is corrected in place and the correction is appended (FR-OUT-16)", 
     type: "note_corrected",
     payload: { note_id: note.id, text: "handed to a Scout for the weekend" },
   });
+});
+
+test("a note is deleted after a second tap, and the log keeps it (FR-OUT-21)", async () => {
+  const note = await mv.addNote(store, tent, "handed to a Scout");
+  renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Delete “handed to a Scout”" }));
+  expect(screen.getByRole("button", { name: "Really delete “handed to a Scout”?" })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Really delete “handed to a Scout”?" }));
+  await waitFor(() => expect(screen.queryByText("handed to a Scout")).not.toBeInTheDocument());
+  expect(store.pending.at(-1)).toMatchObject({ type: "note_deleted", payload: { note_id: note.id } });
 });
 
 test("an item-level note is added from the page", async () => {

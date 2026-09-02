@@ -39,10 +39,6 @@ The vertical slice is built. What is left needs a phone.
 
 A read-through of the built app. Everything here is small except the mail server.
 
-Item page:
-
-- [ ] Notes should be deletable
-
 Mail:
 
 - [ ] SMTP settings an Admin fills in, kept server-side, with a test send

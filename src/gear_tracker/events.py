@@ -108,6 +108,10 @@ class NoteCorrection(Payload):
     text: str
 
 
+class NoteRef(Payload):
+    note_id: Ulid
+
+
 class CheckOut(Payload):
     """Who has it, for which event (FR-OUT-04). `supersedes` names the check-out this one knowingly replaces:
     a transfer (FR-OUT-12), not a conflict (FR-OFF-10)."""
@@ -266,6 +270,11 @@ class NoteCorrected(_Incoming):
     payload: NoteCorrection
 
 
+class NoteDeleted(_Incoming):
+    type: Literal["note_deleted"]
+    payload: NoteRef
+
+
 class CheckedOut(_ItemOnly):
     type: Literal["checked_out"]
     payload: CheckOut
@@ -308,7 +317,16 @@ class CodeBound(_Incoming):
 
 
 IncomingEvent = Annotated[
-    Created | FieldChanged | NoteAdded | NoteCorrected | CheckedOut | CheckedIn | CodeBound | PhotoAdded | PhotoRemoved,
+    Created
+    | FieldChanged
+    | NoteAdded
+    | NoteCorrected
+    | NoteDeleted
+    | CheckedOut
+    | CheckedIn
+    | CodeBound
+    | PhotoAdded
+    | PhotoRemoved,
     Field(discriminator="type"),
 ]
 _incoming = TypeAdapter(IncomingEvent)
@@ -320,6 +338,7 @@ EVENT_TYPES = frozenset(
         "field_changed",
         "note_added",
         "note_corrected",
+        "note_deleted",
         "checked_out",
         "checked_in",
         "code_bound",

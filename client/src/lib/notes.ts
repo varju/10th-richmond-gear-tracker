@@ -1,7 +1,7 @@
 /**
  * Notes on any entity: an item, one of its movements, or a repair ticket's
  * comments (FR-OUT-13, FR-REP-06). A correction is appended; the original stays
- * in the log (FR-OUT-16).
+ * in the log (FR-OUT-16), and so does a deleted note (FR-OUT-21).
  */
 import type { Note } from "./replay";
 import type { Store } from "./store";
@@ -39,5 +39,17 @@ export async function correctNote(store: Store, on: EntityRef, noteId: string, t
     type: "note_corrected",
     actor_id: actor(store),
     payload: { note_id: noteId, text: text.trim() },
+  });
+}
+
+/** The note stops being shown. Who wrote it, and when, stays in the log (FR-OUT-21). */
+export async function deleteNote(store: Store, on: EntityRef, noteId: string) {
+  const notes = (existing(store, on).notes ?? []) as Note[];
+  if (!notes.some((n) => n.id === noteId)) throw new Error("no such note");
+  return store.record({
+    ...on,
+    type: "note_deleted",
+    actor_id: actor(store),
+    payload: { note_id: noteId },
   });
 }
