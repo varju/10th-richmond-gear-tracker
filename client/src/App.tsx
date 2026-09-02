@@ -13,6 +13,7 @@ import { Bind } from "./ui/Bind";
 import { CodeLanding } from "./ui/CodeLanding";
 import { Conflicts } from "./ui/Conflicts";
 import { Found } from "./ui/Found";
+import { Help } from "./ui/Help";
 import { InstallPrompt } from "./ui/InstallPrompt";
 import { Inventory } from "./ui/Inventory";
 import { LocationPage, Locations } from "./ui/Locations";
@@ -183,6 +184,8 @@ function Screen({ store, api, route, shell }: { store: Store; api: Api; route: R
       break;
     case "found":
       return <Found store={store} />;
+    case "help":
+      return <Help />;
     case "conflicts":
       return <Conflicts store={store} />;
     case "locations":

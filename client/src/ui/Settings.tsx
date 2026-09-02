@@ -78,6 +78,12 @@ export function Settings({ store, shell }: Props) {
           <PrintCodes store={store} onDone={shell.sync} />
         </>
       )}
+      {/* The only way in to the guide (NFR-USE-11). */}
+      <nav className="links" aria-label="Guide">
+        <button className="link" type="button" onClick={() => navigate("/help")}>
+          Help
+        </button>
+      </nav>
     </Page>
   );
 }

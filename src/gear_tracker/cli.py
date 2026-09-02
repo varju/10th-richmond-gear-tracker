@@ -1,7 +1,8 @@
 """gear-admin: the things that have to happen at the server's keyboard.
 
 Creating the first Admin (FR-USR-13), seeding a fresh instance from its config
-file, and getting back in when every Admin has lost their password.
+file, loading test data into an empty one, and getting back in when every Admin
+has lost their password.
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ import argparse
 import getpass
 import sys
 
-from gear_tracker import accounts, seed
+from gear_tracker import accounts, inventory, seed
 from gear_tracker.db import open_db
 from gear_tracker.errors import ApiError
 from gear_tracker.migrate import migrate
@@ -41,6 +42,10 @@ def main(argv: list[str] | None = None) -> int:
     apply_seed = sub.add_parser("seed", help="apply a seed file: first Admin, group setting, mail")
     apply_seed.add_argument("--file", required=True, help="path to seed.toml")
 
+    load = sub.add_parser("load", help="load locations and items into a database with no items")
+    load.add_argument("--file", required=True, help='"demo" for the bundled file, or a path to one of your own')
+    load.add_argument("--as", dest="actor", help="email of the Admin to record it as; the first Admin by default")
+
     args = parser.parse_args(argv)
     migrate(args.db)
     with open_db(args.db) as conn:
@@ -52,6 +57,14 @@ def main(argv: list[str] | None = None) -> int:
                     return 1
                 user_id = accounts.create_admin(conn, args.name, args.email, password)
                 print(f"created Admin {args.email} ({user_id})")
+            elif args.command == "load":
+                actor_id = accounts.user_id_of(conn, args.actor) if args.actor else accounts.first_admin(conn)
+                if actor_id is None:
+                    print(
+                        f"error: no account for {args.actor}" if args.actor else "error: no Admin yet", file=sys.stderr
+                    )
+                    return 1
+                print(inventory.load(conn, inventory.read(args.file), actor_id))
             elif args.command == "seed":
                 done = seed.apply(conn, seed.read(args.file))
                 print("\n".join(done) if done else "nothing to do")

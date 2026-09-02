@@ -118,6 +118,10 @@ changed.
 
 The file holds two passwords, so it lives beside the database rather than in the repository. Nothing serves it.
 
+`inventory = "demo"` at the top of the file fills an empty database with three lockers and some gear, so there is
+something to look at before the real inventory exists. It loads only while the database has no items, so it happens once
+and never again (NFR-MAINT-10). `gear-admin load --file demo` does the same thing by hand.
+
 Without a seed file, the same account is made at the keyboard (FR-USR-13):
 
 ```sh

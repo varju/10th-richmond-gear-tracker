@@ -425,3 +425,21 @@ test("a refused print shows the server's message", async () => {
   await userEvent.setup().click(screen.getByRole("button", { name: "Print codes" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("admins only");
 });
+
+test("the Help link in Settings opens the guide (NFR-USE-11)", async () => {
+  navigate("/settings");
+  mount();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Help" }));
+  expect(location.pathname).toBe("/help");
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Help");
+});
+
+test("the guide is the compiled markdown, with contents that reach each task", async () => {
+  navigate("/help");
+  mount();
+  expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Scouter");
+  // The first task, and the contents link that jumps to it.
+  expect(screen.getAllByRole("heading", { level: 3 })[0]).toHaveTextContent("Take gear out");
+  const contents = within(screen.getByRole("navigation", { name: "Scouter contents" }));
+  expect(contents.getByRole("link", { name: "Take gear out" })).toHaveAttribute("href", "#take-gear-out");
+});

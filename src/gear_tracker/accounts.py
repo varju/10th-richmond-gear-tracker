@@ -149,6 +149,18 @@ def active_admins(conn: sqlite3.Connection) -> int:
     ).fetchone()[0]
 
 
+def first_admin(conn: sqlite3.Connection) -> str | None:
+    """The longest-standing active Admin. Who the server acts as when nobody said (a load from the command line)."""
+    row = conn.execute(
+        """
+        SELECT a.user_id FROM accounts a JOIN entities e ON e.entity_id = a.user_id AND e.entity_type = 'user'
+        WHERE json_extract(e.state, '$.role') = 'admin' AND json_extract(e.state, '$.active') = 1
+        ORDER BY a.created_at, a.user_id LIMIT 1
+        """
+    ).fetchone()
+    return row["user_id"] if row is not None else None
+
+
 def _create_user(conn: sqlite3.Connection, actor_id: str, name: str, email: str, role: Role, now: int) -> str:
     user_id = new_ulid(now)
     try:

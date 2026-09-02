@@ -35,14 +35,6 @@ The vertical slice is built. What is left needs a phone.
 
 - [ ] End-to-end test on a real phone with wifi and data turned off
 
-## M19 — Seed a fresh instance
-
-Config seeding is built. What is left waits on M8 for generics.
-
-- [ ] `fixtures/demo.toml`: the three locations, a few generics with units, a few single items. Loaded by
-      `gear-admin load --file` into an empty database only; refuses otherwise (NFR-MAINT-10).
-- [ ] `inventory = "demo"` or a path in `seed.toml` runs the loader after config. The e2e suite loads the same file.
-
 ## M9 — Go live
 
 First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is
@@ -76,36 +68,15 @@ same data. Reservations are planned at a desk and packed at the locker, so their
 Repairs get the sidebar and the table and nothing more until the group has used them; nobody has tracked repairs before,
 so where they get triaged is unknown.
 
-## M16 — Reservations that match what went out
-
-The plan becomes the truth, so Duplicate (FR-RES-10) carries last year's real packing list forward. Per-line events come
-first: the other two write them.
-
-- [ ] Gear list edits become per-line events: `item_added`, `item_removed`, `quantity_changed`. Both replays, and
-      `vectors/replay/` gains a two-phone case where each adds an extra offline and both survive.
-- [ ] `event_corrected` on a movement, mirroring the note correction. Both replays and a vector.
-- [ ] Scanning an extra during a reservation session adds it to the gear list, or bumps a full generic line (FR-RES-07).
-      It shows in the remaining list as ticked.
-- [ ] Reservation page: remaining items that are out under another event or none get one tap to link (FR-RES-17). Below
-      the list, a picker for anything else that is out.
-
 ## M17 — User guide
 
-Three markdown files under `docs/guide/`, served by the app at `/help` (NFR-USE-11). Offline is not required; if the
-build makes it so for free, fine. Each entry is a task in the reader's words, one to three lines, the action first. No
-background, no why. One "Help" link, at the foot of Settings and of the desk sidebar. Nothing else points at it.
+The `/help` route and the Scouter section are built. The rest follows the screens it describes.
 
-- [ ] `docs/guide/scouter.md`, before the labelling walk in M9: check out and set the event; check in and where it goes
-      back; pack for a reservation; find gear; report damage at check-in; take gear someone else has; plan a
-      reservation; the no-signal banner; missing or lost stickers; add an item on a labelling walk; sign in, install, a
-      lost phone.
 - [ ] `docs/guide/quartermaster.md`, after M15 lands: what is out and overdue; found reports and conflicts; repair
       tickets; stock check; items, generics and units, retire, missing, photos; locations; print codes; users, invites,
       resets, revoking a device; mail; backups, pointing at deploy.md.
 - [ ] `docs/guide/assistant.md`, with M18: connect an assistant; what you can ask for; what it will not do; revoke it.
-- [ ] A `/help` route that renders the files, with a table of contents. Markdown compiled at build time, no runtime
-      parser.
-- [ ] The Help link, in Settings and the sidebar.
+- [ ] The Help link in the desk sidebar (M15).
 
 ## M18 — Assistant access (MCP)
 

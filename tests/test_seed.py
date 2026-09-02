@@ -251,6 +251,17 @@ def test_the_inventory_key_is_accepted(tmp_path):
     assert seed.read(written(tmp_path, 'inventory = "demo"\n' + FILE)).inventory == "demo"
 
 
+def test_the_committed_example_parses(tmp_path):
+    """It is what a volunteer copies to the server, so a typo in it costs someone an evening."""
+    example = Path(__file__).parent.parent / "seed.example.toml"
+
+    spec = seed.read(example)
+
+    assert spec.group.name
+    assert spec.mail is None
+    assert spec.inventory is None
+
+
 # --- through the command line -----------------------------------------------------
 
 

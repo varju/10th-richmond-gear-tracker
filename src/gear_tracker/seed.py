@@ -58,8 +58,8 @@ class Seed(Section):
     group: Group
     # No [mail] section means leave mail as it is, not stop sending.
     mail: Mail | None = None
-    # A committed fixture to load into an empty database, or a path to one.
-    # Parsed here; the loader is a later task.
+    # Test data for a database with no items: "demo", or a path to a file of
+    # your own. Loaded once, and never again (NFR-MAINT-10).
     inventory: str | None = None
 
 
@@ -75,7 +75,7 @@ def read(path: str | Path) -> Seed:
     try:
         return Seed.model_validate(raw)
     except ValidationError as exc:
-        raise BadRequest(f"{path}: {_first(exc)}") from None
+        raise BadRequest(f"{path}: {first_error(exc)}") from None
 
 
 def apply(conn: sqlite3.Connection, spec: Seed, now: int | None = None) -> list[str]:
@@ -88,7 +88,18 @@ def apply(conn: sqlite3.Connection, spec: Seed, now: int | None = None) -> list[
         done.append(f"created Admin {spec.admin.email}")
     done += _group(conn, admin_id, spec.group, now)
     done += _mail(conn, spec.mail, now)
+    done += _inventory(conn, spec.inventory, admin_id, now)
     return done
+
+
+def _inventory(conn: sqlite3.Connection, source: str | None, actor_id: str, now: int) -> list[str]:
+    """Test data, once. The file wins on config; the database wins on this (NFR-MAINT-10)."""
+    # Imported here, not at the top: the loader reads this module's models.
+    from gear_tracker import inventory
+
+    if source is None or inventory.has_items(conn):
+        return []
+    return [inventory.load(conn, inventory.read(source), actor_id, now)]
 
 
 def _group(conn: sqlite3.Connection, actor_id: str, group: Group, now: int) -> list[str]:
@@ -138,7 +149,7 @@ def _text(value: str) -> str | None:
     return value.strip() or None
 
 
-def _first(exc: ValidationError) -> str:
+def first_error(exc: ValidationError) -> str:
     """One reason, the first one. A volunteer fixes them one at a time."""
     error = exc.errors()[0]
     where = ".".join(str(part) for part in error["loc"])

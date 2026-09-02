@@ -39,6 +39,7 @@ test("a wrong password is refused with a reason", async ({ page }) => {
 
 // The labelling walk (S-BOOT-03): set the group up, print codes, land on a
 // fresh code, create the item, find it by search, and see the sticker resolve.
+// The lockers are already there: the server loaded the demo inventory.
 test("a printed code becomes an item", async ({ browser, page, request }) => {
   await signIn(page);
   await page.getByRole("button", { name: "Settings" }).click();
@@ -46,8 +47,6 @@ test("a printed code becomes an item", async ({ browser, page, request }) => {
   await page.getByLabel("Code URL").fill("https://example.org/g");
   await page.getByLabel("How to reach us").fill("gear@example.org");
   await page.getByRole("button", { name: "Save group" }).click();
-  await page.getByLabel("New location").fill("Cold locker");
-  await page.getByRole("button", { name: "Add" }).first().click();
   await page.getByRole("button", { name: "Sync now" }).click();
   await expect(page.getByRole("status")).toHaveCount(0);
 
