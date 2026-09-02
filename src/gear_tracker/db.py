@@ -22,11 +22,16 @@ def connect(path: str | Path) -> sqlite3.Connection:
 
     isolation_level=None puts transaction control in our hands rather than the
     driver's; the migration runner depends on that.
+
+    check_same_thread=False because the API opens a connection per request,
+    and the framework may run the dependency and the handler on different
+    worker threads. One request uses its connection from one thread at a time,
+    which is all SQLite asks.
     """
     path = Path(path)
     if path.parent != Path(""):
         path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, isolation_level=None)
+    conn = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     for pragma in PRAGMAS:
         conn.execute(pragma)
