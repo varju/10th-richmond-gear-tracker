@@ -6,7 +6,7 @@ const NAVY = "#001a70";
 
 // The Python server owns these paths. In development Vite serves the app and
 // forwards them; in production the server serves the built app itself.
-const API = ["/sync", "/auth", "/users"];
+const API = ["/sync", "/auth", "/users", "/public"];
 
 // Where the app is served from. A domain root in development and for anyone
 // hosting it alone; a path when it sits under an existing site. Set at build
