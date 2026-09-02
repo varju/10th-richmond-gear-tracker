@@ -114,15 +114,22 @@ test("retiring hides an item until retired items are asked for", async () => {
   mount();
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: /Stove/ }));
-  await user.click(screen.getByRole("button", { name: "Retire" }));
-  await user.click(screen.getByRole("button", { name: "Really retire?" }));
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.click(screen.getByLabelText("Retired"));
+  await user.click(screen.getByRole("button", { name: "Save" }));
   expect(await screen.findByText("Retired. Cannot be checked out.")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Unretire" })).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Back" }));
   expect(rows()).toEqual(["Tent 1Cold locker / shelf 4"]);
   await user.click(screen.getByLabelText("Show retired"));
   expect(rows()).toEqual(["StoveWarm locker"]);
+
+  // The same checkbox brings it back.
+  await user.click(screen.getByRole("button", { name: /Stove/ }));
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.click(screen.getByLabelText("Retired"));
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  expect(await screen.findByRole("button", { name: "Check out" })).toBeInTheDocument();
 });
 
 test("a new item with a code is created, bound, and the walk goes on", async () => {

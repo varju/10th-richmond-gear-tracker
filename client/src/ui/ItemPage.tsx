@@ -41,7 +41,6 @@ export function ItemPage({ store, id }: Props) {
   const { now } = useShell();
   const openInEdit = useRoute().query.get("edit") === "1";
   const [editing, setEditing] = useState(openInEdit);
-  const [confirmRetire, setConfirmRetire] = useState(false);
   const [confirmMissing, setConfirmMissing] = useState(false);
   const [merging, setMerging] = useState(false);
   const [moved, confirm] = useFlash(CONFIRM_MS);
@@ -66,6 +65,7 @@ export function ItemPage({ store, id }: Props) {
       <EditItem
         store={store}
         id={id}
+        retired={Boolean(it.retired)}
         initial={{
           name: it.name,
           description: it.description ?? "",
@@ -137,15 +137,6 @@ export function ItemPage({ store, id }: Props) {
     );
   }
 
-  async function retire() {
-    if (!confirmRetire) {
-      setConfirmRetire(true);
-      return;
-    }
-    await retireItem(store, id);
-    setConfirmRetire(false);
-  }
-
   // Lost, not written off (FR-INV-19). The next scan or check-in clears it.
   async function missing() {
     if (!confirmMissing) {
@@ -171,21 +162,11 @@ export function ItemPage({ store, id }: Props) {
               Replace code
             </button>
           </div>
-          {it.retired ? (
-            <button type="button" onClick={() => unretireItem(store, id)}>
-              Unretire
+          {/* Retiring is rare and lives at the foot of Edit. Missing is not: gear goes astray weekly. */}
+          {!it.retired && !it.missing && (
+            <button type="button" className={confirmMissing ? "warn" : ""} onClick={missing}>
+              {confirmMissing ? "Really missing?" : "Mark missing"}
             </button>
-          ) : (
-            <div className="row">
-              {!it.missing && (
-                <button type="button" className={confirmMissing ? "warn" : ""} onClick={missing}>
-                  {confirmMissing ? "Really missing?" : "Mark missing"}
-                </button>
-              )}
-              <button type="button" className={confirmRetire ? "warn" : ""} onClick={retire}>
-                {confirmRetire ? "Really retire?" : "Retire"}
-              </button>
-            </div>
           )}
           {admin && !it.retired && it.status === "in" && (
             <button type="button" className="minor" onClick={() => setMerging(true)}>
@@ -501,22 +482,27 @@ function EditItem({
   store,
   id,
   initial,
+  retired,
   onDone,
 }: {
   store: Store;
   id: string;
   initial: ItemInput;
+  retired: boolean;
   onDone: () => void;
 }) {
   const [values, setValues] = useState(initial);
+  const [nowRetired, setNowRetired] = useState(retired);
   const [saving, setSaving] = useState(false);
-  const dirty = (Object.keys(values) as (keyof ItemInput)[]).some((k) => values[k] !== initial[k]);
+  const dirty =
+    nowRetired !== retired || (Object.keys(values) as (keyof ItemInput)[]).some((k) => values[k] !== initial[k]);
   useUnsaved(dirty, { save: () => apply().then(() => true), canSave: values.name.trim() !== "" });
 
   async function apply() {
     setSaving(true);
     try {
       await updateItem(store, id, values);
+      if (nowRetired !== retired) await (nowRetired ? retireItem : unretireItem)(store, id);
     } finally {
       setSaving(false);
     }
@@ -542,6 +528,13 @@ function EditItem({
       }
     >
       <ItemFields store={store} values={values} onChange={setValues} />
+      <label className="check">
+        <input type="checkbox" checked={nowRetired} onChange={(e) => setNowRetired(e.target.checked)} />
+        <span>Retired</span>
+      </label>
+      <p className="muted small">
+        A retired item keeps its record and its history, but drops off the list and cannot be checked out.
+      </p>
     </Page>
   );
 }
