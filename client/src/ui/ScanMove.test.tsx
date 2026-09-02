@@ -48,8 +48,9 @@ test("scanning a missing item clears the mark before the card shows (FR-INV-19)"
   await act.markMissing(store, tent);
   renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");
-  expect(within(card()).getByRole("heading")).toHaveTextContent("Tent 1");
-  await waitFor(() => expect(item(store.state, tent)?.missing).toBe(false));
+  // The mark clears before the card shows, so the card is what to wait for.
+  await waitFor(() => expect(within(card()).getByRole("heading")).toHaveTextContent("Tent 1"));
+  expect(item(store.state, tent)?.missing).toBe(false);
   expect(card()).toHaveTextContent("In");
   expect(store.pending.at(-1)).toMatchObject({
     type: "field_changed",

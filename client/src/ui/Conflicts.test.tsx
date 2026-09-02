@@ -75,10 +75,13 @@ test("It is back records a check-in, with the note, and the conflict is gone", a
   await user.click(screen.getByRole("button", { name: "It is back" }));
   await waitFor(() => expect(screen.getByText("No conflicts.")).toBeInTheDocument());
   expect(item(store.state, tent)?.status).toBe("in");
-  expect(store.pending.slice(-2).map((e) => [e.type, e.payload.text])).toEqual([
-    ["checked_in", undefined],
-    ["note_added", "found in the hall"],
-  ]);
+  // The note is written after the movement; wait for both.
+  await waitFor(() =>
+    expect(store.pending.slice(-2).map((e) => [e.type, e.payload.text])).toEqual([
+      ["checked_in", undefined],
+      ["note_added", "found in the hall"],
+    ]),
+  );
 });
 
 test("Keep records the review and leaves the holder as they are", async () => {
