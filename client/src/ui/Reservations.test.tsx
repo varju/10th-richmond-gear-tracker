@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
@@ -82,6 +82,7 @@ test("a new reservation is built from a name, dates and gear; an item already bo
   await user.type(screen.getByLabelText("Add an item"), "tent 2");
   await user.click(screen.getByRole("button", { name: /Tent 2/ }));
   await user.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(res.reservations(store.state).find((r) => r.event === "Cub camp")).toBeDefined());
   const made = res.reservations(store.state).find((r) => r.event === "Cub camp")!;
   expect(made).toMatchObject({ starts: "2026-10-04", ends: "2026-10-05", items: [t2], types: [] });
   expect(location.pathname).toBe(`/reservations/${made.id}`);
@@ -152,8 +153,10 @@ test("Edit opens the form with the reservation in it and saves changed fields on
   expect(screen.getByLabelText("Ends")).toHaveValue("2026-10-04");
   await user.click(screen.getByLabelText("Remove Tent 1"));
   await user.click(screen.getByRole("button", { name: "Save" }));
-  expect(store.pending.filter((e) => e.type === "field_changed").map((e) => e.payload)).toEqual([
-    { field: "items", value: [], old: [t1] },
-  ]);
+  await waitFor(() =>
+    expect(store.pending.filter((e) => e.type === "field_changed").map((e) => e.payload)).toEqual([
+      { field: "items", value: [], old: [t1] },
+    ]),
+  );
   expect(location.pathname).toBe(`/reservations/${fall}`);
 });
