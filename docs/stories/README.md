@@ -15,6 +15,7 @@ say what a Friday evening looks like.
 | [admin.md](admin.md)               | Users, roles, and the audit trail                    |
 | [reports.md](reports.md)           | Answering "where is everything?"                     |
 | [offline.md](offline.md)           | What happens with no signal                          |
+| [assistant.md](assistant.md)       | Talking to the inventory through an MCP client       |
 
 ## Format
 

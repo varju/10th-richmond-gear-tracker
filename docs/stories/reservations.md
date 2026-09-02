@@ -4,12 +4,14 @@ Planning a camp, then packing for it. The value is the packing checklist, not th
 
 ## S-RES-01 Plan a camp
 
-The Quartermaster creates a reservation for Fall Camp with a date range and a list of gear.
+A Scouter creates a reservation for Fall Camp with a date range and a list of gear. Another Scouter adds the tarps the
+next day.
 
 - An event name, dates, and items are enough
 - The list can be built by search or by browsing
+- Anyone signed in can change any reservation; there is no owner
 
-Covers: FR-RES-01
+Covers: FR-RES-01, FR-RES-16
 
 ## S-RES-02 Pack for the camp
 
@@ -33,11 +35,24 @@ Covers: FR-RES-04
 
 ## S-RES-04 Take something extra
 
-Someone grabs a second stove that was not on the list. They scan it and it joins the check-out.
+Someone grabs a second stove that was not on the list. They scan it and it joins the check-out, and the reservation.
+Next year's Fall Camp, duplicated from this one, has two stoves.
 
-- Unlisted items are appended with no warning and no special handling
+- Unlisted items are appended with no warning and no extra tap
+- The reservation's gear list grows to match what went out
 
-Covers: FR-RES-07
+Covers: FR-RES-07, FR-RES-10
+
+## S-RES-07 Gear that left before the plan did
+
+A patrol took three tents on Thursday with no event set. On Friday the Quartermaster opens the reservation and sees them
+as unscanned. One tap each says they are already with us.
+
+- The movement is corrected, never rewritten
+- The items join the gear list
+- Nothing is checked out or in
+
+Covers: FR-RES-17, FR-OUT-16
 
 ## S-RES-05 Two camps, same weekend
 

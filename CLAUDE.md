@@ -68,3 +68,7 @@ This covers layout only. The House style rules above are about what you write, a
 - Never `--no-verify`, never `commit --amend`, never `reset --hard`.
 - Prefer `git grep` and `git ls-files` over `find`.
 - Pull requests are created as drafts.
+
+## Agent notes
+
+When delegating to agents for subtasks, use a lesser agent whenever possible. Fable should never be used for subagents.

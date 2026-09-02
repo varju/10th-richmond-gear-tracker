@@ -254,18 +254,28 @@ A lost record is a missing movement, not a broken database; the next scan of the
 
 ## Inventory
 
-Items, locations and types are entities on the same log as everything else: `created` once, then one `field_changed` per
-edit, with the old value kept. Retiring an item is a field, `retired`, so the item and its history stay (FR-INV-04).
+Items and locations are entities on the same log as everything else: `created` once, then one `field_changed` per edit,
+with the old value kept. Retiring an item is a field, `retired`, so the item and its history stay (FR-INV-04).
+
+**Generic items and units are both items.** A generic has `generic: true` and no code; a unit has `parent_id` and a
+`number` unique under that parent, and no name unless a nickname is set. Display name is derived: the parent's name, the
+number, the nickname if any. One entity kind means one form, one page, one search, and photos and description work the
+same on both. The guards are two checks: a generic takes no code and no movement. There is no type entity; a type was a
+name with nothing behind it, and a generic is where that name lives now (FR-INV-21).
+
+Making a single item generic creates a new generic and sets `parent_id` on the old item (FR-INV-26). Nothing about the
+old item's history is rewritten. Numbers are picked on the device and can collide when two phones label the same generic
+offline; the second to land keeps its number and the unit page says so, the same trade as every other offline race.
 
 Two things the requirements name differently from the data. The item field the requirements call notes is `description`,
 because `notes` in derived state is the list of per-movement notes (FR-OUT-13). And `added_at` and `modified_at` are
 written by replay from the event's effective time, not sent by the device, so a phone with a wrong clock cannot set them
 (FR-INV-03). Only `created` and `field_changed` move `modified_at`; movements and notes do not.
 
-Locations and types are deleted by setting `deleted`; the row stays so items still pointing at it keep a name. The
-in-use check (FR-SET-05) runs on the device against its own state, which is the only state it has. Two phones offline at
-once can race it: one deletes a location while the other files an item there. The item wins, the location is hidden, and
-the item's home still reads correctly. That is rare enough to accept and cheap to fix by hand.
+Locations are deleted by setting `deleted`; the row stays so items still pointing at it keep a name. The in-use check
+(FR-SET-05) runs on the device against its own state, which is the only state it has. Two phones offline at once can
+race it: one deletes a location while the other files an item there. The item wins, the location is hidden, and the
+item's home still reads correctly. That is rare enough to accept and cheap to fix by hand.
 
 Sub-locations are labels on items, not entities (FR-SET-03). The suggestion list is whatever labels are in use.
 
@@ -356,9 +366,14 @@ event. Browsing by location (FR-INV-10) is the same question at rest: what state
 
 ## Reservations
 
-A reservation is one entity: `created` with the event name, its days, the items it names and the types it wants so many
-of (FR-RES-01, FR-RES-13). Edits are `field_changed`, one per field, a whole list at a time. Cancelling is a field, so
-the record stays.
+A reservation is one entity: `created` with the event name, its days, the units it names and the generics it wants so
+many of (FR-RES-01, FR-RES-13). Event and dates are `field_changed`, one per field. Cancelling is a field, so the record
+stays.
+
+The gear list is edited one line at a time: `item_added`, `item_removed`, `quantity_changed` on a generic line. Never
+the whole list. Two phones packing one camp offline each scan an extra (FR-RES-07); a whole-list write would keep one
+and drop the other, and per-line events keep both. Linking gear already out (FR-RES-17) is one of these plus an
+`event_corrected` on the movement, the same shape as a note correction (FR-OUT-16).
 
 The days are calendar dates, `YYYY-MM-DD`, not timestamps. A camp starts on a day, not at an instant, and text order is
 date order. "Today" is the day in America/Vancouver, computed on the device (NFR-DATA-12). Overlap is inclusive: two
@@ -509,6 +524,27 @@ thing a copy cannot do — it says nightly whether the database is still sound. 
 the machine on the host filesystem's own schedule rather than through a second tool (NFR-DATA-06). Restoring is in
 [deploy.md](deploy.md#restoring) (NFR-DATA-07).
 
+### Seeding
+
+`GEAR_DATA/seed.toml`, read by `gear-admin seed` at every start (NFR-DEP-10). TOML because the standard library parses
+it and a volunteer can read it. The file holds the first Admin, the group setting, and the mail account, and nothing
+else: locations, items, and users beyond the first are made in the app.
+
+Seeding is idempotent. The Admin is created only if no account has that email; the group setting and mail are written
+only where the file differs from what is stored, as ordinary events by the server on the Admin's behalf. So a start with
+an unchanged file writes nothing, and a start on an empty database writes everything. The Admin's password is in the
+file; it is used once, at creation, and a later change in the app is not undone by the file.
+
+The file is a secret: it holds the Admin and mail passwords. It sits in `GEAR_DATA` beside the database, which is
+already off the repository, and `seed.toml` is ignored by git in case one is made locally. `seed.example.toml` is
+committed with placeholders.
+
+**Inventory is a different file with a different rule.** `fixtures/demo.toml` is committed and baked into the image:
+locations, generic items with units, single items, no codes. `seed.toml` opts in with `inventory = "demo"`, or a path to
+a file of the group's own. It loads only into a database with no items, and never again: after that the app is the
+truth, and a changed file waits for the next wipe. Config is secret and the file always wins; test data is public and
+the database always wins. The browser tests load the same file instead of building data by hand (NFR-MAINT-10).
+
 ### Accounts
 
 A user is two things, kept apart.
@@ -545,6 +581,28 @@ back in when every Admin has lost their password; the keyboard is the credential
 User changes come only through the accounts API, never as events pushed from a device. That is where the last-Admin rule
 (FR-USR-03) and the role check live, and it is why they hold. Events the server originates carry `device_id = "server"`
 and their own `device_seq`, under the same rules as any phone.
+
+## Assistant access (MCP)
+
+The MCP server is the same FastAPI process, mounted at `/mcp` over Streamable HTTP, using the official Python SDK,
+pinned. One process to run; nothing new to deploy.
+
+**A token is a device.** "Connect an assistant" in Settings opens a session whose `device_id` is `mcp-<ulid>`, and shows
+the token once. Everything that already works for a phone works for it: it is in the device list, it is revoked the same
+way, and a deactivated user's token dies with the account. No OAuth until a client forces it (FR-MCP-07).
+
+**A write is a push.** A tool call builds events server-side with the session's `device_id` and a `device_seq` the
+server keeps per MCP device, then hands them to `sync.push`. So the entity rules, validation, attribution, and drift
+checks all apply, and history reads "this Scouter, via the assistant". There is no second write path.
+
+**A read is derived state.** Tools read what `bootstrap` already serves, plus history for one item.
+
+**Conflicts move to Python too.** Reservation clashes are checked on the device today. An assistant needs the answer in
+the reply, so `conflicts` gets a Python twin with shared vectors under `vectors/reservations/`, the same arrangement as
+replay.
+
+**What is not there.** Nothing an Admin does. The app gates locations to Admins, so MCP does too, though the server
+would let a device write them.
 
 ## Public pages
 
