@@ -163,7 +163,7 @@ export function createApi(options: ApiOptions = {}) {
   }
 
   /** Bytes, not JSON: photos go up and come down whole. */
-  async function raw(method: string, path: string, body?: Blob, contentType?: string): Promise<Response> {
+  async function raw(method: string, path: string, body?: BodyInit, contentType?: string): Promise<Response> {
     const headers: Record<string, string> = {};
     const bearer = token();
     if (bearer) headers.Authorization = `Bearer ${bearer}`;
@@ -234,5 +234,8 @@ export function createApi(options: ApiOptions = {}) {
     },
     /** An <img> cannot send the bearer header, so the bytes are fetched and shown from memory. */
     fetchPhoto: async (id: string): Promise<Blob> => (await raw("GET", `/photos/${id}`)).blob(),
+    /** A PDF of fresh unassigned codes (FR-TAG-02). Admins only; the sheet is built on the server. */
+    codeSheets: async (sheets: number): Promise<Blob> =>
+      (await raw("POST", "/codes/sheets", JSON.stringify({ sheets }), "application/json")).blob(),
   };
 }

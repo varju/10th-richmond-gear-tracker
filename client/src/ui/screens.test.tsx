@@ -50,8 +50,8 @@ async function fixture() {
   return { cold, warm, t1, stove };
 }
 
-const mount = () =>
-  render(<App store={store} api={createApi({ fetch: offline, token: () => store.meta.token })} now={() => T0} />);
+const mount = (fetchFn: typeof fetch = offline, base = "") =>
+  render(<App store={store} api={createApi({ fetch: fetchFn, base, token: () => store.meta.token })} now={() => T0} />);
 
 const rows = () => screen.getAllByRole("listitem").map((li) => within(li).getByRole("button").textContent);
 
@@ -447,14 +447,11 @@ test("settings are for admins; others see their account only", async () => {
   expect(screen.queryByText("Locations")).not.toBeInTheDocument();
 });
 
-const realFetch = globalThis.fetch;
-afterEach(() => {
-  globalThis.fetch = realFetch;
-});
-
-test("printing posts the sheet count with the bearer token and opens the PDF", async () => {
+test("printing posts the sheet count with the bearer token, under the app's base, and opens the PDF", async () => {
+  // The sheet is answered; sync, which shares the API, finds no server as usual.
   const calls: { url: string; init: RequestInit }[] = [];
-  globalThis.fetch = async (input, init) => {
+  const recording: typeof fetch = async (input, init) => {
+    if (!String(input).includes("/codes/sheets")) return offline();
     calls.push({ url: String(input), init: init! });
     return new Response(new Blob(["%PDF"], { type: "application/pdf" }), { status: 200 });
   };
@@ -467,7 +464,7 @@ test("printing posts the sheet count with the bearer token and opens the PDF", a
   }) as typeof window.open;
 
   navigate("/settings");
-  mount();
+  mount(recording, "/gear");
   const user = userEvent.setup();
   await user.clear(screen.getByLabelText("Sheets"));
   await user.type(screen.getByLabelText("Sheets"), "3");
@@ -476,17 +473,19 @@ test("printing posts the sheet count with the bearer token and opens the PDF", a
   expect(await screen.findByRole("link", { name: "Download codes.pdf" })).toHaveAttribute("href", "blob:codes");
   expect(opened).toEqual(["blob:codes"]);
   expect(calls).toHaveLength(1);
-  expect(calls[0]!.url).toBe("/codes/sheets");
+  expect(calls[0]!.url).toBe("/gear/codes/sheets");
   expect(calls[0]!.init.method).toBe("POST");
   expect(calls[0]!.init.headers).toMatchObject({ Authorization: "Bearer t", "Content-Type": "application/json" });
   expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ sheets: 3 });
 });
 
 test("a refused print shows the server's message", async () => {
-  globalThis.fetch = async () =>
-    new Response(JSON.stringify({ error: "forbidden", message: "admins only" }), { status: 403 });
+  const refusing: typeof fetch = async (input) =>
+    String(input).includes("/codes/sheets")
+      ? new Response(JSON.stringify({ error: "forbidden", message: "admins only" }), { status: 403 })
+      : offline();
   navigate("/settings");
-  mount();
+  mount(refusing);
   await userEvent.setup().click(screen.getByRole("button", { name: "Print codes" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("admins only");
 });

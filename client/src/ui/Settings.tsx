@@ -75,7 +75,7 @@ export function Settings({ store, api, shell }: Props) {
             onDelete={(id) => deleteLocation(store, id)}
           />
           <h2 className="section">Print a sheet of codes</h2>
-          <PrintCodes store={store} onDone={shell.sync} />
+          <PrintCodes api={api} onDone={shell.sync} />
         </>
       )}
       <h2 className="section">Assistant</h2>
