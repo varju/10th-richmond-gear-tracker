@@ -19,6 +19,7 @@ import { LocationPage, Locations } from "./ui/Locations";
 import { ItemPage } from "./ui/ItemPage";
 import { Join } from "./ui/Join";
 import { LeaveDialog } from "./ui/LeaveDialog";
+import { Mail } from "./ui/Mail";
 import { NewItem } from "./ui/NewItem";
 import { Page } from "./ui/Page";
 import { PendingInterrupt } from "./ui/PendingInterrupt";
@@ -192,6 +193,7 @@ function Screen({ store, api, route, shell }: { store: Store; api: Api; route: R
       return <Reservations store={store} />;
     case "settings":
       if (second === "users") return <Users store={store} api={api} />;
+      if (second === "mail") return <Mail store={store} api={api} />;
       return <Settings store={store} api={api} shell={shell} />;
     case "join":
       // Signed in already. Join says what to do; it needs no shell.

@@ -32,6 +32,27 @@ export interface AccountUser extends User {
   has_password: boolean;
 }
 
+/**
+ * One SMTP account, so the server can mail a link (FR-USR-15). Admins only,
+ * and never stored on the device. The password is write-only: `has_password`
+ * says whether one is held, and a blank password on save keeps it.
+ */
+export interface MailSettings {
+  host: string;
+  port: number;
+  encryption: "none" | "starttls" | "ssl";
+  username: string;
+  from_address: string;
+  has_password: boolean;
+}
+
+/** What the server did with a one-time link. `emailed` is false when no account is set up. */
+export interface LinkResult {
+  token: string;
+  emailed: boolean;
+  mail_error?: string;
+}
+
 /** A phone with an open session (FR-USR-14). `created_at` is its latest sign-in. */
 export interface Device {
   device_id: string;
@@ -155,15 +176,22 @@ export function createApi(options: ApiOptions = {}) {
       request<Session>("POST", "/auth/redeem", { token, password, device_id }),
     // Admins only. Every call needs the network; nothing here is stored on the device.
     users: () => request<{ users: AccountUser[] }>("GET", "/users"),
-    invite: (name: string, email: string, role: string) =>
-      request<{ user_id: string; token: string }>("POST", "/users/invite", { name, email, role }),
+    /** `link` is this app's join page with TOKEN standing in for the token; the server fills it in. */
+    invite: (name: string, email: string, role: string, link: string) =>
+      request<LinkResult & { user_id: string }>("POST", "/users/invite", { name, email, role, link }),
     setRole: (userId: string, role: string) => request<{ user: User }>("POST", `/users/${userId}/role`, { role }),
     deactivate: (userId: string) => request<{ user: User }>("POST", `/users/${userId}/deactivate`),
     reactivate: (userId: string) => request<{ user: User }>("POST", `/users/${userId}/reactivate`),
-    resetLink: (userId: string) => request<{ token: string }>("POST", `/users/${userId}/reset-link`),
+    resetLink: (userId: string, link: string) => request<LinkResult>("POST", `/users/${userId}/reset-link`, { link }),
     devices: (userId: string) => request<{ devices: Device[] }>("GET", `/users/${userId}/devices`),
     revokeDevice: (userId: string, deviceId: string) =>
       request<{ devices: Device[] }>("POST", `/users/${userId}/devices/${deviceId}/revoke`),
+    mail: () => request<{ mail: MailSettings | null }>("GET", "/mail"),
+    saveMail: (settings: Omit<MailSettings, "has_password"> & { password: string }) =>
+      request<{ mail: MailSettings }>("PUT", "/mail", settings),
+    clearMail: () => request<{ mail: null }>("DELETE", "/mail"),
+    /** To the signed-in Admin's own address, so a wrong password shows up now (FR-USR-16). */
+    testMail: () => request<{ sent_to: string }>("POST", "/mail/test"),
     publicCode: (code: string) => request<PublicCode>("GET", `/public/codes/${code}`),
     /** A finder's note (FR-PUB-02). `website` is a honeypot: people never see it, so it is sent empty. */
     reportFound: (code: string, body: { note: string; contact: string; website: string }) =>

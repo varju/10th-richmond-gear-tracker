@@ -14,6 +14,12 @@ interface Props {
 /** The page a link opens. Absolute, because it is pasted into a message (FR-USR-12). */
 export const joinUrl = (token: string): string => `${location.origin}${BASE}/join?token=${token}`;
 
+/**
+ * The same URL with TOKEN where the token goes. The server fills it in when it
+ * mails the link, so it never has to know its own public address (FR-USR-15).
+ */
+const LINK_TEMPLATE = joinUrl("TOKEN");
+
 function describe(e: unknown): string {
   if (e instanceof Offline) return "Needs a connection. Users are managed on the server, not on this phone.";
   if (e instanceof ApiError) return e.message;
@@ -29,7 +35,7 @@ export function Users({ store, api }: Props) {
   useStore(store);
   const [users, setUsers] = useState<AccountUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [link, setLink] = useState<{ name: string; url: string } | null>(null);
+  const [link, setLink] = useState<Passed | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -64,8 +70,8 @@ export function Users({ store, api }: Props) {
       <InviteForm
         api={api}
         onError={setError}
-        onInvited={(name, url) => {
-          setLink({ name, url });
+        onInvited={(passed) => {
+          setLink(passed);
           void load();
         }}
       />
@@ -80,7 +86,7 @@ export function Users({ store, api }: Props) {
               api={api}
               onChanged={load}
               onError={setError}
-              onLink={(url) => setLink({ name: u.name, url })}
+              onLink={(passed) => setLink({ ...passed, name: u.name })}
             />
           ))}
         </ul>
@@ -89,8 +95,16 @@ export function Users({ store, api }: Props) {
   );
 }
 
+/** A one-time link, and what the server did with it. */
+interface Passed {
+  name: string;
+  url: string;
+  emailed: boolean;
+  mail_error?: string;
+}
+
 /** A one-time URL, shown once, to copy into whatever the group already uses (FR-USR-12). */
-function LinkToPass({ link, onDone }: { link: { name: string; url: string }; onDone: () => void }) {
+function LinkToPass({ link, onDone }: { link: Passed; onDone: () => void }) {
   const [copied, setCopied] = useState(false);
   async function copy() {
     try {
@@ -103,10 +117,12 @@ function LinkToPass({ link, onDone }: { link: { name: string; url: string }; onD
   return (
     <div className="notice" role="status">
       <p>
-        Send this link to {link.name}. It works once, for a week.
+        {link.emailed ? `Emailed to ${link.name}. Send this link as well if it does not arrive.` : null}
+        {link.emailed ? null : `Send this link to ${link.name}. It works once, for a week.`}
         <br />
         <code className="wrap">{link.url}</code>
       </p>
+      {link.mail_error && <p className="muted small">The mail server would not take it: {link.mail_error}</p>}
       <div className="row">
         <button type="button" className="minor primary" onClick={copy}>
           {copied ? "Copied" : "Copy"}
@@ -125,7 +141,7 @@ function InviteForm({
   onError,
 }: {
   api: Api;
-  onInvited: (name: string, url: string) => void;
+  onInvited: (passed: Passed) => void;
   onError: (message: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -139,8 +155,8 @@ function InviteForm({
     setBusy(true);
     onError(null);
     try {
-      const { data } = await api.invite(name.trim(), email.trim(), role);
-      onInvited(name.trim(), joinUrl(data.token));
+      const { data } = await api.invite(name.trim(), email.trim(), role, LINK_TEMPLATE);
+      onInvited({ ...data, name: name.trim(), url: joinUrl(data.token) });
       setName("");
       setEmail("");
       setRole("user");
@@ -203,7 +219,7 @@ function UserRow({
   api: Api;
   onChanged: () => Promise<void>;
   onError: (message: string | null) => void;
-  onLink: (url: string) => void;
+  onLink: (passed: Omit<Passed, "name">) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [devices, setDevices] = useState<Device[] | null>(null);
@@ -282,7 +298,12 @@ function UserRow({
               type="button"
               className="minor"
               disabled={busy || !user.active}
-              onClick={() => act(async () => onLink(joinUrl((await api.resetLink(user.id)).data.token)))}
+              onClick={() =>
+                act(async () => {
+                  const { data } = await api.resetLink(user.id, LINK_TEMPLATE);
+                  onLink({ ...data, url: joinUrl(data.token) });
+                })
+              }
             >
               Reset link
             </button>

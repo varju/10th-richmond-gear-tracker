@@ -12,6 +12,8 @@ let store: Store;
 let calls: string[];
 let down: boolean;
 let devices: { device_id: string; created_at: number }[];
+let emailed: boolean;
+let sent: Record<string, unknown>;
 
 const users = [
   { id: "alice", name: "Alice", role: "admin", active: true, email: "alice@example.org", has_password: true },
@@ -23,9 +25,10 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
   const path = new URL(String(input), "http://x").pathname;
   calls.push(`${init?.method ?? "GET"} ${path}`);
   const json = (body: object, status = 200) => new Response(JSON.stringify({ ...body, server_time: T0 }), { status });
+  if (init?.body) sent = JSON.parse(String(init.body));
   if (path === "/users") return json({ users });
-  if (path === "/users/invite") return json({ user_id: "cal", token: "INVITE-TOKEN" });
-  if (path === "/users/bea/reset-link") return json({ token: "RESET-TOKEN" });
+  if (path === "/users/invite") return json({ user_id: "cal", token: "INVITE-TOKEN", emailed });
+  if (path === "/users/bea/reset-link") return json({ token: "RESET-TOKEN", emailed });
   if (path === "/users/bea/devices") return json({ devices });
   if (path === "/users/bea/devices/phone-lost/revoke") {
     devices = devices.filter((d) => d.device_id !== "phone-lost");
@@ -39,6 +42,8 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
 beforeEach(async () => {
   calls = [];
   down = false;
+  emailed = false;
+  sent = {};
   devices = [
     { device_id: "phone-lost", created_at: T0 },
     { device_id: "phone-kept", created_at: T0 - 86_400_000 },
@@ -95,6 +100,21 @@ test("a reset link is the same kind of link", async () => {
   await user.click(await screen.findByRole("button", { name: /Bea/ }));
   await user.click(screen.getByRole("button", { name: "Reset link" }));
   expect(await screen.findByRole("status")).toHaveTextContent("/join?token=RESET-TOKEN");
+});
+
+test("when the server has a mail account, it says the invite was emailed (FR-USR-15)", async () => {
+  emailed = true;
+  mount();
+  await user.click(await screen.findByRole("button", { name: "Invite someone" }));
+  await user.type(screen.getByLabelText("Name"), "Cal");
+  await user.type(screen.getByLabelText("Email"), "cal@example.org");
+  await user.click(screen.getByRole("button", { name: "Invite" }));
+
+  const status = await screen.findByRole("status");
+  expect(status).toHaveTextContent("Emailed to Cal");
+  expect(status).toHaveTextContent(`${location.origin}/join?token=INVITE-TOKEN`);
+  // The server fills TOKEN in, so it never needs to know its own public address.
+  expect(sent.link).toBe(`${location.origin}/join?token=TOKEN`);
 });
 
 test("offline, the screen says it needs a connection", async () => {

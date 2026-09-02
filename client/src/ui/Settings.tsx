@@ -61,9 +61,14 @@ export function Settings({ store, shell }: Props) {
       <p className="muted">{syncLabel(store.meta.last_sync_at, shell.now(), shell.busy, shell.outcome)}</p>
       {admin && (
         <>
-          <button className="link" type="button" onClick={() => navigate("/settings/users")}>
-            Users
-          </button>
+          <nav className="links" aria-label="Admin">
+            <button className="link" type="button" onClick={() => navigate("/settings/users")}>
+              Users
+            </button>
+            <button className="link" type="button" onClick={() => navigate("/settings/mail")}>
+              Mail
+            </button>
+          </nav>
           <h2 className="section">Group</h2>
           <GroupForm store={store} />
           <h2 className="section">Locations</h2>
@@ -101,7 +106,12 @@ function GroupForm({ store }: { store: Store }) {
   // Drafts sit over the current value, so a bootstrap that lands after the
   // page opens fills the fields, and only typing makes them dirty.
   const current = group(store.state);
-  const [draft, setDraft] = useState<{ name?: string; code_url?: string; contact?: string; overdue_days?: string }>({});
+  const [draft, setDraft] = useState<{
+    name?: string;
+    code_url?: string;
+    contact?: string;
+    overdue_days?: string;
+  }>({});
   const [saved, setSaved] = useState(false);
   const name = draft.name ?? current.name ?? "";
   const codeUrl = draft.code_url ?? current.code_url ?? "";
@@ -122,7 +132,12 @@ function GroupForm({ store }: { store: Store }) {
   async function save() {
     // Blank means never flag (FR-OUT-14).
     const days = Number.parseInt(overdueDays, 10);
-    await setGroup(store, { name, code_url: codeUrl, contact, overdue_days: days > 0 ? days : null });
+    await setGroup(store, {
+      name,
+      code_url: codeUrl,
+      contact,
+      overdue_days: days > 0 ? days : null,
+    });
     setDraft({});
     setSaved(true);
   }
