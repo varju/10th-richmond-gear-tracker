@@ -418,3 +418,37 @@ test("a group of two needs two different numbers (FR-INV-23, FR-INV-30)", async 
   expect(generics(store.state)).toEqual([]);
   expect(item(store.state, tent)?.parent_id).toBeUndefined();
 });
+
+test("an Admin deletes a record made in error, in two taps (FR-INV-32)", async () => {
+  renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Delete for good…" }));
+  expect(item(store.state, tent)?.deleted).toBeUndefined();
+
+  await user.click(screen.getByRole("button", { name: "Really delete? This cannot be undone" }));
+  await waitFor(() => expect(location.pathname).toBe("/"));
+  expect(item(store.state, tent)?.deleted).toBe(true);
+  expect(store.pending.at(-1)).toMatchObject({ type: "field_changed", payload: { field: "deleted", value: true } });
+});
+
+test("a deleted item's page says so and offers nothing (FR-INV-32)", async () => {
+  await act.deleteItem(store, tent);
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Tent 1");
+  expect(screen.getByText("Deleted", { selector: ".badge" })).toBeInTheDocument();
+  expect(screen.getByRole("note")).toHaveTextContent("This item was deleted.");
+  expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Check out" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Delete for good…" })).not.toBeInTheDocument();
+});
+
+test("only an Admin may delete, and only an item that is in (FR-INV-32)", async () => {
+  await mv.checkOut(store, tent, {});
+  const { unmount } = renderInShell(<ItemPage store={store} id={tent} />);
+  expect(screen.queryByRole("button", { name: "Delete for good…" })).not.toBeInTheDocument();
+  unmount();
+
+  await mv.checkIn(store, tent, {});
+  await store.setMeta({ user: carol });
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(screen.queryByRole("button", { name: "Delete for good…" })).not.toBeInTheDocument();
+});

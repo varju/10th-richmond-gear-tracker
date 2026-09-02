@@ -256,6 +256,19 @@ def test_get_item_carries_the_unit_its_generic_its_history_and_its_tickets(tools
         assistant.get_item("nope")
 
 
+def test_a_deleted_item_is_not_there_at_all(db_path, tools):
+    """A record made in error is off every list, and no tool acts on it (FR-INV-32)."""
+    gone = {"field": "deleted", "value": True, "old": None}
+    with open_db(db_path) as conn:
+        events.append_server(conn, ALICE, "item", tools["stove"], "field_changed", gone)
+
+    assert [r["name"] for r in assistant.search_items()["rows"]] == ["4-person tent"]
+    with pytest.raises(NotFound):
+        assistant.get_item(tools["stove"])
+    with pytest.raises(NotFound):
+        assistant.check_out(tools["stove"])
+
+
 def test_whats_out_is_by_holder_with_the_event(tools):
     assistant.check_out(tools["stove"], event="Fall Camp")
     report = assistant.whats_out()

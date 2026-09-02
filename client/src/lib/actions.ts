@@ -151,6 +151,25 @@ export async function retireItem(store: Store, id: string): Promise<void> {
 
 export const unretireItem = (store: Store, id: string) => changed(store, "item", id, { retired: false });
 
+/**
+ * A record made in error, off every list for good (FR-INV-32). One field on the
+ * item, like a location's `deleted`: the events stay in the log, the sticker
+ * stays bound, and nothing in the app brings it back. Retire (FR-INV-04) is the
+ * one for gear written off.
+ *
+ * Admins only, and only an item that is in. A generic goes after its units, so
+ * nothing is left pointing at a name that is gone.
+ */
+export async function deleteItem(store: Store, id: string): Promise<void> {
+  if (store.meta.user?.role !== "admin") throw new Error("Admins only");
+  const it = item(store.state, id);
+  if (!it) throw new Error("no such item");
+  if (it.merged_into) throw new Error("this item was merged into another");
+  if (it.status === "out") throw new Error("check it in first");
+  if (it.generic && unitsOf(store.state, id).length) throw new Error("delete its units first");
+  await changed(store, "item", id, { deleted: true });
+}
+
 /** Lost, not written off (FR-INV-19). A field, not a status: it can be out and missing. */
 export const markMissing = (store: Store, id: string) => changed(store, "item", id, { missing: true });
 export const clearMissing = (store: Store, id: string) => changed(store, "item", id, { missing: false });

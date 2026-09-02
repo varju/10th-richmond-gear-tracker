@@ -39,6 +39,13 @@ export interface Item {
   missing?: boolean;
   /** Set on a duplicate: the item it was folded into (FR-INV-13). Everything that reads an id follows it. */
   merged_into?: string | null;
+  /**
+   * A record made in error, taken off every list by an Admin (FR-INV-32). A
+   * tombstone, like a location's: the row stays so old references can name it,
+   * and there is no way back in the app. Retire (FR-INV-04) is the one for gear
+   * written off.
+   */
+  deleted?: boolean;
   /** Absent on a generic: it does not move. */
   status?: "in" | "out";
   holder_id?: string | null;
@@ -80,11 +87,13 @@ function withId<T>(table: Record<string, Fields> | undefined): T[] {
   return Object.entries(table ?? {}).map(([id, fields]) => ({ id, ...fields }) as T);
 }
 
-export const items = (state: State): Item[] => withId<Item>(state.item);
+/** Every item worth listing. A deleted one is gone from here, as a deleted location is (FR-INV-32). */
+export const items = (state: State): Item[] => withId<Item>(state.item).filter((it) => !it.deleted);
 export const locations = (state: State): Location[] => withId<Location>(state.location).filter((l) => !l.deleted);
 export const codes = (state: State): Code[] => withId<Code>(state.code);
 export const group = (state: State): GroupSetting => (state.setting?.group ?? {}) as GroupSetting;
 
+/** One item by id, deleted ones included: its own page and an old reference still name it (FR-INV-32). */
 export const item = (state: State, id: string): Item | undefined =>
   state.item?.[id] ? ({ id, ...state.item[id] } as Item) : undefined;
 

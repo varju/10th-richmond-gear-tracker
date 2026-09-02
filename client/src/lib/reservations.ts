@@ -132,10 +132,13 @@ export interface Remaining {
 
 const ticked = (it: Item, event: string): boolean => it.status === "out" && it.movement?.event === event;
 
-/** The items a reservation names, as they stand today: a merged duplicate means its survivor (FR-INV-13). */
-const namedItems = (state: State, r: ReservationInput): string[] => [
-  ...new Set(r.items.map((id) => resolveItem(state, id))),
-];
+/**
+ * The items a reservation names, as they stand today: a merged duplicate means
+ * its survivor (FR-INV-13), and a deleted record is not there at all
+ * (FR-INV-32). Mirrored by named_items in views.py.
+ */
+const namedItems = (state: State, r: ReservationInput): string[] =>
+  [...new Set(r.items.map((id) => resolveItem(state, id)))].filter((id) => !state.item?.[id]?.deleted);
 
 /** What is still to pack. Derived from state alone: a scan anywhere ticks it here after sync. */
 export function remaining(state: State, r: Reservation): Remaining {

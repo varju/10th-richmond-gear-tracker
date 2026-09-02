@@ -117,8 +117,16 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
         raise Rejected("user changes go through the accounts API")
     if entity_type == "setting" and principal.role != "admin":
         raise Rejected("settings are changed by an Admin")
+    if entity_type == "item" and kind == "field_changed":
+        payload = incoming.get("payload")
+        field = payload.get("field") if isinstance(payload, dict) else None
+        # Deleting takes a record off every list for good (FR-INV-32), so it stays with an Admin.
+        if field == "deleted" and principal.role != "admin":
+            raise Rejected("items are deleted by an Admin")
     if entity_type == "item" and kind in ("checked_out", "checked_in"):
         item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
+        if item.get("deleted"):
+            raise Rejected("this item was deleted")
         if item.get("generic"):
             raise Rejected("a generic item does not move; its units do (FR-INV-21)")
         if kind == "checked_out":

@@ -39,6 +39,7 @@ const LABELS: Record<string, string> = {
   retired: "Retired",
   missing: "Missing",
   merged_into: "Merged into",
+  deleted: "Deleted",
 };
 
 export const fieldLabel = (field: string): string => LABELS[field] ?? field;

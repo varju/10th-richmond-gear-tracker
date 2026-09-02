@@ -384,6 +384,21 @@ def test_retired_items_cannot_be_checked_out(db):
     assert reasons(db, USER, out) == ["retired items cannot be checked out (FR-INV-04)"]
 
 
+def test_items_are_deleted_by_an_admin_and_then_cannot_move(db):
+    """A record made in error goes for good; only an Admin writes the field (FR-INV-32)."""
+    made = own(USER, type="created", payload={"name": "Tent"}, device_seq=1)
+    assert reasons(db, USER, made) == []
+
+    gone = own(USER, payload={"field": "deleted", "value": True, "old": None}, device_seq=2)
+    assert reasons(db, USER, gone) == ["items are deleted by an Admin"]
+    assert reasons(db, ADMIN, {**gone, "id": new_ulid()}) == []
+
+    out = own(ADMIN, type="checked_out", payload={"holder_id": "alice"}, device_seq=3)
+    assert reasons(db, ADMIN, out) == ["this item was deleted"]
+    back = own(ADMIN, type="checked_in", payload={}, device_seq=4)
+    assert reasons(db, ADMIN, back) == ["this item was deleted"]
+
+
 def test_a_device_cannot_file_a_found_report(db):
     forged = own(
         ALICE,

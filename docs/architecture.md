@@ -301,7 +301,10 @@ A lost record is a missing movement, not a broken database; the next scan of the
 ## Inventory
 
 Items and locations are entities on the same log as everything else: `created` once, then one `field_changed` per edit,
-with the old value kept. Retiring an item is a field, `retired`, so the item and its history stay (FR-INV-04).
+with the old value kept. Retiring an item is a field, `retired`, so the item and its history stay (FR-INV-04). Deleting
+one is another field, `deleted`, written by an Admin for a record made in error (FR-INV-32): it hides the item
+everywhere, including from "show retired", and the app offers no way back. The log and the photo files stay, and so does
+the sticker, because a code binds once; scanning it opens a page that says the item was deleted.
 
 **Generic items and units are both items.** A generic has `generic: true` and no code; a unit has `parent_id` and a
 `number` unique under that parent, and no name unless a nickname is set. Display name is derived: the parent's name, the

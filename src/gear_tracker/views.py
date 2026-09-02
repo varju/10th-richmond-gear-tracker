@@ -51,10 +51,12 @@ def today(ms: int) -> str:
 
 
 def items(state: State) -> list[Fields]:
-    return table(state, "item")
+    """Every item worth listing. A deleted one is gone from here, as a deleted location is (FR-INV-32)."""
+    return [it for it in table(state, "item") if not it.get("deleted")]
 
 
 def item(state: State, item_id: str) -> Fields | None:
+    """One item by id, deleted ones included, so an old reference can still name it (FR-INV-32)."""
     return entity(state, "item", item_id)
 
 
@@ -286,11 +288,14 @@ def overlaps(a: Fields, b: Fields) -> bool:
 
 
 def named_items(state: State, r: Fields) -> list[str]:
-    """The items a reservation names, as they stand today: a merged duplicate means its survivor."""
+    """The items a reservation names, as they stand today: a merged duplicate means its survivor.
+
+    A deleted record is not there at all (FR-INV-32). The twin of namedItems in reservations.ts.
+    """
     seen: dict[str, None] = {}
     for item_id in r.get("items") or []:
         seen.setdefault(resolve_item(state, item_id), None)
-    return list(seen)
+    return [item_id for item_id in seen if not (state.get("item") or {}).get(item_id, {}).get("deleted")]
 
 
 def _ticked(it: Fields, event: str) -> bool:

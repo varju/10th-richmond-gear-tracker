@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   addUnit,
+  deleteItem,
   groupWith,
   type ItemInput,
   makeGeneric,
@@ -83,6 +84,22 @@ export function ItemPage({ store, id }: Props) {
     return (
       <Page title="Not found" back="/">
         <p>No item with that id. It may not have synced to this phone yet.</p>
+      </Page>
+    );
+  }
+
+  if (it.deleted) {
+    // A record made in error, gone from every list (FR-INV-32). Its page stays
+    // readable so an old sticker and an old reference still name it.
+    return (
+      <Page title="Item" back="/">
+        <h2 className="item-title">
+          {displayName(state, it)}
+          <span className="badge">Deleted</span>
+        </h2>
+        <p className="notice" role="note">
+          This item was deleted.
+        </p>
       </Page>
     );
   }
@@ -236,6 +253,7 @@ export function ItemPage({ store, id }: Props) {
               This is a duplicate record…
             </button>
           )}
+          <DeleteItem store={store} it={it} />
         </>
       }
     >
@@ -348,6 +366,37 @@ export function ItemPage({ store, id }: Props) {
         </div>
       </div>
     </Page>
+  );
+}
+
+/**
+ * Take a record made in error off every list, for good (FR-INV-32). Retire
+ * (FR-INV-04) is the one for gear written off: that item stays under "show
+ * retired". This one does not come back.
+ *
+ * An Admin's, and only an item that is in. A generic waits until its units have
+ * gone, so nothing is left under a name that is not there. Two taps, because
+ * there is no undo.
+ */
+function DeleteItem({ store, it }: { store: Store; it: Item }) {
+  const [asked, setAsked] = useState(false);
+  const admin = store.meta.user?.role === "admin";
+  const blocked = it.status === "out" || (it.generic && unitsOf(store.state, it.id).length > 0);
+  if (!admin || blocked) return null;
+
+  async function remove() {
+    if (!asked) {
+      setAsked(true);
+      return;
+    }
+    await deleteItem(store, it.id);
+    navigate("/", true);
+  }
+
+  return (
+    <button type="button" className={asked ? "minor warn" : "minor"} onClick={() => void remove()}>
+      {asked ? "Really delete? This cannot be undone" : "Delete for good…"}
+    </button>
   );
 }
 
@@ -925,6 +974,7 @@ function GenericPage({
           <button type="button" onClick={onEdit}>
             Edit
           </button>
+          <DeleteItem store={store} it={it} />
         </>
       }
     >

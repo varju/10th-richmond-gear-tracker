@@ -172,7 +172,8 @@ def _changes(before: dict[str, Any], patch: dict[str, Any]) -> list[tuple[str, A
 
 def _item(state: dict[str, Any], item_id: str) -> dict[str, Any]:
     it = views.item(state, views.resolve_item(state, item_id))
-    if it is None:
+    # A deleted record is off every list and every screen, so it is not here either (FR-INV-32).
+    if it is None or it.get("deleted"):
         raise NotFound(f"no item with id {item_id}")
     return it
 

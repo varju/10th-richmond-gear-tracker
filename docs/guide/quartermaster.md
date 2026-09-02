@@ -49,6 +49,12 @@ next one by scanning a fresh code and tapping "Another …".
 Open the item, tap Edit, and tick Retired. It leaves the lists and cannot be checked out; its history stays. Untick it
 to bring it back. Retire is for gear written off.
 
+## Delete an item
+
+Only an Admin, and only for a record made in error: a tent typed in twice, or an item that never existed. Open the item
+and tap "Delete for good…", then confirm. It has to be in, and a generic waits until its units have gone. The item
+leaves every list, including "show retired", and nothing in the app brings it back.
+
 ## Mark an item missing
 
 Open the item and tap Mark missing. It stays in the inventory, drops off What is out, and clears itself at the next scan

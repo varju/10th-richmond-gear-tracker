@@ -398,3 +398,51 @@ test("a number the server sent as a whole number still reads as text (FR-INV-23)
   expect(inv.numberTaken(store.state, "tents", "2")).toBe(true);
   expect(inv.nextNumber(store.state, "tents")).toBe("11");
 });
+
+test("a deleted item leaves every list, and its record still names it (FR-INV-32)", async () => {
+  const f = await withUnits();
+  await act.deleteItem(store, f.t1);
+  expect(inv.items(store.state).map((i) => i.name)).not.toContain("Tent 1");
+  expect(names({})).toEqual([
+    "4-person tent #1",
+    "4-person tent #2",
+    "4-person tent #7 (patched fly)",
+    "Stove",
+    "Tent 2",
+  ]);
+  expect(names({ retired: true })).toEqual([]);
+  expect(inv.rows(store.state, {}).map((r) => r.name)).toEqual(["4-person tent", "Stove", "Tent 2"]);
+  // The row stays, so the item's own page and an old reference can still name it.
+  expect(inv.item(store.state, f.t1)).toMatchObject({ name: "Tent 1", deleted: true });
+  expect(inv.nameOf(store.state, f.t1)).toBe("Tent 1");
+});
+
+test("a deleted unit leaves its generic's row and does not retire it (FR-INV-32)", async () => {
+  const f = await withUnits();
+  await act.deleteItem(store, f.u1);
+  const row = inv.rows(store.state, {})[0] as inv.GenericRow;
+  expect(row.units.map((u) => u.id)).toEqual([f.u2, f.u3]);
+  expect(inv.unitsOf(store.state, f.tents).map((u) => u.id)).toEqual([f.u2, f.u3]);
+  expect(inv.item(store.state, f.tents)?.retired).toBeUndefined();
+});
+
+test("deleting needs an Admin, an item that is in, and a generic with no units (FR-INV-32)", async () => {
+  const f = await withUnits();
+  await expect(act.deleteItem(store, "nope")).rejects.toThrow("no such item");
+  await expect(act.deleteItem(store, f.tents)).rejects.toThrow("delete its units first");
+  await checkOut(store, f.t1, { event: "Fall Camp" });
+  await expect(act.deleteItem(store, f.t1)).rejects.toThrow("check it in first");
+  await act.mergeItem(store, f.t2, f.stove);
+  await expect(act.deleteItem(store, f.t2)).rejects.toThrow("merged into another");
+  // A retired item may go: retiring is for gear written off, deleting for a record made in error.
+  await act.retireItem(store, f.stove);
+  await act.deleteItem(store, f.stove);
+  expect(inv.item(store.state, f.stove)?.deleted).toBe(true);
+  // The generic goes once every unit has. Tent 1 is out, so it stays.
+  for (const u of [f.u1, f.u2, f.u3]) await act.deleteItem(store, u);
+  await act.deleteItem(store, f.tents);
+  expect(inv.rows(store.state, {}).map((r) => r.name)).toEqual(["Tent 1"]);
+
+  await store.setMeta({ user: { id: "carol", name: "Carol", role: "user", active: true } });
+  await expect(act.deleteItem(store, f.t1)).rejects.toThrow("Admins only");
+});
