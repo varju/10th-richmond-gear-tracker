@@ -4,7 +4,7 @@ import type { Store } from "../lib/store";
 interface Props {
   store: Store;
   /** Called after a sheet is made, so the new codes reach this phone. */
-  onDone: () => Promise<void>;
+  onDone: () => Promise<unknown>;
 }
 
 /**

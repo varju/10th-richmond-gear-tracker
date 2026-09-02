@@ -2,7 +2,6 @@ import { type ReactNode, useCallback, useState } from "react";
 import type { Item } from "../lib/inventory";
 import { checkIn, checkOut, transfer } from "../lib/movement";
 import type { Store } from "../lib/store";
-import { useShell } from "../shell";
 import { userName } from "./labels";
 
 /** How long a "Checked out · Tent 1" strip stays up. */
@@ -40,11 +39,10 @@ interface Props {
 
 /**
  * The buttons that move an item, chosen by its state (FR-OUT-06, FR-OUT-12),
- * with an optional note on the movement (FR-OUT-13). Syncs after a move
- * without waiting for it (FR-OFF-03).
+ * with an optional note on the movement (FR-OUT-13). The shell pushes the
+ * move as soon as it is recorded (FR-OFF-03).
  */
 export function MoveActions({ store, it, showEvent = false, onMoved, children }: Props) {
-  const { sync } = useShell();
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -66,7 +64,6 @@ export function MoveActions({ store, it, showEvent = false, onMoved, children }:
     } finally {
       setBusy(false);
     }
-    void sync();
     setNote(null);
     onMoved(kind);
   }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Api, Offline } from "./lib/api";
+import { autoSync } from "./lib/autosync";
 import { STALE_PENDING_MS } from "./lib/clock";
 import { type Route, useRoute } from "./lib/router";
 import { ensurePersistent, type Persistence } from "./lib/storage";
@@ -37,12 +38,14 @@ export function App({ store, api, now = Date.now }: Props) {
   const inFlight = useRef(false);
 
   // One sync at a time; a second request while one runs is dropped, not queued.
-  const runSync = useCallback(async () => {
-    if (inFlight.current || !store.meta.token) return;
+  const runSync = useCallback(async (): Promise<SyncOutcome | undefined> => {
+    if (inFlight.current || !store.meta.token) return undefined;
     inFlight.current = true;
     setBusy(true);
     try {
-      setOutcome(await sync(store, api, now));
+      const outcome = await sync(store, api, now);
+      setOutcome(outcome);
+      return outcome;
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -52,14 +55,18 @@ export function App({ store, api, now = Date.now }: Props) {
   // On open, on regaining connectivity, and when brought back to the front (FR-OFF-03).
   useEffect(() => {
     void runSync();
+    const online = () => void runSync();
     const visible = () => document.visibilityState === "visible" && void runSync();
-    window.addEventListener("online", runSync);
+    window.addEventListener("online", online);
     document.addEventListener("visibilitychange", visible);
     return () => {
-      window.removeEventListener("online", runSync);
+      window.removeEventListener("online", online);
       document.removeEventListener("visibilitychange", visible);
     };
   }, [runSync]);
+
+  // And the moment anything is unsent (FR-OFF-03).
+  useEffect(() => autoSync(store, runSync), [store, runSync]);
 
   useEffect(() => {
     void ensurePersistent().then(setPersistence);
@@ -82,7 +89,7 @@ export function App({ store, api, now = Date.now }: Props) {
   return (
     <ShellContext value={shell}>
       <div className="app">
-        <Banner pending={pending.length} busy={busy} outcome={outcome} />
+        <Banner pending={pending} busy={busy} outcome={outcome} now={now} />
         {persistence === "refused" && !storageNoticeSeen && (
           <p className="notice" role="alert">
             The browser refused to protect this app’s storage. Unsent records could be deleted to free space. Sync

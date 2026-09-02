@@ -158,7 +158,7 @@ test("deleting a location in use is refused and names the items", async () => {
   await user.clear(screen.getByLabelText("New name for Warm locker"));
   await user.type(screen.getByLabelText("New name for Warm locker"), "Dry locker");
   await user.click(screen.getByRole("button", { name: "Save Warm locker" }));
-  expect(inv.locations(store.state).map((l) => l.name)).toEqual(["Cold locker", "Dry locker"]);
+  await waitFor(() => expect(inv.locations(store.state).map((l) => l.name)).toEqual(["Cold locker", "Dry locker"]));
 });
 
 test("settings are for admins; others see their account only", async () => {

@@ -6,8 +6,8 @@ export interface Shell {
   busy: boolean;
   outcome: SyncOutcome | null;
   now: () => number;
-  /** Ask for a sync now. Dropped if one is running. */
-  sync: () => Promise<void>;
+  /** Ask for a sync now. Answers `undefined` if one is already running. */
+  sync: () => Promise<SyncOutcome | undefined>;
   signOut: () => Promise<void>;
 }
 
@@ -15,7 +15,7 @@ export const ShellContext = createContext<Shell>({
   busy: false,
   outcome: null,
   now: Date.now,
-  sync: async () => {},
+  sync: async () => undefined,
   signOut: async () => {},
 });
 

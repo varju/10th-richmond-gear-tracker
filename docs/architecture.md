@@ -154,8 +154,10 @@ that says so (HTTP 410, `re-bootstrap`), and the device bootstraps again.
 Who is calling is settled before any of this runs. The app takes an `authenticate` callable and hands each route a
 `Principal`: user, device, and whether the account is still active. M4 supplies the real one.
 
-Sync runs on app open, on regaining connectivity, and after every movement (FR-OFF-03). It never blocks the screen
-(NFR-PERF-06).
+Sync runs on app open, on regaining connectivity, when the app comes back to the front, and the moment anything is
+unsent (FR-OFF-03). A record reaches the server within a second of being made; records pile up on the device only when a
+sync fails, and then a watcher retries with a growing delay until one succeeds or the network returns. Sync never blocks
+the screen (NFR-PERF-06).
 
 **A deactivated account still gets one final push accepted** (FR-OFF-06). The records are gear movements and they are
 true regardless of who has since left the group. Accept them, attribute them, then refuse everything else that
@@ -210,7 +212,8 @@ not support it, so the app opening is the reliable trigger (FR-OFF-03). Use Back
 as a design assumption (FR-OFF-08).
 
 Because nothing can sync a closed app on iOS, the unsent count is a persistent banner on every screen (FR-OFF-04), and
-work pending more than 3 days interrupts on open (FR-OFF-09). Visibility is the mitigation.
+work pending more than 3 days interrupts on open (FR-OFF-09). Visibility is the mitigation. The banner gives a fresh
+record a few seconds to land before calling it unsent, so a save does not flash yellow on every tap.
 
 ### Keeping the data alive
 

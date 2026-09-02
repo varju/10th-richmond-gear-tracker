@@ -27,12 +27,11 @@ const section = (name: string) => screen.getByRole("heading", { name }).nextElem
 
 test("Check out from the page records the session event and syncs (FR-OUT-02)", async () => {
   await store.setMeta({ session_event: "Spring camp" });
-  const { sync } = renderInShell(<ItemPage store={store} id={tent} />);
+  renderInShell(<ItemPage store={store} id={tent} />);
   expect(actions()).toHaveTextContent("Event: Spring camp");
 
   await user.click(screen.getByRole("button", { name: "Check out" }));
   expect(await screen.findByText("Checked out · Tent 1")).toHaveAttribute("role", "status");
-  expect(sync).toHaveBeenCalledTimes(1);
   expect(store.pending.filter((e) => e.type === "checked_out").map((e) => e.payload)).toEqual([
     { holder_id: "alice", event: "Spring camp" },
   ]);
@@ -47,12 +46,11 @@ test("Check out from the page records the session event and syncs (FR-OUT-02)", 
 test("someone else's gear can be checked in or transferred (FR-OUT-07, FR-OUT-12)", async () => {
   await mv.checkOut(store, tent, { event: "Spring camp" });
   await store.setMeta({ user: carol });
-  const { sync } = renderInShell(<ItemPage store={store} id={tent} />);
+  renderInShell(<ItemPage store={store} id={tent} />);
   expect(screen.getByRole("button", { name: "Transfer to me" })).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Check in" }));
   expect(await screen.findByText("Checked in · Tent 1")).toHaveAttribute("role", "status");
-  expect(sync).toHaveBeenCalledTimes(1);
   expect(item(store.state, tent)?.status).toBe("in");
 });
 

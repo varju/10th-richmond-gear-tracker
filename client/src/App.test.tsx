@@ -77,6 +77,23 @@ test("unsent work shows in the banner and blocks signing out", async () => {
   expect(screen.getByRole("button", { name: "Sign out" })).toBeDisabled();
 });
 
+test("a record made while online is pushed without anyone asking", async () => {
+  await store.setMeta({ token: "tok", user: { id: "u1", name: "Alice", role: "admin", active: true }, cursor: 2 });
+  mount();
+  await waitFor(() => expect(calls).toContain("/sync/pull"));
+  calls = [];
+
+  await store.record({
+    entity_type: "item",
+    entity_id: "a",
+    type: "note_added",
+    actor_id: "u1",
+    payload: { text: "x" },
+  });
+  await waitFor(() => expect(calls).toContain("/sync/push"));
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+});
+
 test("records pending more than 3 days interrupt on open", async () => {
   // Record with a clock four days back, then open the app today.
   store = await Store.open(await openDb("test", new IDBFactory()), () => T0 - 4 * DAY_MS);
