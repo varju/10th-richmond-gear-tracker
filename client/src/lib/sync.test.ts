@@ -15,6 +15,7 @@ class FakeServer {
   calls: string[] = [];
   serverTime = T0 + 60_000;
   gone = false;
+  logId = "log-one";
   deactivated = false;
   down = false;
   pageSize = 2;
@@ -24,7 +25,7 @@ class FakeServer {
     const url = new URL(String(input), "http://x");
     this.calls.push(`${init?.method ?? "GET"} ${url.pathname}${url.search}`);
     const json = (status: number, body: object) =>
-      new Response(JSON.stringify({ ...body, server_time: this.serverTime }), { status });
+      new Response(JSON.stringify({ log_id: this.logId, ...body, server_time: this.serverTime }), { status });
     const headers = new Headers(init?.headers);
     if (!headers.get("Authorization")?.startsWith("Bearer "))
       return json(401, { error: "unauthorized", message: "sign in first" });
@@ -76,6 +77,9 @@ class FakeServer {
     }
     if (url.pathname === "/sync/pull") {
       if (this.gone) return json(410, { error: "re-bootstrap", message: "cursor is older than the retention window" });
+      const log = url.searchParams.get("log");
+      if (log !== null && log !== this.logId)
+        return json(410, { error: "re-bootstrap", message: "this is a different database" });
       const since = Number(url.searchParams.get("since"));
       const page = this.events.filter((e) => e.seq > since).slice(0, this.pageSize);
       return json(200, { events: page, cursor: page.at(-1)?.seq ?? since });
@@ -126,7 +130,11 @@ test("first run bootstraps, later runs pull in pages until empty", async () => {
   }
   server.calls = [];
   expect(await sync(store, api(), () => clock)).toEqual({ ok: true });
-  expect(server.calls).toEqual(["GET /sync/pull?since=0", "GET /sync/pull?since=2", "GET /sync/pull?since=3"]);
+  expect(server.calls).toEqual([
+    "GET /sync/pull?since=0&log=log-one",
+    "GET /sync/pull?since=2&log=log-one",
+    "GET /sync/pull?since=3&log=log-one",
+  ]);
   expect(store.meta.cursor).toBe(3);
   expect((store.items["tent-1"]?.notes as unknown[]).length).toBe(3);
 });
@@ -164,9 +172,40 @@ test("a 410 on pull starts over from a snapshot", async () => {
   server.gone = true;
   server.calls = [];
   expect(await sync(store, api(), () => clock)).toEqual({ ok: true });
-  expect(server.calls).toEqual(["POST /sync/push", "GET /sync/pull?since=0", "GET /sync/bootstrap"]);
+  expect(server.calls).toEqual(["POST /sync/push", "GET /sync/pull?since=0&log=log-one", "GET /sync/bootstrap"]);
   expect(store.pending).toEqual([]);
   expect(store.meta.cursor).toBe(1);
+});
+
+test("bootstrap stores which log the snapshot came from", async () => {
+  await sync(store, api(), () => clock);
+  expect(store.meta.log_id).toBe("log-one");
+});
+
+test("a cursor from another log starts over from a snapshot", async () => {
+  await sync(store, api(), () => clock);
+  await record("checked_out", { holder_id: "carol" });
+  await sync(store, api(), () => clock);
+
+  // The server database was replaced, and its new log has grown past our cursor.
+  server.logId = "log-two";
+  server.events = [];
+  server.calls = [];
+  expect(await sync(store, api(), () => clock)).toEqual({ ok: true });
+  expect(server.calls).toEqual(["GET /sync/pull?since=1&log=log-one", "GET /sync/bootstrap"]);
+  expect(store.meta.log_id).toBe("log-two");
+  expect(store.meta.cursor).toBe(0);
+  expect(store.items["tent-1"]?.name).toBe("Tent");
+});
+
+test("a cursor stored before log ids existed bootstraps instead of pulling", async () => {
+  await sync(store, api(), () => clock);
+  await store.setMeta({ log_id: undefined });
+  server.calls = [];
+
+  expect(await sync(store, api(), () => clock)).toEqual({ ok: true });
+  expect(server.calls).toEqual(["GET /sync/bootstrap"]);
+  expect(store.meta.log_id).toBe("log-one");
 });
 
 test("a deactivated account gets its last push in, then is signed out", async () => {

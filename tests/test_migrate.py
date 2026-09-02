@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 
 import pytest
@@ -119,3 +120,15 @@ def test_the_real_migrations_apply(tmp_path):
     assert ran, "expected at least one shipped migration"
     with open_db(tmp_path / "real.db") as conn:
         assert conn.execute("SELECT value FROM meta WHERE key='schema_created_by'").fetchone()[0] == "gear-tracker"
+
+
+def test_a_fresh_database_gets_its_own_log_id(tmp_path):
+    """Two databases are two logs, so a device's cursor cannot cross between them."""
+    ids = []
+    for name in ("one.db", "two.db"):
+        migrate(tmp_path / name)
+        with open_db(tmp_path / name) as conn:
+            ids.append(conn.execute("SELECT value FROM meta WHERE key='log_id'").fetchone()[0])
+
+    assert all(re.fullmatch(r"[0-9a-f]{32}", value) for value in ids), ids
+    assert ids[0] != ids[1]

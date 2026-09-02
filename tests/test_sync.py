@@ -16,6 +16,7 @@ from gear_tracker.sync import (
     Principal,
     Rebootstrap,
     bootstrap,
+    log_id,
     pull,
     push,
 )
@@ -244,6 +245,31 @@ def test_a_cursor_older_than_retention_means_re_bootstrap(db):
         pull(db, ALICE, cursor=0, now=T0 + RETENTION_MS + 1)
     # The recent one is fine.
     assert pull(db, ALICE, cursor=2, now=T0 + RETENTION_MS + 1)["events"] == []
+
+
+def test_a_cursor_from_a_different_log_means_re_bootstrap(db):
+    """The server database was replaced, and its new log has grown past the device's cursor."""
+    push(db, ALICE, batch(ALICE, own(ALICE)), now=T0)
+
+    with pytest.raises(Rebootstrap, match="different database"):
+        pull(db, ALICE, cursor=0, now=T0, log="not-this-log")
+
+
+def test_a_cursor_from_this_log_is_honoured(db):
+    push(db, ALICE, batch(ALICE, own(ALICE)), now=T0)
+    mine = log_id(db)
+
+    assert len(pull(db, ALICE, cursor=0, now=T0, log=mine)["events"]) == 1
+    # A device that has not learned the log id yet is still served.
+    assert len(pull(db, ALICE, cursor=0, now=T0)["events"]) == 1
+
+
+def test_every_sync_result_carries_the_log_id(db):
+    mine = log_id(db)
+
+    assert bootstrap(db, ALICE, now=T0)["log_id"] == mine
+    assert push(db, ALICE, batch(ALICE, own(ALICE)), now=T0)["log_id"] == mine
+    assert pull(db, ALICE, cursor=0, now=T0)["log_id"] == mine
 
 
 def test_an_empty_log_honours_any_zero_cursor(db):

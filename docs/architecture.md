@@ -123,10 +123,10 @@ costs more trust than it looks like it should.
 Three endpoints. No framework.
 
 ```
-GET  /sync/bootstrap                            -> { snapshot: {...}, cursor, server_time }
+GET  /sync/bootstrap                            -> { snapshot: {...}, cursor, log_id, server_time }
 POST /sync/push   { device_id, client_time, events: [...] }
-                                                -> { accepted: [ids], rejected: [{id, reason}], server_time }
-GET  /sync/pull?since=<cursor>                  -> { events: [...], cursor, server_time }
+                                                -> { accepted: [ids], rejected: [{id, reason}], log_id, server_time }
+GET  /sync/pull?since=<cursor>&log=<log_id>     -> { events: [...], cursor, log_id, server_time }
 ```
 
 Every response carries `server_time`, so each sync re-measures the clock offset described in [Ordering](#ordering).
@@ -149,7 +149,9 @@ reason; the device keeps it and shows it rather than dropping it (NFR-DATA-01).
 time cursor skips work silently. `seq` cannot. Pull returns `seq > cursor`, ordered by `seq`.
 
 A cursor the server can no longer honour — older than retention, or from a database that was restored — gets an answer
-that says so (HTTP 410, `re-bootstrap`), and the device bootstraps again.
+that says so (HTTP 410, `re-bootstrap`), and the device bootstraps again. A cursor alone cannot tell a replaced database
+from the same one, so the log carries a random `log_id`, set when the database is created and kept through a restore.
+The device sends the id its snapshot came from, and a cursor from a different log gets the same 410.
 
 Who is calling is settled before any of this runs. The app takes an `authenticate` callable and hands each route a
 `Principal`: user, device, and whether the account is still active. M4 supplies the real one.

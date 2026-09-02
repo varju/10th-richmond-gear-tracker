@@ -29,6 +29,8 @@ export interface Meta {
   device_seq: number;
   clock_offset: number;
   cursor?: number;
+  /** The log the snapshot and cursor came from. A cursor without one predates this field and cannot be trusted. */
+  log_id?: string;
   /** The event name scans are for, until changed or cleared (FR-OUT-05). A device setting, not a record. */
   session_event?: string;
   token?: string;

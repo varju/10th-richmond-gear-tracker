@@ -50,6 +50,15 @@ def _require_active(principal: Principal) -> None:
         raise Deactivated("this account has been deactivated")
 
 
+def log_id(conn: sqlite3.Connection) -> str:
+    """This log's identity, set when the database was created (migration 0007).
+
+    A device holds the one its snapshot came from. A different one means a
+    different log, whatever the cursor says.
+    """
+    return str(conn.execute("SELECT value FROM meta WHERE key = 'log_id'").fetchone()[0])
+
+
 def bootstrap(conn: sqlite3.Connection, principal: Principal, now: int | None = None) -> dict[str, Any]:
     """Current state and the cursor it was true at, read in one transaction (FR-OFF-14)."""
     _require_active(principal)
@@ -60,7 +69,7 @@ def bootstrap(conn: sqlite3.Connection, principal: Principal, now: int | None = 
         cursor = derived.cursor(conn)
     finally:
         conn.execute("COMMIT")
-    return {"snapshot": snapshot, "cursor": cursor, "server_time": now}
+    return {"snapshot": snapshot, "cursor": cursor, "log_id": log_id(conn), "server_time": now}
 
 
 def push(conn: sqlite3.Connection, principal: Principal, body: Any, now: int | None = None) -> dict[str, Any]:
@@ -98,7 +107,7 @@ def push(conn: sqlite3.Connection, principal: Principal, body: Any, now: int | N
             accepted.append(stored.id)
         except Rejected as exc:
             rejected.append({"id": incoming.get("id"), "reason": exc.reason})
-    return {"accepted": accepted, "rejected": rejected, "server_time": now}
+    return {"accepted": accepted, "rejected": rejected, "log_id": log_id(conn), "server_time": now}
 
 
 def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming: dict[str, Any]) -> None:
@@ -150,12 +159,23 @@ def _check_drift(conn: sqlite3.Connection, event: events.Event, measured_offset:
         )
 
 
-def pull(conn: sqlite3.Connection, principal: Principal, cursor: int, now: int | None = None) -> dict[str, Any]:
-    """Events after a cursor, in seq order. The device calls again until it gets none."""
+def pull(
+    conn: sqlite3.Connection,
+    principal: Principal,
+    cursor: int,
+    now: int | None = None,
+    log: str | None = None,
+) -> dict[str, Any]:
+    """Events after a cursor, in seq order. The device calls again until it gets none.
+
+    `log` is the log the device's snapshot came from, when it knows one.
+    """
     _require_active(principal)
     now = now_ms() if now is None else now
     if cursor < 0:
         raise BadRequest("since must be a non-negative integer")
+    if log is not None and log != log_id(conn):
+        raise Rebootstrap("this is a different database; start again from a snapshot")
 
     conn.execute("BEGIN")
     try:
@@ -178,5 +198,6 @@ def pull(conn: sqlite3.Connection, principal: Principal, cursor: int, now: int |
     return {
         "events": [asdict(e) for e in page],
         "cursor": page[-1].seq if page else cursor,
+        "log_id": log_id(conn),
         "server_time": now,
     }

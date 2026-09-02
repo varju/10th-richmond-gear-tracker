@@ -74,10 +74,12 @@ export interface AssistantToken {
 export interface Bootstrap {
   snapshot: State;
   cursor: number;
+  log_id: string;
 }
 export interface Pull {
   events: ServerEvent[];
   cursor: number;
+  log_id: string;
 }
 export interface History {
   events: ServerEvent[];
@@ -85,6 +87,7 @@ export interface History {
 export interface PushResult {
   accepted: string[];
   rejected: { id: string | null; reason: string }[];
+  log_id: string;
 }
 export interface Session {
   token: string;
@@ -180,7 +183,9 @@ export function createApi(options: ApiOptions = {}) {
 
   return {
     bootstrap: () => request<Bootstrap>("GET", "/sync/bootstrap"),
-    pull: (since: number) => request<Pull>("GET", `/sync/pull?since=${since}`),
+    /** `log` is the log this device's snapshot came from; a different one on the server means re-bootstrap. */
+    pull: (since: number, log?: string) =>
+      request<Pull>("GET", `/sync/pull?since=${since}${log === undefined ? "" : `&log=${encodeURIComponent(log)}`}`),
     /**
      * The whole record for one entity, or for every entity of a kind (FR-INV-31).
      * A device holds 90 days; this reaches back as far as the log goes.

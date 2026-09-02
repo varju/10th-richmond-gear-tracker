@@ -22,14 +22,24 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
   if (path === "/auth/sign-in") {
     const body = JSON.parse(String(init?.body)) as { password: string };
     if (body.password !== "pw") return json({ error: "unauthorized", message: "wrong email or password" }, 401);
-    return json({ token: "tok", user: { id: "u1", name: "Alice", role: "admin", active: true } });
+    return json({
+      token: "tok",
+      user: { id: "u1", name: "Alice", role: "admin", active: true },
+    });
   }
   if (path === "/sync/bootstrap")
-    return json({ snapshot: { item: { a: { name: "Tent" }, b: { name: "Stove" } } }, cursor: 2 });
-  if (path === "/sync/pull") return json({ events: [], cursor: 2 });
-  if (path === "/sync/push") return json({ accepted: [], rejected: [] });
+    return json({
+      snapshot: { item: { a: { name: "Tent" }, b: { name: "Stove" } } },
+      cursor: 2,
+      log_id: "log-one",
+    });
+  if (path === "/sync/pull") return json({ events: [], cursor: 2, log_id: "log-one" });
+  if (path === "/sync/push") return json({ accepted: [], rejected: [], log_id: "log-one" });
   if (path.startsWith("/public/codes/"))
-    return json({ item: { name: "Tent" }, group: { name: "10th Richmond", contact: "gear@example.org" } });
+    return json({
+      item: { name: "Tent" },
+      group: { name: "10th Richmond", contact: "gear@example.org" },
+    });
   return json({ error: "not_found", message: path }, 404);
 };
 
@@ -65,7 +75,12 @@ test("signing in bootstraps and shows the inventory", async () => {
 });
 
 test("unsent work shows in the banner and blocks signing out", async () => {
-  await store.setMeta({ token: "tok", user: { id: "u1", name: "Alice", role: "admin", active: true }, cursor: 2 });
+  await store.setMeta({
+    token: "tok",
+    user: { id: "u1", name: "Alice", role: "admin", active: true },
+    cursor: 2,
+    log_id: "log-one",
+  });
   down = true;
   await store.record({
     entity_type: "item",
@@ -82,7 +97,12 @@ test("unsent work shows in the banner and blocks signing out", async () => {
 });
 
 test("a record made while online is pushed without anyone asking", async () => {
-  await store.setMeta({ token: "tok", user: { id: "u1", name: "Alice", role: "admin", active: true }, cursor: 2 });
+  await store.setMeta({
+    token: "tok",
+    user: { id: "u1", name: "Alice", role: "admin", active: true },
+    cursor: 2,
+    log_id: "log-one",
+  });
   mount();
   await waitFor(() => expect(calls).toContain("/sync/pull"));
   calls = [];
@@ -101,7 +121,12 @@ test("a record made while online is pushed without anyone asking", async () => {
 test("records pending more than 3 days interrupt on open", async () => {
   // Record with a clock four days back, then open the app today.
   store = await Store.open(await openDb("test", new IDBFactory()), () => T0 - 4 * DAY_MS);
-  await store.setMeta({ token: "tok", user: { id: "u1", name: "Alice", role: "admin", active: true }, cursor: 2 });
+  await store.setMeta({
+    token: "tok",
+    user: { id: "u1", name: "Alice", role: "admin", active: true },
+    cursor: 2,
+    log_id: "log-one",
+  });
   await store.record({
     entity_type: "item",
     entity_id: "a",

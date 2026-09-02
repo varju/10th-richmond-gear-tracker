@@ -28,7 +28,9 @@ export async function sync(store: Store, api: Api, now: () => number = Date.now)
     // Photos taken offline go up now, before pull brings back the events that name them (FR-INV-11).
     await uploadPhotos(store, api);
 
-    if (store.meta.cursor === undefined) {
+    // A cursor with no log_id was stored by an older build of this app. It may
+    // belong to a database that has since been replaced, so it is not trusted.
+    if (store.meta.cursor === undefined || store.meta.log_id === undefined) {
       await bootstrap(store, api);
     } else {
       try {
@@ -60,14 +62,14 @@ export async function sync(store: Store, api: Api, now: () => number = Date.now)
 
 async function bootstrap(store: Store, api: Api): Promise<void> {
   const { data, offset } = await api.bootstrap();
-  await store.setMeta({ clock_offset: offset });
+  await store.setMeta({ clock_offset: offset, log_id: data.log_id });
   await store.bootstrap(data.snapshot, data.cursor);
 }
 
 /** The device calls again until it gets an empty page. */
 async function pull(store: Store, api: Api): Promise<void> {
   for (;;) {
-    const { data, offset } = await api.pull(store.meta.cursor ?? 0);
+    const { data, offset } = await api.pull(store.meta.cursor ?? 0, store.meta.log_id);
     await store.setMeta({ clock_offset: offset });
     await store.receive(data.events, data.cursor);
     if (data.events.length === 0) return;

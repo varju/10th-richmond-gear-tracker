@@ -157,6 +157,16 @@ def test_a_cursor_the_server_cannot_honour_is_410_not_silence(client):
     assert r.json()["error"] == "re-bootstrap"
 
 
+def test_a_cursor_from_another_log_is_410(client):
+    """A device whose snapshot came from a database that has since been replaced."""
+    mine = client.get("/sync/bootstrap", headers=as_alice()).json()["log_id"]
+
+    r = client.get("/sync/pull?since=0&log=somewhere-else", headers=as_alice())
+    assert r.status_code == 410
+    assert r.json()["error"] == "re-bootstrap"
+    assert client.get(f"/sync/pull?since=0&log={mine}", headers=as_alice()).status_code == 200
+
+
 def test_a_deactivated_account_gets_403_except_on_push(client):
     gone = as_alice(**{"X-Test-Active": "no"})
     assert client.post("/sync/push", json=push_body(event()), headers=gone).status_code == 200

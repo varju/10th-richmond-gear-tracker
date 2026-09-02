@@ -153,8 +153,13 @@ def create_app(
         return result
 
     @app.get("/sync/pull")
-    def pull(conn: Db, who: Who, since: Annotated[int, Query(ge=0)]) -> dict[str, Any]:
-        return sync.pull(conn, who, since)
+    def pull(
+        conn: Db,
+        who: Who,
+        since: Annotated[int, Query(ge=0)],
+        log: Annotated[str | None, Query()] = None,
+    ) -> dict[str, Any]:
+        return sync.pull(conn, who, since, log=log)
 
     # --- history -----------------------------------------------------------------
 
