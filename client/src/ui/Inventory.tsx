@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { openConflicts } from "../lib/conflicts";
 import { foundReports } from "../lib/found";
 import { type Filter, homeLabel, items, itemTypes, locations, search, subLocations } from "../lib/inventory";
 import { openRepairs, openTickets } from "../lib/repairs";
@@ -24,6 +25,7 @@ export function Inventory({ store }: Props) {
   const empty = items(state).length === 0;
   const out = items(state).filter((it) => it.status === "out").length;
   const found = foundReports(state).length;
+  const clashes = openConflicts(state).length;
   const broken = openTickets(state).length;
   const booked = upcoming(state, todayIso(now())).length;
 
@@ -53,6 +55,11 @@ export function Inventory({ store }: Props) {
         {found > 0 && (
           <button className="link" type="button" onClick={() => navigate("/found")}>
             Found gear · {found}
+          </button>
+        )}
+        {clashes > 0 && (
+          <button className="link" type="button" onClick={() => navigate("/conflicts")}>
+            Conflicts · {clashes}
           </button>
         )}
         <button className="link" type="button" onClick={() => navigate("/reservations")}>

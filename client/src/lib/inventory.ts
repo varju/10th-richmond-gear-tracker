@@ -19,6 +19,8 @@ export interface Item {
   movement?: Movement;
   notes?: Note[];
   conflicts?: unknown[];
+  /** The later check-out of a conflict the Quartermaster has reviewed (FR-OFF-10). */
+  reviewed_movement?: string | null;
   added_at?: number;
   modified_at?: number;
 }

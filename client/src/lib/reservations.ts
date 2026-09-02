@@ -10,6 +10,7 @@
 import { homeLabel, type Item, type ItemType, items, itemTypes } from "./inventory";
 import type { Fields, State } from "./replay";
 import type { Store } from "./store";
+import { localDate } from "./time";
 import { newUlid } from "./ulid";
 
 export interface TypeQuantity {
@@ -33,14 +34,7 @@ export interface Reservation {
 export type ReservationInput = Pick<Reservation, "event" | "starts" | "ends" | "items" | "types">;
 
 /** The calendar day where the gear is, not where the server is (NFR-DATA-12). */
-export function todayIso(now: number, timeZone = "America/Vancouver"): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" })
-    .formatToParts(new Date(now))
-    .filter((p) => p.type !== "literal")
-    .map((p) => p.value);
-  const [year, month, day] = parts;
-  return `${year}-${month}-${day}`;
-}
+export const todayIso = (now: number, timeZone?: string): string => localDate(now, timeZone);
 
 function withId(table: Record<string, Fields> | undefined): Reservation[] {
   return Object.entries(table ?? {}).map(([id, fields]) => ({ id, ...fields }) as Reservation);

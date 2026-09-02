@@ -751,6 +751,38 @@ h3.section {
   padding: 0 16px;
 }
 
+/* --- conflicts ------------------------------------------------------------------------ */
+
+/* A notice with a button at its end. */
+.notice-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.notice-row span {
+  flex: 1;
+}
+
+.notice-row button {
+  width: auto;
+  margin: 0;
+  padding: 0 16px;
+}
+
+/* One conflict: the item, both versions, a decision. */
+.conflict {
+  display: grid;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.conflict .versions {
+  margin: 0;
+  padding-left: 24px;
+}
+
 /* --- repairs ------------------------------------------------------------------------- */
 
 /* A fault typed under the item's tickets, like a note but taller. */

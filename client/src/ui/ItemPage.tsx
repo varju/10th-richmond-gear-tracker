@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { type ItemInput, retireItem, unretireItem, updateItem } from "../lib/actions";
+import { hasOpenConflict } from "../lib/conflicts";
 import { foundFor, resolveFound } from "../lib/found";
 import { codesFor, homeLabel, item, typeName } from "../lib/inventory";
 import { history, type HistoryEntry } from "../lib/movement";
@@ -120,9 +121,12 @@ export function ItemPage({ store, id }: Props) {
         {it.name}
         {it.retired && <span className="badge">Retired</span>}
       </h2>
-      {(it.conflicts?.length ?? 0) > 0 && (
-        <p className="notice" role="note">
-          Two check-outs overlapped; the Quartermaster will sort it out.
+      {hasOpenConflict(state, id) && (
+        <p className="notice notice-row" role="note">
+          <span>Two check-outs overlapped.</span>
+          <button type="button" className="minor" onClick={() => guard(() => navigate("/conflicts"))}>
+            Review
+          </button>
         </p>
       )}
       {foundFor(state, id).map((r) => (

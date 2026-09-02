@@ -10,6 +10,7 @@ import { unsaved } from "./lib/unsaved";
 import { Banner } from "./ui/Banner";
 import { Bind } from "./ui/Bind";
 import { CodeLanding } from "./ui/CodeLanding";
+import { Conflicts } from "./ui/Conflicts";
 import { Found } from "./ui/Found";
 import { InstallPrompt } from "./ui/InstallPrompt";
 import { Inventory } from "./ui/Inventory";
@@ -167,6 +168,8 @@ function Screen({ store, api, route, shell }: { store: Store; api: Api; route: R
       break;
     case "found":
       return <Found store={store} />;
+    case "conflicts":
+      return <Conflicts store={store} />;
     case "repairs":
       return second ? <RepairPage store={store} id={second} /> : <Repairs store={store} />;
     case "reservations":
