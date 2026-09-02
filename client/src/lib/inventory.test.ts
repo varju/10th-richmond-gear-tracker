@@ -379,3 +379,22 @@ test("merging needs an Admin and two items that are in, unretired and unmerged",
   await store.setMeta({ user: { id: "carol", name: "Carol", role: "user", active: true } });
   await expect(act.mergeItem(store, f.t2, f.t1)).rejects.toThrow("Admins only");
 });
+
+test("a number the server sent as a whole number still reads as text (FR-INV-23)", async () => {
+  // Events written before numbers were text hold an integer, and the snapshot
+  // carries it through. Reading it as a string is what blanked the app.
+  await store.bootstrap(
+    {
+      item: {
+        tents: { name: "4-person tent", generic: true },
+        u1: { parent_id: "tents", number: 10 },
+        u2: { parent_id: "tents", number: 2 },
+      },
+    },
+    1,
+  );
+  expect(inv.unitsOf(store.state, "tents").map(inv.numberOf)).toEqual(["2", "10"]);
+  expect(inv.displayName(store.state, inv.item(store.state, "u1")!)).toBe("4-person tent #10");
+  expect(inv.numberTaken(store.state, "tents", "2")).toBe(true);
+  expect(inv.nextNumber(store.state, "tents")).toBe("11");
+});

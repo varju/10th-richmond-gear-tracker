@@ -20,8 +20,12 @@ export interface Item {
   generic?: boolean;
   /** Set on a unit: the generic it belongs to. */
   parent_id?: string | null;
-  /** A unit's number under its parent, unique there. Text: the gear may read "A" or "3b" (FR-INV-23). */
-  number?: string | null;
+  /**
+   * A unit's number under its parent, unique there. Text: the gear may read
+   * "A" or "3b" (FR-INV-23). Events written before that hold a whole number,
+   * so read it through `numberOf`, never as a string.
+   */
+  number?: string | number | null;
   /** "patched fly": what tells this unit from its siblings (FR-INV-23). */
 
   nickname?: string | null;
@@ -123,13 +127,19 @@ export const movable = (state: State): Item[] => items(state).filter((it) => !it
 export const generics = (state: State): Item[] => items(state).filter((it) => it.generic);
 
 /**
+ * A unit's number as text. Events written before numbers were text hold a
+ * whole number, so coerce rather than assume. Mirrors views.py.
+ */
+export const numberOf = (it: Item): string => String(it.number ?? "").trim();
+
+/**
  * Unit numbers in the order people read them: whole numbers first and in
  * numeric order, so 2 comes before 10, then everything else as text. Mirrored
  * in views.py, which sorts the same lists for the assistant.
  */
 export function byNumber(a: Item, b: Item): number {
-  const x = (a.number ?? "").trim();
-  const y = (b.number ?? "").trim();
+  const x = numberOf(a);
+  const y = numberOf(b);
   const nx = /^\d+$/.test(x) ? Number(x) : null;
   const ny = /^\d+$/.test(y) ? Number(y) : null;
   if (nx !== null && ny !== null) return nx - ny;
@@ -155,7 +165,7 @@ export const parentOf = (state: State, it: Item): Item | undefined =>
 export function displayName(state: State, it: Item): string {
   if (!it.parent_id) return it.name ?? "";
   const parent = parentOf(state, it);
-  const base = `${parent?.name ?? "(unknown item)"} #${it.number ?? "?"}`;
+  const base = `${parent?.name ?? "(unknown item)"} #${numberOf(it) || "?"}`;
   return it.nickname ? `${base} (${it.nickname})` : base;
 }
 
@@ -176,7 +186,7 @@ export const byName = (state: State) => (a: Item, b: Item) =>
  */
 export function nextNumber(state: State, genericId: string): string {
   const used = unitsOf(state, genericId)
-    .map((u) => (u.number ?? "").trim())
+    .map(numberOf)
     .filter((n) => /^\d+$/.test(n))
     .map(Number);
   return String(used.length ? Math.max(...used) + 1 : 1);
@@ -184,7 +194,7 @@ export function nextNumber(state: State, genericId: string): string {
 
 /** Numbers are unique within a generic, checked on this device (FR-INV-23). Case counts. */
 export const numberTaken = (state: State, genericId: string, number: string, exceptId?: string): boolean =>
-  unitsOf(state, genericId).some((u) => (u.number ?? "").trim() === number.trim() && u.id !== exceptId);
+  unitsOf(state, genericId).some((u) => numberOf(u) === number.trim() && u.id !== exceptId);
 
 /**
  * Generics worth offering on a scanned code, most recently touched first

@@ -4,7 +4,7 @@
  */
 import type { Store } from "./store";
 import { newUlid } from "./ulid";
-import { blockers, displayName, type Item, item, nextNumber, numberTaken, unitsOf } from "./inventory";
+import { blockers, displayName, type Item, item, nextNumber, numberOf, numberTaken, unitsOf } from "./inventory";
 
 /** What the item form holds. The price is typed as text and stored as a number (FR-INV-12). */
 export type ItemInput = Pick<
@@ -135,7 +135,8 @@ export async function moveUnit(store: Store, id: string, parentId: string): Prom
   if (!it?.parent_id) throw new Error("not a unit");
   if (!parent?.generic) throw new Error("not a generic item");
   if (parentId === it.parent_id) return;
-  const number = numberTaken(store.state, parentId, it.number ?? "") ? nextNumber(store.state, parentId) : it.number;
+  const mine = numberOf(it);
+  const number = numberTaken(store.state, parentId, mine) ? nextNumber(store.state, parentId) : mine;
   await changed(store, "item", id, { parent_id: parentId, number });
 }
 

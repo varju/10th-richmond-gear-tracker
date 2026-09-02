@@ -26,6 +26,7 @@ import {
   item,
   nameOf,
   nextNumber,
+  numberOf,
   numberTaken,
   parentOf,
   search,
@@ -293,7 +294,7 @@ export function ItemPage({ store, id }: Props) {
                   >
                     {parentOf(state, it)?.name ?? "(unknown item)"}
                   </button>
-                  {` · #${it.number ?? "?"}`}
+                  {` · #${numberOf(it) || "?"}`}
                   {it.nickname ? ` · ${it.nickname}` : ""}
                 </dd>
               </>
@@ -740,7 +741,7 @@ function EditItem({
 }) {
   const unit = Boolean(it.parent_id);
   const [values, setValues] = useState(initial);
-  const [number, setNumber] = useState(it.number ?? "");
+  const [number, setNumber] = useState(numberOf(it));
   const [nickname, setNickname] = useState(it.nickname ?? "");
   const [nowRetired, setNowRetired] = useState(retired);
   const [several, setSeveral] = useState(false);
@@ -756,7 +757,7 @@ function EditItem({
   const dirty =
     nowRetired !== retired ||
     several ||
-    (unit && (number !== (it.number ?? "") || nickname !== (it.nickname ?? ""))) ||
+    (unit && (number !== numberOf(it) || nickname !== (it.nickname ?? ""))) ||
     (Object.keys(values) as (keyof ItemInput)[]).some((k) => values[k] !== initial[k]);
   useUnsaved(dirty, { save: () => apply().then((ok) => ok), canSave });
 
