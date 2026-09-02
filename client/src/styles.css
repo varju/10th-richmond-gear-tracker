@@ -12,6 +12,12 @@
   box-sizing: border-box;
 }
 
+/* Keyboard focus is always visible, on every background (NFR-A11Y-01). */
+:focus-visible {
+  outline: 3px solid var(--warn);
+  outline-offset: 2px;
+}
+
 body {
   margin: 0;
   background: var(--navy);

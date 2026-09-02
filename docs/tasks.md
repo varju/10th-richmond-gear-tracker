@@ -37,28 +37,10 @@ The vertical slice is built. What is left needs a phone.
 
 ## M9 — Go live
 
-First real use, not the finished release. Musts in repairs, reservations and found gear are still to come in M10-M12;
-going live early buys feedback while the inventory is fresh from the labelling walk. MoSCoW priorities say what the
-system needs before it is done, not what M9 needs.
+First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is
+fresh from the labelling walk.
 
 - [ ] Put the nightly `gear-backup` in the host's cron, and rehearse a restore once ([deploy.md](deploy.md#restoring))
 - [ ] Print code sheets and do the labelling walk (S-BOOT-02, S-BOOT-03)
 
 Public pages come before the labelling walk, not after it. From the moment stickers go on gear, a stranger can scan one.
-
-## M13 — The rest
-
-Pulled forward only when someone asks for them.
-
-- [ ] Mark an item missing; clears on the next scan (FR-INV-19)
-- [ ] Revoke one device without deactivating its account (FR-USR-14)
-- [ ] Screen for reviewing queued conflicts (FR-OFF-10)
-- [ ] Photos: never cached, captured offline, uploaded at next sync (FR-INV-11); then the photo on a repair ticket
-      (FR-REP-01)
-- [ ] Purchase date, price, supplier (FR-INV-12)
-- [ ] Merge duplicate items, once the append-only design for it is settled (FR-INV-13)
-- [ ] Browse by location and sub-location (FR-INV-10)
-- [ ] Repair report (FR-RPT-02)
-- [ ] Misplaced gear report (FR-RPT-09)
-- [ ] Audit history on the item page (FR-USR-09)
-- [ ] Accessibility pass to WCAG 2.2 AA (NFR-A11Y-01)

@@ -585,6 +585,10 @@ covers most of what a browser would otherwise be asked to prove.
 
 Browser tests get their own `make` target, separate from `make check`. CI runs both.
 
+One of them is an accessibility audit: axe runs WCAG 2.2 AA checks on the main screens against the real build
+(NFR-A11Y-01). It runs in the browser because contrast needs real layout. What axe cannot judge, focus order and whether
+a screen reader makes sense of the check-out flow, stays manual (NFR-A11Y-04).
+
 ### What stays manual
 
 The real-phone-in-a-real-locker test (M7), and everything waiting on label stock. No suite reaches those.
