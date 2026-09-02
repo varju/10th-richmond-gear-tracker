@@ -1,8 +1,9 @@
 import { openConflicts } from "../lib/conflicts";
 import { foundReports } from "../lib/found";
-import { countItems, items, movable, rows } from "../lib/inventory";
+import { countItems, items, rows } from "../lib/inventory";
 import type { State } from "../lib/replay";
 import { openTickets } from "../lib/repairs";
+import { outCount } from "../lib/reports";
 import { todayIso, upcoming } from "../lib/reservations";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -52,8 +53,7 @@ export function Sections({ store, layout }: Props) {
   useStore(store);
   const { now } = useShell();
   const state = store.state;
-  // Units and single items, never a generic. Missing gear is not out (FR-INV-19); the report agrees.
-  const out = movable(state).filter((it) => it.status === "out" && !it.missing).length;
+  const out = outCount(state);
   const broken = openTickets(state).length;
   const booked = upcoming(state, todayIso(now())).length;
   const empty = items(state).length === 0;

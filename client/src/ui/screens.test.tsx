@@ -388,7 +388,8 @@ test("home is empty until something is asked of it", async () => {
   await fixture();
   mount();
   const user = userEvent.setup();
-  expect(screen.getByText("Scan a code, or search by name.")).toBeInTheDocument();
+  const hint = "Scan a code to take gear out or bring it back. Search by name for gear with no sticker.";
+  expect(screen.getByText(hint)).toBeInTheDocument();
   expect(screen.queryAllByRole("listitem")).toEqual([]);
   // No count, no sync line, no filters: the list is a fold away at /items.
   expect(screen.queryByText("2 items")).not.toBeInTheDocument();
@@ -399,7 +400,22 @@ test("home is empty until something is asked of it", async () => {
   expect(location.pathname + location.search).toBe("/?q=tent");
 
   await user.clear(screen.getByLabelText("Search"));
-  expect(screen.getByText("Scan a code, or search by name.")).toBeInTheDocument();
+  expect(screen.getByText(hint)).toBeInTheDocument();
+});
+
+test("home says what is out, and only while something is", async () => {
+  const f = await fixture();
+  mount();
+  const user = userEvent.setup();
+  expect(screen.queryByRole("button", { name: /item.? out/ })).not.toBeInTheDocument();
+
+  await checkOut(store, f.t1, { event: "Spring camp" });
+  await user.click(await screen.findByRole("button", { name: "1 item out" }));
+  expect(location.pathname).toBe("/out");
+
+  // A search takes the screen over; the count is not what someone is looking at.
+  reactAct(() => navigate("/?q=tent"));
+  expect(screen.queryByRole("button", { name: "1 item out" })).not.toBeInTheDocument();
 });
 
 test("the phone's /items is the whole list, counted and filtered", async () => {

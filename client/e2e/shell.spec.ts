@@ -101,7 +101,7 @@ test("an item can be checked out and in from its page", async ({ page }) => {
   await signIn(page);
   await page.goto("/");
   // Home holds nothing but the alerts until it is asked something.
-  await expect(page.getByText("Scan a code, or search by name.")).toBeVisible();
+  await expect(page.getByText("Scan a code to take gear out or bring it back.")).toBeVisible();
   await expect(page.getByRole("listitem")).toHaveCount(0);
 
   // The list is a fold away.

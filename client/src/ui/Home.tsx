@@ -1,9 +1,11 @@
 import { rows } from "../lib/inventory";
 import { filterParams, withQuery } from "../lib/listUrl";
+import { outCount } from "../lib/reports";
 import { navigate, useRoute } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { ItemList } from "./ItemList";
+import { plural } from "./labels";
 import { Alerts, Sections } from "./Sections";
 
 /**
@@ -20,6 +22,8 @@ export function Home({ store }: { store: Store }) {
   const show = (text: string) => navigate(withQuery("/", filterParams(text, {})), true);
 
   const list = query ? rows(store.state, { query }) : [];
+  // How gear comes back: the way out is a scan, and so is the way home.
+  const out = outCount(store.state);
 
   return (
     <>
@@ -38,7 +42,16 @@ export function Home({ store }: { store: Store }) {
             <ItemList store={store} list={list} />
           )
         ) : (
-          <p className="muted">Scan a code, or search by name.</p>
+          <>
+            <p className="muted">
+              Scan a code to take gear out or bring it back. Search by name for gear with no sticker.
+            </p>
+            {out > 0 && (
+              <button className="link" type="button" onClick={() => navigate("/out")}>
+                {plural(out, "item")} out
+              </button>
+            )}
+          </>
         )}
         <details className="more">
           <summary>More</summary>

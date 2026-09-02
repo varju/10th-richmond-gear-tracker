@@ -4,7 +4,7 @@
  * functions over state; the phone answers this with no network.
  */
 import { DAY_MS } from "./clock";
-import { displayName, group, type Item, items } from "./inventory";
+import { displayName, group, type Item, items, movable } from "./inventory";
 import type { State } from "./replay";
 
 export interface OutItem {
@@ -26,6 +26,10 @@ export interface OutReport {
   total: number;
   overdue: number;
 }
+
+/** How much gear is out: units and single items, never a generic. Missing gear is not out (FR-INV-19). */
+export const outCount = (state: State): number =>
+  movable(state).filter((it) => it.status === "out" && !it.missing).length;
 
 export const daysOut = (it: Item, now: number): number => Math.floor(Math.max(0, now - (it.since ?? now)) / DAY_MS);
 

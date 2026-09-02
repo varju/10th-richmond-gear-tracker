@@ -403,13 +403,36 @@ button.item {
   margin-top: 16px;
 }
 
+/* A fold opens like a link, so it reads like one: muted text was tapped by nobody. */
 .filters summary,
 .more summary {
   min-height: 44px;
   display: flex;
   align-items: center;
-  color: var(--muted);
+  gap: 6px;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
   cursor: pointer;
+  list-style: none;
+}
+
+.filters summary::-webkit-details-marker,
+.more summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Which way the fold goes. A flex item, so the underline stops at the text. */
+.filters summary::before,
+.more summary::before {
+  content: "▸";
+}
+
+.filters[open] > summary::before,
+.more[open] > summary::before {
+  content: "▾";
 }
 
 .filters .row {
