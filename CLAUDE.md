@@ -71,12 +71,11 @@ This covers layout only. The House style rules above are about what you write, a
 
 ## Delegating
 
-Non-trivial edits go to the `implementer` agent. Non-trivial means more than a few lines, or more than one file.
+Every edit goes to the `implementer` agent, with one exception: a few lines in one file. A change that touches two files
+is delegated, however small each piece is. "The spec would take longer than the edit" is not a reason to do it here.
 
 The top-level session keeps the parts that need this conversation: reading code, deciding the design, writing the spec,
 reviewing what comes back, and the commit.
-
-Do the edit yourself when writing the spec would take longer than the edit.
 
 Agents defined in `.claude/agents/` pin their own model. For anything spawned without one, pick the smallest model that
 will do. Never Fable.
