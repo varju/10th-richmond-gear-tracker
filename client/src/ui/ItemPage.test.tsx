@@ -1,14 +1,16 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
 import { DAY_MS } from "../lib/clock";
 import { item } from "../lib/inventory";
 import * as mv from "../lib/movement";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
+import { unsaved } from "../lib/unsaved";
 import { openStore } from "./codeTestKit";
 import { ItemPage } from "./ItemPage";
+import { LeaveDialog } from "./LeaveDialog";
 import { alice, carol, renderInShell, seedUsers } from "./moveTestKit";
 
 // Movement from the item page, for gear with no sticker (FR-OUT-02, FR-OUT-07), and the item's history.
@@ -22,7 +24,18 @@ beforeEach(async () => {
   navigate(`/items/${tent}`);
 });
 
+afterEach(() => unsaved.cancel());
+
 const user = userEvent.setup();
+const dialog = () => screen.findByRole("alertdialog");
+const withDialog = () =>
+  renderInShell(
+    <>
+      <ItemPage store={store} id={tent} />
+      <LeaveDialog />
+    </>,
+  );
+
 const actions = () => screen.getByRole("button", { name: "Replace code" }).closest(".actions")!;
 const section = (name: string) => screen.getByRole("heading", { name }).nextElementSibling!;
 
@@ -129,4 +142,40 @@ test("?edit=1 opens the form straight away, and saving drops it from the URL", a
   await user.click(screen.getByRole("button", { name: "Cancel" }));
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Item");
   expect(location.search).toBe("");
+});
+
+test("cancelling an edit with changes asks; Save keeps them", async () => {
+  withDialog();
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Tent 1" })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.type(screen.getByLabelText("Name"), " (green)");
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await user.click(within(await dialog()).getByRole("button", { name: "Save" }));
+  expect(await screen.findByRole("heading", { name: "Tent 1 (green)" })).toBeInTheDocument();
+  expect(item(store.state, tent)?.name).toBe("Tent 1 (green)");
+});
+
+test("cancelling an edit with changes asks; Discard drops them", async () => {
+  withDialog();
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.type(screen.getByLabelText("Name"), " (green)");
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await user.click(within(await dialog()).getByRole("button", { name: "Discard" }));
+  expect(await screen.findByRole("heading", { name: "Tent 1" })).toBeInTheDocument();
+  expect(item(store.state, tent)?.name).toBe("Tent 1");
+});
+
+test("a half-typed note asks on Back; Save records it", async () => {
+  withDialog();
+  // The first "Add note" is the item's; the move buttons have their own.
+  await user.click(screen.getAllByRole("button", { name: "Add note" })[0]!);
+  await user.type(screen.getByLabelText("New note"), "pole bent");
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  await user.click(within(await dialog()).getByRole("button", { name: "Save" }));
+  expect(store.pending.filter((e) => e.type === "note_added").map((e) => e.payload)).toEqual([{ text: "pole bent" }]);
+  expect(location.pathname).toBe("/");
 });

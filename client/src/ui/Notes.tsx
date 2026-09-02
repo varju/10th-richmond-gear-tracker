@@ -3,6 +3,7 @@ import { addNote, correctNote } from "../lib/movement";
 import type { Note } from "../lib/replay";
 import type { Store } from "../lib/store";
 import { isoDate } from "../lib/time";
+import { useUnsaved } from "../lib/unsaved";
 import { userName } from "./labels";
 
 /** Notes with an Edit beside each. A correction is appended; the original stays in the log (FR-OUT-16). */
@@ -20,16 +21,23 @@ export function NoteList({ store, itemId, notes }: { store: Store; itemId: strin
 function NoteLine({ store, itemId, note }: { store: Store; itemId: string; note: Note }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const text = draft?.trim() ?? "";
+  useUnsaved(draft !== null && text !== "" && text !== note.text, { save: commit, canSave: text !== "" });
 
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    const text = draft?.trim() ?? "";
+  async function commit(): Promise<boolean> {
     try {
       if (text && text !== note.text) await correctNote(store, itemId, note.id, text);
       setDraft(null);
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save the note");
+      return false;
     }
+  }
+
+  function save(e: FormEvent) {
+    e.preventDefault();
+    void commit();
   }
 
   if (draft !== null) {
@@ -68,12 +76,18 @@ function NoteLine({ store, itemId, note }: { store: Store; itemId: string; note:
 /** A note on the item itself, not on a movement. */
 export function AddNote({ store, itemId }: { store: Store; itemId: string }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const text = draft?.trim() ?? "";
+  useUnsaved(text !== "", { save: commit });
 
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    const text = draft?.trim() ?? "";
+  async function commit(): Promise<boolean> {
     if (text) await addNote(store, itemId, text);
     setDraft(null);
+    return true;
+  }
+
+  function save(e: FormEvent) {
+    e.preventDefault();
+    void commit();
   }
 
   if (draft === null) {

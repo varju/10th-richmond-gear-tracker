@@ -6,12 +6,14 @@ import { type Route, useRoute } from "./lib/router";
 import { ensurePersistent, type Persistence } from "./lib/storage";
 import type { Store } from "./lib/store";
 import { sync, type SyncOutcome } from "./lib/sync";
+import { unsaved } from "./lib/unsaved";
 import { Banner } from "./ui/Banner";
 import { Bind } from "./ui/Bind";
 import { CodeLanding } from "./ui/CodeLanding";
 import { InstallPrompt } from "./ui/InstallPrompt";
 import { Inventory } from "./ui/Inventory";
 import { ItemPage } from "./ui/ItemPage";
+import { LeaveDialog } from "./ui/LeaveDialog";
 import { NewItem } from "./ui/NewItem";
 import { Page } from "./ui/Page";
 import { PendingInterrupt } from "./ui/PendingInterrupt";
@@ -73,6 +75,15 @@ export function App({ store, api, now = Date.now }: Props) {
     void ensurePersistent().then(setPersistence);
   }, []);
 
+  // Closing or reloading the tab with a draft open gets the browser's own question.
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => {
+      if (unsaved.any) e.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
+
   async function signOut() {
     try {
       await api.signOut();
@@ -115,6 +126,7 @@ export function App({ store, api, now = Date.now }: Props) {
             <Screen store={store} api={api} route={route} shell={shell} />
           </>
         )}
+        <LeaveDialog />
       </div>
     </ShellContext>
   );

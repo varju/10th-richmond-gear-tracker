@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useState } from "react";
 import type { Item } from "../lib/inventory";
 import { checkIn, checkOut, transfer } from "../lib/movement";
 import type { Store } from "../lib/store";
+import { useUnsaved } from "../lib/unsaved";
 
 /** How long a "Checked out · Tent 1" strip stays up. */
 export const CONFIRM_MS = 1500;
@@ -40,6 +41,8 @@ export function MoveActions({ store, it, showEvent = false, onMoved, children }:
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A typed note only makes sense with a move, so leaving asks but cannot save it.
+  useUnsaved(note !== null && note.trim() !== "");
   const me = store.meta.user?.id;
   const event = store.meta.session_event;
 

@@ -5,6 +5,7 @@ import { code as codeOf, codeStatus, homeLabel, item } from "../lib/inventory";
 import { navigate, useRoute } from "../lib/router";
 import { startScanner } from "../lib/scanner";
 import type { Store } from "../lib/store";
+import { guard, useUnsaved } from "../lib/unsaved";
 import { useStore } from "../useStore";
 import { statusLabel } from "./labels";
 import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
@@ -158,20 +159,20 @@ export function Scan({ store }: { store: Store }) {
             >
               <div className="row">
                 {card.retired ? (
-                  <button type="button" onClick={() => navigate(`/items/${card.id}`)}>
+                  <button type="button" onClick={() => guard(() => navigate(`/items/${card.id}`))}>
                     Open item
                   </button>
                 ) : (
-                  <button type="button" onClick={() => navigate(`/items/${card.id}?edit=1`)}>
+                  <button type="button" onClick={() => guard(() => navigate(`/items/${card.id}?edit=1`))}>
                     Edit
                   </button>
                 )}
-                <button type="button" onClick={() => showCard(null)}>
+                <button type="button" onClick={() => guard(() => showCard(null))}>
                   Skip
                 </button>
               </div>
               {card.retired && (
-                <button type="button" onClick={() => navigate(`/items/${card.id}?edit=1`)}>
+                <button type="button" onClick={() => guard(() => navigate(`/items/${card.id}?edit=1`))}>
                   Edit
                 </button>
               )}
@@ -188,11 +189,16 @@ function SessionEvent({ store }: { store: Store }) {
   const event = store.meta.session_event;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  useUnsaved(editing && draft.trim() !== (event ?? ""), { save: () => apply().then(() => true) });
 
-  async function set(e: FormEvent) {
-    e.preventDefault();
+  async function apply() {
     await store.setMeta({ session_event: draft.trim() || undefined });
     setEditing(false);
+  }
+
+  function set(e: FormEvent) {
+    e.preventDefault();
+    void apply();
   }
 
   async function clear() {

@@ -7,6 +7,7 @@ import { isOverdue } from "../lib/reports";
 import { navigate, useRoute } from "../lib/router";
 import type { Store } from "../lib/store";
 import { isoDate } from "../lib/time";
+import { guard, useUnsaved } from "../lib/unsaved";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { ItemFields } from "./ItemFields";
@@ -195,15 +196,21 @@ function EditItem({
 }) {
   const [values, setValues] = useState(initial);
   const [saving, setSaving] = useState(false);
+  const dirty = (Object.keys(values) as (keyof ItemInput)[]).some((k) => values[k] !== initial[k]);
+  useUnsaved(dirty, { save: () => apply().then(() => true), canSave: values.name.trim() !== "" });
 
-  async function save() {
+  async function apply() {
     setSaving(true);
     try {
       await updateItem(store, id, values);
-      onDone();
     } finally {
       setSaving(false);
     }
+  }
+
+  async function save() {
+    await apply();
+    onDone();
   }
 
   return (
@@ -214,7 +221,7 @@ function EditItem({
           <button className="primary" type="button" onClick={save} disabled={saving || values.name.trim() === ""}>
             Save
           </button>
-          <button type="button" onClick={onDone}>
+          <button type="button" onClick={() => guard(onDone)}>
             Cancel
           </button>
         </>

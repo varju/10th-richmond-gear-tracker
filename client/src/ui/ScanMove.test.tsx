@@ -1,11 +1,13 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
 import { item } from "../lib/inventory";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
+import { unsaved } from "../lib/unsaved";
 import { openStore, printCodes } from "./codeTestKit";
+import { LeaveDialog } from "./LeaveDialog";
 import { alice, carol, renderInShell, seedUsers } from "./moveTestKit";
 import { Scan } from "./Scan";
 
@@ -26,6 +28,8 @@ beforeEach(async () => {
   await act.bindCode(store, "AAAAAAAAAA", tent);
   navigate("/scan");
 });
+
+afterEach(() => unsaved.cancel());
 
 const user = userEvent.setup();
 
@@ -165,4 +169,26 @@ test("an unassigned code still lands on /g/<code>; an unknown one is refused", a
   expect(location.pathname).toBe("/scan");
   await typeCode("BBBBBBBBBB");
   expect(location.pathname).toBe("/g/BBBBBBBBBB");
+});
+
+test("Skip with a typed note asks first; Keep editing keeps the card, Discard drops it", async () => {
+  renderInShell(
+    <>
+      <Scan store={store} />
+      <LeaveDialog />
+    </>,
+  );
+  await typeCode("AAAAAAAAAA");
+  await user.click(within(card()).getByRole("button", { name: "Add note" }));
+  await user.type(screen.getByLabelText("Note"), "muddy");
+  await user.click(within(card()).getByRole("button", { name: "Skip" }));
+  const dialog = await screen.findByRole("alertdialog");
+  expect(within(dialog).queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+  await user.click(within(dialog).getByRole("button", { name: "Keep editing" }));
+  expect(card()).toBeInTheDocument();
+  expect(screen.getByLabelText("Note")).toHaveValue("muddy");
+
+  await user.click(within(card()).getByRole("button", { name: "Skip" }));
+  await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Discard" }));
+  expect(screen.queryByRole("region", { name: "Tent 1" })).not.toBeInTheDocument();
 });

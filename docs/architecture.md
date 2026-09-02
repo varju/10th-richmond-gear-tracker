@@ -197,6 +197,10 @@ Each sync pushes first, then pulls until a page comes back empty. On a 410 it bo
 bootstrap and is replayed on top of the new snapshot. After a sync, events older than 90 days that the server has
 already sequenced are folded into the snapshot (NFR-DATA-03). Nothing unsent is ever folded.
 
+Leaving a screen that holds a draft asks first: save, discard, or keep editing (FR-INV-20). Each form registers its
+draft through one hook, and every exit goes through one guard that either runs at once or waits for the answer. The
+browser's own question covers closing or reloading the tab.
+
 The Python server serves the built client, so one process is the whole deployment. In development Vite serves the client
 and forwards API calls.
 

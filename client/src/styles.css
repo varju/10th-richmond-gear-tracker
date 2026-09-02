@@ -135,6 +135,29 @@ label span {
   color: var(--warn);
 }
 
+/* A question at the thumb, over whatever is on screen. */
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  background: var(--navy, #001a70);
+  border-top: 1px solid #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sheet h2 {
+  margin: 0;
+}
+
+.sheet p {
+  margin: 0 0 8px;
+}
+
 .interrupt {
   flex: 1;
   display: flex;

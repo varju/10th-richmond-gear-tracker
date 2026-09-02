@@ -4,6 +4,7 @@ import { locations } from "../lib/inventory";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { EMPTY_ITEM, ItemFields } from "./ItemFields";
+import { useUnsaved } from "../lib/unsaved";
 import { Page } from "./Page";
 
 interface Props {
@@ -37,21 +38,27 @@ function rememberLocation(id: string | null | undefined) {
 export function NewItem({ store, code }: Props) {
   const [values, setValues] = useState<ItemInput>(() => ({ ...EMPTY_ITEM, home_location_id: lastLocation(store) }));
   const [saving, setSaving] = useState(false);
+  // The home is prefilled from last time; typing anything else is a draft (back asks before losing it).
+  const dirty = Object.entries(values).some(
+    ([k, v]) => k !== "home_location_id" && v !== EMPTY_ITEM[k as keyof ItemInput],
+  );
+  useUnsaved(dirty, { save: () => create().then(() => true), canSave: values.name.trim() !== "" });
 
-  async function save() {
+  async function create(): Promise<string> {
     setSaving(true);
     try {
       const id = await createItem(store, values);
       rememberLocation(values.home_location_id);
-      if (code) {
-        await bindCode(store, code, id);
-        navigate("/scan", true);
-      } else {
-        navigate(`/items/${id}`, true);
-      }
+      if (code) await bindCode(store, code, id);
+      return id;
     } finally {
       setSaving(false);
     }
+  }
+
+  async function save() {
+    const id = await create();
+    navigate(code ? "/scan" : `/items/${id}`, true);
   }
 
   return (

@@ -144,6 +144,63 @@ test("a new item without a code opens its page", async () => {
   expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Tarp");
 });
 
+test("back with a half-typed new item asks; Keep editing stays, Save creates it, Discard drops it", async () => {
+  await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  expect(screen.getByText("Gear Tracker")).toBeInTheDocument();
+
+  navigate("/items/new");
+  await user.type(await screen.findByLabelText("Name"), "Lantern");
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  const dialog = await screen.findByRole("alertdialog");
+  expect(dialog).toHaveTextContent("Unsaved changes");
+  await user.click(within(dialog).getByRole("button", { name: "Keep editing" }));
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Name")).toHaveValue("Lantern");
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(inv.items(store.state).map((i) => i.name)).toContain("Lantern"));
+  expect(await screen.findByText("Gear Tracker")).toBeInTheDocument();
+
+  navigate("/items/new");
+  await user.type(await screen.findByLabelText("Name"), "Nope");
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Discard" }));
+  expect(await screen.findByText("Gear Tracker")).toBeInTheDocument();
+  expect(inv.items(store.state).map((i) => i.name)).not.toContain("Nope");
+});
+
+test("back with an unsaved group name asks; Save keeps it and goes home", async () => {
+  navigate("/settings");
+  mount();
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Group name"), "10th Richmond");
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  const dialog = await screen.findByRole("alertdialog");
+  await user.click(within(dialog).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(inv.group(store.state).name).toBe("10th Richmond"));
+  expect(await screen.findByText("Gear Tracker")).toBeInTheDocument();
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+});
+
+test("back with a location typed but not added asks; Discard drops it", async () => {
+  await fixture();
+  navigate("/settings");
+  mount();
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("New location"), "Dry locker");
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  const dialog = await screen.findByRole("alertdialog");
+  await user.click(within(dialog).getByRole("button", { name: "Discard" }));
+  expect(await screen.findByText("Gear Tracker")).toBeInTheDocument();
+  expect(inv.locations(store.state).map((l) => l.name)).toEqual(["Cold locker", "Warm locker"]);
+});
+
 test("deleting a location in use is refused and names the items", async () => {
   await fixture();
   navigate("/settings");

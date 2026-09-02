@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { InUse } from "../lib/actions";
+import { useUnsaved } from "../lib/unsaved";
 
 interface Named {
   id: string;
@@ -20,6 +21,14 @@ export function NameList({ noun, items, onAdd, onRename, onDelete }: Props) {
   const [adding, setAdding] = useState("");
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // A name typed but not added, or a rename not saved, is a draft; leaving asks first.
+  const original = editing ? items.find((n) => n.id === editing.id)?.name : undefined;
+  useUnsaved(adding.trim() !== "", { save: () => add().then(() => true) });
+  useUnsaved(editing !== null && editing.name.trim() !== original, {
+    save: () => rename().then(() => true),
+    canSave: Boolean(editing?.name.trim()),
+  });
 
   async function remove(id: string) {
     setError(null);

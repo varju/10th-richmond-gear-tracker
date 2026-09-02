@@ -13,6 +13,7 @@ import type { Api } from "../lib/api";
 import { group, itemTypes, locations } from "../lib/inventory";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
+import { useUnsaved } from "../lib/unsaved";
 import { useStore } from "../useStore";
 import { syncLabel } from "./labels";
 import { NameList } from "./NameList";
@@ -101,6 +102,7 @@ function GroupForm({ store }: { store: Store }) {
   const setName = (v: string) => setDraft((d) => ({ ...d, name: v }));
   const setCodeUrl = (v: string) => setDraft((d) => ({ ...d, code_url: v }));
   const setOverdueDays = (v: string) => setDraft((d) => ({ ...d, overdue_days: v }));
+  useUnsaved(dirty, { save: () => save().then(() => true) });
 
   async function save() {
     // Blank means never flag (FR-OUT-14).

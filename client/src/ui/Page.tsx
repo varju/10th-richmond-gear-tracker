@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { navigate } from "../lib/router";
+import { leave } from "../lib/unsaved";
 
 interface Props {
   title: string;
@@ -16,7 +16,7 @@ export function Page({ title, back, children, actions }: Props) {
     <>
       <header>
         {back !== undefined && (
-          <button className="back" type="button" onClick={() => navigate(back)} aria-label="Back">
+          <button className="back" type="button" onClick={() => leave(back)} aria-label="Back">
             ‹
           </button>
         )}
