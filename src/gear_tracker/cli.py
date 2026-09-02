@@ -1,7 +1,7 @@
 """gear-admin: the things that have to happen at the server's keyboard.
 
-Creating the first Admin (FR-USR-13), and getting back in when every Admin
-has lost their password.
+Creating the first Admin (FR-USR-13), seeding a fresh instance from its config
+file, and getting back in when every Admin has lost their password.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ import argparse
 import getpass
 import sys
 
-from gear_tracker import accounts
+from gear_tracker import accounts, seed
 from gear_tracker.db import open_db
 from gear_tracker.errors import ApiError
 from gear_tracker.migrate import migrate
@@ -38,6 +38,9 @@ def main(argv: list[str] | None = None) -> int:
     reset = sub.add_parser("reset-link", help="print a one-time password reset link token for a user")
     reset.add_argument("--email", required=True)
 
+    apply_seed = sub.add_parser("seed", help="apply a seed file: first Admin, group setting, mail")
+    apply_seed.add_argument("--file", required=True, help="path to seed.toml")
+
     args = parser.parse_args(argv)
     migrate(args.db)
     with open_db(args.db) as conn:
@@ -49,13 +52,16 @@ def main(argv: list[str] | None = None) -> int:
                     return 1
                 user_id = accounts.create_admin(conn, args.name, args.email, password)
                 print(f"created Admin {args.email} ({user_id})")
+            elif args.command == "seed":
+                done = seed.apply(conn, seed.read(args.file))
+                print("\n".join(done) if done else "nothing to do")
             else:
-                row = conn.execute("SELECT user_id FROM accounts WHERE email = ?", (args.email.lower(),)).fetchone()
-                if row is None:
+                user_id = accounts.user_id_of(conn, args.email)
+                if user_id is None:
                     print(f"error: no account for {args.email}", file=sys.stderr)
                     return 1
                 # The keyboard is the credential here, so no Admin principal is needed.
-                token = accounts._issue_link(conn, row["user_id"], "reset", accounts.now_ms())
+                token = accounts._issue_link(conn, user_id, "reset", accounts.now_ms())
                 print(token)
         except ApiError as exc:
             print(f"error: {exc.message}", file=sys.stderr)

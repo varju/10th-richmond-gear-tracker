@@ -37,20 +37,11 @@ The vertical slice is built. What is left needs a phone.
 
 ## M19 — Seed a fresh instance
 
-Before M8, which resets the deployed database. Design in [architecture.md](architecture.md#seeding).
+Config seeding is built. What is left waits on M8 for generics.
 
-- [ ] `gear-admin seed --file`: first Admin with password, group setting (name, code URL, contact, overdue days), mail.
-      Idempotent; the password is used only at creation. Tests against a real file: empty database, unchanged file,
-      changed field, password changed in the app and left alone.
-- [ ] `seed.example.toml` committed with placeholders; `seed.toml` in `.gitignore`.
 - [ ] `fixtures/demo.toml`: the three locations, a few generics with units, a few single items. Loaded by
-      `gear-admin load --file` into an empty database only; refuses otherwise (NFR-MAINT-10). Waits on M8 for generics.
+      `gear-admin load --file` into an empty database only; refuses otherwise (NFR-MAINT-10).
 - [ ] `inventory = "demo"` or a path in `seed.toml` runs the loader after config. The e2e suite loads the same file.
-- [ ] The entrypoint runs seed after migrate when `/data/seed.toml` exists.
-- [ ] `make start-over`: stops the container, moves `gear.db` and `photos/` aside under a timestamp, starts again.
-      Nothing is deleted; the old copy is removed by hand later.
-- [ ] deploy.md: a "Start over" section, and "The first Admin" rewritten around the seed file with the command line as
-      the fallback.
 
 ## M8 — Generic items and units
 

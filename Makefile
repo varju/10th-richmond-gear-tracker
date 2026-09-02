@@ -1,6 +1,6 @@
 DB ?= gear.db
 
-.PHONY: setup test lint fmt migrate audit check client-install client-test client-build e2e serve image deploy logs
+.PHONY: setup test lint fmt migrate audit check client-install client-test client-build e2e serve image deploy logs start-over
 
 setup:
 	./bin/setup
@@ -56,6 +56,13 @@ GEAR_BASE ?= /
 # other things sets this in .envrc, so nothing about that host is committed.
 GEAR_DEPLOY ?= docker compose --project-name gear-tracker up --detach
 GEAR_LOGS   ?= docker compose --project-name gear-tracker logs --follow --tail 50
+# What stops it, for start-over. Same reason as GEAR_DEPLOY.
+GEAR_STOP   ?= docker compose --project-name gear-tracker stop
+# The directory on the server holding gear.db, photos/ and seed.toml. Only
+# start-over needs it here; compose reads it from the environment.
+GEAR_DATA   ?=
+# compose reads it from the environment, so a command-line GEAR_DATA reaches it too.
+export GEAR_DATA
 
 image:
 	docker build --build-arg BASE_PATH=$(GEAR_BASE) --tag $(IMAGE):$(TAG) --tag $(IMAGE):latest .
@@ -66,3 +73,18 @@ deploy: image
 
 logs:
 	$(GEAR_LOGS)
+
+# Back to an empty database, keeping the old one. The data directory is on the
+# server, so the move runs in a throwaway container mounting the same path.
+# Nothing is deleted; remove the old-* directory by hand once you are sure.
+start-over:
+	@test -n "$(GEAR_DATA)" || { echo "set GEAR_DATA to the server directory holding gear.db"; exit 1; }
+	$(GEAR_STOP)
+	docker run --rm --entrypoint sh --volume $(GEAR_DATA):/data $(IMAGE):latest -c '\
+	  set -eu; \
+	  old=/data/old-$$(date +%Y%m%d-%H%M%S); mkdir "$$old"; \
+	  for f in gear.db gear.db-wal gear.db-shm photos; do \
+	    if [ -e "/data/$$f" ]; then mv "/data/$$f" "$$old/"; fi; \
+	  done; \
+	  echo "moved aside into $$old"'
+	$(GEAR_DEPLOY)

@@ -1,0 +1,42 @@
+# What a fresh instance starts from. Copy this to GEAR_DATA/seed.toml on the
+# server and fill it in; the app reads it at every start.
+#
+# It holds passwords, so keep it off the repository. `seed.toml` is ignored by
+# git in case you make one here.
+#
+# Safe to leave in place. Nothing is written unless it differs from what is
+# stored. On the group setting and mail the file wins, so a change made in the
+# app is put back at the next start. On the Admin's password the app wins: the
+# one here is used once, when the account is made.
+
+# Optional test data for an empty database: "demo", or a path to a file of your
+# own. Locations and a few items, no codes. It has to sit above the sections;
+# TOML would read it as a key of the section before it.
+# inventory = "demo"
+
+# The first Admin, created if no account has this email.
+[admin]
+name = "Your Name"
+email = "you@example.org"
+password = "at least eight characters"
+
+# What the stickers and the public page say (FR-PUB-01).
+[group]
+name = "10th Richmond"
+# Where a sticker's QR code points. The public page lives under it.
+code_url = "https://example.org/gear/c"
+# How a finder reaches the group: a phone number or an address.
+contact = "604-555-0100"
+# Flag gear that has been out this long. Omit the line to never flag.
+overdue_days = 30
+
+# Optional. Leave the section out and the app shows invite and reset links for
+# an Admin to copy instead of mailing them (FR-USR-12). Most providers want an
+# app password here, not the one used to read mail.
+# [mail]
+# host = "smtp.example.org"
+# port = 465
+# encryption = "ssl"        # none, starttls, or ssl
+# username = "gear@example.org"
+# password = "an app password"
+# from_address = "gear@example.org"

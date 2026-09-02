@@ -1,7 +1,13 @@
 #!/bin/sh
-# Migrate, then serve. Migrations run on start so a deploy is one step
-# (NFR-MAINT-07); they are idempotent, so restarting is safe.
+# Migrate, seed, then serve. All of it runs on start so a deploy is one step
+# (NFR-MAINT-07); all of it is idempotent, so restarting is safe.
 set -eu
 
 gear-migrate --db "$DB"
+
+# The config file, when the host has put one beside the database (NFR-DEP-10).
+if [ -f /data/seed.toml ]; then
+    gear-admin --db "$DB" seed --file /data/seed.toml
+fi
+
 exec gear-serve --db "$DB" --static /app/client --host 0.0.0.0 --port 8000

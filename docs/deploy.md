@@ -26,9 +26,9 @@ export GEAR_PORT=8000
 export GEAR_BASE=/
 ```
 
-`GEAR_DATA` is a directory on the server. Everything worth keeping is in it — `gear.db`, the photos under `photos/`, and
-the nightly snapshots under `backups/` — so moving house is a copy of that one directory to the next machine
-(NFR-MAINT-05).
+`GEAR_DATA` is a directory on the server. Everything worth keeping is in it — `gear.db`, the photos under `photos/`, the
+nightly snapshots under `backups/`, and the `seed.toml` below — so moving house is a copy of that one directory to the
+next machine (NFR-MAINT-05).
 
 Check the connection before going further:
 
@@ -101,14 +101,31 @@ public code route its own top-level location rather than putting it under the ap
 
 ## The first Admin
 
-Made at the keyboard, once (FR-USR-13):
+`GEAR_DATA/seed.toml` holds it, along with the group setting and the mail account. Copy `seed.example.toml` from this
+repository to the server and fill it in:
+
+```toml
+[admin]
+name = "Your Name"
+email = "you@example.com"
+password = "at least eight characters"
+```
+
+The container reads the file after migrating, at every start (NFR-DEP-10), so a deploy is still one command. It is
+idempotent: the Admin is created only if no account has that email, and the group and mail are written only where the
+file differs from what is stored. The password is used once, at creation, so a password changed in the app stays
+changed.
+
+The file holds two passwords, so it lives beside the database rather than in the repository. Nothing serves it.
+
+Without a seed file, the same account is made at the keyboard (FR-USR-13):
 
 ```sh
 docker exec -it gear-tracker gear-admin --db /data/gear.db \
   create-admin --name "Your Name" --email you@example.com --password-stdin
 ```
 
-If every Admin later loses their password, the way back in is the same keyboard:
+If every Admin later loses their password, the way back in is the keyboard either way:
 
 ```sh
 docker exec -it gear-tracker gear-admin --db /data/gear.db reset-link --email you@example.com
@@ -119,9 +136,9 @@ docker exec -it gear-tracker gear-admin --db /data/gear.db reset-link --email yo
 Optional. Fill nothing in and the app shows every invite and reset link for an Admin to copy, which costs nothing to run
 (FR-USR-12).
 
-To have the server send them instead, sign in as an Admin and open **Settings › Mail** (FR-USR-15). One mailbox at the
-provider the group already uses is enough. Most providers want an app password here rather than the password used to
-read mail, and Gmail requires one.
+To have the server send them instead, sign in as an Admin and open **Settings › Mail** (FR-USR-15), or fill the `[mail]`
+section of the seed file in. One mailbox at the provider the group already uses is enough. Most providers want an app
+password here rather than the password used to read mail, and Gmail requires one.
 
 | Field      | Gmail            |
 | ---------- | ---------------- |
@@ -195,6 +212,23 @@ log are asked to bootstrap again, and they do it at their next sync.
 What a restore costs is everything recorded between the snapshot and the failure. Phones re-send what they never managed
 to send, but not what the server had already accepted and then lost.
 
+## Start over
+
+Practice data is worth throwing away before real use, and M8 resets the deployed database anyway.
+
+```sh
+make start-over
+```
+
+That stops the container, moves `gear.db`, its `-wal` and `-shm` files, and `photos/` into `GEAR_DATA/old-<timestamp>/`,
+and starts again on an empty database. The seed file is read on the way up, so the group comes back with its Admin, its
+settings, and nothing else.
+
+Nothing is deleted. Delete the `old-*` directory by hand once you are sure, or keep it: it is a database that opens.
+
+It needs `GEAR_DATA`, and `GEAR_STOP` if the host runs the app beside other things. The move itself runs in a throwaway
+container mounting `GEAR_DATA`, because the directory is on the server rather than on your laptop.
+
 ## Moving house
 
 The server is one container and one directory, so moving it to another machine or another volunteer is a copy and a DNS
@@ -232,8 +266,11 @@ Set `GEAR_DEPLOY` to whatever starts it, and `make deploy` builds the image and 
 
 ```sh
 export GEAR_DEPLOY="docker compose --project-name theirs --file /path/to/theirs.yaml up --detach --no-deps gear"
+export GEAR_STOP="docker compose --project-name theirs --file /path/to/theirs.yaml stop gear"
 export GEAR_LOGS="docker logs --follow --tail 50 theirs_gear_1"
 ```
+
+`GEAR_STOP` is only used by `make start-over`.
 
 Both live in `.envrc`, so a host's own layout stays out of this repository. `make deploy` is still one command.
 

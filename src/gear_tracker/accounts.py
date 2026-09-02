@@ -111,6 +111,12 @@ def get_user(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
     return {"id": user_id, **user}
 
 
+def user_id_of(conn: sqlite3.Connection, email: str) -> str | None:
+    """The account with this email, or None. Email is the identity the seed file and the CLI have."""
+    row = conn.execute("SELECT user_id FROM accounts WHERE email = ?", (email.lower(),)).fetchone()
+    return row["user_id"] if row is not None else None
+
+
 def email_of(conn: sqlite3.Connection, user_id: str) -> str:
     row = conn.execute("SELECT email FROM accounts WHERE user_id = ?", (user_id,)).fetchone()
     if row is None:
@@ -188,9 +194,14 @@ def _open_session(conn: sqlite3.Connection, user_id: str, device_id: str, now: i
 
 def create_admin(conn: sqlite3.Connection, name: str, email: str, password: str, now: int | None = None) -> str:
     """The first Admin, from the command line (FR-USR-13). Refuses once one exists; use an invite after that."""
-    now = now_ms() if now is None else now
     if active_admins(conn):
         raise Conflict("an Admin already exists; invite the next one from the app")
+    return install_admin(conn, name, email, password, now)
+
+
+def install_admin(conn: sqlite3.Connection, name: str, email: str, password: str, now: int | None = None) -> str:
+    """An Admin made at the server with a password already set: the command line, or the seed file."""
+    now = now_ms() if now is None else now
     user_id = new_ulid(now)
     try:
         conn.execute(
