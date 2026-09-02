@@ -45,6 +45,7 @@ This competes with walking into a locker and taking a tent. Slower than that, an
 | NFR-USE-05 | Must     | Works in current Safari on iOS and Chrome on Android.                                                                                                 |
 | NFR-USE-06 | Should   | Readable outdoors in direct daylight and in an unlit locker: high contrast, minimum 16 px body text.                                                  |
 | NFR-USE-07 | Should   | Every destructive action is undoable, or confirmed first.                                                                                             |
+| NFR-USE-10 | Should   | Usable in a desktop browser, for the paperwork a Quartermaster does at a table. One app and one set of screens, laid out for a wide window.           |
 | NFR-USE-08 | Could    | Full keyboard operation with a bluetooth scanner, for bulk work at a desk.                                                                            |
 | NFR-USE-09 | Won't    | Withdrawn: support an older stationed iPad. Personal phones only.                                                                                     |
 

@@ -352,6 +352,32 @@ test("the overdue period is one group setting; blank means never (FR-OUT-14)", a
   await waitFor(() => expect(inv.group(store.state).overdue_days ?? null).toBeNull());
 });
 
+test("the home screen reaches every section, users included", async () => {
+  await fixture();
+  mount();
+  const sections = within(screen.getByRole("navigation", { name: "Sections" })).getAllByRole("button");
+  expect(sections.map((b) => b.textContent)).toEqual([
+    "What is out",
+    "Needs repair",
+    "Reservations · 0 upcoming",
+    "Browse by location",
+    "Stock check",
+    "Users",
+  ]);
+
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Users" }));
+  expect(location.pathname).toBe("/settings/users");
+});
+
+test("a User has no Users link", async () => {
+  await store.setMeta({ user: { id: "u2", name: "Bob", role: "user", active: true } });
+  await fixture();
+  mount();
+  const sections = within(screen.getByRole("navigation", { name: "Sections" })).getAllByRole("button");
+  expect(sections.map((b) => b.textContent)).not.toContain("Users");
+});
+
 test("settings are for admins; others see their account only", async () => {
   await store.setMeta({ user: { id: "u2", name: "Bob", role: "user", active: true } });
   navigate("/settings");

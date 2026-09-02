@@ -29,6 +29,7 @@ export function Inventory({ store }: Props) {
   const clashes = openConflicts(state).length;
   const broken = openTickets(state).length;
   const booked = upcoming(state, todayIso(now())).length;
+  const admin = store.meta.user?.role === "admin";
 
   return (
     <>
@@ -43,16 +44,7 @@ export function Inventory({ store }: Props) {
           {plural(results.length, "item")}
           {store.meta.last_sync_at !== undefined && ` · ${syncLabel(store.meta.last_sync_at, Date.now(), false, null)}`}
         </p>
-        {out > 0 && (
-          <button className="link" type="button" onClick={() => navigate("/out")}>
-            What is out · {out}
-          </button>
-        )}
-        {broken > 0 && (
-          <button className="link" type="button" onClick={() => navigate("/repairs")}>
-            Needs repair · {broken}
-          </button>
-        )}
+        {/* Things wrong, only when something is wrong. */}
         {found > 0 && (
           <button className="link" type="button" onClick={() => navigate("/found")}>
             Found gear · {found}
@@ -63,19 +55,33 @@ export function Inventory({ store }: Props) {
             Conflicts · {clashes}
           </button>
         )}
-        <button className="link" type="button" onClick={() => navigate("/reservations")}>
-          Reservations · {booked} upcoming
-        </button>
-        {!empty && (
-          <>
-            <button className="link" type="button" onClick={() => navigate("/locations")}>
-              Browse by location
+        {/* Everywhere else the app goes. Always here, so nothing is only reachable by knowing it exists. */}
+        <nav className="links" aria-label="Sections">
+          <button className="link" type="button" onClick={() => navigate("/out")}>
+            What is out{out > 0 && ` · ${out}`}
+          </button>
+          <button className="link" type="button" onClick={() => navigate("/repairs")}>
+            Needs repair{broken > 0 && ` · ${broken}`}
+          </button>
+          <button className="link" type="button" onClick={() => navigate("/reservations")}>
+            Reservations · {booked} upcoming
+          </button>
+          {!empty && (
+            <>
+              <button className="link" type="button" onClick={() => navigate("/locations")}>
+                Browse by location
+              </button>
+              <button className="link" type="button" onClick={() => navigate("/stock-check")}>
+                {store.meta.stock_check ? "Stock check · in progress" : "Stock check"}
+              </button>
+            </>
+          )}
+          {admin && (
+            <button className="link" type="button" onClick={() => navigate("/settings/users")}>
+              Users
             </button>
-            <button className="link" type="button" onClick={() => navigate("/stock-check")}>
-              {store.meta.stock_check ? "Stock check · in progress" : "Stock check"}
-            </button>
-          </>
-        )}
+          )}
+        </nav>
         {empty ? (
           <p>Nothing here yet. Scan a code or add a new item.</p>
         ) : (

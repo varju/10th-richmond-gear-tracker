@@ -43,11 +43,6 @@ Item page:
 
 - [ ] Notes should be deletable
 
-Desktop, for work at a table rather than a locker:
-
-- [ ] A layout for wide screens
-- [ ] Every section reachable from the home screen, reports and users included
-
 Mail:
 
 - [ ] SMTP settings an Admin fills in, kept server-side, with a test send

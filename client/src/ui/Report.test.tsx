@@ -114,10 +114,10 @@ test("a row opens the item", async () => {
   expect(location.pathname).toBe(`/items/${tent}`);
 });
 
-test("the home screen links to the report only when something is out", async () => {
+test("the home screen always links to the report, and counts what is out", async () => {
   navigate("/");
   const first = mount(<Inventory store={store} />);
-  expect(screen.queryByRole("button", { name: /What is out/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "What is out" })).toBeInTheDocument();
   first.unmount();
 
   await mv.checkOut(store, tent);

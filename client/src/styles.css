@@ -900,3 +900,69 @@ h3.section.small {
   object-fit: contain;
   margin-bottom: 16px;
 }
+
+/* --- M14: the home screen's list of sections --------------------------------------- */
+
+/* One tap from home to anywhere, so nothing is reachable only by knowing it is there. */
+.links {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* --- M14: desktop --------------------------------------------------------------------
+ *
+ * The same app at a table rather than at a locker. The column stops growing, and
+ * controls stop being a thumb wide. Tap targets keep their size: a mouse is happy
+ * with a big target, and the same page is opened on a phone (NFR-USE-03).
+ */
+@media (min-width: 900px) {
+  .app {
+    max-width: 960px;
+    margin: 0 auto;
+    border-inline: 1px solid var(--rule);
+  }
+
+  main {
+    padding: 24px;
+  }
+
+  header h1 {
+    font-size: 24px;
+  }
+
+  /* Actions stay at the foot, but sit in a row and take the width they need. */
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 16px 24px;
+  }
+
+  .actions > .row {
+    display: flex;
+    gap: 12px;
+  }
+
+  .actions button {
+    width: auto;
+    min-width: 160px;
+    padding: 0 24px;
+  }
+
+  .actions label.tight {
+    flex: 1 1 280px;
+  }
+
+  /* Hints and errors under the buttons, not beside them. */
+  .actions > p {
+    flex: 1 1 100%;
+    margin: 0;
+  }
+
+  /* Sections read across the top rather than as a stack. */
+  .links {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px 24px;
+  }
+}
