@@ -40,7 +40,20 @@ test("the inventory is a table that sorts and opens a generic to its units", asy
   await page.getByLabel("Search").fill("tent, 4-person");
   await expect(page.getByRole("button", { name: "Units of Tent, 4-person" })).toBeVisible();
   await page.getByRole("button", { name: "Units of Tent, 4-person" }).click();
-  await expect(table.getByRole("button", { name: "Tent, 4-person #1" })).toBeVisible();
+  await expect(table.getByRole("button", { name: "Tent, 4-person #1", exact: true })).toBeVisible();
+  // Whole numbers first and in numeric order, then text (FR-INV-23). The demo
+  // carries a #10 and a "3b" so this is a real sort, not 1 through 6.
+  const units = await table.getByRole("button", { name: /^Tent, 4-person #/ }).allInnerTexts();
+  expect(units.map((t) => t.replace(/^Tent, 4-person #| \(.*\)$/g, ""))).toEqual([
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "10",
+    "3b",
+  ]);
 
   await page.getByRole("button", { name: /^Name/ }).click();
   await expect(page.getByRole("columnheader", { name: /Name/ })).toHaveAttribute("aria-sort", "descending");

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from gear_tracker import accounts, derived, inventory, seed
+from gear_tracker import accounts, derived, inventory, seed, views
 from gear_tracker.cli import main
 from gear_tracker.db import open_db
 from gear_tracker.errors import BadRequest, Conflict
@@ -161,9 +161,20 @@ def test_the_bundled_file_is_there(db):
 
     said = inventory.load(db, inventory.read("demo"), admin(db))
 
-    assert said == "loaded 3 locations, 4 generics with 15 units, 5 single items"
+    assert said == "loaded 3 locations, 4 generics with 17 units, 5 single items"
     assert named(db, "Tent, 4-person")["generic"] is True
     assert not any(fields.get("generic") and fields.get("status") for fields in state(db)["item"].values())
+
+
+def test_the_bundled_file_carries_a_number_that_is_not_a_whole_number(db):
+    """The demo covers what FR-INV-23 is for, so the tests below it see the real shape."""
+    inventory.load(db, inventory.read("demo"), admin(db))
+    have = state(db)
+    tents = next(id for id, fields in have["item"].items() if fields.get("name") == "Tent, 4-person")
+
+    units = views.units_of(have, tents)
+
+    assert [u["number"] for u in units] == ["1", "2", "3", "4", "5", "6", "10", "3b"]
 
 
 def test_every_home_in_the_bundled_file_resolves(db):
@@ -233,11 +244,11 @@ def test_the_seed_file_loads_it_once(db, tmp_path):
 
     done = seed.apply(db, seed.read(path))
 
-    assert done[-1] == "loaded 3 locations, 4 generics with 15 units, 5 single items"
-    assert len(state(db)["item"]) == 24
+    assert done[-1] == "loaded 3 locations, 4 generics with 17 units, 5 single items"
+    assert len(state(db)["item"]) == 26
 
     assert seed.apply(db, seed.read(path)) == []
-    assert len(state(db)["item"]) == 24
+    assert len(state(db)["item"]) == 26
 
 
 def test_the_seed_file_can_name_a_file_of_its_own(db, tmp_path):
@@ -278,7 +289,7 @@ def test_gear_admin_load(tmp_path, monkeypatch, capsys):
     code, out, err = run(monkeypatch, capsys, "--db", str(db_path), "load", "--file", "demo")
 
     assert code == 0, err
-    assert out.strip() == "loaded 3 locations, 4 generics with 15 units, 5 single items"
+    assert out.strip() == "loaded 3 locations, 4 generics with 17 units, 5 single items"
 
     code, _, err = run(monkeypatch, capsys, "--db", str(db_path), "load", "--file", "demo")
     assert code == 1

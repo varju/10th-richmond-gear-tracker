@@ -10,6 +10,10 @@
 #                      price, supplier
 #   [[items.units]]    number, nickname, home, sub_location
 #
+# A unit's number is what is written on the gear, not a count (FR-INV-23). It
+# may be text, and a set has gaps where things were retired. Whole numbers sort
+# first and in numeric order, so 10 comes after 6 and "3b" after both.
+#
 # An item with units is a generic: one name for several of the same thing
 # (FR-INV-21). Its units take their home from it unless they say otherwise.
 # `home` names a location above. Nothing here has a code; codes are printed and
@@ -52,6 +56,16 @@ sub_location = "shelf 2"
 [[items.units]]
 number = 6
 nickname = "no pegs"
+sub_location = "shelf 2"
+
+[[items.units]]
+number = 10
+nickname = "narrow footprint"
+sub_location = "shelf 2"
+
+[[items.units]]
+number = "3b"
+nickname = "short poles"
 sub_location = "shelf 2"
 
 [[items]]
