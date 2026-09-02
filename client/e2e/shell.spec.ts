@@ -67,7 +67,7 @@ test("a printed code becomes an item", async ({ browser, page, request }) => {
   await expect(page.getByText(`Code ${code} will go on this item.`)).toBeVisible();
   await page.getByLabel("Name").fill("Tent 1");
   await page.getByLabel("Home location").selectOption({ label: "Cold locker" });
-  await page.getByLabel("Sub-location").fill("shelf 4");
+  await page.getByLabel("Shelf").fill("shelf 4");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page).toHaveURL(/\/scan$/);
 

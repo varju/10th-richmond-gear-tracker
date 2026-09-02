@@ -30,7 +30,7 @@ period.
 
 ## A stock check
 
-Open Stock check, pick the location and sub-location you are standing at, and tap Start. Scan everything on the shelf.
+Open Stock check, pick the location and shelf you are standing at, and tap Start. Scan everything on the shelf.
 Misplaced here lists what state says lives elsewhere; Not seen yet lists what should be here. Tap Finish, then Done. A
 check left running says so on the computer home screen until you finish it.
 

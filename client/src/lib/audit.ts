@@ -1,11 +1,13 @@
 /**
  * An item's audit history (FR-USR-09): what changed on the record, from what to
- * what, by whom. Read from the events this phone holds, so it reaches back 90
- * days (NFR-DATA-03). Movements are the History section; this is the rest.
+ * what, by whom. Movements are the History section; this is the rest.
+ *
+ * Read from a `Log`, which is the server's whole record when there is signal
+ * and this phone's 90 days when there is not (FR-INV-31, NFR-DATA-03).
  */
 import { locationName, nameOf } from "./inventory";
+import type { Log } from "./record";
 import type { State } from "./replay";
-import type { Store } from "./store";
 
 export interface Change {
   id: string;
@@ -24,7 +26,7 @@ const LABELS: Record<string, string> = {
   name: "Name",
   description: "Description",
   home_location_id: "Home location",
-  sub_location: "Sub-location",
+  sub_location: "Shelf",
   generic: "Several of these",
   parent_id: "Generic",
   number: "Number",
@@ -52,9 +54,9 @@ export function describeValue(state: State, field: string, value: unknown): stri
 }
 
 /** The item's own record changes, newest first. */
-export function changes(store: Store, itemId: string): Change[] {
-  const state = store.state;
-  return store
+export function changes(log: Log, itemId: string): Change[] {
+  const state = log.state;
+  return log
     .eventsFor("item", itemId)
     .filter((e) => e.type === "created" || e.type === "field_changed")
     .map((e): Change => {

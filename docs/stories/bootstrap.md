@@ -22,7 +22,7 @@ The Quartermaster creates the group, adds the three storage locations (Cold lock
 invites two Scouters to help.
 
 - Locations are named and editable
-- Sub-locations are free text on each item, not a list to configure
+- Shelf labels are free text on each item, not a list to configure
 - Invited Scouters can sign in and start work immediately
 
 Covers: FR-SET-01, FR-SET-02, FR-SET-03, FR-USR-01, FR-USR-04

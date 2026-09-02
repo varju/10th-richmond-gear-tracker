@@ -35,8 +35,8 @@ Quartermaster and Scouter are what the group calls people. The system has two ro
 | Warm locker      | Heated.                             |
 | Garry Point yard | Outdoors. Holds trailers.           |
 
-Each splits into numbered shelves or a specific trailer. Every item has a **home**: location plus sub-location, e.g.
-"Warm locker / shelf 4" (FR-SET-03). Telling Scouters where gear goes back is where inventories usually break down.
+Each splits into numbered shelves or a specific trailer. Every item has a **home**: location plus shelf, e.g. "Warm
+locker / shelf 4" (FR-SET-03). Telling Scouters where gear goes back is where inventories usually break down.
 
 Two of the three locations are too cold or too wet for a tablet left on site, so we use personal phones only.
 

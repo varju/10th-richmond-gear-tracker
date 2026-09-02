@@ -49,7 +49,7 @@ test("pick where you are, scan, and the lists follow; the walk survives a closed
   renderInShell(<StockCheck store={store} />);
   expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
   await user.selectOptions(screen.getByLabelText("Location"), cold);
-  await user.selectOptions(screen.getByLabelText("Sub-location"), "shelf 4");
+  await user.selectOptions(screen.getByLabelText("Shelf"), "shelf 4");
   await user.click(screen.getByRole("button", { name: "Start" }));
 
   // Out gear is not expected on the shelf; only Tent 1 is.

@@ -8,7 +8,7 @@ interface Props {
   onChange: (f: Filter) => void;
 }
 
-/** Location, sub-location, status, retired. Folded away on a phone, in a row at a desk. */
+/** Location, shelf, status, retired. Folded away on a phone, in a row at a desk. */
 export function FilterFields({ store, filter, onChange }: Props) {
   const state = store.state;
   const set = (patch: Partial<Filter>) => onChange({ ...filter, ...patch });
@@ -35,7 +35,7 @@ export function FilterFields({ store, filter, onChange }: Props) {
           </select>
         </label>
         <label className="tight">
-          <span>Sub-location</span>
+          <span>Shelf</span>
           <select
             value={filter.sub_location ?? ""}
             onChange={(e) => set({ sub_location: e.target.value || undefined })}

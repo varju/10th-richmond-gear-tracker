@@ -111,7 +111,7 @@ export function HomeFields({ store, home_location_id, sub_location, onChange, la
         </select>
       </label>
       <label>
-        <span>Sub-location</span>
+        <span>Shelf</span>
         <input
           list="sub-locations"
           value={sub_location}

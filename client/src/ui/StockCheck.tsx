@@ -84,7 +84,7 @@ function Start({ store }: { store: Store }) {
         </select>
       </label>
       <label>
-        <span>Sub-location</span>
+        <span>Shelf</span>
         <select value={sub} onChange={(e) => setSub(e.target.value)} disabled={!locationId}>
           <option value="">Whole location</option>
           {subLocations(state, locationId || undefined).map((s) => (

@@ -9,7 +9,7 @@ import { openStore } from "./codeTestKit";
 import { LocationPage, Locations } from "./Locations";
 import { alice, seedUsers } from "./moveTestKit";
 
-// Browse by location, then sub-location: "what belongs on shelf 4?" (FR-INV-10).
+// Browse by location, then shelf: "what belongs on shelf 4?" (FR-INV-10).
 let store: Store;
 let cold: string;
 let warm: string;
@@ -36,11 +36,11 @@ test("locations list their item count and open shelf by shelf", async () => {
   expect(location.pathname).toBe(`/locations/${cold}`);
 });
 
-test("a location shows its shelves, items with no sub-location last, with status", async () => {
+test("a location shows its shelves, items with no shelf last, with status", async () => {
   render(<LocationPage store={store} id={cold} />);
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Cold locker");
   const sections = screen.getAllByRole("region");
-  expect(sections.map((s) => s.getAttribute("aria-label"))).toEqual(["shelf 4", "No sub-location"]);
+  expect(sections.map((s) => s.getAttribute("aria-label"))).toEqual(["shelf 4", "No shelf"]);
   const shelf = within(sections[0]!);
   expect(shelf.getAllByRole("button").map((b) => b.textContent)).toEqual(["Tent 1In", "Tent 2Out · Alice"]);
   await user.click(shelf.getByRole("button", { name: /Tent 1/ }));

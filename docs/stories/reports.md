@@ -25,7 +25,7 @@ Covers: FR-OUT-14, FR-RPT-05
 
 A Scouter filters the inventory to tents that are in, then browses the Warm locker shelf by shelf.
 
-- Filter by category, location, sub-location, and status
+- Filter by category, location, shelf, and status
 - Browse by location to see what belongs where
 
 Covers: FR-INV-08, FR-INV-10

@@ -40,8 +40,8 @@ export function LocationPage({ store, id }: { store: Store; id: string }) {
         <p>Nothing lives here.</p>
       ) : (
         shelves.map((shelf) => (
-          <section key={shelf.sub_location} aria-label={shelf.sub_location || "No sub-location"}>
-            <h2 className="section">{shelf.sub_location || "No sub-location"}</h2>
+          <section key={shelf.sub_location} aria-label={shelf.sub_location || "No shelf"}>
+            <h2 className="section">{shelf.sub_location || "No shelf"}</h2>
             <ul className="items">
               {shelf.items.map((it) => (
                 <li key={it.id}>
