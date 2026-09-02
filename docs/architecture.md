@@ -525,8 +525,14 @@ Sessions never expire (FR-USR-07). Sign-in is exchanged once for a long-lived to
 reach an identity provider from a locker (FR-USR-08). The token is stored hashed. A deactivated account's sessions are
 kept, marked inactive, so the final push can land (FR-OFF-06). That push ends the session; nothing else is accepted.
 
-Invite and reset links are one-time tokens the Admin passes on by hand (FR-USR-12). They die after seven days unused;
-sessions do not expire, links do. Redeeming a reset revokes the sessions the old password opened.
+Invite and reset links are one-time tokens (FR-USR-12). They die after seven days unused; sessions do not expire, links
+do. Redeeming a reset revokes the sessions the old password opened.
+
+The link is always shown for the Admin to pass on. A group that fills in an SMTP account gets it mailed as well
+(FR-USR-15): one mailbox at whatever provider the group already uses, an app password rather than the real one, in a
+server-only table beside the credentials (NFR-SEC-10). Mailing is never fatal — a refused message leaves the invite made
+and the link on the screen. The app sends the server a link with `TOKEN` where the token goes, so the server never has
+to know its own public address (NFR-DEP-09).
 
 A lost or sold phone is revoked on its own (FR-USR-14). An Admin sees the devices a person is signed in on and ends the
 sessions of one; the account, its other phones and its events are untouched. The phone keeps its copy of the inventory

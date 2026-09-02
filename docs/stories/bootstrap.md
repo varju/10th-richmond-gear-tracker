@@ -10,9 +10,9 @@ the group's domain at it, and hand out an invite link.
 
 - The first Admin is made at the command line; there is no open sign-up
 - The domain is the group's, so the server can move later without reprinting stickers
-- Invites are links the Admin passes on; the server sends no email
+- Invites are links the Admin passes on; mail is optional and costs nothing to skip
 
-Covers: FR-USR-12, FR-USR-13, FR-TAG-13, NFR-DEP-09
+Covers: FR-USR-12, FR-USR-13, FR-USR-15, FR-TAG-13, NFR-DEP-09
 
 ## S-BOOT-01 Set up the group
 

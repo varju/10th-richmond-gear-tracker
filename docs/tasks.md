@@ -35,19 +35,6 @@ The vertical slice is built. What is left needs a phone.
 
 - [ ] End-to-end test on a real phone with wifi and data turned off
 
-## M14 — First-look feedback
-
-A read-through of the built app. Everything here is small except the mail server.
-
-Mail:
-
-- [ ] SMTP settings an Admin fills in, kept server-side, with a test send
-- [ ] Send invites and reset links by mail when it is configured; the copyable link stays
-
-Deployment:
-
-- [ ] Cap the request body on the /gear/ proxy so a photo fits and nothing else does
-
 ## M9 — Go live
 
 First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is

@@ -114,6 +114,28 @@ If every Admin later loses their password, the way back in is the same keyboard:
 docker exec -it gear-tracker gear-admin --db /data/gear.db reset-link --email you@example.com
 ```
 
+## Sending mail
+
+Optional. Fill nothing in and the app shows every invite and reset link for an Admin to copy, which costs nothing to run
+(FR-USR-12).
+
+To have the server send them instead, sign in as an Admin and open **Settings › Mail** (FR-USR-15). One mailbox at the
+provider the group already uses is enough. Most providers want an app password here rather than the password used to
+read mail, and Gmail requires one.
+
+| Field      | Gmail            |
+| ---------- | ---------------- |
+| Server     | smtp.gmail.com   |
+| Port       | 465              |
+| Encryption | SSL              |
+| Username   | the full address |
+| Password   | an app password  |
+| Send from  | the same address |
+
+**Send a test** posts a message to your own address, so a wrong password turns up now rather than at someone else's
+password reset (FR-USR-16). The password is kept on the server and never sent back to a device (NFR-SEC-10); saving with
+the password box empty keeps the one already stored.
+
 ## Backups
 
 `cp gear.db` is not a backup. In WAL mode the file on disk is half the story until a checkpoint lands, and a copy taken

@@ -74,9 +74,11 @@ Covers: FR-USR-14, NFR-SEC-06
 
 ## S-ADM-08 A forgotten password
 
-A Scouter cannot sign in. The Admin generates a reset link and sends it however they normally talk.
+A Scouter cannot sign in. The Admin generates a reset link. If the group has filled in a mail account the server sends
+it; if not, the Admin copies the link and sends it however they normally talk.
 
-- Reset is a one-time link, not an email from the server
-- No mail service has to be run or paid for
+- Reset is a one-time link, whether it is mailed or passed on by hand
+- Mail is optional: no service has to be run or paid for
+- An Admin can test the mail account against their own address first
 
-Covers: FR-USR-12
+Covers: FR-USR-12, FR-USR-15, FR-USR-16
