@@ -17,8 +17,10 @@ if TYPE_CHECKING:
 State = dict[str, dict[str, dict[str, Any]]]
 """entity_type -> entity_id -> fields"""
 
-# Set by movement events only. A field_changed that names one is rejected.
-DERIVED_FIELDS = frozenset({"status", "holder_id", "since", "movement", "notes", "conflicts"})
+# Set by replay, never by a device. A created or field_changed that names one is rejected.
+DERIVED_FIELDS = frozenset(
+    {"status", "holder_id", "since", "movement", "notes", "conflicts", "added_at", "modified_at", "item_id", "bound_at"}
+)
 
 
 class UnknownEventType(ValueError):
@@ -45,11 +47,15 @@ def apply(entity: dict[str, Any], event: Event) -> None:
     match event.type:
         case "created":
             entity.update(p)
+            entity["added_at"] = event.effective_at
+            entity["modified_at"] = event.effective_at
             if event.entity_type == "item":
                 entity.setdefault("status", "in")
                 entity.setdefault("holder_id", None)
         case "field_changed":
+            # Modified means the entity's own fields (FR-INV-03). Movements and notes do not count.
             entity[p["field"]] = p["value"]
+            entity["modified_at"] = event.effective_at
         case "note_added":
             entity.setdefault("notes", []).append(
                 {"id": event.id, "text": p["text"], "actor_id": event.actor_id, "at": event.effective_at}
@@ -76,6 +82,11 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             entity["holder_id"] = None
             entity["since"] = event.effective_at
             entity["movement"] = _movement(event)
+        case "code_bound":
+            # A code binds once. Whether it is the item's current code or a replaced
+            # one is a question about the item's other codes, answered by whoever asks.
+            entity["item_id"] = p["item_id"]
+            entity["bound_at"] = event.effective_at
         case other:
             raise UnknownEventType(other)
 

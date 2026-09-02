@@ -10,7 +10,10 @@
       "device_id": "b",
       "device_seq": 1,
       "effective_at": 1000,
-      "payload": { "field": "name", "value": "from b" }
+      "payload": {
+        "field": "name",
+        "value": "from b"
+      }
     },
     {
       "id": "01000000000000000000000002",
@@ -21,7 +24,10 @@
       "device_id": "a",
       "device_seq": 2,
       "effective_at": 1000,
-      "payload": { "field": "name", "value": "from a, second" }
+      "payload": {
+        "field": "name",
+        "value": "from a, second"
+      }
     },
     {
       "id": "01000000000000000000000003",
@@ -32,12 +38,18 @@
       "device_id": "a",
       "device_seq": 1,
       "effective_at": 1000,
-      "payload": { "field": "name", "value": "from a, first" }
+      "payload": {
+        "field": "name",
+        "value": "from a, first"
+      }
     }
   ],
   "state": {
     "item": {
-      "tent-1": { "name": "from b" }
+      "tent-1": {
+        "name": "from b",
+        "modified_at": 1000
+      }
     }
   }
 }

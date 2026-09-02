@@ -1,15 +1,15 @@
 {
-  "name": "check-out sets holder and since; check-in clears the holder",
+  "name": "added_at and modified_at are set by replay; movements and notes leave modified_at alone",
   "events": [
     {
       "id": "01000000000000000000000001",
       "entity_type": "item",
       "entity_id": "tent-1",
-      "type": "created",
       "actor_id": "alice",
       "device_id": "a",
       "device_seq": 1,
       "effective_at": 1000,
+      "type": "created",
       "payload": {
         "name": "Tent"
       }
@@ -18,24 +18,26 @@
       "id": "01000000000000000000000002",
       "entity_type": "item",
       "entity_id": "tent-1",
-      "type": "checked_out",
       "actor_id": "alice",
       "device_id": "a",
       "device_seq": 2,
       "effective_at": 2000,
+      "type": "field_changed",
       "payload": {
-        "holder_id": "bob"
+        "field": "name",
+        "value": "Big tent",
+        "old": "Tent"
       }
     },
     {
       "id": "01000000000000000000000003",
       "entity_type": "item",
-      "entity_id": "stove-1",
-      "type": "checked_out",
+      "entity_id": "tent-1",
       "actor_id": "alice",
       "device_id": "a",
       "device_seq": 3,
-      "effective_at": 2500,
+      "effective_at": 3000,
+      "type": "checked_out",
       "payload": {
         "holder_id": "bob"
       }
@@ -44,44 +46,41 @@
       "id": "01000000000000000000000004",
       "entity_type": "item",
       "entity_id": "tent-1",
-      "type": "checked_in",
-      "actor_id": "carol",
-      "device_id": "b",
-      "device_seq": 1,
-      "effective_at": 3000,
-      "payload": {}
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 4000,
+      "type": "note_added",
+      "payload": {
+        "text": "muddy"
+      }
     }
   ],
   "state": {
     "item": {
       "tent-1": {
-        "name": "Tent",
+        "name": "Big tent",
         "added_at": 1000,
-        "modified_at": 1000,
-        "status": "in",
-        "holder_id": null,
-        "since": 3000,
-        "movement": {
-          "id": "01000000000000000000000004",
-          "type": "checked_in",
-          "holder_id": null,
-          "actor_id": "carol",
-          "device_id": "b",
-          "at": 3000
-        }
-      },
-      "stove-1": {
+        "modified_at": 2000,
         "status": "out",
         "holder_id": "bob",
-        "since": 2500,
+        "since": 3000,
         "movement": {
           "id": "01000000000000000000000003",
           "type": "checked_out",
           "holder_id": "bob",
           "actor_id": "alice",
           "device_id": "a",
-          "at": 2500
-        }
+          "at": 3000
+        },
+        "notes": [
+          {
+            "id": "01000000000000000000000004",
+            "text": "muddy",
+            "actor_id": "alice",
+            "at": 4000
+          }
+        ]
       }
     }
   }

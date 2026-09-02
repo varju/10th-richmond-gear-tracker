@@ -10,7 +10,10 @@
       "device_id": "a",
       "device_seq": 1,
       "effective_at": 1000,
-      "payload": { "name": "Tent", "category": "shelter" }
+      "payload": {
+        "name": "Tent",
+        "category": "shelter"
+      }
     },
     {
       "id": "01000000000000000000000002",
@@ -21,7 +24,10 @@
       "device_id": "a",
       "device_seq": 2,
       "effective_at": 2000,
-      "payload": { "field": "name", "value": "Tent, 4 person" }
+      "payload": {
+        "field": "name",
+        "value": "Tent, 4 person"
+      }
     },
     {
       "id": "01000000000000000000000003",
@@ -32,15 +38,28 @@
       "device_id": "a",
       "device_seq": 3,
       "effective_at": 3000,
-      "payload": { "name": "Alice" }
+      "payload": {
+        "name": "Alice"
+      }
     }
   ],
   "state": {
     "item": {
-      "tent-1": { "name": "Tent, 4 person", "category": "shelter", "status": "in", "holder_id": null }
+      "tent-1": {
+        "name": "Tent, 4 person",
+        "category": "shelter",
+        "added_at": 1000,
+        "modified_at": 2000,
+        "status": "in",
+        "holder_id": null
+      }
     },
     "user": {
-      "alice": { "name": "Alice" }
+      "alice": {
+        "name": "Alice",
+        "added_at": 3000,
+        "modified_at": 3000
+      }
     }
   }
 }

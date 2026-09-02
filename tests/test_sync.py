@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from gear_tracker import events
 from gear_tracker.derived import snapshot
 from gear_tracker.flags import list_flags
 from gear_tracker.sync import (
@@ -18,6 +19,7 @@ from gear_tracker.sync import (
     pull,
     push,
 )
+from gear_tracker.ulid import new_ulid
 from tests.factories import T0, incoming
 
 HOUR = 3_600_000
@@ -47,7 +49,7 @@ def test_push_accepts_and_rejects_per_event(db):
     assert result["accepted"] == [good["id"]]
     [rejection] = result["rejected"]
     assert rejection["id"] == bad["id"]
-    assert rejection["reason"].startswith("entity_type: Input should be 'item', 'user'")
+    assert rejection["reason"].startswith("entity_type: Input should be 'item', 'item_type', 'user'")
     assert result["server_time"] == T0
 
 
@@ -301,3 +303,38 @@ def test_a_deactivated_account_can_do_nothing_else(db):
         pull(db, gone, cursor=0, now=T0)
     with pytest.raises(Deactivated):
         bootstrap(db, gone, now=T0)
+
+
+# --- what a device may not do -----------------------------------------------------------
+
+USER = Principal("alice", "phone-a")
+ADMIN = Principal("alice", "phone-a", role="admin")
+
+
+def reasons(db, principal, *events_):
+    result = push(db, principal, {"device_id": "phone-a", "client_time": T0, "events": list(events_)}, now=T0)
+    return [r["reason"] for r in result["rejected"]]
+
+
+def test_settings_take_an_admin(db):
+    change = own(USER, entity_type="setting", entity_id="group", type="created", payload={"name": "10th Richmond"})
+    assert reasons(db, USER, change) == ["settings are changed by an Admin"]
+    assert reasons(db, ADMIN, {**change, "id": new_ulid()}) == []
+
+
+def test_devices_bind_codes_but_do_not_make_them(db):
+    made = own(ADMIN, entity_type="code", entity_id="ABCDEFGH23", type="created", payload={})
+    assert reasons(db, ADMIN, made) == ["codes come from printed sheets"]
+
+    bind = own(ADMIN, entity_type="code", entity_id="ABCDEFGH23", type="code_bound", payload={"item_id": "tent-1"})
+    assert reasons(db, ADMIN, bind) == ["not one of our codes"]
+
+    events.append_server(db, "alice", "code", "ABCDEFGH23", "created", {}, now=T0)
+    assert reasons(db, ADMIN, {**bind, "id": new_ulid(), "device_seq": 2}) == []
+    again = own(ADMIN, entity_type="code", entity_id="ABCDEFGH23", type="code_bound", payload={"item_id": "tent-2"})
+    assert reasons(db, ADMIN, {**again, "device_seq": 3}) == ["this code is already on an item"]
+
+
+def test_created_may_not_set_system_fields(db):
+    made = own(USER, type="created", payload={"name": "Tent", "added_at": 1})
+    assert reasons(db, USER, made) == ["payload: added_at is set by the system, not by created"]

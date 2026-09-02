@@ -45,19 +45,41 @@ def test_created_then_changed():
         ]
     )
     assert state == {
-        "item": {"tent-1": {"name": "Tent, 4 person", "category": "shelter", "status": "in", "holder_id": None}}
+        "item": {
+            "tent-1": {
+                "name": "Tent, 4 person",
+                "category": "shelter",
+                "status": "in",
+                "holder_id": None,
+                "added_at": T0,
+                "modified_at": T0 + 1,
+            }
+        }
     }
 
 
 def test_only_items_get_movement_defaults():
     state = replay([ev(entity_type="user", entity_id="alice", type="created", payload={"name": "Alice"})])
-    assert state["user"]["alice"] == {"name": "Alice"}
+    assert state["user"]["alice"] == {"name": "Alice", "added_at": T0, "modified_at": T0}
 
 
 def test_an_entity_can_exist_without_a_created_event():
     """Field edits are merges, so whichever arrives first still leaves the right answer."""
     state = replay([ev(payload={"field": "name", "value": "Tent"})])
-    assert state["item"]["tent-1"] == {"name": "Tent"}
+    assert state["item"]["tent-1"] == {"name": "Tent", "modified_at": T0}
+
+
+def test_movements_and_notes_do_not_count_as_modification():
+    out = ev(device_seq=2, effective_at=T0 + 5, type="checked_out", payload={"holder_id": "bob"})
+    note = ev(device_seq=3, effective_at=T0 + 6, type="note_added", payload={"text": "muddy"})
+    state = replay([ev(device_seq=1, type="created", payload={"name": "Tent"}), out, note])
+    assert state["item"]["tent-1"]["modified_at"] == T0
+
+
+def test_code_bound_records_the_item_and_when():
+    bound = ev(entity_type="code", entity_id="ABCDEFGH23", type="code_bound", payload={"item_id": "tent-1"})
+    state = replay([ev(entity_type="code", entity_id="ABCDEFGH23", type="created", payload={}), bound])
+    assert state["code"]["ABCDEFGH23"] == {"item_id": "tent-1", "bound_at": T0, "added_at": T0, "modified_at": T0}
 
 
 def test_replay_order_beats_input_order():

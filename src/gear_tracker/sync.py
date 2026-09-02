@@ -90,8 +90,7 @@ def push(conn: sqlite3.Connection, principal: Principal, body: Any, now: int | N
                 raise Rejected("actor_id must be the signed-in user")
             if incoming.get("device_id") != principal.device_id:
                 raise Rejected("device_id must be this device")
-            if incoming.get("entity_type") == "user":
-                raise Rejected("user changes go through the accounts API")
+            _check_entity_rules(conn, principal, incoming)
             seen_before = events.get(conn, incoming["id"]) is not None if isinstance(incoming.get("id"), str) else False
             stored = events.append(conn, incoming, received_at=now)
             if not seen_before:
@@ -100,6 +99,24 @@ def push(conn: sqlite3.Connection, principal: Principal, body: Any, now: int | N
         except Rejected as exc:
             rejected.append({"id": incoming.get("id"), "reason": exc.reason})
     return {"accepted": accepted, "rejected": rejected, "server_time": now}
+
+
+def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming: dict[str, Any]) -> None:
+    """What a device may not do, whatever it says. Field checks happen later, in events.validate."""
+    entity_type, kind = incoming.get("entity_type"), incoming.get("type")
+    if entity_type == "user":
+        raise Rejected("user changes go through the accounts API")
+    if entity_type == "setting" and principal.role != "admin":
+        raise Rejected("settings are changed by an Admin")
+    if entity_type == "code":
+        if kind == "created":
+            raise Rejected("codes come from printed sheets")
+        if kind == "code_bound":
+            code = derived.get_entity(conn, "code", str(incoming.get("entity_id")))
+            if code is None:
+                raise Rejected("not one of our codes")
+            if code.get("item_id") is not None:
+                raise Rejected("this code is already on an item")
 
 
 def _check_drift(conn: sqlite3.Connection, event: events.Event, measured_offset: int, now: int) -> None:

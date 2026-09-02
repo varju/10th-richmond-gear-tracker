@@ -68,13 +68,17 @@ export function apply(entity: Fields, event: ReplayEvent): void {
   switch (event.type) {
     case "created":
       Object.assign(entity, p);
+      entity.added_at = event.effective_at;
+      entity.modified_at = event.effective_at;
       if (event.entity_type === "item") {
         if (!("status" in entity)) entity.status = "in";
         if (!("holder_id" in entity)) entity.holder_id = null;
       }
       break;
     case "field_changed":
+      // Modified means the entity's own fields (FR-INV-03). Movements and notes do not count.
       entity[p.field as string] = p.value;
+      entity.modified_at = event.effective_at;
       break;
     case "note_added":
       notes(entity).push({ id: event.id, text: p.text as string, actor_id: event.actor_id, at: event.effective_at });
@@ -106,6 +110,12 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       entity.holder_id = null;
       entity.since = event.effective_at;
       entity.movement = movement(event);
+      break;
+    case "code_bound":
+      // A code binds once. Whether it is the item's current code or a replaced
+      // one is a question about the item's other codes, answered by whoever asks.
+      entity.item_id = p.item_id;
+      entity.bound_at = event.effective_at;
       break;
     default:
       throw new UnknownEventType(event.type);

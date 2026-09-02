@@ -1,0 +1,91 @@
+{
+  "name": "a code remembers the item it went on and when; the item's current code is whichever bound last",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "code",
+      "entity_id": "ABCDEFGH23",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "type": "created",
+      "payload": {}
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "code",
+      "entity_id": "BCDEFGHJ34",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "type": "created",
+      "payload": {}
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "type": "created",
+      "payload": {
+        "name": "Tent"
+      }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "code",
+      "entity_id": "ABCDEFGH23",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 4000,
+      "type": "code_bound",
+      "payload": {
+        "item_id": "tent-1"
+      }
+    },
+    {
+      "id": "01000000000000000000000005",
+      "entity_type": "code",
+      "entity_id": "BCDEFGHJ34",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 5,
+      "effective_at": 5000,
+      "type": "code_bound",
+      "payload": {
+        "item_id": "tent-1"
+      }
+    }
+  ],
+  "state": {
+    "code": {
+      "ABCDEFGH23": {
+        "added_at": 1000,
+        "modified_at": 1000,
+        "item_id": "tent-1",
+        "bound_at": 4000
+      },
+      "BCDEFGHJ34": {
+        "added_at": 2000,
+        "modified_at": 2000,
+        "item_id": "tent-1",
+        "bound_at": 5000
+      }
+    },
+    "item": {
+      "tent-1": {
+        "name": "Tent",
+        "added_at": 3000,
+        "modified_at": 3000,
+        "status": "in",
+        "holder_id": null
+      }
+    }
+  }
+}

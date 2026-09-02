@@ -41,7 +41,13 @@ def test_the_first_admin_creates_themself_on_the_log(db):
     assert event.actor_id == user_id
     assert event.device_id == SERVER_DEVICE
     assert event.payload == {"name": "Alex", "role": "admin", "active": True}
-    assert snapshot(db)["user"][user_id] == {"name": "Alex", "role": "admin", "active": True}
+    assert snapshot(db)["user"][user_id] == {
+        "name": "Alex",
+        "role": "admin",
+        "active": True,
+        "added_at": T0,
+        "modified_at": T0,
+    }
 
 
 def test_only_one_first_admin(db, admin):
@@ -71,6 +77,8 @@ def test_invite_then_redeem_then_sign_in(db, admin):
         "active": True,
         "email": "bea@example.org",
         "has_password": False,
+        "added_at": T0,
+        "modified_at": T0,
     }
 
     session = join(db, token)

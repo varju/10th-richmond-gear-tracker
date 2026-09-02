@@ -29,7 +29,7 @@ from pydantic import (
 from gear_tracker.replay import DERIVED_FIELDS
 from gear_tracker.ulid import is_ulid, new_ulid
 
-EntityType = Literal["item", "user", "location", "code", "reservation", "repair", "setting"]
+EntityType = Literal["item", "item_type", "user", "location", "code", "reservation", "repair", "setting"]
 ENTITY_TYPES = frozenset(get_args(EntityType))
 
 
@@ -101,6 +101,17 @@ class CheckOut(Payload):
     holder_id: NonEmpty
 
 
+class CodeBinding(Payload):
+    item_id: NonEmpty
+
+
+def _no_derived_keys(payload: dict[str, Any]) -> dict[str, Any]:
+    for key in payload:
+        if key in DERIVED_FIELDS:
+            raise ValueError(f"{key} is set by the system, not by created")
+    return payload
+
+
 class _Incoming(Strict):
     """What every event carries. Each subclass pins `type` and the shape of `payload`."""
 
@@ -129,7 +140,7 @@ class _ItemOnly(_Incoming):
 
 class Created(_Incoming):
     type: Literal["created"]
-    payload: dict[str, Any]
+    payload: Annotated[dict[str, Any], AfterValidator(_no_derived_keys)]
 
 
 class FieldChanged(_Incoming):
@@ -157,14 +168,29 @@ class CheckedIn(_ItemOnly):
     payload: dict[str, Any]
 
 
+class CodeBound(_Incoming):
+    """A printed code goes on a thing (FR-TAG-04, FR-TAG-07). The code is the entity; the item is in the payload."""
+
+    type: Literal["code_bound"]
+    payload: CodeBinding
+
+    @model_validator(mode="after")
+    def _codes_only(self):
+        if self.entity_type != "code":
+            raise ValueError("code_bound applies only to codes")
+        return self
+
+
 IncomingEvent = Annotated[
-    Created | FieldChanged | NoteAdded | NoteCorrected | CheckedOut | CheckedIn,
+    Created | FieldChanged | NoteAdded | NoteCorrected | CheckedOut | CheckedIn | CodeBound,
     Field(discriminator="type"),
 ]
 _incoming = TypeAdapter(IncomingEvent)
 # Keep in step with the union above. Later milestones add to both; replay must
 # grow with them, and the two replays must agree (NFR-MAINT-04).
-EVENT_TYPES = frozenset({"created", "field_changed", "note_added", "note_corrected", "checked_out", "checked_in"})
+EVENT_TYPES = frozenset(
+    {"created", "field_changed", "note_added", "note_corrected", "checked_out", "checked_in", "code_bound"}
+)
 
 
 def validate(incoming: Any) -> _Incoming:
