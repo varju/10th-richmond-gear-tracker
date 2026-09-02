@@ -226,6 +226,31 @@ def test_reset_link_over_http(real):
     sign_in(real, password="a new password")
 
 
+def test_revoke_one_device_over_http(real):
+    admin = sign_in(real)
+    invited = real.post("/users/invite", json={"name": "Bea", "email": "bea@example.org"}, headers=admin).json()
+    lost = real.post(
+        "/auth/redeem", json={"token": invited["token"], "password": "battery staple", "device_id": "phone-lost"}
+    )
+    lost_auth = {"Authorization": f"Bearer {lost.json()['token']}"}
+    assert real.get("/sync/pull?since=0", headers=lost_auth).status_code == 200
+
+    devices = real.get(f"/users/{invited['user_id']}/devices", headers=admin).json()["devices"]
+    assert [d["device_id"] for d in devices] == ["phone-lost"]
+
+    r = real.post(f"/users/{invited['user_id']}/devices/phone-lost/revoke", headers=admin)
+    assert r.status_code == 200, r.text
+    assert r.json()["devices"] == []
+    assert real.get("/sync/pull?since=0", headers=lost_auth).status_code == 401
+    # The account is fine: another phone signs in.
+    sign_in(real, email="bea@example.org", password="battery staple", device="phone-new")
+
+    alex_id = real.get("/users", headers=admin).json()["users"][0]["id"]
+    r = real.post(f"/users/{alex_id}/devices/phone-a/revoke", headers=admin)
+    assert r.status_code == 409
+    assert r.json()["message"] == "sign out instead"
+
+
 # --- the built client ------------------------------------------------------------------
 
 

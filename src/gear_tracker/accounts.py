@@ -296,3 +296,37 @@ def reactivate(conn: sqlite3.Connection, who: Principal, user_id: str, now: int 
     _require_admin(who)
     now = now_ms() if now is None else now
     _change(conn, who.user_id, user_id, "active", True, now)
+
+
+# --- devices -------------------------------------------------------------------------------
+
+
+def list_devices(conn: sqlite3.Connection, who: Principal, user_id: str) -> list[dict[str, Any]]:
+    """The devices a user is signed in on: one row per device with an open session, latest sign-in first."""
+    _require_admin(who)
+    get_user(conn, user_id)
+    rows = conn.execute(
+        """
+        SELECT device_id, max(created_at) AS created_at FROM sessions
+        WHERE user_id = ? AND revoked_at IS NULL
+        GROUP BY device_id ORDER BY created_at DESC, device_id
+        """,
+        (user_id,),
+    )
+    return [{"device_id": r["device_id"], "created_at": r["created_at"]} for r in rows]
+
+
+def revoke_device(
+    conn: sqlite3.Connection, who: Principal, user_id: str, device_id: str, now: int | None = None
+) -> list[dict[str, Any]]:
+    """A lost or sold phone (FR-USR-14). Its sessions end; the account and its history are untouched (FR-OFF-07)."""
+    _require_admin(who)
+    now = now_ms() if now is None else now
+    if user_id == who.user_id and device_id == who.device_id:
+        raise Conflict("sign out instead")
+    get_user(conn, user_id)
+    conn.execute(
+        "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND device_id = ? AND revoked_at IS NULL",
+        (now, user_id, device_id),
+    )
+    return list_devices(conn, who, user_id)

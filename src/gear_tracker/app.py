@@ -162,6 +162,15 @@ def create_app(
     def reset_link(conn: Db, who: Who, user_id: str) -> dict[str, Any]:
         return stamped({"token": accounts.reset_link(conn, who, user_id)})
 
+    @app.get("/users/{user_id}/devices")
+    def devices(conn: Db, who: Who, user_id: str) -> dict[str, Any]:
+        return stamped({"devices": accounts.list_devices(conn, who, user_id)})
+
+    @app.post("/users/{user_id}/devices/{device_id}/revoke")
+    def revoke_device(conn: Db, who: Who, user_id: str, device_id: str) -> dict[str, Any]:
+        """One phone, not the person (FR-USR-14)."""
+        return stamped({"devices": accounts.revoke_device(conn, who, user_id, device_id)})
+
     # --- codes ----------------------------------------------------------------------------
 
     @app.post("/codes/sheets")

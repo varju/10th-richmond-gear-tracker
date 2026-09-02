@@ -306,3 +306,43 @@ def test_server_events_climb_like_a_devices(db, admin):
         invite(db, admin, name=f"U{n}", email=f"u{n}@example.org", now=T0 + n)
     seqs = [e.device_seq for e in in_replay_order(db) if e.device_id == SERVER_DEVICE]
     assert seqs == sorted(seqs) and len(set(seqs)) == len(seqs)
+
+
+# --- devices ---------------------------------------------------------------------------------
+
+
+def test_revoking_a_device_ends_its_sessions_and_nothing_else(db, admin):
+    user_id, token = invite(db, admin)
+    lost = join(db, token, device="phone-lost")
+    kept = accounts.sign_in(db, SignIn(email="bea@example.org", password="battery staple", device_id="phone-kept"))
+    assert [d["device_id"] for d in accounts.list_devices(db, admin, user_id)] == ["phone-kept", "phone-lost"]
+
+    before = list(in_replay_order(db))
+    left = accounts.revoke_device(db, admin, user_id, "phone-lost", now=T0)
+
+    assert [d["device_id"] for d in left] == ["phone-kept"]
+    assert accounts.authenticate(db, lost.token) is None
+    assert accounts.authenticate(db, kept.token).device_id == "phone-kept"
+    assert accounts.get_user(db, user_id)["active"] is True
+    assert list(in_replay_order(db)) == before, "sessions only; nothing on the log"
+    # The account is untouched, so the same phone can sign in again.
+    accounts.sign_in(db, SignIn(email="bea@example.org", password="battery staple", device_id="phone-lost"))
+
+
+def test_an_admin_cannot_revoke_the_device_they_are_using(db, admin):
+    session = accounts.sign_in(db, SignIn(email="alex@example.org", password="correct horse", device_id="a"))
+    me = accounts.authenticate(db, session.token)
+    with pytest.raises(Conflict, match="sign out instead"):
+        accounts.revoke_device(db, me, admin.user_id, "a")
+    assert accounts.authenticate(db, session.token) is not None
+
+
+def test_only_admins_see_or_revoke_devices(db, admin):
+    user_id, token = invite(db, admin)
+    bea = accounts.authenticate(db, join(db, token).token)
+    with pytest.raises(Forbidden):
+        accounts.list_devices(db, bea, admin.user_id)
+    with pytest.raises(Forbidden):
+        accounts.revoke_device(db, bea, admin.user_id, "server")
+    with pytest.raises(NotFound):
+        accounts.list_devices(db, admin, "nobody")
