@@ -3,7 +3,7 @@ import { bindCode, seen } from "../lib/actions";
 import { parseCode } from "../lib/codes";
 import { code as codeOf, codeStatus, displayName, homeLabel, item, nameOf, resolveItem } from "../lib/inventory";
 import { checkOut } from "../lib/movement";
-import { isPacked, type Remaining, remaining, type Reservation, reservation } from "../lib/reservations";
+import { addExtra, isPacked, type Remaining, remaining, type Reservation, reservation } from "../lib/reservations";
 import { navigate, useRoute } from "../lib/router";
 import { startScanner } from "../lib/scanner";
 import type { Store } from "../lib/store";
@@ -164,6 +164,8 @@ export function Scan({ store }: { store: Store }) {
               onMoved={(kind) => {
                 confirm(`${kind} · ${displayName(store.state, card)}`);
                 showCard(null);
+                // An extra taken during a reservation session joins its gear list (FR-RES-07).
+                if (booked && kind !== "Checked in") void addExtra(store, booked.id, card.id);
               }}
             >
               <div className="row">
@@ -224,35 +226,41 @@ function RemainingList({
 
   return (
     <section className="remaining" aria-label="Remaining">
-      {isPacked(rem) ? (
-        <p className="muted">Everything is packed.</p>
-      ) : (
-        <>
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
-          <ul className="items">
-            {rem.items.map((it) => (
-              <li key={it.id}>
-                <button className="item" type="button" onClick={() => take(it.id, displayName(store.state, it))}>
-                  <span className="item-name">{displayName(store.state, it)}</span>
-                  <span className="muted small">{homeLabel(store.state, it) || "No home"}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {rem.generics.length > 0 && (
-            <ul className="names">
-              {rem.generics.map((g) => (
-                <li key={g.generic.id} className={g.done >= g.quantity ? "muted" : ""}>
-                  {g.done} of {g.quantity} × {g.generic.name}
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {isPacked(rem) && <p className="muted">Everything is packed.</p>}
+      {rem.items.length > 0 && (
+        <ul className="items">
+          {rem.items.map((it) => (
+            <li key={it.id}>
+              <button className="item" type="button" onClick={() => take(it.id, displayName(store.state, it))}>
+                <span className="item-name">{displayName(store.state, it)}</span>
+                <span className="muted small">{homeLabel(store.state, it) || "No home"}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {rem.generics.length > 0 && (
+        <ul className="names">
+          {rem.generics.map((g) => (
+            <li key={g.generic.id} className={g.done >= g.quantity ? "muted" : ""}>
+              {g.done} of {g.quantity} × {g.generic.name}
+            </li>
+          ))}
+        </ul>
+      )}
+      {rem.packed.length > 0 && (
+        <ul className="names">
+          {rem.packed.map((it) => (
+            <li key={it.id} className="muted">
+              ✓ {displayName(store.state, it)}
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

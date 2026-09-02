@@ -84,6 +84,40 @@ def test_a_rejected_event_leaves_the_cache_alone(db):
     assert snapshot(db) == before
 
 
+def test_a_gear_list_and_a_corrected_event_reach_the_cache(db):
+    """The new reservation and movement events go through append and derived like any other."""
+    out = incoming(device_seq=1, type="checked_out", payload={"holder_id": "bob", "event": None})
+    append(db, out, received_at=T0)
+    append(
+        db,
+        incoming(device_seq=2, type="event_corrected", payload={"movement_id": out["id"], "event": "Fall Camp"}),
+        received_at=T0,
+    )
+    booked = {"entity_type": "reservation", "entity_id": "res-1"}
+    append(
+        db,
+        incoming(
+            device_seq=3,
+            type="created",
+            payload={"event": "Fall Camp", "starts": "2026-10-02", "ends": "2026-10-04"},
+            **booked,
+        ),
+        received_at=T0,
+    )
+    append(db, incoming(device_seq=4, type="item_added", payload={"item_id": "tent-1"}, **booked), received_at=T0)
+    append(
+        db,
+        incoming(device_seq=5, type="quantity_changed", payload={"item_id": "tarp", "quantity": 2}, **booked),
+        received_at=T0,
+    )
+
+    state = snapshot(db)
+    assert state["item"]["tent-1"]["movement"]["event"] == "Fall Camp"
+    assert state["reservation"]["res-1"]["items"] == ["tent-1"]
+    assert state["reservation"]["res-1"]["generics"] == [{"item_id": "tarp", "quantity": 2}]
+    assert state == replay(in_replay_order(db))
+
+
 def test_derived_fields_cannot_be_set_directly(db):
     with pytest.raises(Rejected, match="derived"):
         append(db, incoming(payload={"field": "status", "value": "in", "old": "out"}), received_at=T0)

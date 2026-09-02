@@ -80,6 +80,28 @@ test("a scan ticks an item off; an unlisted one is appended with no fuss (FR-RES
   await screen.findByText("Checked out · Stove");
   expect(item(store.state, stove)).toMatchObject({ status: "out", holder_id: "alice" });
   expect(rows().map((b) => b.textContent)).toEqual(["TarpWarm locker"]);
+
+  // The stove was not on the list. It joins it, and shows as ticked (S-RES-04).
+  await waitFor(() => expect(res.reservation(store.state, fall)?.items).toEqual([tarp, tent, stove]));
+  expect(store.pending.at(-1)).toMatchObject({ type: "item_added", entity_id: fall, payload: { item_id: stove } });
+  expect(remaining()).toHaveTextContent("✓ Stove");
+});
+
+test("a unit that overflows a full generic line raises the line instead (FR-RES-07)", async () => {
+  const tents = item(store.state, tent)!.parent_id!;
+  const tent3 = await act.addUnit(store, tents);
+  renderInShell(<Scan store={store} />);
+
+  // One tent fills the line that was asked for; the list does not grow.
+  await mv.checkOut(store, tent2, { event: "Fall Camp" });
+  await res.addExtra(store, fall, tent2);
+  await waitFor(() => expect(remaining()).toHaveTextContent("1 of 1 × 4-person tent"));
+  expect(res.reservation(store.state, fall)?.generics).toEqual([{ item_id: tents, quantity: 1 }]);
+
+  await mv.checkOut(store, tent3, { event: "Fall Camp" });
+  await res.addExtra(store, fall, tent3);
+  await waitFor(() => expect(remaining()).toHaveTextContent("2 of 2 × 4-person tent"));
+  expect(res.reservation(store.state, fall)?.items).toEqual([tarp, tent]);
 });
 
 test("gear with no sticker is ticked off from the list itself (FR-OUT-02)", async () => {

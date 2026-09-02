@@ -96,6 +96,22 @@ export const correctNote = (store: Store, itemId: string, noteId: string, text: 
 export const deleteNote = (store: Store, itemId: string, noteId: string) =>
   notes.deleteNote(store, onItem(itemId), noteId);
 
+/**
+ * The event a movement was recorded under, put right (FR-RES-17). Appended, the
+ * same shape as a note correction: the movement itself is never rewritten (FR-OUT-16).
+ */
+export async function correctEvent(store: Store, itemId: string, movementId: string, event: string | null) {
+  const it = item(store.state, itemId);
+  if (!it) throw new Error("no such item");
+  return store.record({
+    entity_type: "item",
+    entity_id: itemId,
+    type: "event_corrected",
+    actor_id: actor(store),
+    payload: { movement_id: movementId, event: event?.trim() || null },
+  });
+}
+
 export interface HistoryEntry {
   id: string;
   type: "checked_out" | "checked_in";
@@ -113,16 +129,24 @@ export interface HistoryEntry {
  */
 export function history(store: Store, itemId: string): HistoryEntry[] {
   const notes = aliases(store.state, itemId).flatMap((id) => (item(store.state, id)?.notes ?? []) as Note[]);
-  return aliases(store.state, itemId)
+  const events = aliases(store.state, itemId)
     .flatMap((id) => store.eventsFor("item", id))
+    .sort(replayOrder);
+  // The last correction wins, the same rule replay uses for the current movement (FR-RES-17).
+  const corrected = new Map<string, string | null>();
+  for (const e of events) {
+    if (e.type === "event_corrected") {
+      corrected.set(e.payload.movement_id as string, (e.payload.event as string | null) ?? null);
+    }
+  }
+  return events
     .filter((e) => e.type === "checked_out" || e.type === "checked_in")
-    .sort(replayOrder)
     .map((e) => ({
       id: e.id,
       type: e.type as HistoryEntry["type"],
       actor_id: e.actor_id,
       holder_id: (e.payload.holder_id as string | undefined) ?? null,
-      event: (e.payload.event as string | undefined) ?? null,
+      event: corrected.has(e.id) ? corrected.get(e.id)! : (e.payload.event as string | undefined) ?? null,
       supersedes: (e.payload.supersedes as string | undefined) ?? null,
       at: e.effective_at,
       notes: notes.filter((n) => n.movement_id === e.id),

@@ -46,3 +46,43 @@ test("replay does not change its base", () => {
   expect(replay([out], base).item?.t?.status).toBe("out");
   expect(base.item?.t?.status).toBe("in");
 });
+
+test("replay does not write on the lists an event's payload carries", () => {
+  const made: ReplayEvent = {
+    id: "01000000000000000000000001",
+    entity_type: "reservation",
+    entity_id: "r",
+    type: "created",
+    actor_id: "a",
+    device_id: "d",
+    device_seq: 1,
+    effective_at: 1,
+    payload: { event: "Fall Camp", items: ["tent-1"], generics: [{ item_id: "tarp", quantity: 1 }] },
+  };
+  const added: ReplayEvent = {
+    ...made,
+    id: "01000000000000000000000002",
+    type: "item_added",
+    device_seq: 2,
+    effective_at: 2,
+    payload: { item_id: "stove-1" },
+  };
+  const more: ReplayEvent = {
+    ...made,
+    id: "01000000000000000000000003",
+    type: "quantity_changed",
+    device_seq: 3,
+    effective_at: 3,
+    payload: { item_id: "tarp", quantity: 2 },
+  };
+
+  const state = replay([made, added, more]);
+  expect(state.reservation?.r).toMatchObject({
+    items: ["tent-1", "stove-1"],
+    generics: [{ item_id: "tarp", quantity: 2 }],
+  });
+  // Replaying the same events again must give the same answer, so the payloads are untouched.
+  expect(made.payload.items).toEqual(["tent-1"]);
+  expect(made.payload.generics).toEqual([{ item_id: "tarp", quantity: 1 }]);
+  expect(replay([made, added, more])).toEqual(state);
+});

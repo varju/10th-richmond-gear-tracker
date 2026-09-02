@@ -1,5 +1,5 @@
 {
-  "name": "a reservation is created whole; an edit replaces one list and keeps the old one in the log",
+  "name": "a reservation is created whole; the gear list is then edited one line at a time",
   "events": [
     {
       "id": "01000000000000000000000001",
@@ -22,16 +22,67 @@
       "id": "01000000000000000000000002",
       "entity_type": "reservation",
       "entity_id": "res-1",
-      "type": "field_changed",
+      "type": "item_removed",
       "actor_id": "alice",
       "device_id": "a",
       "device_seq": 2,
       "effective_at": 2000,
-      "payload": {
-        "field": "items",
-        "value": ["tent-1"],
-        "old": ["tent-1", "stove-1"]
-      }
+      "payload": { "item_id": "stove-1" }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "reservation",
+      "entity_id": "res-1",
+      "type": "item_added",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "payload": { "item_id": "tent-2" }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "reservation",
+      "entity_id": "res-1",
+      "type": "item_added",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 4000,
+      "payload": { "item_id": "tent-2" }
+    },
+    {
+      "id": "01000000000000000000000005",
+      "entity_type": "reservation",
+      "entity_id": "res-1",
+      "type": "quantity_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 5,
+      "effective_at": 5000,
+      "payload": { "item_id": "tarp", "quantity": 3 }
+    },
+    {
+      "id": "01000000000000000000000006",
+      "entity_type": "reservation",
+      "entity_id": "res-1",
+      "type": "quantity_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 6,
+      "effective_at": 6000,
+      "payload": { "item_id": "billy", "quantity": 1 }
+    },
+    {
+      "id": "01000000000000000000000007",
+      "entity_type": "reservation",
+      "entity_id": "res-1",
+      "type": "quantity_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 7,
+      "effective_at": 7000,
+      "payload": { "item_id": "billy", "quantity": 0 }
     }
   ],
   "state": {
@@ -40,10 +91,10 @@
         "event": "Fall Camp",
         "starts": "2026-10-02",
         "ends": "2026-10-04",
-        "items": ["tent-1"],
-        "generics": [{ "item_id": "tarp", "quantity": 2 }],
+        "items": ["tent-1", "tent-2"],
+        "generics": [{ "item_id": "tarp", "quantity": 3 }],
         "added_at": 1000,
-        "modified_at": 2000
+        "modified_at": 7000
       }
     }
   }

@@ -8,6 +8,7 @@ import pytest
 
 from gear_tracker.db import connect
 from gear_tracker.events import ENTITY_TYPES, Rejected, append, get, in_replay_order, since, validate
+from gear_tracker.ulid import new_ulid
 from tests.factories import T0, incoming
 
 
@@ -235,6 +236,44 @@ def test_a_reservation_has_an_event_and_days_in_order():
         validate(created("reservation", {**base, "starts": "Oct 2"}))
     with pytest.raises(Rejected, match="generics.0.quantity"):
         validate(created("reservation", {**base, "generics": [{"item_id": "t", "quantity": 0}]}))
+
+
+def test_a_reservations_gear_list_is_edited_one_line_at_a_time():
+    """A whole-list write would drop the extra the other phone added (FR-RES-07)."""
+    line = incoming(entity_type="reservation", entity_id="res-1", type="item_added", payload={"item_id": "tent-1"})
+    validate(line)
+    validate({**line, "type": "item_removed"})
+    validate({**line, "type": "quantity_changed", "payload": {"item_id": "tarp", "quantity": 0}})
+
+    with pytest.raises(Rejected, match="the gear list is edited one line at a time"):
+        validate(
+            incoming(
+                entity_type="reservation", entity_id="res-1", payload={"field": "items", "value": [], "old": ["t"]}
+            )
+        )
+    with pytest.raises(Rejected, match="the gear list is edited one line at a time"):
+        validate(
+            incoming(
+                entity_type="reservation", entity_id="res-1", payload={"field": "generics", "value": [], "old": []}
+            )
+        )
+    with pytest.raises(Rejected, match="item_added applies only to reservations"):
+        validate({**line, "entity_type": "item"})
+    with pytest.raises(Rejected, match="quantity: Input should be greater than or equal to 0"):
+        validate({**line, "type": "quantity_changed", "payload": {"item_id": "tarp", "quantity": -1}})
+
+
+def test_a_movements_event_is_corrected_by_naming_it():
+    """The same shape as a note correction (FR-RES-17, FR-OUT-16)."""
+    fix = incoming(type="event_corrected", payload={"movement_id": new_ulid(), "event": "Fall Camp"})
+    validate(fix)
+    validate({**fix, "payload": {**fix["payload"], "event": None}})
+    with pytest.raises(Rejected, match="movement_id: not a ULID"):
+        validate({**fix, "payload": {"movement_id": "nope", "event": "Fall Camp"}})
+    with pytest.raises(Rejected, match="event: Field required"):
+        validate({**fix, "payload": {"movement_id": new_ulid()}})
+    with pytest.raises(Rejected, match="event_corrected applies only to items"):
+        validate({**fix, "entity_type": "reservation", "entity_id": "res-1"})
 
 
 def test_a_found_report_can_only_be_resolved():

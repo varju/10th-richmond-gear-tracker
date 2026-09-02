@@ -1,0 +1,68 @@
+{
+  "name": "two phones each add a different extra offline; both survive, and so does a quantity bump",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "reservation",
+      "entity_id": "res-1",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "event": "Fall Camp",
+        "starts": "2026-10-02",
+        "ends": "2026-10-04",
+        "items": ["tent-1"],
+        "generics": [{ "item_id": "tarp", "quantity": 2 }]
+      }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "reservation",
+      "entity_id": "res-1",
+      "type": "item_added",
+      "actor_id": "bob",
+      "device_id": "b",
+      "device_seq": 1,
+      "effective_at": 2000,
+      "payload": { "item_id": "lantern-1" }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "reservation",
+      "entity_id": "res-1",
+      "type": "item_added",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": { "item_id": "stove-1" }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "reservation",
+      "entity_id": "res-1",
+      "type": "quantity_changed",
+      "actor_id": "bob",
+      "device_id": "b",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": { "item_id": "tarp", "quantity": 3 }
+    }
+  ],
+  "state": {
+    "reservation": {
+      "res-1": {
+        "event": "Fall Camp",
+        "starts": "2026-10-02",
+        "ends": "2026-10-04",
+        "items": ["tent-1", "stove-1", "lantern-1"],
+        "generics": [{ "item_id": "tarp", "quantity": 3 }],
+        "added_at": 1000,
+        "modified_at": 2000
+      }
+    }
+  }
+}

@@ -388,6 +388,11 @@ button.item {
   font-weight: 600;
 }
 
+/* A row that also offers an action: the action sits under it, indented to the row. */
+.items li > button.small {
+  margin: 8px 0 12px 12px;
+}
+
 .filters {
   margin-bottom: 12px;
 }
@@ -971,4 +976,30 @@ h3.section.small {
     flex-wrap: wrap;
     gap: 4px 24px;
   }
+}
+
+/* --- M17: the user guide -------------------------------------------------------------
+ *
+ * Prose, not controls: docs/guide/*.md turned into HTML by the build. Wide screens
+ * hold the line length down so a task can be read in one go.
+ */
+.guide-contents ul,
+.guide ul {
+  margin: 0 0 16px;
+  padding-left: 20px;
+}
+
+.guide-contents li {
+  min-height: 32px;
+}
+
+.guide h3 {
+  margin: 24px 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.guide p {
+  margin: 0 0 12px;
+  max-width: 60ch;
 }

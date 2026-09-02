@@ -23,6 +23,12 @@ export interface ReplayEvent {
   payload: Record<string, unknown>;
 }
 
+/** So many of a generic item on a reservation's gear list (FR-RES-13). */
+export interface GenericLine {
+  item_id: string;
+  quantity: number;
+}
+
 export interface Note {
   id: string;
   text: string;
@@ -93,6 +99,39 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       entity[p.field as string] = p.value;
       entity.modified_at = event.effective_at;
       break;
+    case "item_added": {
+      // The gear list is edited one line at a time, so two phones adding an
+      // extra offline both land (FR-RES-07). A new array each time: the one
+      // `created` put here is the event's own payload.
+      const items = (entity.items ?? []) as string[];
+      if (!items.includes(p.item_id as string)) entity.items = [...items, p.item_id as string];
+      entity.modified_at = event.effective_at;
+      break;
+    }
+    case "item_removed":
+      entity.items = ((entity.items ?? []) as string[]).filter((id) => id !== p.item_id);
+      entity.modified_at = event.effective_at;
+      break;
+    case "quantity_changed": {
+      // How many of a generic the reservation wants (FR-RES-13). Zero drops the line.
+      const lines = (entity.generics ?? []) as GenericLine[];
+      const itemId = p.item_id as string;
+      const quantity = p.quantity as number;
+      if (quantity === 0) entity.generics = lines.filter((g) => g.item_id !== itemId);
+      else if (lines.some((g) => g.item_id === itemId))
+        entity.generics = lines.map((g) => (g.item_id === itemId ? { ...g, quantity } : g));
+      else entity.generics = [...lines, { item_id: itemId, quantity }];
+      entity.modified_at = event.effective_at;
+      break;
+    }
+    case "event_corrected": {
+      // The movement stands in the log; only the event it is read under moves
+      // (FR-RES-17, as FR-OUT-16). Older movements are corrected in the log too;
+      // state carries the last one, which is what "out under" means.
+      const current = entity.movement as Movement | null | undefined;
+      if (current && current.id === p.movement_id) current.event = p.event ?? null;
+      break;
+    }
     case "note_added": {
       const note: Note = { id: event.id, text: p.text as string, actor_id: event.actor_id, at: event.effective_at };
       if (p.movement_id != null) note.movement_id = p.movement_id as string;

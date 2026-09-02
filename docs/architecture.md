@@ -325,7 +325,12 @@ versions in words until one of those happens (FR-OFF-10).
 
 Notes ride on the item, not the movement, as `note_added` events. One that belongs to a movement carries its
 `movement_id`, so it can be shown under the right check-out and still be corrected later by `note_corrected`
-(FR-OUT-16). Movement events themselves carry no note text: there is nothing on a movement to correct.
+(FR-OUT-16). Movement events themselves carry no note text.
+
+The one thing on a movement that can be put right is the event it was recorded under, by an appended `event_corrected`
+naming it (FR-RES-17). Replay carries the item's last movement only, so a correction to that one lands in state and
+decides what the item is out under; a correction to an older one is read back from the log, where the history is. The
+check-out itself is never rewritten, the same rule as a note (FR-OUT-16).
 
 The access history on an item page (FR-INV-09) is read from the events the device holds, so it reaches back 90 days
 (NFR-DATA-03). The server keeps everything; a full history is a report, not a phone screen.
@@ -539,11 +544,11 @@ The file is a secret: it holds the Admin and mail passwords. It sits in `GEAR_DA
 already off the repository, and `seed.toml` is ignored by git in case one is made locally. `seed.example.toml` is
 committed with placeholders.
 
-**Inventory is a different file with a different rule.** `fixtures/demo.toml` is committed and baked into the image:
-locations, generic items with units, single items, no codes. `seed.toml` opts in with `inventory = "demo"`, or a path to
-a file of the group's own. It loads only into a database with no items, and never again: after that the app is the
-truth, and a changed file waits for the next wipe. Config is secret and the file always wins; test data is public and
-the database always wins. The browser tests load the same file instead of building data by hand (NFR-MAINT-10).
+**Inventory is a different file with a different rule.** `src/gear_tracker/fixtures/demo.toml` is committed and ships in
+the package: locations, generic items with units, single items, no codes. `seed.toml` opts in with `inventory = "demo"`,
+or a path to a file of the group's own. It loads only into a database with no items, and never again: after that the app
+is the truth, and a changed file waits for the next wipe. Config is secret and the file always wins; test data is public
+and the database always wins. The browser tests load the same file instead of building data by hand (NFR-MAINT-10).
 
 ### Accounts
 

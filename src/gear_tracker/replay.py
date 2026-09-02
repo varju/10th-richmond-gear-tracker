@@ -71,6 +71,35 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             # Modified means the entity's own fields (FR-INV-03). Movements and notes do not count.
             entity[p["field"]] = p["value"]
             entity["modified_at"] = event.effective_at
+        case "item_added":
+            # The gear list is edited one line at a time, so two phones adding an
+            # extra offline both land (FR-RES-07). A new list each time: the one
+            # `created` put here is the event's own payload.
+            items = entity.get("items", [])
+            if p["item_id"] not in items:
+                entity["items"] = [*items, p["item_id"]]
+            entity["modified_at"] = event.effective_at
+        case "item_removed":
+            entity["items"] = [i for i in entity.get("items", []) if i != p["item_id"]]
+            entity["modified_at"] = event.effective_at
+        case "quantity_changed":
+            # How many of a generic the reservation wants (FR-RES-13). Zero drops the line.
+            lines = entity.get("generics", [])
+            item_id, quantity = p["item_id"], p["quantity"]
+            if quantity == 0:
+                entity["generics"] = [g for g in lines if g["item_id"] != item_id]
+            elif any(g["item_id"] == item_id for g in lines):
+                entity["generics"] = [{**g, "quantity": quantity} if g["item_id"] == item_id else g for g in lines]
+            else:
+                entity["generics"] = [*lines, {"item_id": item_id, "quantity": quantity}]
+            entity["modified_at"] = event.effective_at
+        case "event_corrected":
+            # The movement stands in the log; only the event it is read under moves
+            # (FR-RES-17, as FR-OUT-16). Older movements are corrected in the log
+            # too; state carries the last one, which is what "out under" means.
+            movement = entity.get("movement")
+            if movement is not None and movement["id"] == p["movement_id"]:
+                movement["event"] = p.get("event")
         case "note_added":
             note = {"id": event.id, "text": p["text"], "actor_id": event.actor_id, "at": event.effective_at}
             if p.get("movement_id") is not None:

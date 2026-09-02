@@ -110,6 +110,13 @@ class NoteRef(Payload):
     note_id: Ulid
 
 
+class EventCorrection(Payload):
+    """The event a movement was recorded under, put right (FR-RES-17). The movement itself stands, as FR-OUT-16."""
+
+    movement_id: Ulid
+    event: str | None
+
+
 class CheckOut(Payload):
     """Who has it, for which event (FR-OUT-04). `supersedes` names the check-out this one knowingly replaces:
     a transfer (FR-OUT-12), not a conflict (FR-OFF-10)."""
@@ -158,6 +165,19 @@ class GenericQuantity(Payload):
 
     item_id: NonEmpty
     quantity: Annotated[int, Field(ge=1)]
+
+
+class ItemRef(Payload):
+    """One named item, joining or leaving a reservation's gear list."""
+
+    item_id: NonEmpty
+
+
+class QuantityChange(Payload):
+    """A generic line's new count. Zero removes the line."""
+
+    item_id: NonEmpty
+    quantity: Annotated[int, Field(ge=0)]
 
 
 class ReservationDetails(Payload):
@@ -226,6 +246,14 @@ class _ItemOnly(_Incoming):
         return self
 
 
+class _ReservationOnly(_Incoming):
+    @model_validator(mode="after")
+    def _reservations_only(self):
+        if self.entity_type != "reservation":
+            raise ValueError(f"{self.type} applies only to reservations")
+        return self
+
+
 class Created(_Incoming):
     type: Literal["created"]
     payload: dict[str, Any]
@@ -254,6 +282,9 @@ class FieldChanged(_Incoming):
         field, value = self.payload.field, self.payload.value
         if self.entity_type == "repair" and field == "state" and value not in REPAIR_STATES:
             raise ValueError(f"state must be one of {', '.join(REPAIR_STATES)}")
+        if self.entity_type == "reservation" and field in ("items", "generics"):
+            # A whole-list write drops the extra the other phone added (FR-RES-07).
+            raise ValueError("the gear list is edited one line at a time")
         if self.entity_type == "found_report" and (field != "resolved" or not isinstance(value, bool)):
             # The report is the finder's words. A member marks it dealt with, and changes nothing else.
             raise ValueError("a found report can only be resolved")
@@ -273,6 +304,26 @@ class NoteCorrected(_Incoming):
 class NoteDeleted(_Incoming):
     type: Literal["note_deleted"]
     payload: NoteRef
+
+
+class EventCorrected(_ItemOnly):
+    type: Literal["event_corrected"]
+    payload: EventCorrection
+
+
+class ItemAdded(_ReservationOnly):
+    type: Literal["item_added"]
+    payload: ItemRef
+
+
+class ItemRemoved(_ReservationOnly):
+    type: Literal["item_removed"]
+    payload: ItemRef
+
+
+class QuantityChanged(_ReservationOnly):
+    type: Literal["quantity_changed"]
+    payload: QuantityChange
 
 
 class CheckedOut(_ItemOnly):
@@ -322,6 +373,10 @@ IncomingEvent = Annotated[
     | NoteAdded
     | NoteCorrected
     | NoteDeleted
+    | EventCorrected
+    | ItemAdded
+    | ItemRemoved
+    | QuantityChanged
     | CheckedOut
     | CheckedIn
     | CodeBound
@@ -339,6 +394,10 @@ EVENT_TYPES = frozenset(
         "note_added",
         "note_corrected",
         "note_deleted",
+        "event_corrected",
+        "item_added",
+        "item_removed",
+        "quantity_changed",
         "checked_out",
         "checked_in",
         "code_bound",

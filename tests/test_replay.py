@@ -255,6 +255,72 @@ def test_correcting_an_unknown_note_changes_nothing():
     assert state["item"]["tent-1"] == {}
 
 
+def test_a_gear_list_is_built_one_line_at_a_time():
+    """Per-line events, so two phones each adding an extra offline both land (FR-RES-07)."""
+    made = ev(
+        entity_type="reservation",
+        entity_id="res-1",
+        device_seq=1,
+        type="created",
+        payload={"event": "Fall Camp", "starts": "2026-10-02", "ends": "2026-10-04", "items": ["tent-1"]},
+    )
+    line = lambda **kw: ev(entity_type="reservation", entity_id="res-1", **kw)  # noqa: E731
+    state = replay(
+        [
+            made,
+            line(device_seq=2, effective_at=T0 + 1, type="item_added", payload={"item_id": "stove-1"}),
+            # The other phone, offline at the same moment.
+            line(device_id="b", device_seq=1, effective_at=T0 + 1, type="item_added", payload={"item_id": "tarp-1"}),
+            # Already there: no repeat.
+            line(device_seq=3, effective_at=T0 + 2, type="item_added", payload={"item_id": "stove-1"}),
+            line(device_seq=4, effective_at=T0 + 3, type="item_removed", payload={"item_id": "tent-1"}),
+            line(device_seq=5, effective_at=T0 + 4, type="quantity_changed", payload={"item_id": "t", "quantity": 2}),
+            line(device_seq=6, effective_at=T0 + 5, type="quantity_changed", payload={"item_id": "u", "quantity": 1}),
+            line(device_seq=7, effective_at=T0 + 6, type="quantity_changed", payload={"item_id": "t", "quantity": 4}),
+            line(device_seq=8, effective_at=T0 + 7, type="quantity_changed", payload={"item_id": "u", "quantity": 0}),
+        ]
+    )
+    assert state["reservation"]["res-1"]["items"] == ["stove-1", "tarp-1"]
+    # A line that changes keeps its place; zero drops it.
+    assert state["reservation"]["res-1"]["generics"] == [{"item_id": "t", "quantity": 4}]
+    assert state["reservation"]["res-1"]["modified_at"] == T0 + 7
+    # The list `created` carried is the event's own payload, and replay must not have written on it.
+    assert made.payload["items"] == ["tent-1"]
+
+
+def test_a_movements_event_is_corrected_by_an_appended_record():
+    """The check-out stands; the event it is read under moves (FR-RES-17, FR-OUT-16)."""
+    out = ev(device_seq=1, type="checked_out", payload={"holder_id": "alice", "event": None})
+    fix = ev(
+        device_seq=2, effective_at=T0 + 1, type="event_corrected", payload={"movement_id": out.id, "event": "Fall Camp"}
+    )
+    again = ev(
+        device_seq=3, effective_at=T0 + 2, type="event_corrected", payload={"movement_id": out.id, "event": "Cub camp"}
+    )
+    other = ev(
+        device_seq=4, effective_at=T0 + 3, type="event_corrected", payload={"movement_id": new_ulid(), "event": "x"}
+    )
+
+    movement = replay([out, fix, again, other])["item"]["tent-1"]["movement"]
+    assert movement["event"] == "Cub camp"
+    assert movement["id"] == out.id and movement["type"] == "checked_out"
+    # Correcting a movement the item never had changes nothing.
+    assert replay([other])["item"]["tent-1"] == {}
+
+
+def test_correcting_the_event_of_a_movement_that_is_no_longer_current_changes_nothing():
+    """State carries the last movement only; that is what "out under" means."""
+    out = ev(device_seq=1, type="checked_out", payload={"holder_id": "alice", "event": "Thursday"})
+    back = ev(device_seq=2, effective_at=T0 + 1, type="checked_in", payload={})
+    fix = ev(
+        device_seq=3, effective_at=T0 + 2, type="event_corrected", payload={"movement_id": out.id, "event": "Fall Camp"}
+    )
+
+    state = replay([out, back, fix])["item"]["tent-1"]
+    assert state["status"] == "in"
+    assert state["movement"]["id"] == back.id
+
+
 def test_unknown_event_type_is_an_error_not_a_skip():
     """Both replays must fail the same way, or one shows state the other does not."""
     with pytest.raises(UnknownEventType, match="teleported"):

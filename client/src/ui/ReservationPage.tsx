@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { displayName, homeLabel, item, nameOf } from "../lib/inventory";
-import { cancelReservation, conflicts, reservation } from "../lib/reservations";
+import { cancelReservation, conflicts, linkOut, outElsewhere, reservation } from "../lib/reservations";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
@@ -12,6 +12,8 @@ import { datesLabel } from "./Reservations";
 export function ReservationPage({ store, id }: { store: Store; id: string }) {
   useStore(store);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pick, setPick] = useState("");
   const state = store.state;
   const r = reservation(state, id);
 
@@ -24,11 +26,25 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
   }
 
   const clashes = r.cancelled ? [] : conflicts(state, r, r.id);
+  const others = r.cancelled ? [] : outElsewhere(state, r);
 
   /** The session takes the event from here; nobody types it again (FR-RES-03). */
   async function checkOut() {
     await store.setMeta({ session_event: r!.event });
     navigate(`/scan?reservation=${id}`);
+  }
+
+  /**
+   * It went out before the plan did (FR-RES-17, S-RES-07). One tap corrects the
+   * movement's event and puts the item on the list. Nothing moves.
+   */
+  async function link(itemId: string) {
+    setError(null);
+    try {
+      await linkOut(store, id, itemId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not link it");
+    }
   }
 
   async function cancel() {
@@ -79,11 +95,18 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
       )}
 
       <h3 className="section">Items</h3>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {r.items.length === 0 && r.generics.length === 0 && <p className="muted">No gear listed.</p>}
       {r.items.length > 0 && (
         <ul className="items">
           {r.items.map((itemId) => {
             const it = item(state, itemId);
+            // Out, but not for this camp: it may have left before the plan did.
+            const elsewhere = it?.status === "out" && it.movement?.event !== r.event;
             return (
               <li key={itemId}>
                 <button className="item" type="button" onClick={() => navigate(`/items/${itemId}`)}>
@@ -94,6 +117,16 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
                     </span>
                   )}
                 </button>
+                {!r.cancelled && elsewhere && (
+                  <button
+                    className="small"
+                    type="button"
+                    onClick={() => void link(itemId)}
+                    aria-label={`It's with us: ${displayName(state, it!)}`}
+                  >
+                    It's with us
+                  </button>
+                )}
               </li>
             );
           })}
@@ -109,6 +142,36 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
             </li>
           ))}
         </ul>
+      )}
+      {!r.cancelled && others.length > 0 && (
+        <>
+          <h3 className="section">Link other gear that is out</h3>
+          <div className="row">
+            <label className="tight">
+              <span>Item</span>
+              <select aria-label="Gear that is out" value={pick} onChange={(e) => setPick(e.target.value)}>
+                <option value="">Choose</option>
+                {others.map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {displayName(state, it)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="small"
+              type="button"
+              disabled={!pick}
+              onClick={() => {
+                const chosen = pick;
+                setPick("");
+                void link(chosen);
+              }}
+            >
+              It's with us
+            </button>
+          </div>
+        </>
       )}
     </Page>
   );

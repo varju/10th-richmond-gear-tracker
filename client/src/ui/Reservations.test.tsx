@@ -2,6 +2,8 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
+import * as inv from "../lib/inventory";
+import * as mv from "../lib/movement";
 import * as res from "../lib/reservations";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -153,10 +155,36 @@ test("Edit opens the form with the reservation in it and saves changed fields on
   expect(screen.getByLabelText("Ends")).toHaveValue("2026-10-04");
   await user.click(screen.getByLabelText("Remove 4-person tent #1"));
   await user.click(screen.getByRole("button", { name: "Save" }));
+  // The gear list goes out one line at a time, never as a whole list (FR-RES-07).
   await waitFor(() =>
-    expect(store.pending.filter((e) => e.type === "field_changed").map((e) => e.payload)).toEqual([
-      { field: "items", value: [], old: [t1] },
-    ]),
+    expect(
+      store.pending.filter((e) => e.entity_id === fall && e.type !== "created").map((e) => [e.type, e.payload]),
+    ).toEqual([["item_removed", { item_id: t1 }]]),
   );
   expect(location.pathname).toBe(`/reservations/${fall}`);
+});
+
+test("gear that is out under nothing is claimed from the page in one tap (FR-RES-17, S-RES-07)", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  const out = await mv.checkOut(store, t1); // Thursday, no event set
+  await mv.checkOut(store, stove, { event: "Somebody else's trip" });
+  navigate(`/reservations/${fall}`);
+  renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
+
+  await user.click(screen.getByLabelText("It's with us: 4-person tent #1"));
+  await waitFor(() => expect(inv.item(store.state, t1)?.movement).toMatchObject({ event: "Fall Camp" }));
+  expect(store.pending.at(-1)).toMatchObject({
+    type: "event_corrected",
+    entity_id: t1,
+    payload: { movement_id: out.id, event: "Fall Camp" },
+  });
+  // It is out for us now, so the row no longer offers the tap.
+  expect(screen.queryByLabelText("It's with us: 4-person tent #1")).not.toBeInTheDocument();
+
+  // Anything else that is out is offered below the list, and joins the gear list when picked.
+  await user.selectOptions(screen.getByLabelText("Gear that is out"), stove);
+  await user.click(screen.getByRole("button", { name: "It's with us" }));
+  await waitFor(() => expect(res.reservation(store.state, fall)?.items).toEqual([t1, stove]));
+  expect(inv.item(store.state, stove)?.movement).toMatchObject({ event: "Fall Camp" });
+  expect(store.pending.filter((e) => e.type === "checked_out" || e.type === "checked_in")).toHaveLength(2);
 });
