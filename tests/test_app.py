@@ -6,7 +6,7 @@ import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
 
-from gear_tracker import accounts
+from gear_tracker import accounts, derived, events
 from gear_tracker.app import create_app
 from gear_tracker.db import open_db
 from gear_tracker.sync import Principal
@@ -250,3 +250,61 @@ def test_client_serving_does_not_escape_its_directory(site):
 def test_api_routes_win_over_the_client(site):
     assert site.get("/sync/bootstrap").status_code == 401
     assert site.get("/sync/pull?since=0", headers={"X-Test-User": "u", "X-Test-Device": "d"}).status_code == 200
+
+
+# --- codes ------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def admin(db_path):
+    """The header authenticator, with an Admin's headers ready to send."""
+    return {"X-Test-User": "alice", "X-Test-Device": "phone-a", "X-Test-Role": "admin"}
+
+
+def test_sheets_are_for_admins(client):
+    r = client.post("/codes/sheets", json={"sheets": 1}, headers=as_alice())
+    assert r.status_code == 403
+
+
+def test_sheets_need_the_group_setting(client, admin):
+    r = client.post("/codes/sheets", json={}, headers=admin)
+    assert r.status_code == 409
+    assert r.json()["message"] == "set the group name and code URL in Settings first"
+
+
+def test_sheets_body_is_validated(client, admin):
+    assert client.post("/codes/sheets", json={"sheets": 0}, headers=admin).status_code == 400
+    assert client.post("/codes/sheets", json={"sheets": 11}, headers=admin).status_code == 400
+    assert client.post("/codes/sheets", json={"sheets": "1"}, headers=admin).status_code == 400
+
+
+def test_a_sheet_of_codes(client, admin, db_path):
+    with open_db(db_path) as conn:
+        events.append_server(
+            conn, "alice", "setting", "group", "created", {"name": "10th Richmond", "code_url": "https://example.org/g"}
+        )
+
+    r = client.post("/codes/sheets", json={}, headers=admin)
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"] == "application/pdf"
+    assert r.headers["content-disposition"] == 'attachment; filename="codes.pdf"'
+    assert r.content.startswith(b"%PDF")
+
+    with open_db(db_path) as conn:
+        made = derived.snapshot(conn)["code"]
+        actors = {row[0] for row in conn.execute("SELECT actor_id FROM events WHERE entity_type = 'code'")}
+    assert len(made) == 32
+    assert actors == {"alice"}
+    code = next(iter(made))
+
+    found = client.get(f"/codes/{code}", headers=as_alice())
+    assert found.status_code == 200
+    assert found.json()["code"] == code
+    assert found.json()["item_id"] is None
+    assert "server_time" in found.json()
+
+
+def test_looking_up_a_code(client):
+    assert client.get("/codes/ABCDEFGH23").status_code == 401
+    assert client.get("/codes/not-a-code", headers=as_alice()).status_code == 400
+    assert client.get("/codes/ABCDEFGH23", headers=as_alice()).status_code == 404

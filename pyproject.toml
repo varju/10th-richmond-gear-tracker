@@ -9,6 +9,7 @@ dependencies = [
     "argon2-cffi>=25.1.0",
     "fastapi>=0.141.1",
     "pydantic[email]>=2.13.5",
+    "reportlab>=5.0.1",
     "uvicorn>=0.52.4",
 ]
 

@@ -10,14 +10,15 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import Body, Depends, FastAPI, Query, Request
+from fastapi import Body, Depends, FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
+from pydantic import Field
 
-from gear_tracker import accounts, sync
+from gear_tracker import accounts, codes, derived, labels, sync
 from gear_tracker.db import connect
-from gear_tracker.errors import ApiError, Unauthorized
-from gear_tracker.events import now_ms
+from gear_tracker.errors import ApiError, BadRequest, Conflict, NotFound, Unauthorized
+from gear_tracker.events import Strict, now_ms
 from gear_tracker.sync import Principal
 
 Authenticator = Callable[[Request, sqlite3.Connection], Principal | None]
@@ -138,9 +139,39 @@ def create_app(
     def reset_link(conn: Db, who: Who, user_id: str) -> dict[str, Any]:
         return stamped({"token": accounts.reset_link(conn, who, user_id)})
 
+    # --- codes ----------------------------------------------------------------------------
+
+    @app.post("/codes/sheets")
+    def code_sheets(conn: Db, who: Who, body: SheetRequest) -> Response:
+        """Print a batch of unassigned codes (FR-TAG-02). Admins only."""
+        accounts._require_admin(who)
+        group = derived.get_entity(conn, "setting", "group") or {}
+        if not group.get("name") or not group.get("code_url"):
+            raise Conflict("set the group name and code URL in Settings first")
+        made = codes.create_codes(conn, who.user_id, body.sheets * labels.LABELS_PER_SHEET)
+        pdf = labels.sheet(made, group["name"], group["code_url"])
+        return Response(
+            content=pdf,
+            media_type="application/pdf",
+            headers={"Content-Disposition": 'attachment; filename="codes.pdf"'},
+        )
+
+    @app.get("/codes/{code}")
+    def code(conn: Db, _who: Who, code: str) -> dict[str, Any]:
+        if not codes.is_code(code):
+            raise BadRequest("not a code")
+        state = codes.resolve(conn, code)
+        if state is None:
+            raise NotFound("not one of our codes")
+        return stamped({"code": code, "item_id": state.get("item_id")})
+
     if static is not None:
         serve_client(app, Path(static))
     return app
+
+
+class SheetRequest(Strict):
+    sheets: Annotated[int, Field(ge=1, le=10)] = 1
 
 
 def serve_client(app: FastAPI, root: Path) -> None:
