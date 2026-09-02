@@ -26,7 +26,7 @@ Deferred until we have Avery 6576 stock. Not blocked on us, and not holding anyt
 
 Built. What is left waits on other work:
 
-- [ ] Filter by condition (FR-INV-08); category joins when categories exist (FR-SET-07)
+- [ ] Category joins the filters when categories exist (FR-INV-08, FR-SET-07)
 - [ ] Check the printed sheet against real Avery 6576 stock and fix `labels.py` if the margins are off (FR-TAG-02)
 
 ## M7 — Movement
@@ -43,7 +43,6 @@ Item page:
 
 - [ ] One timeline: notes and movements interleaved, not two lists
 - [ ] Retire moves to a checkbox at the foot of Edit; it is not a front-page action
-- [ ] Drop the condition field (FR-SET-06 withdrawn)
 
 New item:
 

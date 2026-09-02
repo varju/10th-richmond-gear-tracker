@@ -11,7 +11,6 @@ export interface Item {
   home_location_id?: string | null;
   sub_location?: string;
   type_id?: string | null;
-  condition?: string;
   /** "YYYY-MM-DD" (FR-INV-12). */
   purchase_date?: string | null;
   /** Dollars, to the cent. */

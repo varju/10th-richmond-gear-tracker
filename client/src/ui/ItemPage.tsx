@@ -71,7 +71,6 @@ export function ItemPage({ store, id }: Props) {
           home_location_id: it.home_location_id ?? null,
           sub_location: it.sub_location ?? "",
           type_id: it.type_id ?? null,
-          condition: it.condition ?? "",
           purchase_date: it.purchase_date ?? "",
           price: it.price ?? "",
           supplier: it.supplier ?? "",
@@ -240,8 +239,6 @@ export function ItemPage({ store, id }: Props) {
         <dd>{homeLabel(state, it) || "—"}</dd>
         <dt>Type</dt>
         <dd>{typeName(state, it.type_id) || "—"}</dd>
-        <dt>Condition</dt>
-        <dd>{it.condition || "—"}</dd>
         <dt>Description</dt>
         <dd className="prose">{it.description || "—"}</dd>
         <dt>Bought</dt>

@@ -9,7 +9,7 @@ import { blockers, type Item, item } from "./inventory";
 /** What the item form holds. The price is typed as text and stored as a number (FR-INV-12). */
 export type ItemInput = Pick<
   Item,
-  "name" | "description" | "home_location_id" | "sub_location" | "type_id" | "condition" | "purchase_date" | "supplier"
+  "name" | "description" | "home_location_id" | "sub_location" | "type_id" | "purchase_date" | "supplier"
 > & { price?: number | string | null };
 
 function actor(store: Store): string {

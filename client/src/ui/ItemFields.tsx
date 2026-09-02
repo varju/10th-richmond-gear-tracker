@@ -14,7 +14,6 @@ export const EMPTY_ITEM: ItemInput = {
   home_location_id: null,
   sub_location: "",
   type_id: null,
-  condition: "",
   purchase_date: "",
   price: "",
   supplier: "",
@@ -69,10 +68,6 @@ export function ItemFields({ store, values, onChange }: Props) {
             </option>
           ))}
         </select>
-      </label>
-      <label>
-        <span>Condition</span>
-        <input value={values.condition ?? ""} onChange={(e) => set({ condition: e.target.value })} autoComplete="off" />
       </label>
       <label>
         <span>Description</span>

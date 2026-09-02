@@ -98,14 +98,14 @@ test("editing an item records the change and shows it", async () => {
 
   await user.click(screen.getByRole("button", { name: "Edit" }));
   const before = store.pending.length;
-  await user.clear(screen.getByLabelText("Condition"));
-  await user.type(screen.getByLabelText("Condition"), "Pole bent");
+  await user.clear(screen.getByLabelText("Supplier"));
+  await user.type(screen.getByLabelText("Supplier"), "MEC");
   await user.click(screen.getByRole("button", { name: "Save" }));
 
-  await screen.findByText("Pole bent");
+  await screen.findByText("MEC");
   const added = store.pending.slice(before);
   expect(added.map((e) => [e.type, e.payload])).toEqual([
-    ["field_changed", { field: "condition", value: "Pole bent", old: null }],
+    ["field_changed", { field: "supplier", value: "MEC", old: null }],
   ]);
 });
 
