@@ -5,6 +5,7 @@
  */
 import type { Fields, Note, State } from "./replay";
 import type { Store } from "./store";
+import { localDate } from "./time";
 import { newUlid } from "./ulid";
 
 export type RepairState = "open" | "in_progress" | "resolved" | "wont_fix";
@@ -52,6 +53,18 @@ export const openRepairs = (state: State, itemId: string): Repair[] => repairsFo
 
 /** Everything still to fix, newest first. */
 export const openTickets = (state: State): Repair[] => repairs(state).filter(isOpen).sort(newest);
+
+/**
+ * The repair report's history (FR-RPT-02): every ticket raised or changed on a
+ * day in [from, to], calendar days where the group is, last change first.
+ * Read from state, so it reaches back as far as the phone's copy does.
+ */
+export function repairHistory(state: State, fromIso: string, toIso: string): Repair[] {
+  const within = (ms: number | undefined) => ms !== undefined && localDate(ms) >= fromIso && localDate(ms) <= toIso;
+  return repairs(state)
+    .filter((r) => within(r.added_at) || within(r.modified_at))
+    .sort((a, b) => (b.modified_at ?? 0) - (a.modified_at ?? 0) || newest(a, b));
+}
 
 function actor(store: Store): string {
   const id = store.meta.user?.id;

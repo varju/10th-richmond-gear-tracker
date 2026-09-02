@@ -74,3 +74,22 @@ test("the state labels read as a person says them", () => {
   expect(rep.REPAIR_STATES.map((s) => s.label)).toEqual(["Open", "In progress", "Resolved", "Won't fix"]);
   expect(rep.stateLabel("wont_fix")).toBe("Won't fix");
 });
+
+test("the history is every ticket raised or changed in a date range, last change first (FR-RPT-02)", async () => {
+  // The clock starts at 1970-01-01; a day is 86,400,000 ms.
+  const day = 86_400_000;
+  clock = 10 * day; // 1970-01-10 in Vancouver
+  const early = await rep.raiseTicket(store, tent, "pole bent");
+  clock = 20 * day;
+  const mid = await rep.raiseTicket(store, tent, "zipper broken");
+  clock = 30 * day;
+  await rep.setRepairState(store, early, "resolved"); // raised on the 10th, changed on the 30th
+  clock = 40 * day;
+  await rep.raiseTicket(store, tent, "peg missing");
+
+  const ids = (from: string, to: string) => rep.repairHistory(store.state, from, to).map((r) => r.id);
+  expect(ids("1970-01-25", "1970-01-31")).toEqual([early]);
+  expect(ids("1970-01-15", "1970-01-31")).toEqual([early, mid]);
+  expect(ids("1970-01-01", "1970-01-05")).toEqual([]);
+  expect(ids("1970-01-01", "1970-02-28")).toHaveLength(3);
+});

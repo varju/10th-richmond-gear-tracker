@@ -95,7 +95,11 @@ test("the repairs list holds what is still open, newest first, and opens a ticke
   navigate("/repairs");
   renderInShell(<Repairs store={store} />);
 
-  const rows = screen.getAllByRole("listitem").map((li) => within(li).getByRole("button").textContent);
+  // The first list is what is open; the history below has its own.
+  const open = screen.getAllByRole("list")[0]!;
+  const rows = within(open)
+    .getAllByRole("listitem")
+    .map((li) => within(li).getByRole("button").textContent);
   expect(rows).toEqual(["StoveIn progress · valve leaks", "Tent 1Open · zipper broken"]);
   expect(screen.getByText("2 tickets")).toBeInTheDocument();
 
@@ -107,4 +111,29 @@ test("nothing open says so", async () => {
   await rep.setRepairState(store, ticket, "wont_fix");
   renderInShell(<Repairs store={store} />);
   expect(screen.getByText("Nothing needs repair.")).toBeInTheDocument();
+});
+
+test("the repairs screen lists open tickets, then the history over a date range (FR-RPT-02)", async () => {
+  await rep.setRepairState(store, ticket, "resolved");
+  const other = await rep.raiseTicket(store, tent, "pole bent");
+  navigate("/repairs");
+  // The store's clock is 2025-08-31 in Vancouver; the screen's "today" must be near it.
+  renderInShell(<Repairs store={store} />, () => 1_756_684_800_000 + 86_400_000);
+
+  // Open first, unchanged.
+  expect(screen.getByText("1 ticket")).toBeInTheDocument();
+  const history = screen.getByRole("region", { name: "History" });
+  expect(screen.getAllByRole("button", { name: /Tent 1/ })).toHaveLength(3);
+  const rows = [...history.querySelectorAll("li")].map((li) => li.textContent);
+  expect(rows).toEqual(["Tent 1Open · raised 2025-08-31", "Tent 1Resolved · raised 2025-08-31 · changed 2025-08-31"]);
+
+  // A range before anything happened is empty.
+  await user.clear(screen.getByLabelText("To"));
+  await user.type(screen.getByLabelText("To"), "2025-08-01");
+  expect(screen.getByText("No tickets in that range.")).toBeInTheDocument();
+
+  await user.clear(screen.getByLabelText("To"));
+  await user.type(screen.getByLabelText("To"), "2025-09-01");
+  await user.click(within(history).getByRole("button", { name: /Open · raised/ }));
+  expect(location.pathname).toBe(`/repairs/${other}`);
 });

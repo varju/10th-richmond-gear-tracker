@@ -280,6 +280,12 @@ is how replay tells a transfer from a conflict: the conflict rule (FR-OFF-10) fi
 devices with no check-in between, unless the later one says it saw the earlier. Someone who scanned an out item and
 tapped "Transfer" saw it; two phones offline in two lockers did not.
 
+Replay records a conflict on the item and never clears it; the log is not the place for a verdict. A conflict is open
+while its later check-out is still the item's current movement and nobody has reviewed it. A check-in or a transfer
+closes it by moving on. Reviewing it, on the Conflicts screen, records one `field_changed` on the item,
+`reviewed_movement`, naming that check-out: the holder stands, the movements are untouched, and the screen shows both
+versions in words until one of those happens (FR-OFF-10).
+
 Notes ride on the item, not the movement, as `note_added` events. One that belongs to a movement carries its
 `movement_id`, so it can be shown under the right check-out and still be corrected later by `note_corrected`
 (FR-OUT-16). Movement events themselves carry no note text: there is nothing on a movement to correct.
@@ -301,6 +307,10 @@ item page is read from state, not from the 90 days of history the phone holds.
 A fault typed on the scan card is recorded after the movement, as a second event, so a check-in and the ticket it raises
 are one flow (FR-OUT-09). The ticket's photo (FR-REP-01) waits on the photo work in M13 (FR-INV-11); there is no file
 store yet, and a ticket is its description until there is.
+
+The repair report (FR-RPT-02) is the open list followed by a history over a date range, both derived on the phone from
+the tickets it holds. Days are calendar days where the group is. Tickets are state, not history, so the range reaches
+back as far as the phone's copy does; the phone says so under the list.
 
 ## Reports
 

@@ -84,7 +84,8 @@ test("an open ticket badges the row and counts on the home screen (FR-REP-05)", 
 
   await user.click(screen.getByRole("button", { name: "Needs repair · 1" }));
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Needs repair");
-  expect(screen.getByRole("button", { name: /Tent 1/ })).toHaveTextContent("Open · zipper broken");
+  // The ticket is in the open list and again in the history below it.
+  expect(screen.getAllByRole("button", { name: /Tent 1/ })[0]).toHaveTextContent("Open · zipper broken");
 });
 
 test("editing an item records the change and shows it", async () => {
