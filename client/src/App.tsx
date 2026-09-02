@@ -3,7 +3,7 @@ import { type Api, Offline } from "./lib/api";
 import { autoSync } from "./lib/autosync";
 import { STALE_PENDING_MS } from "./lib/clock";
 import { type Route, useRoute } from "./lib/router";
-import { ensurePersistent, type Persistence } from "./lib/storage";
+import { ensurePersistent } from "./lib/storage";
 import type { Store } from "./lib/store";
 import { sync, type SyncOutcome } from "./lib/sync";
 import { unsaved } from "./lib/unsaved";
@@ -42,8 +42,6 @@ export function App({ store, api, now = Date.now }: Props) {
   const route = useRoute();
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<SyncOutcome | null>(null);
-  const [persistence, setPersistence] = useState<Persistence>("persisted");
-  const [storageNoticeSeen, setStorageNoticeSeen] = useState(false);
   const [interruptSeen, setInterruptSeen] = useState(false);
   const [signInWanted, setSignInWanted] = useState(false);
   const inFlight = useRef(false);
@@ -79,8 +77,9 @@ export function App({ store, api, now = Date.now }: Props) {
   // And the moment anything is unsent (FR-OFF-03).
   useEffect(() => autoSync(store, runSync), [store, runSync]);
 
+  // Asked, not relied on. iOS says no; the unsent count is the warning (NFR-DATA-11).
   useEffect(() => {
-    void ensurePersistent().then(setPersistence);
+    void ensurePersistent();
   }, []);
 
   // Closing or reloading the tab with a draft open gets the browser's own question.
@@ -117,15 +116,6 @@ export function App({ store, api, now = Date.now }: Props) {
     <ShellContext value={shell}>
       <div className="app">
         <Banner pending={pending} busy={busy} outcome={outcome} now={now} />
-        {persistence === "refused" && !storageNoticeSeen && (
-          <p className="notice" role="alert">
-            The browser refused to protect this app’s storage. Unsent records could be deleted to free space. Sync
-            often.
-            <button type="button" onClick={() => setStorageNoticeSeen(true)}>
-              Understood
-            </button>
-          </p>
-        )}
         {stale.length > 0 && !interruptSeen ? (
           <PendingInterrupt
             count={stale.length}

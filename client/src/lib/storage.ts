@@ -1,4 +1,4 @@
-/** Ask the browser to keep our data (NFR-DATA-11). "refused" must be shown to the user. */
+/** Ask the browser to keep our data (NFR-DATA-11). iOS answers "refused"; nothing is shown for it. */
 export type Persistence = "persisted" | "refused" | "unsupported";
 
 export async function ensurePersistent(storage: StorageManager | undefined = navigator.storage): Promise<Persistence> {

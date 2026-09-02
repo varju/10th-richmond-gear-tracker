@@ -229,8 +229,13 @@ would lose the evening's work, which is exactly the failure NFR-DATA-01 forbids.
 
 - **Install to the home screen** (NFR-DEP-06). Home-screen apps are exempt from the 7-day rule. This is why that
   requirement is a Must and not a nicety.
-- **Ask for persistent storage** via `navigator.storage.persist()` (NFR-DATA-11). If it is refused, say so rather than
-  assuming the data is safe.
+- **Ask for persistent storage** via `navigator.storage.persist()` (NFR-DATA-11). Chromium grants it to an installed
+  app. iOS refuses every site, so a refusal is not shown: the unsent count is already on every screen, and the answer to
+  both is the same, open the app with signal.
+
+Neither promise covers a full disk. A browser may still clear the site to free space, and Apple publishes no rule for
+when. Sync on every change, on open, and on regaining signal keeps that window to minutes with signal and hours without.
+A lost record is a missing movement, not a broken database; the next scan of the item puts it right.
 
 ## Inventory
 

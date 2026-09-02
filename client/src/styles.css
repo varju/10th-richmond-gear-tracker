@@ -27,10 +27,12 @@ body {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  /* The page draws under the status bar; whatever is first must clear it. */
+  padding-top: env(safe-area-inset-top);
 }
 
 header {
-  padding: calc(16px + env(safe-area-inset-top)) 16px 12px;
+  padding: 16px 16px 12px;
   border-bottom: 1px solid var(--rule);
   text-align: center;
 }
