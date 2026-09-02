@@ -7,7 +7,7 @@ import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { openStore } from "./codeTestKit";
 import { Found } from "./Found";
-import { Inventory } from "./Inventory";
+import { Home } from "./Home";
 
 // Found reports reach the Quartermaster in the app, as something to act on (FR-PUB-03).
 const T0 = 1_756_684_800_000;
@@ -83,7 +83,7 @@ test("the item's name opens the item", async () => {
 
 test("the home screen counts unresolved reports and links to them", async () => {
   navigate("/");
-  render(<Inventory store={store} />);
+  render(<Home store={store} />);
   expect(screen.queryByRole("button", { name: /Found gear/ })).not.toBeInTheDocument();
 
   await store.receive([reported("01000000000000000000000001", "by the gate", tent)], 1);

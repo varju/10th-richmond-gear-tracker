@@ -16,6 +16,7 @@ import { Conflicts } from "./ui/Conflicts";
 import { Desk } from "./ui/Desk";
 import { Found } from "./ui/Found";
 import { Help } from "./ui/Help";
+import { Home } from "./ui/Home";
 import { InstallPrompt } from "./ui/InstallPrompt";
 import { Inventory } from "./ui/Inventory";
 import { ItemTable } from "./ui/ItemTable";
@@ -188,8 +189,8 @@ function Screen({
   const [head, second, third] = route.segments;
   switch (head) {
     case undefined:
-      // The locker opens on the list; the desk opens on what needs a person.
-      return wide ? <Desk store={store} /> : <Inventory store={store} />;
+      // The locker opens on what it came to do; the desk opens on what needs a person.
+      return wide ? <Desk store={store} /> : <Home store={store} />;
     case "items":
       if (!second) return wide ? <ItemTable store={store} /> : <Inventory store={store} />;
       if (second === "new") {

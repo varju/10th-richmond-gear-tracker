@@ -393,11 +393,18 @@ button.item {
   margin: 8px 0 12px 12px;
 }
 
-.filters {
+.filters,
+.more {
   margin-bottom: 12px;
 }
 
-.filters summary {
+/* The fold sits below the day's work, not in front of it. */
+.more {
+  margin-top: 16px;
+}
+
+.filters summary,
+.more summary {
   min-height: 44px;
   display: flex;
   align-items: center;
@@ -407,6 +414,11 @@ button.item {
 
 .filters .row {
   margin-bottom: 12px;
+}
+
+/* Scan is what someone came to do, so it is the tallest thing on the home screen. */
+.actions button.tall {
+  min-height: 72px;
 }
 
 label.check {

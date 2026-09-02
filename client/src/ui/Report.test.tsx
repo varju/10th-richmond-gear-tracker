@@ -8,7 +8,7 @@ import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { type Shell, ShellContext } from "../shell";
 import { openStore } from "./codeTestKit";
-import { Inventory } from "./Inventory";
+import { Home } from "./Home";
 import { alice, carol, seedUsers } from "./moveTestKit";
 import { Report } from "./Report";
 
@@ -116,13 +116,13 @@ test("a row opens the item", async () => {
 
 test("the home screen always links to the report, and counts what is out", async () => {
   navigate("/");
-  const first = mount(<Inventory store={store} />);
+  const first = mount(<Home store={store} />);
   expect(screen.getByRole("button", { name: "What is out" })).toBeInTheDocument();
   first.unmount();
 
   await mv.checkOut(store, tent);
   await mv.checkOut(store, axe);
-  mount(<Inventory store={store} />);
+  mount(<Home store={store} />);
   await user.click(screen.getByRole("button", { name: "What is out · 2" }));
   expect(location.pathname).toBe("/out");
 });

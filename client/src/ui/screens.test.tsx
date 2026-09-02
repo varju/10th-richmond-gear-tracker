@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act as reactAct, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { IDBFactory } from "fake-indexeddb";
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -57,6 +57,7 @@ const rows = () => screen.getAllByRole("listitem").map((li) => within(li).getByR
 
 test("the list narrows by query and by location", async () => {
   const f = await fixture();
+  navigate("/items");
   mount();
   const user = userEvent.setup();
   expect(screen.getByText("2 items")).toBeInTheDocument();
@@ -74,10 +75,13 @@ test("the list narrows by query and by location", async () => {
 test("an open ticket badges the row and counts on the home screen (FR-REP-05)", async () => {
   const f = await fixture();
   await rep.raiseTicket(store, f.t1, "zipper broken");
+  navigate("/items");
   mount();
   const user = userEvent.setup();
   expect(rows()).toEqual(["StoveWarm locker", "Tent 1RepairCold locker / shelf 4"]);
 
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  await user.click(screen.getByText("More"));
   await user.click(screen.getByRole("button", { name: "Needs repair · 1" }));
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Needs repair");
   // The ticket is in the open list and again in the history below it.
@@ -86,6 +90,7 @@ test("an open ticket badges the row and counts on the home screen (FR-REP-05)", 
 
 test("editing an item records the change and shows it", async () => {
   const f = await fixture();
+  navigate("/items");
   mount();
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: /Tent 1/ }));
@@ -107,6 +112,7 @@ test("editing an item records the change and shows it", async () => {
 
 test("retiring hides an item until retired items are asked for", async () => {
   await fixture();
+  navigate("/items");
   mount();
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: /Stove/ }));
@@ -353,11 +359,14 @@ test("the overdue period is one group setting; blank means never (FR-OUT-14)", a
   await waitFor(() => expect(inv.group(store.state).overdue_days ?? null).toBeNull());
 });
 
-test("the home screen reaches every section, users included", async () => {
+test("the More fold reaches every section, users included", async () => {
   await fixture();
   mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByText("More"));
   const sections = within(screen.getByRole("navigation", { name: "Sections" })).getAllByRole("button");
   expect(sections.map((b) => b.textContent)).toEqual([
+    "All items",
     "What is out",
     "Needs repair",
     "Reservations · 0 upcoming",
@@ -366,9 +375,44 @@ test("the home screen reaches every section, users included", async () => {
     "Users",
   ]);
 
-  const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Users" }));
   expect(location.pathname).toBe("/settings/users");
+
+  reactAct(() => navigate("/"));
+  await user.click(screen.getByText("More"));
+  await user.click(screen.getByRole("button", { name: "All items" }));
+  expect(location.pathname).toBe("/items");
+});
+
+test("home is empty until something is asked of it", async () => {
+  await fixture();
+  mount();
+  const user = userEvent.setup();
+  expect(screen.getByText("Scan a code, or search by name.")).toBeInTheDocument();
+  expect(screen.queryAllByRole("listitem")).toEqual([]);
+  // No count, no sync line, no filters: the list is a fold away at /items.
+  expect(screen.queryByText("2 items")).not.toBeInTheDocument();
+  expect(screen.queryByText("Filters")).not.toBeInTheDocument();
+
+  await user.type(screen.getByLabelText("Search"), "tent");
+  expect(rows()).toEqual(["Tent 1Cold locker / shelf 4"]);
+  expect(location.pathname + location.search).toBe("/?q=tent");
+
+  await user.clear(screen.getByLabelText("Search"));
+  expect(screen.getByText("Scan a code, or search by name.")).toBeInTheDocument();
+});
+
+test("the phone's /items is the whole list, counted and filtered", async () => {
+  await fixture();
+  navigate("/items");
+  mount();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Inventory");
+  expect(screen.getByText("2 items")).toBeInTheDocument();
+  expect(screen.getByText("Filters")).toBeInTheDocument();
+  expect(rows()).toEqual(["StoveWarm locker", "Tent 1Cold locker / shelf 4"]);
+
+  await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
+  expect(location.pathname).toBe("/");
 });
 
 test("a User has no Users link", async () => {
@@ -530,6 +574,7 @@ test("a replacement sticker: back from the item goes home, not through the scann
   mount();
   const user = userEvent.setup();
 
+  await user.type(screen.getByLabelText("Search"), "Tent 1");
   await user.click(screen.getByRole("button", { name: /Tent 1/ }));
   await user.click(screen.getByRole("button", { name: "Replace code" }));
   expect(location.pathname + location.search).toBe(`/scan?for=${f.t1}`);

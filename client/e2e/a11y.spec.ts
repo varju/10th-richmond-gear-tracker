@@ -19,8 +19,8 @@ async function signIn(page: Page) {
   await page.getByLabel("Email").fill("alice@example.org");
   await page.getByLabel("Password").fill("correct horse");
   await page.getByRole("button", { name: "Sign in" }).click();
-  // The sections are on the home screen at a phone's width and beside it at a desk's.
-  await expect(page.getByRole("navigation", { name: "Sections" })).toBeVisible();
+  // Both layouts land on a home screen with the group's name at the top of it.
+  await expect(page.getByRole("heading", { level: 1, name: /Gear Tracker/ })).toBeVisible();
 }
 
 // The layout turns at 900 px, and the home screen and the inventory differ
@@ -36,12 +36,12 @@ test("the main screens have no WCAG 2.2 AA violations", async ({ page }) => {
   await signIn(page);
   await audit(page, "home");
 
-  if (wide) {
-    // The inventory is a table here, and the phone's list at a phone's width.
-    await page.goto("/items");
-    await expect(page.getByRole("table")).toBeVisible();
-    await audit(page, "inventory");
-  }
+  // The inventory is a table at a desk and the phone's list at a phone's width.
+  await page.goto("/items");
+  if (wide) await expect(page.getByRole("table")).toBeVisible();
+  else await expect(page.getByLabel("Search")).toBeVisible();
+  await audit(page, "inventory");
+
   await page.getByRole("button", { name: "New item" }).click();
   await expect(page.getByLabel("Name")).toBeVisible();
   await audit(page, "new item");

@@ -1,6 +1,7 @@
 import { openConflicts } from "../lib/conflicts";
 import { foundReports } from "../lib/found";
 import { countItems, items, movable, rows } from "../lib/inventory";
+import type { State } from "../lib/replay";
 import { openTickets } from "../lib/repairs";
 import { todayIso, upcoming } from "../lib/reservations";
 import { navigate } from "../lib/router";
@@ -10,7 +11,7 @@ import { useStore } from "../useStore";
 
 interface Props {
   store: Store;
-  /** "row" is the phone home screen; "sidebar" is the desk (NFR-USE-10). */
+  /** "row" is the phone's More fold; "sidebar" is the desk (NFR-USE-10). */
   layout: "row" | "sidebar";
 }
 
@@ -27,11 +28,25 @@ function Links({ links }: { links: Link[] }) {
   ));
 }
 
+function alertLinks(state: State): Link[] {
+  const found = foundReports(state).length;
+  const clashes = openConflicts(state).length;
+  return [
+    ...(found > 0 ? [{ label: `Found gear · ${found}`, path: "/found" }] : []),
+    ...(clashes > 0 ? [{ label: `Conflicts · ${clashes}`, path: "/conflicts" }] : []),
+  ];
+}
+
+/** Things wrong, and only when something is wrong. The phone's home puts them above the day's work. */
+export function Alerts({ store }: { store: Store }) {
+  useStore(store);
+  return <Links links={alertLinks(store.state)} />;
+}
+
 /**
  * Everywhere else the app goes, so nothing is reachable only by knowing it is
- * there. Alerts first, and only when something is wrong. One component, two
- * layouts: a row under the phone's home screen, a sidebar beside every desk
- * screen.
+ * there. One component, two layouts: a row inside the phone's More fold, a
+ * sidebar beside every desk screen.
  */
 export function Sections({ store, layout }: Props) {
   useStore(store);
@@ -39,20 +54,17 @@ export function Sections({ store, layout }: Props) {
   const state = store.state;
   // Units and single items, never a generic. Missing gear is not out (FR-INV-19); the report agrees.
   const out = movable(state).filter((it) => it.status === "out" && !it.missing).length;
-  const found = foundReports(state).length;
-  const clashes = openConflicts(state).length;
   const broken = openTickets(state).length;
   const booked = upcoming(state, todayIso(now())).length;
   const empty = items(state).length === 0;
   const admin = store.meta.user?.role === "admin";
   const sidebar = layout === "sidebar";
 
-  const alerts: Link[] = [
-    ...(found > 0 ? [{ label: `Found gear · ${found}`, path: "/found" }] : []),
-    ...(clashes > 0 ? [{ label: `Conflicts · ${clashes}`, path: "/conflicts" }] : []),
-  ];
   const links: Link[] = [
-    ...(sidebar ? [{ label: `Inventory · ${countItems(rows(state, {}))}`, path: "/items" }] : []),
+    // The phone's home is no longer the list, so the row says where the list went.
+    sidebar
+      ? { label: `Inventory · ${countItems(rows(state, {}))}`, path: "/items" }
+      : { label: "All items", path: "/items" },
     { label: `What is out${out > 0 ? ` · ${out}` : ""}`, path: "/out" },
     { label: `Needs repair${broken > 0 ? ` · ${broken}` : ""}`, path: "/repairs" },
     { label: `Reservations · ${booked} upcoming`, path: "/reservations" },
@@ -68,16 +80,13 @@ export function Sections({ store, layout }: Props) {
 
   if (!sidebar) {
     return (
-      <>
-        {/* Things wrong, only when something is wrong. */}
-        <Links links={alerts} />
-        <nav className="links" aria-label="Sections">
-          <Links links={links} />
-        </nav>
-      </>
+      <nav className="links" aria-label="Sections">
+        <Links links={links} />
+      </nav>
     );
   }
 
+  const alerts = alertLinks(state);
   return (
     <nav className="sidebar" aria-label="Sections">
       {alerts.length > 0 && (

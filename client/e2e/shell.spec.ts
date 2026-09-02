@@ -12,7 +12,10 @@ async function signIn(page: Page) {
 
 test("installs its shell, then starts offline within budget", async ({ page, context }) => {
   await signIn(page);
+  // The sync line moved off the home screen and onto the list.
+  await page.goto("/items");
   await expect(page.getByText(/Synced /)).toBeVisible();
+  await page.goto("/");
 
   // Let the service worker finish precaching before pulling the plug.
   await page.evaluate(() => navigator.serviceWorker.ready);
@@ -97,6 +100,17 @@ test("a printed code becomes an item", async ({ browser, page, request }) => {
 test("an item can be checked out and in from its page", async ({ page }) => {
   await signIn(page);
   await page.goto("/");
+  // Home holds nothing but the alerts until it is asked something.
+  await expect(page.getByText("Scan a code, or search by name.")).toBeVisible();
+  await expect(page.getByRole("listitem")).toHaveCount(0);
+
+  // The list is a fold away.
+  await page.getByText("More").click();
+  await page.getByRole("button", { name: "All items" }).click();
+  await expect(page).toHaveURL(/\/items$/);
+  await expect(page.getByText("Filters")).toBeVisible();
+  await page.getByRole("button", { name: "Back" }).click();
+
   await page.getByLabel("Search").fill("Tent 1");
   await page.getByRole("button", { name: /Tent 1/ }).click();
   await expect(page.getByRole("heading", { name: "Tent 1" })).toBeVisible();

@@ -1,18 +1,18 @@
-import { countItems, type Filter, homeLabel, items, rows } from "../lib/inventory";
+import { countItems, type Filter, items, rows } from "../lib/inventory";
 import { filterParams, readFilter, withQuery } from "../lib/listUrl";
-import { openRepairs } from "../lib/repairs";
 import { navigate, useRoute } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { Filters } from "./Filters";
-import { plural, statusLabel, syncLabel } from "./labels";
-import { Sections } from "./Sections";
+import { ItemList } from "./ItemList";
+import { plural, syncLabel } from "./labels";
+import { Page } from "./Page";
 
 interface Props {
   store: Store;
 }
 
-/** Home: the list, searched as you type, with the scanner one tap away (FR-INV-07). */
+/** The whole list on a phone, searched and filtered (FR-INV-07, FR-INV-25). The desk gets a table instead. */
 export function Inventory({ store }: Props) {
   useStore(store);
   const route = useRoute();
@@ -21,72 +21,44 @@ export function Inventory({ store }: Props) {
   const state = store.state;
 
   // Replace, not push: typing a search must not fill the back button with keystrokes.
-  const show = (text: string, next: Filter) => navigate(withQuery(route.path, filterParams(text, next)), true);
+  const show = (text: string, next: Filter) => navigate(withQuery("/items", filterParams(text, next)), true);
 
   const list = rows(state, { ...filter, query });
   const empty = items(state).length === 0;
 
   return (
-    <>
-      <header>
-        <h1>Gear Tracker</h1>
-        <button className="corner" type="button" onClick={() => navigate("/settings")} aria-label="Settings">
-          ⚙
-        </button>
-      </header>
-      <main>
-        <p className="muted small">
-          {plural(countItems(list), "item")}
-          {store.meta.last_sync_at !== undefined && ` · ${syncLabel(store.meta.last_sync_at, Date.now(), false, null)}`}
-        </p>
-        <Sections store={store} layout="row" />
-        {empty ? (
-          <p>Nothing here yet. Scan a code or add a new item.</p>
-        ) : (
-          <>
-            <Filters store={store} filter={filter} onChange={(f) => show(query, f)} />
-            <ul className="items">
-              {list.map((row) => (
-                <li key={row.item.id}>
-                  <button className="item" type="button" onClick={() => navigate(`/items/${row.item.id}`)}>
-                    <span>
-                      <span className="item-name">{row.name}</span>
-                      {row.kind === "single" && openRepairs(state, row.item.id).length > 0 && (
-                        <span className="badge">Repair</span>
-                      )}
-                      {row.kind === "single" && row.item.missing && <span className="badge">Missing</span>}
-                    </span>
-                    <span className="muted small">
-                      {row.kind === "generic"
-                        ? `${plural(row.counts.total, "unit")} · ${row.counts.in} in`
-                        : [
-                            homeLabel(state, row.item),
-                            row.item.status === "out" && !row.item.missing ? statusLabel(state, row.item) : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </main>
-      <div className="actions">
-        <label className="tight">
-          <span>Search</span>
-          <input type="search" value={query} onChange={(e) => show(e.target.value, filter)} autoComplete="off" />
-        </label>
-        <div className="row">
-          <button className="primary" type="button" onClick={() => navigate("/scan")}>
-            Scan
-          </button>
-          <button type="button" onClick={() => navigate("/items/new")}>
-            New item
-          </button>
-        </div>
-      </div>
-    </>
+    <Page
+      title="Inventory"
+      back="/"
+      actions={
+        <>
+          <label className="tight">
+            <span>Search</span>
+            <input type="search" value={query} onChange={(e) => show(e.target.value, filter)} autoComplete="off" />
+          </label>
+          <div className="row">
+            <button className="primary" type="button" onClick={() => navigate("/scan")}>
+              Scan
+            </button>
+            <button type="button" onClick={() => navigate("/items/new")}>
+              New item
+            </button>
+          </div>
+        </>
+      }
+    >
+      <p className="muted small">
+        {plural(countItems(list), "item")}
+        {store.meta.last_sync_at !== undefined && ` · ${syncLabel(store.meta.last_sync_at, Date.now(), false, null)}`}
+      </p>
+      {empty ? (
+        <p>Nothing here yet. Scan a code or add a new item.</p>
+      ) : (
+        <>
+          <Filters store={store} filter={filter} onChange={(f) => show(query, f)} />
+          <ItemList store={store} list={list} />
+        </>
+      )}
+    </Page>
   );
 }

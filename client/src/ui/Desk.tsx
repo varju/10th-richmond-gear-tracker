@@ -25,7 +25,7 @@ interface Row {
 /**
  * The home screen at a desk (NFR-USE-10). It opens on what needs a person,
  * then answers the question the group cannot answer today (FR-RPT-01), then
- * says what is coming. The phone's home is the list; this is the paperwork.
+ * says what is coming. The phone's home is the locker; this is the paperwork.
  */
 export function Desk({ store }: { store: Store }) {
   useStore(store);

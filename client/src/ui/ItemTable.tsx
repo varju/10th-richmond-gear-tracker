@@ -59,8 +59,8 @@ function sortKey(store: Store, row: Row, key: Key): string {
 
 /**
  * The inventory at a desk: every row on screen at once, sortable, with search
- * and the filters always in view (FR-INV-25, NFR-USE-10). The phone keeps its
- * list; this is the same data laid out for a table and a mouse.
+ * and the filters always in view (FR-INV-25, NFR-USE-10). The phone shows the
+ * same data as a list; this is it laid out for a table and a mouse.
  */
 export function ItemTable({ store }: { store: Store }) {
   useStore(store);

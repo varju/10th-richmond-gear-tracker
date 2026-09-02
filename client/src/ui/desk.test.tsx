@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act as reactAct, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, expect, test } from "vitest";
@@ -251,17 +251,19 @@ test("an item page puts its facts beside its history", async () => {
   expect(columns[1]!).toHaveTextContent("History");
 });
 
-test("a phone keeps the list, at both routes, and has no sidebar", async () => {
+test("a phone keeps the list at /items, and has no sidebar", async () => {
   await fixture();
   setWidth(PHONE);
   mount();
+  // Home holds the sections in a fold, not a sidebar, and shows no list until asked.
   expect(screen.getByRole("navigation", { name: "Sections" })).not.toHaveClass("sidebar");
-  expect(screen.getByRole("button", { name: /Tent 1/ })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Tent 1/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
 
-  navigate("/items");
+  reactAct(() => navigate("/items"));
   expect(screen.getByRole("button", { name: /Tent 1/ })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Scan" })).toBeInTheDocument();
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
 });
 
 test("the table's search, filter and sort live in the URL, and back brings them back", async () => {

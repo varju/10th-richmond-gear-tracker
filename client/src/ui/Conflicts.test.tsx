@@ -9,7 +9,7 @@ import type { Store } from "../lib/store";
 import { unsaved } from "../lib/unsaved";
 import { openStore } from "./codeTestKit";
 import { Conflicts } from "./Conflicts";
-import { Inventory } from "./Inventory";
+import { Home } from "./Home";
 import { ItemPage } from "./ItemPage";
 import { alice, carol, renderInShell, seedUsers } from "./moveTestKit";
 
@@ -97,7 +97,7 @@ test("Keep records the review and leaves the holder as they are", async () => {
 
 test("the home screen counts open conflicts and the item page points at the screen", async () => {
   navigate("/");
-  renderInShell(<Inventory store={store} />);
+  renderInShell(<Home store={store} />);
   await user.click(screen.getByRole("button", { name: "Conflicts · 1" }));
   expect(location.pathname).toBe("/conflicts");
 

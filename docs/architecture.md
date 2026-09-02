@@ -226,13 +226,17 @@ back arrow calls the browser's own back, and falls back to a named path only whe
 from a sticker's URL. The lists hold their search, filters and sort in the query string and replace the entry as they
 change, so a step back restores the view someone left and typing does not fill the back button with keystrokes.
 
+The phone's home screen holds only what someone at a locker came to do: scan, search, and add an item, with alerts above
+them and every other screen in a "More" fold. The full list lives at `/items` instead, because 500 rows pushed Scan off
+the screen and the list is the least of what a locker visit needs (NFR-USE-01, NFR-USE-03).
+
 The Python server serves the built client, so one process is the whole deployment. In development Vite serves the client
 and forwards API calls.
 
 ### Wide layout
 
 One breakpoint at 900 px (`lib/wide.ts`, repeated in `styles.css`). Above it the same app is arranged for a table
-(NFR-USE-10): the sections move from the home screen into a sidebar that stays beside every screen, the home screen
+(NFR-USE-10): the sections leave the phone's More fold for a sidebar that stays beside every screen, the home screen
 opens on exceptions and then what is out, and the inventory becomes a sortable table with search and filters always in
 view. Below it nothing changes; the phone layout is not adjusted to suit the desk.
 

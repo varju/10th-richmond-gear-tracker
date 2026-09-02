@@ -17,8 +17,8 @@ to pack. Tap Finish, which names anything you did not scan.
 
 ## Find gear
 
-Type in the Search box at the foot of the home screen. Open Filters to narrow by location, shelf, or in and out. Browse
-by location walks a locker shelf by shelf.
+Type in the Search box at the foot of the home screen. To browse the whole list, open More and tap All items, then use
+Filters to narrow by location, shelf, or in and out. Browse by location walks a locker shelf by shelf.
 
 ## Report damage
 
