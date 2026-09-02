@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Api, Offline } from "./lib/api";
-import { autoSync } from "./lib/autosync";
+import { autoSync, pollSync } from "./lib/autosync";
 import { STALE_PENDING_MS } from "./lib/clock";
 import { group } from "./lib/inventory";
 import { navigate, type Route, useRoute } from "./lib/router";
@@ -90,6 +90,9 @@ export function App({ store, api, now = Date.now }: Props) {
 
   // And the moment anything is unsent (FR-OFF-03).
   useEffect(() => autoSync(store, runSync), [store, runSync]);
+
+  // A screen that just sits there still hears about another phone's work.
+  useEffect(() => pollSync(runSync), [runSync]);
 
   // Asked, not relied on. iOS says no; the unsent count is the warning (NFR-DATA-11).
   useEffect(() => {

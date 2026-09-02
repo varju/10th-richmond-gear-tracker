@@ -157,9 +157,10 @@ Who is calling is settled before any of this runs. The app takes an `authenticat
 `Principal`: user, device, and whether the account is still active. M4 supplies the real one.
 
 Sync runs on app open, on regaining connectivity, when the app comes back to the front, and the moment anything is
-unsent (FR-OFF-03). A record reaches the server within a second of being made; records pile up on the device only when a
-sync fails, and then a watcher retries with a growing delay until one succeeds or the network returns. Sync never blocks
-the screen (NFR-PERF-06).
+unsent (FR-OFF-03). It also runs every 30 seconds while the app is on screen, so a check-out on one phone reaches
+another within half a minute. A record reaches the server within a second of being made; records pile up on the device
+only when a sync fails, and then a watcher retries with a growing delay until one succeeds or the network returns. Sync
+never blocks the screen (NFR-PERF-06).
 
 **A deactivated account still gets one final push accepted** (FR-OFF-06). The records are gear movements and they are
 true regardless of who has since left the group. Accept them, attribute them, then refuse everything else that

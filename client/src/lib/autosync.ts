@@ -15,6 +15,21 @@ export const FLUSH_MS = 250;
 /** After a failure: back off, capped at the last entry. */
 export const RETRY_MS = [5_000, 15_000, 60_000, 300_000];
 
+/** How often an open screen looks for work another device has done. */
+export const POLL_MS = 30_000;
+
+/**
+ * Nothing tells a phone that someone else scanned something, so a screen left
+ * open asks. Only while it is on screen and the network is up: a hidden tab
+ * syncs when it comes back to the front.
+ */
+export function pollSync(run: () => Promise<SyncOutcome | undefined>, ms: number = POLL_MS): () => void {
+  const timer = setInterval(() => {
+    if (document.visibilityState === "visible" && navigator.onLine !== false) void run();
+  }, ms);
+  return () => clearInterval(timer);
+}
+
 export interface Timing {
   flushMs: number;
   retryMs: number[];

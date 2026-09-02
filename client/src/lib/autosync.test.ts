@@ -1,6 +1,6 @@
 import { IDBFactory } from "fake-indexeddb";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { autoSync } from "./autosync";
+import { autoSync, pollSync } from "./autosync";
 import { openDb } from "./db";
 import { Store } from "./store";
 import type { SyncOutcome } from "./sync";
@@ -97,6 +97,29 @@ test("a sync already in flight is looked at again, not doubled", async () => {
   busy = false;
   await settle();
   expect(runs).toHaveLength(1);
+});
+
+test("an open screen polls, and a hidden one does not", async () => {
+  const seen = (state: string) =>
+    Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+  const ticks: number[] = [];
+  vi.useFakeTimers();
+  try {
+    seen("visible");
+    stop = pollSync(async () => {
+      ticks.push(1);
+      return ok;
+    }, 1000);
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(ticks).toHaveLength(2);
+
+    seen("hidden");
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(ticks).toHaveLength(2);
+  } finally {
+    vi.useRealTimers();
+    seen("visible");
+  }
 });
 
 test("stopping unhooks it", async () => {
