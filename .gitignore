@@ -19,3 +19,8 @@ __pycache__/
 seed.toml
 .direnv/
 .DS_Store
+
+# The global ignore hides .claude; the agents in it are part of the project.
+!.claude/
+.claude/*
+!.claude/agents/
