@@ -17,6 +17,7 @@ dependencies = [
 gear-migrate = "gear_tracker.migrate:main"
 gear-admin = "gear_tracker.cli:main"
 gear-serve = "gear_tracker.app:main"
+gear-backup = "gear_tracker.backup:main"
 
 [dependency-groups]
 dev = [

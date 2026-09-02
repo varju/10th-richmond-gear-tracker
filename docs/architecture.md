@@ -372,9 +372,10 @@ The step at 43 is the one to stay under, and `https://www.10thrichmond.ca/gear/g
 is enough to clear it; dropping the scheme as well leaves real headroom, and is what the shorter example above does. Set
 the group's code URL accordingly before any sheet is printed.
 
-**Capitals would buy a step, and are not done yet.** All of the above is byte mode, at 8 bits a character. QR also has
-an alphanumeric mode at 5.5, whose charset is digits, uppercase A-Z and a few symbols — a whole URL, so long as nothing
-in it is lowercase. Crockford is uppercase already, so the codes encode that way today; the host and path do not.
+**Capitals would buy a step, and we are not taking it.** All of the above is byte mode, at 8 bits a character. QR also
+has an alphanumeric mode at 5.5, whose charset is digits, uppercase A-Z and a few symbols — a whole URL, so long as
+nothing in it is lowercase. Crockford is uppercase already, so the codes encode that way today; the host and path do
+not.
 
 | Encoded                             | QR version | Module pitch |
 | ----------------------------------- | ---------- | ------------ |
@@ -386,15 +387,20 @@ The same 33 characters, the same code, the same 50 bits, and 12% larger modules.
 because mixed case forces byte mode back on, and stays at 29x29 with no gain.
 
 The costs are a redirect from the capitalised path to the canonical lowercase one, kept for as long as the stickers
-exist, and a sticker that reads in capitals. Deferred, not rejected: decide before the first sheet is printed.
+exist, and a sticker that reads in capitals. Settled in September 2026: the stickers stay lowercase at 29x29. A redirect
+that has to outlive 400 labels is a standing obligation on whoever inherits this, and 0.65 mm modules already cleared
+M0's bar. Recorded so the question is not reopened by the next person who reads a QR specification.
 
 ## Server
 
 A single self-hosted instance on a box at a volunteer's house (NFR-DEP-03, NFR-DEP-04). Reachable through an outbound
 tunnel rather than a forwarded port, so no home network is exposed (NFR-DEP-05).
 
-Backups are a nightly copy of the SQLite file to somewhere off the machine (NFR-DATA-05, NFR-DATA-06). Restore is tested
-before go-live and written down (NFR-DATA-07).
+Backups are a nightly `gear-backup`: SQLite's online backup API rather than a file copy, because in WAL mode the file on
+disk is not the database until a checkpoint lands. Each snapshot is integrity-checked as it is written, which is the one
+thing a copy cannot do — it says nightly whether the database is still sound. Thirty are kept (NFR-DATA-05). They leave
+the machine on the host filesystem's own schedule rather than through a second tool (NFR-DATA-06). Restoring is in
+[deploy.md](deploy.md#restoring) (NFR-DATA-07).
 
 ### Accounts
 

@@ -26,9 +26,8 @@ export GEAR_PORT=8000
 export GEAR_BASE=/
 ```
 
-`GEAR_DATA` is a directory on the server. The container writes `gear.db` into it, and nothing else goes there, so a
-backup is a copy of that directory (NFR-DATA-05, NFR-DATA-06) and moving house is a copy of it to the next machine
-(NFR-MAINT-05).
+`GEAR_DATA` is a directory on the server. Everything worth keeping is in it — `gear.db`, and the nightly snapshots under
+`backups/` — so moving house is a copy of that one directory to the next machine (NFR-MAINT-05).
 
 Check the connection before going further:
 
@@ -112,13 +111,78 @@ If every Admin later loses their password, the way back in is the same keyboard:
 docker exec -it gear-tracker gear-admin --db /data/gear.db reset-link --email you@example.com
 ```
 
-## Still to do before real use
+## Backups
 
-The container answers on your network. Going live needs three more things, all outside this file:
+`cp gear.db` is not a backup. In WAL mode the file on disk is half the story until a checkpoint lands, and a copy taken
+mid-write restores as a corrupt database. `gear-backup` uses SQLite's online backup API instead, so the server keeps
+serving while the snapshot is taken:
 
-- HTTPS, and a way in from the internet that does not forward a port into the house (NFR-DEP-05, NFR-SEC-01).
-- The group's own domain pointed at it, because that hostname is printed on 400 stickers (NFR-DEP-09).
-- A nightly copy of `GEAR_DATA` to somewhere off the machine, and a restore tested and written down (NFR-DATA-07).
+```sh
+docker exec gear-tracker gear-backup --db /data/gear.db --into /data/backups
+```
+
+That writes one dated, gzipped file that restores on its own, deletes snapshots older than 30 days (NFR-DATA-05), and
+runs SQLite's integrity check on what it wrote. The check is the part a file copy cannot give you: a nightly answer to
+whether the database is still sound, rather than finding out at a restore.
+
+Nightly, from the host's own cron:
+
+```
+0 3 * * * docker exec gear-tracker gear-backup --db /data/gear.db --into /data/backups
+```
+
+It prints the file it wrote, and on a bad database prints one line to stderr and exits 1, so cron mails something worth
+reading.
+
+**Off the machine.** `GEAR_DATA` sits on a filesystem that snapshots hourly and is copied off-site every two weeks, so
+each nightly file rides along with no second tool (NFR-DATA-06). Worth knowing what that buys: the hourly snapshots
+cover everything short of losing the machine, and losing the machine outright could cost up to two weeks. If that stops
+being acceptable, the fix is a nightly push of `GEAR_DATA/backups` somewhere else, not a change to any of this.
+
+## Restoring
+
+Rehearse it once before real use, not on the day you need it (NFR-DATA-07).
+
+```sh
+docker stop gear-tracker
+cd "$GEAR_DATA"
+
+# The -wal and -shm files belong to the database you are replacing. Leave one
+# behind and SQLite trusts it over the file you just restored.
+mv gear.db gear.db.before-restore
+rm -f gear.db-wal gear.db-shm
+gunzip --stdout backups/gear-2026-09-01.db.gz > gear.db
+
+docker start gear-tracker
+docker exec gear-tracker python -c \
+  "import sqlite3; print(sqlite3.connect('/data/gear.db').execute('PRAGMA integrity_check').fetchone()[0])"
+```
+
+That last line prints `ok`. Then sign in and look for something recent.
+
+Keep `gear.db.before-restore` until you are sure. Nothing else has to be told: phones whose cursor is now ahead of the
+log are asked to bootstrap again, and they do it at their next sync.
+
+What a restore costs is everything recorded between the snapshot and the failure. Phones re-send what they never managed
+to send, but not what the server had already accepted and then lost.
+
+## Moving house
+
+The server is one container and one directory, so moving it to another machine or another volunteer is a copy and a DNS
+change (NFR-MAINT-05).
+
+1. On the old machine, take a snapshot with `gear-backup` as above, then `docker stop gear-tracker` so nothing is
+   mid-write.
+2. Copy `GEAR_DATA` to the new machine. Install Docker there if it is not already running.
+3. On your laptop, point `.envrc` at the new host: `DOCKER_HOST`, the certificates, `GEAR_DATA`, `GEAR_PORT`,
+   `GEAR_BASE`, and `GEAR_DEPLOY` if the host runs the app beside other things.
+4. `make deploy`. Migrations run on start, so a newer image against an older file needs no extra step.
+5. Repoint the domain at the new machine.
+
+The stickers do not change, and nothing on a phone changes. The QR codes carry the group's domain rather than the
+server's address, which is what makes this a DNS change rather than a reprint of 400 labels (FR-TAG-13, NFR-DEP-09).
+
+Sessions survive: they live in the database you carried over, so nobody signs in again.
 
 ## How the image is put together
 

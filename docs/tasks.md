@@ -41,15 +41,8 @@ First real use, not the finished release. Musts in repairs, reservations and fou
 going live early buys feedback while the inventory is fresh from the labelling walk. MoSCoW priorities say what the
 system needs before it is done, not what M9 needs.
 
-- [ ] Point the group's domain at the server (NFR-DEP-09)
 - [ ] Replace the placeholder app icons in `client/public/`
-- [ ] Reach the server from the internet through an outbound tunnel (NFR-DEP-05)
-- [ ] HTTPS (NFR-SEC-01)
-- [ ] Nightly backup of the SQLite file, off the machine, kept 30 days (NFR-DATA-05, NFR-DATA-06)
-- [ ] Restore tested and written down (NFR-DATA-07)
-- [ ] Document how to move the server to another house (NFR-MAINT-05)
-- [ ] Settle the sticker URL: capitals buy 25x25 over 29x29 and cost a redirect
-      ([architecture.md](architecture.md#keep-the-url-short))
+- [ ] Put the nightly `gear-backup` in the host's cron, and rehearse a restore once ([deploy.md](deploy.md#restoring))
 - [ ] Print code sheets and do the labelling walk (S-BOOT-02, S-BOOT-03)
 
 Public pages come before the labelling walk, not after it. From the moment stickers go on gear, a stranger can scan one.
