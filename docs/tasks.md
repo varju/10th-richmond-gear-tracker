@@ -35,6 +35,48 @@ The vertical slice is built. What is left needs a phone.
 
 - [ ] End-to-end test on a real phone with wifi and data turned off
 
+## M14 — First-look feedback
+
+A read-through of the built app. Everything here is small except the mail server.
+
+Item page:
+
+- [ ] One timeline: notes and movements interleaved, not two lists
+- [ ] Retire moves to a checkbox at the foot of Edit; it is not a front-page action
+- [ ] Drop the condition field (FR-SET-06 withdrawn)
+
+New item:
+
+- [ ] Home location starts blank, not at the last one used
+- [ ] Define a type inline, without a trip to Settings
+- [ ] "Add another" and "Keep these values" checkboxes, for writing up a shelf in one sitting
+
+Settings:
+
+- [ ] Enter in the new-name box adds it
+- [ ] No requirement IDs on screen, here or anywhere
+- [ ] A line under Locations and Types saying what each is for
+- [ ] The group name prefixes the page title
+
+Desktop, for work at a table rather than a locker:
+
+- [ ] A layout for wide screens
+- [ ] Every section reachable from the home screen, reports and users included
+- [ ] No install prompt
+
+Mobile:
+
+- [ ] Fix the install note: an installed app starts empty, so install before working, not after
+
+Mail:
+
+- [ ] SMTP settings an Admin fills in, kept server-side, with a test send
+- [ ] Send invites and reset links by mail when it is configured; the copyable link stays
+
+Deployment:
+
+- [ ] Cap the request body on the /gear/ proxy so a photo fits and nothing else does
+
 ## M9 — Go live
 
 First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is
