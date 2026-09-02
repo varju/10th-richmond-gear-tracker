@@ -3,6 +3,7 @@ import { beforeEach, expect, test } from "vitest";
 import { createApi, type ServerEvent } from "./api";
 import { RETENTION_MS } from "./clock";
 import { openDb } from "./db";
+import { pendingPhotos, queuePhoto } from "./photos";
 import { Store } from "./store";
 import { sync } from "./sync";
 
@@ -52,6 +53,26 @@ class FakeServer {
         snapshot: { item: { "tent-1": { name: "Tent", status: "in", holder_id: null } } },
         cursor: this.events.length,
       });
+    }
+    if (url.pathname.startsWith("/photos/") && init?.method === "PUT") {
+      // The server keeps the file and writes the event itself; the device sees it on the next pull.
+      const photo_id = url.pathname.slice("/photos/".length);
+      this.events.push({
+        id: `0100000000000000000000PH${String(this.events.length + 1).padStart(2, "0")}`,
+        entity_type: url.searchParams.get("entity_type")!,
+        entity_id: url.searchParams.get("entity_id")!,
+        type: "photo_added",
+        actor_id: "alice",
+        device_id: "server",
+        device_seq: this.events.length + 1,
+        occurred_at: this.serverTime,
+        clock_offset: 0,
+        effective_at: this.serverTime,
+        received_at: this.serverTime,
+        seq: this.events.length + 1,
+        payload: { photo_id, content_type: headers.get("Content-Type"), size: (init.body as Blob).size },
+      });
+      return json(200, {});
     }
     if (url.pathname === "/sync/pull") {
       if (this.gone) return json(410, { error: "re-bootstrap", message: "cursor is older than the retention window" });
@@ -186,4 +207,21 @@ test("sync trims history past the retention window", async () => {
   await sync(store, api(), () => clock);
   expect((store.items["tent-1"]?.notes as unknown[]).length).toBe(1);
   expect(await store.trim()).toBe(0);
+});
+
+test("a photo taken offline goes up at the next sync, and its event comes back (FR-INV-11)", async () => {
+  await sync(store, api(), () => clock);
+  await store.setMeta({ user: { id: "alice", name: "Alice", role: "user", active: true } });
+  server.down = true;
+  await queuePhoto(store, { entity_type: "item", entity_id: "tent-1" }, new Blob(["jpeg"], { type: "image/jpeg" }));
+  expect(await sync(store, api(), () => clock)).toMatchObject({ reason: "offline" });
+  expect((await pendingPhotos(store)).length).toBe(1);
+
+  server.down = false;
+  server.calls = [];
+  expect(await sync(store, api(), () => clock)).toEqual({ ok: true });
+  expect(server.calls[0]).toMatch(/^PUT \/photos\/[0-9A-Z]{26}\?entity_type=item&entity_id=tent-1$/);
+  expect(await pendingPhotos(store)).toEqual([]);
+  const photos = store.items["tent-1"]?.photos as { content_type: string; size: number }[];
+  expect(photos).toEqual([expect.objectContaining({ content_type: "image/jpeg", size: 4 })]);
 });

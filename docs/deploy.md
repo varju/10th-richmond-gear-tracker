@@ -26,8 +26,9 @@ export GEAR_PORT=8000
 export GEAR_BASE=/
 ```
 
-`GEAR_DATA` is a directory on the server. Everything worth keeping is in it — `gear.db`, and the nightly snapshots under
-`backups/` — so moving house is a copy of that one directory to the next machine (NFR-MAINT-05).
+`GEAR_DATA` is a directory on the server. Everything worth keeping is in it — `gear.db`, the photos under `photos/`, and
+the nightly snapshots under `backups/` — so moving house is a copy of that one directory to the next machine
+(NFR-MAINT-05).
 
 Check the connection before going further:
 
@@ -160,6 +161,10 @@ docker exec gear-tracker python -c \
 
 That last line prints `ok`. Then sign in and look for something recent.
 
+Photos are not in the snapshot. They are the files under `photos/`, and they are only ever added, so the ones on disk
+are the ones the restored database names, plus any uploaded after the snapshot. Nothing to do; leave the directory
+alone.
+
 Keep `gear.db.before-restore` until you are sure. Nothing else has to be told: phones whose cursor is now ahead of the
 log are asked to bootstrap again, and they do it at their next sync.
 
@@ -173,7 +178,7 @@ change (NFR-MAINT-05).
 
 1. On the old machine, take a snapshot with `gear-backup` as above, then `docker stop gear-tracker` so nothing is
    mid-write.
-2. Copy `GEAR_DATA` to the new machine. Install Docker there if it is not already running.
+2. Copy `GEAR_DATA` to the new machine, `photos/` included. Install Docker there if it is not already running.
 3. On your laptop, point `.envrc` at the new host: `DOCKER_HOST`, the certificates, `GEAR_DATA`, `GEAR_PORT`,
    `GEAR_BASE`, and `GEAR_DEPLOY` if the host runs the app beside other things.
 4. `make deploy`. Migrations run on start, so a newer image against an older file needs no extra step.

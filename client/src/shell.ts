@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import type { Api } from "./lib/api";
 import type { SyncOutcome } from "./lib/sync";
 
 /** What every screen may need from the app around it. */
@@ -9,6 +10,8 @@ export interface Shell {
   /** Ask for a sync now. Answers `undefined` if one is already running. */
   sync: () => Promise<SyncOutcome | undefined>;
   signOut: () => Promise<void>;
+  /** For the few screens that talk to the server directly, such as photos. Absent means offline. */
+  api?: Api;
 }
 
 export const ShellContext = createContext<Shell>({

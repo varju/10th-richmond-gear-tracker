@@ -10,6 +10,7 @@ import { useStore } from "../useStore";
 import { userName } from "./labels";
 import { AddNote, NoteList } from "./Notes";
 import { Page } from "./Page";
+import { Photos } from "./Photos";
 
 interface Props {
   store: Store;
@@ -68,6 +69,9 @@ export function RepairPage({ store, id }: Props) {
       <p className="repair-state">{stateLabel(ticket.state)}</p>
       <p className="prose">{ticket.description}</p>
       <p className="muted small">{raisedBy}</p>
+
+      <h3 className="section">Photos</h3>
+      <Photos store={store} on={{ entity_type: "repair", entity_id: id }} />
 
       <h3 className="section">Comments</h3>
       <NoteList store={store} on={{ entity_type: "repair", entity_id: id }} notes={(ticket.notes ?? []) as Note[]} />

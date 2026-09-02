@@ -209,8 +209,21 @@ and forwards API calls.
 Photos are server-only and never cached (FR-INV-11). They are fetched on demand when online. This is what keeps the
 offline copy small and the sync target honest — one phone photo outweighs a day of events by two orders of magnitude.
 
-They are plain files in a directory beside `gear.db`, on the same volume. No object store, no second service. Whatever
-snapshots and copies the database already covers them, and moving house stays a copy of one directory (NFR-MAINT-05).
+They are plain files in `photos/` beside `gear.db`, on the same volume, named by a ULID the device made. No object
+store, no second service. Whatever snapshots and copies the database already covers them, and moving house stays a copy
+of one directory (NFR-MAINT-05). `gear-serve --photos` moves the directory for anyone who needs it elsewhere.
+
+The bytes and the record are kept apart. A device shrinks the picture (1600 px, JPEG) and, with no signal, holds it in
+its own IndexedDB store, outside the event log and outside the snapshot. At the next sync, after push and before pull,
+it `PUT`s the bytes under that id. The server writes the file, then appends `photo_added` itself, with the uploader as
+actor; a device may not push that event, because a record of a file the server does not have is a broken link. The event
+comes back through pull like any other, so every phone knows the photo exists and can fetch it when online. The id being
+the device's makes a retry after a dropped connection idempotent: the server sees the id already on the entity and
+writes nothing. Removing a photo is `photo_removed` from the device. The file stays on disk. The log is append-only, the
+event says the photo is no longer shown, and a volunteer who wants the disk back can compare the directory with the log.
+
+`<img src>` cannot carry the bearer token, so the app fetches the bytes and shows them from memory. The service worker
+never answers a `/photos` request, and the server sends `Cache-Control: no-store`.
 
 ### Service worker
 
@@ -305,8 +318,7 @@ and the flag warns without blocking (FR-REP-05, FR-RES-08). Closed tickets stay 
 item page is read from state, not from the 90 days of history the phone holds.
 
 A fault typed on the scan card is recorded after the movement, as a second event, so a check-in and the ticket it raises
-are one flow (FR-OUT-09). The ticket's photo (FR-REP-01) waits on the photo work in M13 (FR-INV-11); there is no file
-store yet, and a ticket is its description until there is.
+are one flow (FR-OUT-09). A ticket takes photos the same way an item does (FR-REP-01); see [Photos](#photos).
 
 The repair report (FR-RPT-02) is the open list followed by a history over a date range, both derived on the phone from
 the tickets it holds. Days are calendar days where the group is. Tickets are state, not history, so the range reaches

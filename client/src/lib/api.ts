@@ -81,6 +81,9 @@ export class ApiError extends Error {
 /** The server did not answer. Normal in a locker. */
 export class Offline extends Error {}
 
+/** What a photo may be. Matches PHOTO_TYPES on the server. */
+export const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 export interface ApiOptions {
   fetch?: typeof fetch;
   now?: () => number;
@@ -120,6 +123,25 @@ export function createApi(options: ApiOptions = {}) {
     return { data, offset };
   }
 
+  /** Bytes, not JSON: photos go up and come down whole. */
+  async function raw(method: string, path: string, body?: Blob, contentType?: string): Promise<Response> {
+    const headers: Record<string, string> = {};
+    const bearer = token();
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    if (contentType) headers["Content-Type"] = contentType;
+    let response: Response;
+    try {
+      response = await fetchFn(base + path, { method, headers, body });
+    } catch (error) {
+      throw new Offline(String(error));
+    }
+    if (!response.ok) {
+      const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
+      throw new ApiError(response.status, data.error ?? "error", data.message ?? response.statusText);
+    }
+    return response;
+  }
+
   return {
     bootstrap: () => request<Bootstrap>("GET", "/sync/bootstrap"),
     pull: (since: number) => request<Pull>("GET", `/sync/pull?since=${since}`),
@@ -146,5 +168,12 @@ export function createApi(options: ApiOptions = {}) {
     /** A finder's note (FR-PUB-02). `website` is a honeypot: people never see it, so it is sent empty. */
     reportFound: (code: string, body: { note: string; contact: string; website: string }) =>
       request<Record<string, never>>("POST", `/public/codes/${code}/found`, body),
+    /** The bytes under an id the device made (FR-INV-11). The server records the event; a retry is harmless. */
+    uploadPhoto: async (id: string, entity_type: string, entity_id: string, blob: Blob, contentType: string) => {
+      const query = new URLSearchParams({ entity_type, entity_id });
+      await raw("PUT", `/photos/${id}?${query}`, blob, contentType);
+    },
+    /** An <img> cannot send the bearer header, so the bytes are fetched and shown from memory. */
+    fetchPhoto: async (id: string): Promise<Blob> => (await raw("GET", `/photos/${id}`)).blob(),
   };
 }

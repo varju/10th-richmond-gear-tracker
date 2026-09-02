@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
-import type { ServerEvent, User } from "../lib/api";
+import type { Api, ServerEvent, User } from "../lib/api";
 import type { Store } from "../lib/store";
 import { type Shell, ShellContext } from "../shell";
 
@@ -44,7 +44,7 @@ export async function seedUsers(store: Store, users: User[]): Promise<void> {
 }
 
 /** Render inside a shell whose sync is a spy. */
-export function renderInShell(node: ReactNode, now: () => number = Date.now) {
+export function renderInShell(node: ReactNode, now: () => number = Date.now, api?: Api) {
   const sync = vi.fn(async () => undefined);
   const shell: Shell = {
     busy: false,
@@ -52,6 +52,7 @@ export function renderInShell(node: ReactNode, now: () => number = Date.now) {
     now,
     sync,
     signOut: async () => {},
+    api,
   };
   const result = render(<ShellContext value={shell}>{node}</ShellContext>);
   return { ...result, sync };

@@ -41,6 +41,15 @@ export interface Movement {
   at: number;
 }
 
+/** A file on the server. Never the bytes: those are fetched when online (FR-INV-11). */
+export interface Photo {
+  id: string;
+  content_type: string;
+  size: number;
+  actor_id: string;
+  at: number;
+}
+
 export class UnknownEventType extends Error {}
 
 /** (effective_at, device_id, device_seq): the one order every replay uses. */
@@ -124,6 +133,20 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       entity.since = event.effective_at;
       entity.movement = movement(event);
       break;
+    case "photo_added":
+      // The file is on the server; this is what a device knows about it (FR-INV-11).
+      photos(entity).push({
+        id: p.photo_id as string,
+        content_type: p.content_type as string,
+        size: p.size as number,
+        actor_id: event.actor_id,
+        at: event.effective_at,
+      });
+      break;
+    case "photo_removed":
+      // The file stays on disk; the log says it is no longer shown.
+      entity.photos = photos(entity).filter((ph) => ph.id !== p.photo_id);
+      break;
     case "code_bound":
       // A code binds once. Whether it is the item's current code or a replaced
       // one is a question about the item's other codes, answered by whoever asks.
@@ -137,6 +160,10 @@ export function apply(entity: Fields, event: ReplayEvent): void {
 
 function notes(entity: Fields): Note[] {
   return (entity.notes ??= []) as Note[];
+}
+
+function photos(entity: Fields): Photo[] {
+  return (entity.photos ??= []) as Photo[];
 }
 
 function movement(event: ReplayEvent): Movement {

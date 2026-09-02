@@ -36,6 +36,17 @@ export interface Meta {
   last_sync_at?: number;
 }
 
+/** A photo taken here and not yet on the server (FR-INV-11). These bytes are the only copy until then. */
+export interface QueuedPhoto {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  /** Plain bytes, not a Blob: every IndexedDB stores these the same way. */
+  bytes: ArrayBuffer;
+  content_type: string;
+  created_at: number;
+}
+
 export interface Recording {
   entity_type: string;
   entity_id: string;
@@ -57,7 +68,8 @@ export class Store {
     private db: IDBDatabase,
     public meta: Meta,
     private snapshot: State,
-    private now: () => number,
+    /** The clock every record is stamped with. Tests hand in their own. */
+    readonly now: () => number,
   ) {}
 
   static async open(db: IDBDatabase, now: () => number = Date.now): Promise<Store> {
@@ -220,6 +232,29 @@ export class Store {
     this.snapshot = snapshot;
     this.recompute();
     return old.length;
+  }
+
+  // --- photos waiting to upload -------------------------------------------------------
+
+  async queuePhoto(photo: QueuedPhoto): Promise<void> {
+    const tx = this.db.transaction("photos", "readwrite");
+    tx.objectStore("photos").put(photo);
+    await done(tx);
+    this.notify();
+  }
+
+  /** Oldest first, so uploads land in the order they were taken. */
+  async queuedPhotos(): Promise<QueuedPhoto[]> {
+    const tx = this.db.transaction("photos", "readonly");
+    const all = await req(tx.objectStore("photos").getAll() as IDBRequest<QueuedPhoto[]>);
+    return all.sort((a, b) => a.created_at - b.created_at || (a.id < b.id ? -1 : 1));
+  }
+
+  async dropQueuedPhoto(id: string): Promise<void> {
+    const tx = this.db.transaction("photos", "readwrite");
+    tx.objectStore("photos").delete(id);
+    await done(tx);
+    this.notify();
   }
 
   private recompute(): void {

@@ -7,6 +7,7 @@
  * (NFR-DATA-13).
  */
 import { type Api, ApiError, Offline } from "./api";
+import { uploadPhotos } from "./photos";
 import { Store } from "./store";
 
 export type SyncOutcome = { ok: true } | { ok: false; reason: "offline" | "signed_out" | "error"; message: string };
@@ -24,6 +25,8 @@ export async function sync(store: Store, api: Api, now: () => number = Date.now)
       await store.setMeta({ clock_offset: offset });
       await store.pushed(data.accepted, data.rejected);
     }
+    // Photos taken offline go up now, before pull brings back the events that name them (FR-INV-11).
+    await uploadPhotos(store, api);
 
     if (store.meta.cursor === undefined) {
       await bootstrap(store, api);

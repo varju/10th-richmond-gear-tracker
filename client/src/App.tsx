@@ -119,7 +119,7 @@ export function App({ store, api, now = Date.now }: Props) {
     return <SignIn store={store} api={api} onSignedIn={runSync} />;
   }
 
-  const shell: Shell = { busy, outcome, now, sync: runSync, signOut };
+  const shell: Shell = { busy, outcome, now, sync: runSync, signOut, api };
   const pending = store.pending;
   const stale = pending.filter((e) => e.occurred_at < now() - STALE_PENDING_MS);
   return (

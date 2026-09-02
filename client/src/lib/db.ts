@@ -1,16 +1,19 @@
-/** IndexedDB with promises. Two stores, no library. */
+/** IndexedDB with promises. Three stores, no library. */
 
 export const DB_NAME = "gear-tracker";
-const VERSION = 1;
+const VERSION = 2;
 
 export function openDb(name: string = DB_NAME, factory: IDBFactory = indexedDB): Promise<IDBDatabase> {
   const request = factory.open(name, VERSION);
   request.onupgradeneeded = () => {
     const db = request.result;
+    const has = (name: string) => db.objectStoreNames.contains(name);
     // Settings and the snapshot, one value per key.
-    db.createObjectStore("meta");
+    if (!has("meta")) db.createObjectStore("meta");
     // Every event this device knows: pulled from the server, or recorded here and waiting to go.
-    db.createObjectStore("events", { keyPath: "id" });
+    if (!has("events")) db.createObjectStore("events", { keyPath: "id" });
+    // Photos taken with no signal, waiting to upload (FR-INV-11). Gone once the server has them.
+    if (!has("photos")) db.createObjectStore("photos", { keyPath: "id" });
   };
   return req(request);
 }

@@ -18,6 +18,7 @@ import { statusLabel, userName } from "./labels";
 import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
 import { AddNote, NoteList } from "./Notes";
 import { Page } from "./Page";
+import { Photos } from "./Photos";
 
 interface Props {
   store: Store;
@@ -163,6 +164,9 @@ export function ItemPage({ store, id }: Props) {
         <dt>Modified</dt>
         <dd>{it.modified_at ? isoDate(it.modified_at) : "—"}</dd>
       </dl>
+
+      <h3 className="section">Photos</h3>
+      <Photos store={store} on={onItem} />
 
       <h3 className="section">Notes</h3>
       <NoteList store={store} on={onItem} notes={itemNotes} />
