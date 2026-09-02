@@ -1,13 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Api, Offline } from "./lib/api";
 import { STALE_PENDING_MS } from "./lib/clock";
+import { type Route, useRoute } from "./lib/router";
 import { ensurePersistent, type Persistence } from "./lib/storage";
 import type { Store } from "./lib/store";
 import { sync, type SyncOutcome } from "./lib/sync";
 import { Banner } from "./ui/Banner";
-import { Home } from "./ui/Home";
+import { Bind } from "./ui/Bind";
+import { CodeLanding } from "./ui/CodeLanding";
 import { InstallPrompt } from "./ui/InstallPrompt";
+import { Inventory } from "./ui/Inventory";
+import { ItemPage } from "./ui/ItemPage";
+import { NewItem } from "./ui/NewItem";
+import { Page } from "./ui/Page";
 import { PendingInterrupt } from "./ui/PendingInterrupt";
+import { Scan } from "./ui/Scan";
+import { Settings } from "./ui/Settings";
 import { SignIn } from "./ui/SignIn";
 import { useStore } from "./useStore";
 
@@ -17,11 +25,22 @@ interface Props {
   now?: () => number;
 }
 
+/** What the screens that need it get from the shell. */
+export interface Shell {
+  busy: boolean;
+  outcome: SyncOutcome | null;
+  now: () => number;
+  sync: () => Promise<void>;
+  signOut: () => Promise<void>;
+}
+
 export function App({ store, api, now = Date.now }: Props) {
   useStore(store);
+  const route = useRoute();
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<SyncOutcome | null>(null);
   const [persistence, setPersistence] = useState<Persistence>("persisted");
+  const [storageNoticeSeen, setStorageNoticeSeen] = useState(false);
   const [interruptSeen, setInterruptSeen] = useState(false);
   const inFlight = useRef(false);
 
@@ -65,14 +84,18 @@ export function App({ store, api, now = Date.now }: Props) {
 
   if (!store.meta.token) return <SignIn store={store} api={api} onSignedIn={runSync} />;
 
+  const shell: Shell = { busy, outcome, now, sync: runSync, signOut };
   const pending = store.pending;
   const stale = pending.filter((e) => e.occurred_at < now() - STALE_PENDING_MS);
   return (
     <div className="app">
       <Banner pending={pending.length} busy={busy} outcome={outcome} />
-      {persistence === "refused" && (
+      {persistence === "refused" && !storageNoticeSeen && (
         <p className="notice" role="alert">
           The browser refused to protect this app’s storage. Unsent records could be deleted to free space. Sync often.
+          <button type="button" onClick={() => setStorageNoticeSeen(true)}>
+            Understood
+          </button>
         </p>
       )}
       {stale.length > 0 && !interruptSeen ? (
@@ -86,10 +109,37 @@ export function App({ store, api, now = Date.now }: Props) {
         />
       ) : (
         <>
-          <InstallPrompt />
-          <Home store={store} busy={busy} outcome={outcome} now={now} onSync={runSync} onSignOut={signOut} />
+          {route.segments.length === 0 && <InstallPrompt />}
+          <Screen store={store} api={api} route={route} shell={shell} />
         </>
       )}
     </div>
+  );
+}
+
+function Screen({ store, api, route, shell }: { store: Store; api: Api; route: Route; shell: Shell }) {
+  const [head, second] = route.segments;
+  switch (head) {
+    case undefined:
+      return <Inventory store={store} />;
+    case "items":
+      if (second === "new") return <NewItem store={store} code={route.query.get("code")} />;
+      if (second) return <ItemPage store={store} id={second} />;
+      break;
+    case "scan":
+      return <Scan store={store} />;
+    case "g":
+      if (second) return <CodeLanding store={store} code={second} />;
+      break;
+    case "bind":
+      if (second) return <Bind store={store} code={second} />;
+      break;
+    case "settings":
+      return <Settings store={store} api={api} shell={shell} />;
+  }
+  return (
+    <Page title="Not found" back="/">
+      <p>Nothing lives at {route.path}.</p>
+    </Page>
   );
 }

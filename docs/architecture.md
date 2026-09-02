@@ -222,6 +222,35 @@ would lose the evening's work, which is exactly the failure NFR-DATA-01 forbids.
 - **Ask for persistent storage** via `navigator.storage.persist()` (NFR-DATA-11). If it is refused, say so rather than
   assuming the data is safe.
 
+## Inventory
+
+Items, locations and types are entities on the same log as everything else: `created` once, then one `field_changed` per
+edit, with the old value kept. Retiring an item is a field, `retired`, so the item and its history stay (FR-INV-04).
+
+Two things the requirements name differently from the data. The item field the requirements call notes is `description`,
+because `notes` in derived state is the list of per-movement notes (FR-OUT-13). And `added_at` and `modified_at` are
+written by replay from the event's effective time, not sent by the device, so a phone with a wrong clock cannot set them
+(FR-INV-03). Only `created` and `field_changed` move `modified_at`; movements and notes do not.
+
+Locations and types are deleted by setting `deleted`; the row stays so items still pointing at it keep a name. The
+in-use check (FR-SET-05) runs on the device against its own state, which is the only state it has. Two phones offline at
+once can race it: one deletes a location while the other files an item there. The item wins, the location is hidden, and
+the item's home still reads correctly. That is rare enough to accept and cheap to fix by hand.
+
+Sub-locations are labels on items, not entities (FR-SET-03). The suggestion list is whatever labels are in use.
+
+### Codes on the device
+
+A code is an entity whose id is the code itself. The server creates them when it prints a sheet; devices may only bind
+them, with one `code_bound` event carrying the item id. Replay records `item_id` and `bound_at` on the code and nothing
+on the item, so an item's current code is a question answered by reading its codes: the one bound last is current, the
+rest are replaced and still resolve (FR-TAG-05). The server refuses a second binding of the same code at push time; the
+two-phones-offline race leaves the loser's item without a code and a rejection explaining why.
+
+Scanning lands on `/g/<code>`, the same path a sticker's URL has, so a camera app and the in-app scanner take one route.
+Assigned or replaced: open the item. Unassigned: create or bind. Unknown: say so, and suggest a sync, because a freshly
+printed sheet is unknown to a phone that has not pulled since.
+
 ## Scanning
 
 No browser on iOS implements the BarcodeDetector API, and the experimental flag from iOS 17 does not work on iOS 18. So

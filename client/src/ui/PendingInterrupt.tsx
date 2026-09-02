@@ -1,4 +1,4 @@
-import { ago } from "./Home";
+import { ago } from "../lib/time";
 
 interface Props {
   count: number;

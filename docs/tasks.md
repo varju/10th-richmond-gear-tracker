@@ -24,21 +24,10 @@ Deferred until we have Avery 6576 stock. Not blocked on us, and not holding anyt
 
 ## M6 — Items and codes
 
-Scanning tasks here reuse the camera and decode loop proven in M0.
+Built. What is left waits on other work:
 
-- [ ] Storage locations: create, rename, reassign items between them (FR-SET-01, FR-SET-02)
-- [ ] Deleting a location still in use is blocked, and names what blocks it (FR-SET-05)
-- [ ] Free-form sub-location label on an item; no list, no hierarchy (FR-SET-03, FR-SET-04)
-- [ ] Types: define, assign items, block deleting one in use (FR-SET-10, FR-SET-05)
-- [ ] Item CRUD with retire and unretire (FR-INV-01, FR-INV-04, FR-INV-05)
-- [ ] Date added and date modified, set by the system (FR-INV-03)
-- [ ] Search as you type over 500 items, under 200 ms (FR-INV-07, NFR-PERF-01)
-- [ ] Filter by category, location, sub-location, condition, status (FR-INV-08)
-- [ ] Code lifecycle: unassigned, assigned, replaced; codes are random and never reused (FR-TAG-05, NFR-SEC-04)
-- [ ] Scanning an assigned code opens its item (FR-TAG-06)
-- [ ] Scanning an unassigned code offers create-or-bind (FR-TAG-07)
-- [ ] Assign a replacement code to an item with a lost sticker (FR-TAG-04)
-- [ ] PDF sheet of unassigned codes for Avery 6576 (FR-TAG-02, FR-TAG-03)
+- [ ] Filter by condition (FR-INV-08); category joins when categories exist (FR-SET-07)
+- [ ] Check the printed sheet against real Avery 6576 stock and fix `labels.py` if the margins are off (FR-TAG-02)
 
 ## M7 — Movement
 
@@ -46,7 +35,8 @@ The vertical slice. After this the system is usable for its main purpose.
 
 - [ ] Scanning is contextual: out means check in, in means check out (FR-OUT-06)
 - [ ] Sync after every movement (FR-OFF-03); the shell already syncs on open and on regaining connectivity
-- [ ] One scan, one tap; scanner stays live between items (FR-OUT-03, NFR-USE-02)
+- [ ] One scan, one tap; scanner stays live between items (FR-OUT-03, NFR-USE-02). M6 stops the camera when the scan
+      screen unmounts; a movement session must keep it on
 - [ ] Session event set once, applied until changed (FR-OUT-05)
 - [ ] Check in and out by search for unlabelled gear (FR-OUT-02, FR-OUT-07)
 - [ ] Anyone can check in anyone's gear (FR-OUT-08)

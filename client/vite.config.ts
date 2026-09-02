@@ -27,7 +27,7 @@ export default defineConfig({
       },
       workbox: {
         // The app shell only. Data lives in IndexedDB, and API calls must never be answered from a cache.
-        globPatterns: ["**/*.{js,css,html,png,svg}"],
+        globPatterns: ["**/*.{js,css,html,png,svg,wasm}"],
         navigateFallbackDenylist: API.map((p) => new RegExp(`^${p}`)),
       },
     }),

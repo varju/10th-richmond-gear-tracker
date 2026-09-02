@@ -6,6 +6,7 @@ import { App } from "./App";
 import { createApi } from "./lib/api";
 import { DAY_MS } from "./lib/clock";
 import { openDb } from "./lib/db";
+import { navigate } from "./lib/router";
 import { Store } from "./lib/store";
 
 const T0 = 1_756_684_800_000;
@@ -33,6 +34,7 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
 beforeEach(async () => {
   calls = [];
   down = false;
+  navigate("/");
   store = await Store.open(await openDb("test", new IDBFactory()), () => T0);
 });
 
@@ -51,8 +53,9 @@ test("signing in bootstraps and shows the inventory", async () => {
   await user.type(screen.getByLabelText("Password"), "pw");
   await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-  expect(await screen.findByText("2")).toBeInTheDocument();
-  expect(screen.getByText("Signed in as Alice")).toBeInTheDocument();
+  expect(await screen.findByText("2 items")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /Tent/ })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Scan" })).toBeInTheDocument();
   expect(calls).toEqual(["/auth/sign-in", "/auth/sign-in", "/sync/bootstrap"]);
   expect(store.meta.cursor).toBe(2);
 });
@@ -67,8 +70,10 @@ test("unsent work shows in the banner and blocks signing out", async () => {
     actor_id: "u1",
     payload: { text: "x" },
   });
+  navigate("/settings");
   mount();
   expect(await screen.findByRole("status")).toHaveTextContent("1 unsent record · offline");
+  expect(screen.getByText("Signed in as Alice")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Sign out" })).toBeDisabled();
 });
 
