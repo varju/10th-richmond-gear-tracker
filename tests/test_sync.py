@@ -49,7 +49,7 @@ def test_push_accepts_and_rejects_per_event(db):
     assert result["accepted"] == [good["id"]]
     [rejection] = result["rejected"]
     assert rejection["id"] == bad["id"]
-    assert rejection["reason"].startswith("entity_type: Input should be 'item', 'item_type', 'user'")
+    assert rejection["reason"].startswith("entity_type: Input should be 'item', 'user'")
     assert result["server_time"] == T0
 
 
@@ -401,3 +401,60 @@ def test_merged_items_cannot_be_checked_out(db):
     )
     out = own(USER, type="checked_out", payload={"holder_id": "alice"}, device_seq=3)
     assert reasons(db, USER, out) == ["this item was merged into another (FR-INV-13)"]
+
+
+def test_a_generic_item_does_not_move(db):
+    """One entity kind, two guards: a generic takes no movement and no code (FR-INV-21)."""
+    push(
+        db,
+        USER,
+        batch(USER, own(USER, type="created", payload={"name": "4-person tent", "generic": True}, device_seq=1)),
+        now=T0,
+    )
+    out = own(USER, type="checked_out", payload={"holder_id": "alice"}, device_seq=2)
+    back = own(USER, type="checked_in", payload={}, device_seq=3)
+    assert reasons(db, USER, out) == ["a generic item does not move; its units do (FR-INV-21)"]
+    assert reasons(db, USER, back) == ["a generic item does not move; its units do (FR-INV-21)"]
+
+
+def test_a_generic_item_takes_no_code(db):
+    push(
+        db,
+        USER,
+        batch(USER, own(USER, type="created", payload={"name": "4-person tent", "generic": True}, device_seq=1)),
+        now=T0,
+    )
+    events.append_server(db, "alice", "code", "ABCDEFGH23", "created", {}, now=T0)
+    bind = own(USER, entity_type="code", entity_id="ABCDEFGH23", type="code_bound", payload={"item_id": "tent-1"})
+    refused = ["a generic item takes no code; put it on a unit (FR-INV-21)"]
+    assert reasons(db, USER, {**bind, "device_seq": 2}) == refused
+
+    # Its unit does take one.
+    unit = own(USER, entity_id="tent-1-1", type="created", payload={"parent_id": "tent-1", "number": 1}, device_seq=3)
+    assert reasons(db, USER, unit) == []
+    on_unit = own(
+        USER,
+        entity_type="code",
+        entity_id="ABCDEFGH23",
+        type="code_bound",
+        payload={"item_id": "tent-1-1"},
+        device_seq=4,
+    )
+    assert reasons(db, USER, on_unit) == []
+
+
+def test_a_unit_may_take_the_number_another_phone_used(db):
+    """Numbers are picked on the device. The offline collision is accepted; both units land (FR-INV-23)."""
+    push(
+        db,
+        USER,
+        batch(USER, own(USER, type="created", payload={"name": "3x3 tarp", "generic": True}, device_seq=1)),
+        now=T0,
+    )
+    mine = own(USER, entity_id="tarp-a", type="created", payload={"parent_id": "tent-1", "number": 2}, device_seq=2)
+    theirs = own(BOB, entity_id="tarp-b", type="created", payload={"parent_id": "tent-1", "number": 2}, device_seq=1)
+    assert reasons(db, USER, mine) == []
+    result = push(db, BOB, {"device_id": "phone-b", "client_time": T0, "events": [theirs]}, now=T0)
+    assert result["accepted"] == [theirs["id"]]
+    assert snapshot(db)["item"]["tarp-a"]["number"] == 2
+    assert snapshot(db)["item"]["tarp-b"]["number"] == 2

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { homeLabel, item, itemTypes, search, typeName } from "../lib/inventory";
+import { displayName, generics, homeLabel, nameOf, search } from "../lib/inventory";
 import {
   conflicts,
   createReservation,
@@ -21,23 +21,26 @@ interface Props {
   from?: string | null;
 }
 
-const EMPTY: ReservationInput = { event: "", starts: "", ends: "", items: [], types: [] };
+const EMPTY: ReservationInput = { event: "", starts: "", ends: "", items: [], generics: [] };
 
 function initial(store: Store, id?: string, from?: string | null): ReservationInput {
   const source = reservation(store.state, id ?? from ?? "");
   if (!source) return EMPTY;
-  const { event, items, types } = source;
+  const { event, items } = source;
+  const lines = source.generics;
   // A copy keeps the gear and the name; the dates are the one thing that is always new.
-  return id ? { event, starts: source.starts, ends: source.ends, items, types } : { ...EMPTY, event, items, types };
+  return id
+    ? { event, starts: source.starts, ends: source.ends, items, generics: lines }
+    : { ...EMPTY, event, items, generics: lines };
 }
 
-/** Event, dates, and gear by name or by type (FR-RES-01, FR-RES-13). One form for new, edit and duplicate. */
+/** Event, dates, and gear by name or so many of a generic (FR-RES-01, FR-RES-13). New, edit and duplicate. */
 export function ReservationForm({ store, id, from }: Props) {
   useStore(store);
   const [values, setValues] = useState<ReservationInput>(() => initial(store, id, from));
   const [start] = useState(values);
   const [query, setQuery] = useState("");
-  const [typeId, setTypeId] = useState("");
+  const [genericId, setGenericId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -75,12 +78,12 @@ export function ReservationForm({ store, id, from }: Props) {
 
   const results = query.trim() ? search(state, { query }).filter((it) => !values.items.includes(it.id)) : [];
 
-  function addType() {
+  function addGeneric() {
     const n = Number.parseInt(quantity, 10);
-    if (!typeId || !(n > 0)) return;
-    const rest = values.types.filter((t) => t.type_id !== typeId);
-    set({ types: [...rest, { type_id: typeId, quantity: n }] });
-    setTypeId("");
+    if (!genericId || !(n > 0)) return;
+    const rest = values.generics.filter((g) => g.item_id !== genericId);
+    set({ generics: [...rest, { item_id: genericId, quantity: n }] });
+    setGenericId("");
     setQuantity("1");
   }
 
@@ -121,15 +124,14 @@ export function ReservationForm({ store, id, from }: Props) {
       <h3 className="section">Items</h3>
       <ul className="names">
         {values.items.map((itemId) => {
-          const it = item(state, itemId);
           return (
             <li key={itemId} className="row">
-              <span className="name">{it?.name ?? "(unknown item)"}</span>
+              <span className="name">{nameOf(state, itemId)}</span>
               <button
                 className="small"
                 type="button"
                 onClick={() => set({ items: values.items.filter((x) => x !== itemId) })}
-                aria-label={`Remove ${it?.name ?? itemId}`}
+                aria-label={`Remove ${nameOf(state, itemId)}`}
               >
                 Remove
               </button>
@@ -156,7 +158,7 @@ export function ReservationForm({ store, id, from }: Props) {
                   setQuery("");
                 }}
               >
-                <span>{it.name}</span>
+                <span>{displayName(state, it)}</span>
                 <span className="muted">{homeLabel(state, it)}</span>
               </button>
             </li>
@@ -164,18 +166,18 @@ export function ReservationForm({ store, id, from }: Props) {
         </ul>
       )}
 
-      <h3 className="section">Types</h3>
+      <h3 className="section">So many of one thing</h3>
       <ul className="names">
-        {values.types.map((t) => (
-          <li key={t.type_id} className="row">
+        {values.generics.map((g) => (
+          <li key={g.item_id} className="row">
             <span className="name">
-              {t.quantity} × {typeName(state, t.type_id)}
+              {g.quantity} × {nameOf(state, g.item_id)}
             </span>
             <button
               className="small"
               type="button"
-              onClick={() => set({ types: values.types.filter((x) => x.type_id !== t.type_id) })}
-              aria-label={`Remove ${typeName(state, t.type_id)}`}
+              onClick={() => set({ generics: values.generics.filter((x) => x.item_id !== g.item_id) })}
+              aria-label={`Remove ${nameOf(state, g.item_id)}`}
             >
               Remove
             </button>
@@ -184,14 +186,16 @@ export function ReservationForm({ store, id, from }: Props) {
       </ul>
       <div className="row">
         <label className="tight">
-          <span>Type</span>
-          <select aria-label="Type" value={typeId} onChange={(e) => setTypeId(e.target.value)}>
+          <span>Item</span>
+          <select aria-label="Item" value={genericId} onChange={(e) => setGenericId(e.target.value)}>
             <option value="">Choose</option>
-            {itemTypes(state).map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
+            {generics(state)
+              .filter((g) => !g.retired)
+              .map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
           </select>
         </label>
         <label className="tight">
@@ -205,7 +209,7 @@ export function ReservationForm({ store, id, from }: Props) {
             onChange={(e) => setQuantity(e.target.value)}
           />
         </label>
-        <button className="small" type="button" onClick={addType} disabled={!typeId}>
+        <button className="small" type="button" onClick={addGeneric} disabled={!genericId}>
           Add
         </button>
       </div>

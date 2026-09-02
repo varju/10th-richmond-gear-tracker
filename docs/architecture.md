@@ -32,7 +32,7 @@ they are all events on one log. One replay builds every table the client reads.
 ```
 events
   id            ulid, generated on the device, unique
-  entity_type   item | item_type | user | location | code | reservation | repair | found_report | setting
+  entity_type   item | user | location | code | reservation | repair | found_report | setting
   entity_id
   type          checked_out | checked_in | note_added | note_corrected | field_changed | ...
   actor_id
@@ -381,8 +381,8 @@ camps that share a day share the gear.
 
 **Packing records nothing of its own.** An item is ticked off when it is out under the reservation's event, which the
 item's last movement already says. So the remaining list is derived from state, a reload loses nothing, and two phones
-packing one camp agree as soon as they have synced. For a type, any unretired item of that type checked out under the
-event counts, except one the reservation names, which is its own line. Finishing the session records nothing either: the
+packing one camp agree as soon as they have synced. For a generic, any unretired unit of it checked out under the event
+counts, except one the reservation names, which is its own line. Finishing the session records nothing either: the
 reservation is a plan, and the movements are the record.
 
 Conflicts are checked on the device, against the state it has (FR-RES-05, FR-RES-15). Two phones offline can both save

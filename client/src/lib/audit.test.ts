@@ -37,6 +37,6 @@ test("values read as a person would", async () => {
   expect(describeValue(state, "name", null)).toBe("—");
   expect(describeValue(state, "retired", false)).toBe("No");
   expect(describeValue(state, "merged_into", other)).toBe("Tent 2");
-  expect(describeValue(state, "type_id", "nope")).toBe("(unknown type)");
+  expect(describeValue(state, "parent_id", "nope")).toBe("(unknown item)");
   expect(describeValue(state, "sub_location", "shelf 4")).toBe("shelf 4");
 });

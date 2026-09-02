@@ -1,6 +1,6 @@
-import { useEffect } from "react";
-import { seen } from "../lib/actions";
-import { code as codeOf, codeStatus, resolveItem } from "../lib/inventory";
+import { useEffect, useState } from "react";
+import { addUnit, bindCode, seen } from "../lib/actions";
+import { code as codeOf, codeStatus, displayName, nextNumber, recentGenerics, resolveItem } from "../lib/inventory";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
@@ -9,14 +9,17 @@ import { Page } from "./Page";
 /**
  * Where a scan and a sticker's URL both land: /g/<code>. A code on an item
  * opens the item (FR-TAG-05, FR-TAG-06); an unassigned one offers
- * create-or-bind (FR-TAG-07).
+ * create-or-bind (FR-TAG-07), and another of a generic we labelled a moment
+ * ago (FR-INV-24, S-BOOT-03).
  */
 export function CodeLanding({ store, code }: { store: Store; code: string }) {
   useStore(store);
-  const status = codeStatus(store.state, code);
+  const [error, setError] = useState<string | null>(null);
+  const state = store.state;
+  const status = codeStatus(state, code);
   // A sticker on a merged duplicate opens the survivor (FR-INV-13).
-  const bound = codeOf(store.state, code)?.item_id;
-  const itemId = bound ? resolveItem(store.state, bound) : undefined;
+  const bound = codeOf(state, code)?.item_id;
+  const itemId = bound ? resolveItem(state, bound) : undefined;
 
   useEffect(() => {
     if ((status === "assigned" || status === "replaced") && itemId) {
@@ -31,6 +34,18 @@ export function CodeLanding({ store, code }: { store: Store; code: string }) {
     </button>
   );
 
+  /** One tap: the next number, the generic's home, the code on it, and back to the sheet. */
+  async function another(genericId: string) {
+    try {
+      const id = await addUnit(store, genericId);
+      await bindCode(store, code, id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not add it");
+      return;
+    }
+    navigate("/scan", true);
+  }
+
   if (status === "unassigned") {
     return (
       <Page
@@ -38,10 +53,25 @@ export function CodeLanding({ store, code }: { store: Store; code: string }) {
         back="/"
         actions={
           <>
+            {recentGenerics(state).map((g) => (
+              <div className="row" key={g.id}>
+                <button type="button" className="primary" onClick={() => void another(g.id)}>
+                  Another {displayName(state, g)} #{nextNumber(state, g.id)}
+                </button>
+                <button
+                  type="button"
+                  className="small"
+                  onClick={() => navigate(`/items/new?parent=${g.id}&code=${code}`)}
+                  aria-label={`Another ${displayName(state, g)}, with a number I pick`}
+                >
+                  Number…
+                </button>
+              </div>
+            ))}
             <button type="button" className="primary" onClick={() => navigate(`/items/new?code=${code}`)}>
               Create a new item
             </button>
-            <button type="button" className="primary" onClick={() => navigate(`/bind/${code}`)}>
+            <button type="button" onClick={() => navigate(`/bind/${code}`)}>
               Put it on an existing item
             </button>
             {scanAgain}
@@ -50,6 +80,11 @@ export function CodeLanding({ store, code }: { store: Store; code: string }) {
       >
         <p className="big code">{code}</p>
         <p className="muted">This code is not on anything yet.</p>
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
       </Page>
     );
   }

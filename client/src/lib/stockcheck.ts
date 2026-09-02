@@ -4,7 +4,7 @@
  * only because a person said so, so nothing here is an event; the session is a
  * device setting and the answer is true for the walk.
  */
-import { type Item, item, items } from "./inventory";
+import { byName, type Item, item, items } from "./inventory";
 import type { State } from "./replay";
 import type { StockCheck } from "./store";
 
@@ -16,8 +16,6 @@ export function atHome(it: Item, check: StockCheck): boolean {
   return !check.sub_location || it.sub_location === check.sub_location;
 }
 
-const byName = (a: Item, b: Item) => a.name.localeCompare(b.name);
-
 const seenItems = (state: State, check: StockCheck): Item[] =>
   check.seen.map((id) => item(state, id)).filter((it): it is Item => it !== undefined);
 
@@ -25,20 +23,20 @@ const seenItems = (state: State, check: StockCheck): Item[] =>
 export const misplaced = (state: State, check: StockCheck): Item[] =>
   seenItems(state, check)
     .filter((it) => !atHome(it, check))
-    .sort(byName);
+    .sort(byName(state));
 
 /** Scanned here, and this is its home. */
 export const seenHere = (state: State, check: StockCheck): Item[] =>
   seenItems(state, check)
     .filter((it) => atHome(it, check))
-    .sort(byName);
+    .sort(byName(state));
 
 /** Should be on this shelf, is recorded as in, and has not been scanned. Out gear is not expected here. */
 export function notSeen(state: State, check: StockCheck): Item[] {
   const seen = new Set(check.seen);
   return items(state)
     .filter((it) => !it.retired && it.status === "in" && atHome(it, check) && !seen.has(it.id))
-    .sort(byName);
+    .sort(byName(state));
 }
 
 export const startCheck = (location_id: string, sub_location: string, now: number): StockCheck => ({

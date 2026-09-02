@@ -15,7 +15,7 @@
         "starts": "2026-10-02",
         "ends": "2026-10-04",
         "items": ["tent-1", "stove-1"],
-        "types": [{ "type_id": "tarp", "quantity": 2 }]
+        "generics": [{ "item_id": "tarp", "quantity": 2 }]
       }
     },
     {
@@ -41,7 +41,7 @@
         "starts": "2026-10-02",
         "ends": "2026-10-04",
         "items": ["tent-1"],
-        "types": [{ "type_id": "tarp", "quantity": 2 }],
+        "generics": [{ "item_id": "tarp", "quantity": 2 }],
         "added_at": 1000,
         "modified_at": 2000
       }

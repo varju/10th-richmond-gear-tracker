@@ -1,16 +1,29 @@
 /**
  * Reading the state: what an item, a location, a code look like, and the
  * questions the screens ask of them. Pure functions over Store.state.
+ *
+ * One entity kind carries three shapes (FR-INV-21). A single item has a name.
+ * A generic has a name and `generic`, no code and no movements. A unit has a
+ * parent and a number, and no name of its own: its name is derived, so read it
+ * with displayName and never with `it.name`.
  */
 import type { Fields, Movement, Note, State } from "./replay";
 
 export interface Item {
   id: string;
-  name: string;
+  /** Absent on a unit; its name comes from its generic (FR-INV-22). */
+  name?: string | null;
   description?: string;
   home_location_id?: string | null;
   sub_location?: string;
-  type_id?: string | null;
+  /** One thing the group owns several of. Takes no code and no movement (FR-INV-21). */
+  generic?: boolean;
+  /** Set on a unit: the generic it belongs to. */
+  parent_id?: string | null;
+  /** A unit's number under its parent, unique there, written on the gear (FR-INV-23). */
+  number?: number | null;
+  /** "patched fly": what tells this unit from its siblings (FR-INV-23). */
+  nickname?: string | null;
   /** "YYYY-MM-DD" (FR-INV-12). */
   purchase_date?: string | null;
   /** Dollars, to the cent. */
@@ -21,8 +34,9 @@ export interface Item {
   missing?: boolean;
   /** Set on a duplicate: the item it was folded into (FR-INV-13). Everything that reads an id follows it. */
   merged_into?: string | null;
-  status: "in" | "out";
-  holder_id: string | null;
+  /** Absent on a generic: it does not move. */
+  status?: "in" | "out";
+  holder_id?: string | null;
   since?: number;
   movement?: Movement;
   notes?: Note[];
@@ -34,12 +48,6 @@ export interface Item {
 }
 
 export interface Location {
-  id: string;
-  name: string;
-  deleted?: boolean;
-}
-
-export interface ItemType {
   id: string;
   name: string;
   deleted?: boolean;
@@ -69,7 +77,6 @@ function withId<T>(table: Record<string, Fields> | undefined): T[] {
 
 export const items = (state: State): Item[] => withId<Item>(state.item);
 export const locations = (state: State): Location[] => withId<Location>(state.location).filter((l) => !l.deleted);
-export const itemTypes = (state: State): ItemType[] => withId<ItemType>(state.item_type).filter((t) => !t.deleted);
 export const codes = (state: State): Code[] => withId<Code>(state.code);
 export const group = (state: State): GroupSetting => (state.setting?.group ?? {}) as GroupSetting;
 
@@ -103,8 +110,75 @@ export const code = (state: State, id: string): Code | undefined =>
   state.code?.[id] ? ({ id, ...state.code[id] } as Code) : undefined;
 export const locationName = (state: State, id: string | null | undefined): string =>
   id ? (state.location?.[id]?.name as string | undefined) ?? "(unknown location)" : "";
-export const typeName = (state: State, id: string | null | undefined): string =>
-  id ? (state.item_type?.[id]?.name as string | undefined) ?? "(unknown type)" : "";
+
+// --- generics and units -------------------------------------------------------------------
+
+export const isGeneric = (it: Item): boolean => Boolean(it.generic);
+export const isUnit = (it: Item): boolean => Boolean(it.parent_id);
+
+/** Things that move: single items and units, never a generic. */
+export const movable = (state: State): Item[] => items(state).filter((it) => !it.generic);
+
+export const generics = (state: State): Item[] => items(state).filter((it) => it.generic);
+
+/** The units under a generic, in number order. Retired ones included; callers filter. */
+export const unitsOf = (state: State, genericId: string): Item[] =>
+  items(state)
+    .filter((it) => it.parent_id === genericId && !it.merged_into)
+    .sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
+
+/** The generic a unit belongs to, if this phone has it. */
+export const parentOf = (state: State, it: Item): Item | undefined =>
+  it.parent_id ? item(state, it.parent_id) : undefined;
+
+/**
+ * The name a person reads: "4-person tent, Brand X #3 (patched fly)" for a
+ * unit, the item's own name otherwise (FR-INV-22).
+ */
+export function displayName(state: State, it: Item): string {
+  if (!it.parent_id) return it.name ?? "";
+  const parent = parentOf(state, it);
+  const base = `${parent?.name ?? "(unknown item)"} #${it.number ?? "?"}`;
+  return it.nickname ? `${base} (${it.nickname})` : base;
+}
+
+/** The same, from an id. For lists that hold ids rather than items. */
+export const nameOf = (state: State, id: string | null | undefined): string => {
+  const it = id ? item(state, id) : undefined;
+  return it ? displayName(state, it) : "(unknown item)";
+};
+
+/** Sort by the name on screen. */
+export const byName = (state: State) => (a: Item, b: Item) =>
+  displayName(state, a).localeCompare(displayName(state, b));
+
+/** The lowest number not in use under this generic. Offered on a new unit, editable (FR-INV-23). */
+export function nextNumber(state: State, genericId: string): number {
+  const taken = new Set(unitsOf(state, genericId).map((u) => u.number));
+  let n = 1;
+  while (taken.has(n)) n++;
+  return n;
+}
+
+/** Numbers are unique within a generic, checked on this device (FR-INV-23). */
+export const numberTaken = (state: State, genericId: string, number: number, exceptId?: string): boolean =>
+  unitsOf(state, genericId).some((u) => u.number === number && u.id !== exceptId);
+
+/**
+ * Generics worth offering on a scanned code, most recently touched first
+ * (FR-INV-24). Touched means the generic itself or any of its units, so the
+ * one being labelled stays at the top of the walk.
+ */
+export function recentGenerics(state: State, limit = 4): Item[] {
+  const touched = (g: Item): number =>
+    Math.max(g.modified_at ?? 0, ...unitsOf(state, g.id).map((u) => Math.max(u.added_at ?? 0, u.modified_at ?? 0)), 0);
+  return generics(state)
+    .filter((g) => !g.retired && !g.merged_into)
+    .sort((a, b) => touched(b) - touched(a) || displayName(state, a).localeCompare(displayName(state, b)))
+    .slice(0, limit);
+}
+
+// --- codes --------------------------------------------------------------------------------
 
 export type CodeStatus = "unassigned" | "assigned" | "replaced" | "unknown";
 
@@ -136,29 +210,90 @@ export interface Filter {
   query?: string;
   location_id?: string;
   sub_location?: string;
-  type_id?: string;
   status?: "in" | "out" | "missing";
   retired?: boolean;
 }
 
-/** Search as you type (FR-INV-07): every word must appear somewhere in the name, home or type.
- * Merged duplicates are never listed; their survivor is. */
+const terms = (query: string | undefined): string[] => (query ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+
+/** Every word must appear somewhere in the name, the home, or a unit's nickname and number. */
+function matches(state: State, it: Item, words: string[]): boolean {
+  if (words.length === 0) return true;
+  const hay = `${displayName(state, it)} ${homeLabel(state, it)}`.toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
+/**
+ * Search as you type (FR-INV-07), over the things that move: single items and
+ * units. Generics are not here; the list groups units under them in rows().
+ * Merged duplicates are never listed; their survivor is.
+ */
 export function search(state: State, filter: Filter): Item[] {
-  const words = (filter.query ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-  return items(state)
+  const words = terms(filter.query);
+  return movable(state)
     .filter((it) => !it.merged_into)
     .filter((it) => Boolean(it.retired) === Boolean(filter.retired))
     .filter((it) => !filter.location_id || it.home_location_id === filter.location_id)
     .filter((it) => !filter.sub_location || it.sub_location === filter.sub_location)
-    .filter((it) => !filter.type_id || it.type_id === filter.type_id)
     .filter((it) => !filter.status || (filter.status === "missing" ? Boolean(it.missing) : it.status === filter.status))
-    .filter((it) => {
-      if (words.length === 0) return true;
-      const hay = `${it.name} ${homeLabel(state, it)} ${typeName(state, it.type_id)}`.toLowerCase();
-      return words.every((w) => hay.includes(w));
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .filter((it) => matches(state, it, words))
+    .sort(byName(state));
 }
+
+export interface SingleRow {
+  kind: "single";
+  item: Item;
+  name: string;
+}
+
+export interface GenericRow {
+  kind: "generic";
+  item: Item;
+  name: string;
+  /** The units that matched, in number order. */
+  units: Item[];
+  counts: { total: number; in: number };
+}
+
+export type Row = SingleRow | GenericRow;
+
+/**
+ * The list: one row per generic with its counts, single items as rows of their
+ * own (FR-INV-25). Filters apply to units, and a generic is here when any of
+ * its units matched. A generic with nothing under it is still a row when only
+ * the search text is set, so an empty one can be found and given units.
+ */
+export function rows(state: State, filter: Filter): Row[] {
+  const singles: Row[] = [];
+  const byParent = new Map<string, Item[]>();
+  for (const it of search(state, filter)) {
+    const parent = it.parent_id && state.item?.[it.parent_id] ? it.parent_id : "";
+    if (parent) byParent.set(parent, [...(byParent.get(parent) ?? []), it]);
+    else singles.push({ kind: "single", item: it, name: displayName(state, it) });
+  }
+  if (!filter.location_id && !filter.sub_location && !filter.status) {
+    const words = terms(filter.query);
+    for (const g of generics(state)) {
+      if (g.merged_into || Boolean(g.retired) !== Boolean(filter.retired)) continue;
+      if (matches(state, g, words) && !byParent.has(g.id)) byParent.set(g.id, []);
+    }
+  }
+  const grouped: Row[] = [...byParent.entries()].map(([id, units]) => {
+    const parent = item(state, id) ?? ({ id } as Item);
+    return {
+      kind: "generic",
+      item: parent,
+      name: displayName(state, parent),
+      units: units.sort((a, b) => (a.number ?? 0) - (b.number ?? 0)),
+      counts: { total: units.length, in: units.filter((u) => u.status === "in" && !u.missing).length },
+    };
+  });
+  return [...grouped, ...singles].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** How many things the rows stand for: units and single items, not generics. */
+export const countItems = (list: Row[]): number =>
+  list.reduce((n, r) => n + (r.kind === "single" ? 1 : r.units.length), 0);
 
 /** The sub-location labels in use, for a suggestion list. Labels, not entities (FR-SET-03). */
 export function subLocations(state: State, locationId?: string): string[] {
@@ -169,9 +304,9 @@ export function subLocations(state: State, locationId?: string): string[] {
   return [...seen].sort();
 }
 
-/** Live items whose home is this location, for browsing (FR-INV-10). */
+/** Live items whose home is this location, for browsing (FR-INV-10). Generics do not sit on a shelf. */
 export const atLocation = (state: State, locationId: string): Item[] =>
-  items(state).filter((it) => !it.retired && it.home_location_id === locationId);
+  movable(state).filter((it) => !it.retired && it.home_location_id === locationId);
 
 export interface Shelf {
   /** Empty for items with no sub-location. */
@@ -188,12 +323,12 @@ export function bySubLocation(state: State, locationId: string): Shelf[] {
   }
   return [...groups.entries()]
     .sort(([a], [b]) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)))
-    .map(([sub_location, list]) => ({ sub_location, items: list.sort((a, b) => a.name.localeCompare(b.name)) }));
+    .map(([sub_location, list]) => ({ sub_location, items: list.sort(byName(state)) }));
 }
 
-/** Items that stop a location or type being deleted (FR-SET-05). Retired items count: they can come back. */
-export function blockers(state: State, field: "home_location_id" | "type_id", id: string): Item[] {
+/** Items that stop a location being deleted (FR-SET-05). Retired items count: they can come back. */
+export function blockers(state: State, locationId: string): Item[] {
   return items(state)
-    .filter((it) => it[field] === id)
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .filter((it) => it.home_location_id === locationId)
+    .sort(byName(state));
 }

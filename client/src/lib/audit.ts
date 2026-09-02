@@ -3,7 +3,7 @@
  * what, by whom. Read from the events this phone holds, so it reaches back 90
  * days (NFR-DATA-03). Movements are the History section; this is the rest.
  */
-import { locationName, typeName } from "./inventory";
+import { locationName, nameOf } from "./inventory";
 import type { State } from "./replay";
 import type { Store } from "./store";
 
@@ -25,7 +25,10 @@ const LABELS: Record<string, string> = {
   description: "Description",
   home_location_id: "Home location",
   sub_location: "Sub-location",
-  type_id: "Type",
+  generic: "Several of these",
+  parent_id: "Generic",
+  number: "Number",
+  nickname: "Nickname",
   // Dropped as a field; events that changed it are still in the log.
   condition: "Condition",
   purchase_date: "Bought on",
@@ -42,8 +45,7 @@ export const fieldLabel = (field: string): string => LABELS[field] ?? field;
 export function describeValue(state: State, field: string, value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
   if (field === "home_location_id") return locationName(state, String(value));
-  if (field === "type_id") return typeName(state, String(value));
-  if (field === "merged_into") return (state.item?.[String(value)]?.name as string | undefined) ?? "(unknown item)";
+  if (field === "parent_id" || field === "merged_into") return nameOf(state, String(value));
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (field === "price" && typeof value === "number") return `$${value.toFixed(2)}`;
   return String(value);

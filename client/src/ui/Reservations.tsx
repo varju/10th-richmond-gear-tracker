@@ -13,7 +13,7 @@ export function datesLabel(r: Pick<Reservation, "starts" | "ends">): string {
 
 /** How much gear a reservation asks for: named items plus type quantities. */
 export function countLabel(r: Reservation): string {
-  const n = r.items.length + r.types.reduce((sum, t) => sum + t.quantity, 0);
+  const n = r.items.length + r.generics.reduce((sum, g) => sum + g.quantity, 0);
   return plural(n, "item");
 }
 

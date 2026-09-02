@@ -415,6 +415,40 @@ def test_the_public_route_refuses_a_code_that_is_not_ours(public):
     assert public.get("/public/codes/ZZZZZZZZZZ").status_code == 404
 
 
+def test_a_unit_answers_with_its_generic_name(public):
+    """A unit has no name of its own, and the number is no use to a finder (FR-PUB-01, FR-INV-22)."""
+    public.post(
+        "/sync/push",
+        json=push_body(
+            event(
+                entity_type="item",
+                entity_id="tarp",
+                type="created",
+                payload={"name": "3x3 tarp", "generic": True},
+                device_seq=3,
+            ),
+            event(
+                entity_type="item",
+                entity_id="tarp-2",
+                type="created",
+                payload={"parent_id": "tarp", "number": 2, "nickname": "torn corner"},
+                device_seq=4,
+            ),
+            event(
+                entity_type="code",
+                entity_id="BBBBBBBBBB",
+                type="code_bound",
+                payload={"item_id": "tarp-2"},
+                device_seq=5,
+            ),
+        ),
+        headers=as_alice(),
+    )
+    r = public.get("/public/codes/BBBBBBBBBB")
+    assert r.json()["item"] == {"name": "3x3 tarp"}
+    assert "torn corner" not in r.text
+
+
 # --- found gear ------------------------------------------------------------------------------
 
 

@@ -24,15 +24,15 @@ beforeEach(async () => {
   store = await openStore();
   await seedUsers(store, [alice]);
   const cold = await act.createLocation(store, "Cold locker");
-  tents = await act.createType(store, "4-person tent");
-  t1 = await act.createItem(store, { name: "Tent 1", home_location_id: cold, type_id: tents });
-  t2 = await act.createItem(store, { name: "Tent 2", home_location_id: cold, type_id: tents });
+  tents = await act.createGeneric(store, { name: "4-person tent", home_location_id: cold });
+  t1 = await act.addUnit(store, tents);
+  t2 = await act.addUnit(store, tents);
   fall = await res.createReservation(store, {
     event: "Fall Camp",
     starts: "2026-10-02",
     ends: "2026-10-04",
     items: [t1],
-    types: [{ type_id: tents, quantity: 1 }],
+    generics: [{ item_id: tents, quantity: 1 }],
   });
 });
 
@@ -51,7 +51,7 @@ test("the list shows what is ahead, with past camps folded away", async () => {
     starts: "2025-04-10",
     ends: "2025-04-12",
     items: [],
-    types: [],
+    generics: [],
   });
   navigate("/reservations");
   renderInShell(<Reservations store={store} />, () => T0);
@@ -69,37 +69,37 @@ test("a new reservation is built from a name, dates and gear; an item already bo
 
   await user.type(screen.getByLabelText("Event"), "Cub camp");
   await fillDates("2026-10-04", "2026-10-05");
-  await user.type(screen.getByLabelText("Add an item"), "tent 1");
-  await user.click(screen.getByRole("button", { name: /Tent 1/ }));
-  expect(screen.getByLabelText("Remove Tent 1")).toBeInTheDocument();
+  await user.type(screen.getByLabelText("Add an item"), "tent #1");
+  await user.click(screen.getByRole("button", { name: /4-person tent #1/ }));
+  expect(screen.getByLabelText("Remove 4-person tent #1")).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Save" }));
-  expect(screen.getByRole("alert")).toHaveTextContent("Already reserved for Fall Camp (Tent 1).");
+  expect(screen.getByRole("alert")).toHaveTextContent("Already reserved for Fall Camp (4-person tent #1).");
   expect(res.reservations(store.state)).toHaveLength(1);
 
   // Swap the tent for one that is free, and it saves.
-  await user.click(screen.getByLabelText("Remove Tent 1"));
-  await user.type(screen.getByLabelText("Add an item"), "tent 2");
-  await user.click(screen.getByRole("button", { name: /Tent 2/ }));
+  await user.click(screen.getByLabelText("Remove 4-person tent #1"));
+  await user.type(screen.getByLabelText("Add an item"), "tent #2");
+  await user.click(screen.getByRole("button", { name: /4-person tent #2/ }));
   await user.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(res.reservations(store.state).find((r) => r.event === "Cub camp")).toBeDefined());
   const made = res.reservations(store.state).find((r) => r.event === "Cub camp")!;
-  expect(made).toMatchObject({ starts: "2026-10-04", ends: "2026-10-05", items: [t2], types: [] });
+  expect(made).toMatchObject({ starts: "2026-10-04", ends: "2026-10-05", items: [t2], generics: [] });
   expect(location.pathname).toBe(`/reservations/${made.id}`);
 });
 
-test("a type is reserved by count, and too many of it names the other camp (FR-RES-13, FR-RES-15)", async () => {
+test("a generic is reserved by count, and too many of it names the other camp (FR-RES-13, FR-RES-15)", async () => {
   navigate("/reservations/new");
   renderInShell(<ReservationForm store={store} />);
   await user.type(screen.getByLabelText("Event"), "Cub camp");
   await fillDates("2026-10-03", "2026-10-03");
-  await user.selectOptions(screen.getByLabelText("Type"), tents);
+  await user.selectOptions(screen.getByLabelText("Item"), tents);
   await user.clear(screen.getByLabelText("How many"));
   await user.type(screen.getByLabelText("How many"), "2");
   await user.click(screen.getByRole("button", { name: "Add" }));
   expect(screen.getByText("2 × 4-person tent")).toBeInTheDocument();
 
-  // Fall Camp has one tent by name and one by type; we own two.
+  // Fall Camp has one tent by name and one by count; we own two.
   await user.click(screen.getByRole("button", { name: "Save" }));
   expect(screen.getByRole("alert")).toHaveTextContent("Fall Camp (4 × 4-person tent, we have 2)");
 });
@@ -109,7 +109,7 @@ test("duplicate carries the gear and the name over, not the dates (FR-RES-10)", 
   renderInShell(<ReservationForm store={store} from={fall} />);
   expect(screen.getByLabelText("Event")).toHaveValue("Fall Camp");
   expect(screen.getByLabelText("Starts")).toHaveValue("");
-  expect(screen.getByLabelText("Remove Tent 1")).toBeInTheDocument();
+  expect(screen.getByLabelText("Remove 4-person tent #1")).toBeInTheDocument();
   expect(screen.getByText("1 × 4-person tent")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 });
@@ -118,7 +118,7 @@ test("the page shows the gear, starts the packing session under its event, and c
   navigate(`/reservations/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />);
   expect(screen.getByRole("heading", { name: "Fall Camp" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /Tent 1/ })).toHaveTextContent("Cold locker · In");
+  expect(screen.getByRole("button", { name: /4-person tent #1/ })).toHaveTextContent("Cold locker · In");
   expect(screen.getByText("1 × 4-person tent")).toBeInTheDocument();
   expect(screen.queryByRole("note")).not.toBeInTheDocument();
 
@@ -140,10 +140,10 @@ test("two camps saved on two phones are named against each other on the page (FR
     starts: "2026-10-04",
     ends: "2026-10-05",
     items: [t1],
-    types: [],
+    generics: [],
   });
   renderInShell(<ReservationPage store={store} id={fall} />);
-  expect(screen.getByRole("note")).toHaveTextContent("Also reserved for Cub camp (Tent 1).");
+  expect(screen.getByRole("note")).toHaveTextContent("Also reserved for Cub camp (4-person tent #1).");
 });
 
 test("Edit opens the form with the reservation in it and saves changed fields only", async () => {
@@ -151,7 +151,7 @@ test("Edit opens the form with the reservation in it and saves changed fields on
   renderInShell(<ReservationForm store={store} id={fall} />);
   expect(screen.getByLabelText("Event")).toHaveValue("Fall Camp");
   expect(screen.getByLabelText("Ends")).toHaveValue("2026-10-04");
-  await user.click(screen.getByLabelText("Remove Tent 1"));
+  await user.click(screen.getByLabelText("Remove 4-person tent #1"));
   await user.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() =>
     expect(store.pending.filter((e) => e.type === "field_changed").map((e) => e.payload)).toEqual([

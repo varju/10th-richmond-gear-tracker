@@ -228,13 +228,13 @@ def test_a_repair_state_is_one_of_four():
 def test_a_reservation_has_an_event_and_days_in_order():
     base = {"event": "Fall Camp", "starts": "2026-10-02", "ends": "2026-10-04"}
     validate(created("reservation", base))
-    validate(created("reservation", {**base, "items": ["tent-1"], "types": [{"type_id": "t", "quantity": 2}]}))
+    validate(created("reservation", {**base, "items": ["tent-1"], "generics": [{"item_id": "t", "quantity": 2}]}))
     with pytest.raises(Rejected, match="ends before it starts"):
         validate(created("reservation", {**base, "ends": "2026-10-01"}))
     with pytest.raises(Rejected, match="starts: String should match pattern"):
         validate(created("reservation", {**base, "starts": "Oct 2"}))
-    with pytest.raises(Rejected, match="types.0.quantity"):
-        validate(created("reservation", {**base, "types": [{"type_id": "t", "quantity": 0}]}))
+    with pytest.raises(Rejected, match="generics.0.quantity"):
+        validate(created("reservation", {**base, "generics": [{"item_id": "t", "quantity": 0}]}))
 
 
 def test_a_found_report_can_only_be_resolved():

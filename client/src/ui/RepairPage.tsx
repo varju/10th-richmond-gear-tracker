@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { item } from "../lib/inventory";
+import { nameOf } from "../lib/inventory";
 import { REPAIR_STATES, repair, setRepairState, stateLabel } from "../lib/repairs";
 import type { Note } from "../lib/replay";
 import { navigate } from "../lib/router";
@@ -32,7 +32,6 @@ export function RepairPage({ store, id }: Props) {
     );
   }
 
-  const it = item(state, ticket.item_id);
   const raisedBy = state.repair?.[id] ? raisedByLabel(store, id) : "";
 
   async function move(to: (typeof REPAIR_STATES)[number]["value"]) {
@@ -64,7 +63,7 @@ export function RepairPage({ store, id }: Props) {
       }
     >
       <button className="link" type="button" onClick={() => guard(() => navigate(`/items/${ticket.item_id}`))}>
-        {it?.name ?? "(unknown item)"}
+        {nameOf(store.state, ticket.item_id)}
       </button>
       <p className="repair-state">{stateLabel(ticket.state)}</p>
       <p className="prose">{ticket.description}</p>

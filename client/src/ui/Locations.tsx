@@ -1,4 +1,4 @@
-import { atLocation, bySubLocation, locationName, locations } from "../lib/inventory";
+import { atLocation, bySubLocation, displayName, locationName, locations } from "../lib/inventory";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
@@ -46,7 +46,7 @@ export function LocationPage({ store, id }: { store: Store; id: string }) {
               {shelf.items.map((it) => (
                 <li key={it.id}>
                   <button className="item" type="button" onClick={() => navigate(`/items/${it.id}`)}>
-                    <span className="item-name">{it.name}</span>
+                    <span className="item-name">{displayName(store.state, it)}</span>
                     <span className="muted small">{statusLabel(state, it)}</span>
                   </button>
                 </li>

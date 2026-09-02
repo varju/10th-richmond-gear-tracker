@@ -108,12 +108,15 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
         raise Rejected("user changes go through the accounts API")
     if entity_type == "setting" and principal.role != "admin":
         raise Rejected("settings are changed by an Admin")
-    if entity_type == "item" and kind == "checked_out":
-        item = derived.get_entity(conn, "item", str(incoming.get("entity_id")))
-        if item is not None and item.get("retired"):
-            raise Rejected("retired items cannot be checked out (FR-INV-04)")
-        if item is not None and item.get("merged_into"):
-            raise Rejected("this item was merged into another (FR-INV-13)")
+    if entity_type == "item" and kind in ("checked_out", "checked_in"):
+        item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
+        if item.get("generic"):
+            raise Rejected("a generic item does not move; its units do (FR-INV-21)")
+        if kind == "checked_out":
+            if item.get("retired"):
+                raise Rejected("retired items cannot be checked out (FR-INV-04)")
+            if item.get("merged_into"):
+                raise Rejected("this item was merged into another (FR-INV-13)")
     if entity_type == "found_report" and kind == "created":
         raise Rejected("found reports come from the public page")
     if kind == "photo_added":
@@ -127,6 +130,11 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
                 raise Rejected("not one of our codes")
             if code.get("item_id") is not None:
                 raise Rejected("this code is already on an item")
+            payload = incoming.get("payload")
+            named = payload.get("item_id") if isinstance(payload, dict) else None
+            target = derived.get_entity(conn, "item", str(named)) or {}
+            if target.get("generic"):
+                raise Rejected("a generic item takes no code; put it on a unit (FR-INV-21)")
 
 
 def _check_drift(conn: sqlite3.Connection, event: events.Event, measured_offset: int, now: int) -> None:

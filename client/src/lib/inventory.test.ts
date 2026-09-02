@@ -3,6 +3,7 @@ import { beforeEach, expect, test } from "vitest";
 import * as act from "./actions";
 import { openDb } from "./db";
 import * as inv from "./inventory";
+import { checkOut } from "./movement";
 import { Store } from "./store";
 
 let store: Store;
@@ -17,32 +18,141 @@ beforeEach(async () => {
 async function fixture() {
   const cold = await act.createLocation(store, "Cold locker");
   const warm = await act.createLocation(store, "Warm locker");
-  const tents = await act.createType(store, "4-person tent");
-  const t1 = await act.createItem(store, {
-    name: "Tent 1",
-    home_location_id: cold,
-    sub_location: "shelf 4",
-    type_id: tents,
-  });
-  const t2 = await act.createItem(store, {
-    name: "Tent 2",
-    home_location_id: cold,
-    sub_location: "shelf 4",
-    type_id: tents,
-  });
-  const stove = await act.createItem(store, { name: "Stove", home_location_id: warm, sub_location: "", type_id: null });
-  return { cold, warm, tents, t1, t2, stove };
+  const t1 = await act.createItem(store, { name: "Tent 1", home_location_id: cold, sub_location: "shelf 4" });
+  const t2 = await act.createItem(store, { name: "Tent 2", home_location_id: cold, sub_location: "shelf 4" });
+  const stove = await act.createItem(store, { name: "Stove", home_location_id: warm, sub_location: "" });
+  return { cold, warm, t1, t2, stove };
 }
 
-test("search matches every word against name, home and type", async () => {
+/** A generic with three units, one of them nicknamed, plus the single items above. */
+async function withUnits() {
   const f = await fixture();
-  const names = (filter: inv.Filter) => inv.search(store.state, filter).map((i) => i.name);
+  const tents = await act.createGeneric(store, { name: "4-person tent", home_location_id: f.cold });
+  const u1 = await act.addUnit(store, tents);
+  const u2 = await act.addUnit(store, tents);
+  const u3 = await act.createUnit(store, { parent_id: tents, number: 7, nickname: "patched fly" });
+  return { ...f, tents, u1, u2, u3 };
+}
+
+const names = (filter: inv.Filter) => inv.search(store.state, filter).map((i) => inv.displayName(store.state, i));
+
+test("search matches every word against the name and the home", async () => {
+  const f = await fixture();
   expect(names({})).toEqual(["Stove", "Tent 1", "Tent 2"]);
   expect(names({ query: "tent 2" })).toEqual(["Tent 2"]);
   expect(names({ query: "shelf" })).toEqual(["Tent 1", "Tent 2"]);
-  expect(names({ query: "4-person" })).toEqual(["Tent 1", "Tent 2"]);
   expect(names({ location_id: f.warm })).toEqual(["Stove"]);
   expect(names({ sub_location: "shelf 4", status: "in" })).toEqual(["Tent 1", "Tent 2"]);
+});
+
+test("a unit is named by its generic, its number and its nickname (FR-INV-22)", async () => {
+  const f = await withUnits();
+  const name = (id: string) => inv.displayName(store.state, inv.item(store.state, id)!);
+  expect(name(f.u1)).toBe("4-person tent #1");
+  expect(name(f.u3)).toBe("4-person tent #7 (patched fly)");
+  expect(inv.displayName(store.state, inv.item(store.state, f.tents)!)).toBe("4-person tent");
+  // A unit starts at its generic's home (FR-INV-29).
+  expect(inv.item(store.state, f.u1)?.home_location_id).toBe(f.cold);
+  // The generic itself never moves, so it has no status.
+  expect(inv.item(store.state, f.tents)?.status).toBeUndefined();
+});
+
+test("numbers are the next free one, unique under the parent (FR-INV-23)", async () => {
+  const f = await withUnits();
+  expect(inv.nextNumber(store.state, f.tents)).toBe(3);
+  expect(inv.numberTaken(store.state, f.tents, 7)).toBe(true);
+  expect(inv.numberTaken(store.state, f.tents, 7, f.u3)).toBe(false);
+  await expect(act.createUnit(store, { parent_id: f.tents, number: 7 })).rejects.toThrow("#7 is taken");
+  await expect(act.createUnit(store, { parent_id: f.t1, number: 1 })).rejects.toThrow("not a generic item");
+});
+
+test("a unit is searched by its generic's name, its nickname and its number", async () => {
+  const f = await withUnits();
+  expect(names({ query: "4-person" })).toEqual([
+    "4-person tent #1",
+    "4-person tent #2",
+    "4-person tent #7 (patched fly)",
+  ]);
+  expect(names({ query: "patched" })).toEqual(["4-person tent #7 (patched fly)"]);
+  expect(names({ query: "#2" })).toEqual(["4-person tent #2"]);
+  // The generic is not a row in search; it is a row in the list.
+  expect(names({}).includes("4-person tent")).toBe(false);
+  expect(f.u2).toBeTruthy();
+});
+
+test("the list is one row per generic with counts, single items on their own (FR-INV-25)", async () => {
+  const f = await withUnits();
+  await checkOut(store, f.u1, { event: "Fall Camp" });
+  const list = inv.rows(store.state, {});
+  expect(list.map((r) => [r.kind, r.name])).toEqual([
+    ["generic", "4-person tent"],
+    ["single", "Stove"],
+    ["single", "Tent 1"],
+    ["single", "Tent 2"],
+  ]);
+  const tents = list[0] as inv.GenericRow;
+  expect(tents.counts).toEqual({ total: 3, in: 2 });
+  expect(tents.units.map((u) => u.number)).toEqual([1, 2, 7]);
+  expect(inv.countItems(list)).toBe(6);
+});
+
+test("filters apply to units, and show the generics that have any (FR-INV-25)", async () => {
+  const f = await withUnits();
+  await checkOut(store, f.u1, { event: "Fall Camp" });
+  const out = inv.rows(store.state, { status: "out" });
+  expect(out.map((r) => r.name)).toEqual(["4-person tent"]);
+  expect((out[0] as inv.GenericRow).units.map((u) => u.id)).toEqual([f.u1]);
+  // #7 was made without a home, so a location filter drops it from the row.
+  const cold = inv.rows(store.state, { location_id: f.cold });
+  expect((cold[0] as inv.GenericRow).counts.total).toBe(2);
+  // Searching the generic's name finds the row even with no units under it.
+  const empty = await act.createGeneric(store, { name: "Dutch oven" });
+  expect(inv.rows(store.state, { query: "dutch" }).map((r) => r.name)).toEqual(["Dutch oven"]);
+  expect(empty).toBeTruthy();
+});
+
+test("marking an item generic keeps it, as unit #1 (FR-INV-26)", async () => {
+  const f = await fixture();
+  await act.bindCode(store, "ABCDEFGH23", f.t1);
+  await checkOut(store, f.t1, { event: "Fall Camp" });
+  const genericId = await act.makeGeneric(store, f.t1);
+
+  const generic = inv.item(store.state, genericId)!;
+  const unit = inv.item(store.state, f.t1)!;
+  expect(generic).toMatchObject({ name: "Tent 1", generic: true, home_location_id: f.cold });
+  expect(unit).toMatchObject({ parent_id: genericId, number: 1, name: null, status: "out" });
+  expect(inv.displayName(store.state, unit)).toBe("Tent 1 #1");
+  // The sticker and the movement stay where they were.
+  expect(inv.currentCode(store.state, f.t1)?.id).toBe("ABCDEFGH23");
+  expect(unit.movement?.event).toBe("Fall Camp");
+  await expect(act.makeGeneric(store, f.t1)).rejects.toThrow("already one of several");
+});
+
+test("a generic retires only when every unit has (FR-INV-27)", async () => {
+  const f = await withUnits();
+  await expect(act.retireItem(store, f.tents)).rejects.toThrow("retire its units first");
+  for (const id of [f.u1, f.u2, f.u3]) await act.retireItem(store, id);
+  await act.retireItem(store, f.tents);
+  expect(inv.item(store.state, f.tents)?.retired).toBe(true);
+});
+
+test("a unit moves to another generic, and a taken number is bumped (FR-INV-28)", async () => {
+  const f = await withUnits();
+  const other = await act.createGeneric(store, { name: "3-person tent" });
+  await act.createUnit(store, { parent_id: other, number: 1 });
+  await act.moveUnit(store, f.u1, other);
+  expect(inv.item(store.state, f.u1)).toMatchObject({ parent_id: other, number: 2 });
+  expect(inv.unitsOf(store.state, f.tents).map((u) => u.id)).toEqual([f.u2, f.u3]);
+  await expect(act.moveUnit(store, f.t1, other)).rejects.toThrow("not a unit");
+});
+
+test("recent generics come back most recently touched first (FR-INV-24)", async () => {
+  const f = await withUnits();
+  const other = await act.createGeneric(store, { name: "3-person tent" });
+  expect(inv.recentGenerics(store.state).map((g) => g.name)).toEqual(["3-person tent", "4-person tent"]);
+  await act.addUnit(store, f.tents);
+  expect(inv.recentGenerics(store.state).map((g) => g.name)).toEqual(["4-person tent", "3-person tent"]);
+  expect(other).toBeTruthy();
 });
 
 test("search over 500 items stays well inside 200 ms", async () => {

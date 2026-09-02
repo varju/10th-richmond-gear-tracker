@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { bindCode } from "../lib/actions";
-import { code as codeOf, codeStatus, currentCode, homeLabel, type Item, item, search } from "../lib/inventory";
+import {
+  code as codeOf,
+  codeStatus,
+  currentCode,
+  displayName,
+  homeLabel,
+  type Item,
+  item,
+  nameOf,
+  search,
+} from "../lib/inventory";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
@@ -30,7 +40,7 @@ export function Bind({ store, code }: { store: Store; code: string }) {
         <p className="muted">
           {status === "unknown"
             ? "Not one of our codes. If it was just printed, sync first."
-            : `Already on ${owner?.name ?? "another item"}.`}
+            : `Already on ${owner ? nameOf(store.state, owner.id) : "another item"}.`}
         </p>
       </Page>
     );
@@ -92,7 +102,7 @@ export function Bind({ store, code }: { store: Store; code: string }) {
                 </div>
               ) : (
                 <button type="button" className="row" onClick={() => pick(it)}>
-                  <span>{it.name}</span>
+                  <span>{displayName(store.state, it)}</span>
                   <span className="muted">{homeLabel(store.state, it)}</span>
                 </button>
               )}

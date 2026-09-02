@@ -20,7 +20,7 @@ import { ItemPage } from "./ui/ItemPage";
 import { Join } from "./ui/Join";
 import { LeaveDialog } from "./ui/LeaveDialog";
 import { Mail } from "./ui/Mail";
-import { NewItem } from "./ui/NewItem";
+import { NewItem, NewUnit } from "./ui/NewItem";
 import { Page } from "./ui/Page";
 import { PendingInterrupt } from "./ui/PendingInterrupt";
 import { PublicItem } from "./ui/PublicItem";
@@ -163,7 +163,12 @@ function Screen({ store, api, route, shell }: { store: Store; api: Api; route: R
     case undefined:
       return <Inventory store={store} />;
     case "items":
-      if (second === "new") return <NewItem store={store} code={route.query.get("code")} />;
+      if (second === "new") {
+        const parent = route.query.get("parent");
+        const code = route.query.get("code");
+        // Another of a generic, or something on its own (FR-INV-24).
+        return parent ? <NewUnit store={store} parent={parent} code={code} /> : <NewItem store={store} code={code} />;
+      }
       if (second) return <ItemPage store={store} id={second} />;
       break;
     case "scan":

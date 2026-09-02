@@ -1,7 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { bindCode, seen } from "../lib/actions";
 import { parseCode } from "../lib/codes";
-import { code as codeOf, codeStatus, homeLabel, item, resolveItem } from "../lib/inventory";
+import { code as codeOf, codeStatus, displayName, homeLabel, item, nameOf, resolveItem } from "../lib/inventory";
 import { checkOut } from "../lib/movement";
 import { isPacked, type Remaining, remaining, type Reservation, reservation } from "../lib/reservations";
 import { navigate, useRoute } from "../lib/router";
@@ -57,8 +57,8 @@ export function Scan({ store }: { store: Store }) {
         return showCard(itemId);
       }
       if (status !== "unassigned") {
-        const owner = item(store.state, resolveItem(store.state, codeOf(store.state, id)?.item_id ?? ""));
-        return say(`That code is already on ${owner?.name ?? "another item"}`);
+        const owner = resolveItem(store.state, codeOf(store.state, id)?.item_id ?? "");
+        return say(`That code is already on ${nameOf(store.state, owner)}`);
       }
       try {
         await bindCode(store, id, forItem);
@@ -151,7 +151,7 @@ export function Scan({ store }: { store: Store }) {
         )}
         {card && (
           <section className="move-card" aria-labelledby="move-card-title">
-            <h2 id="move-card-title">{card.name}</h2>
+            <h2 id="move-card-title">{displayName(store.state, card)}</h2>
             {homeLabel(store.state, card) && (
               <p className={card.status === "out" ? "move-home" : "muted"}>
                 {card.status === "out" ? `Put it back: ${homeLabel(store.state, card)}` : homeLabel(store.state, card)}
@@ -162,7 +162,7 @@ export function Scan({ store }: { store: Store }) {
               store={store}
               it={card}
               onMoved={(kind) => {
-                confirm(`${kind} · ${card.name}`);
+                confirm(`${kind} · ${displayName(store.state, card)}`);
                 showCard(null);
               }}
             >
@@ -236,18 +236,18 @@ function RemainingList({
           <ul className="items">
             {rem.items.map((it) => (
               <li key={it.id}>
-                <button className="item" type="button" onClick={() => take(it.id, it.name)}>
-                  <span className="item-name">{it.name}</span>
+                <button className="item" type="button" onClick={() => take(it.id, displayName(store.state, it))}>
+                  <span className="item-name">{displayName(store.state, it)}</span>
                   <span className="muted small">{homeLabel(store.state, it) || "No home"}</span>
                 </button>
               </li>
             ))}
           </ul>
-          {rem.types.length > 0 && (
+          {rem.generics.length > 0 && (
             <ul className="names">
-              {rem.types.map((t) => (
-                <li key={t.type.id} className={t.done >= t.quantity ? "muted" : ""}>
-                  {t.done} of {t.quantity} × {t.type.name}
+              {rem.generics.map((g) => (
+                <li key={g.generic.id} className={g.done >= g.quantity ? "muted" : ""}>
+                  {g.done} of {g.quantity} × {g.generic.name}
                 </li>
               ))}
             </ul>
@@ -264,8 +264,8 @@ function Finish({ store, booked }: { store: Store; booked: Reservation }) {
   const rem: Remaining = remaining(store.state, booked);
   const done = () => navigate(`/reservations/${booked.id}`);
   const left = [
-    ...rem.items.map((it) => it.name),
-    ...rem.types.filter((t) => t.done < t.quantity).map((t) => `${t.quantity - t.done} × ${t.type.name}`),
+    ...rem.items.map((it) => displayName(store.state, it)),
+    ...rem.generics.filter((g) => g.done < g.quantity).map((g) => `${g.quantity - g.done} × ${g.generic.name}`),
   ];
 
   if (asking && left.length > 0) {

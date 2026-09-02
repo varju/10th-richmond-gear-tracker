@@ -1,0 +1,107 @@
+{
+  "name": "a generic carries the name and takes no status; its units carry parent, number and nickname, and move on their own",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-4p",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "name": "4-person tent, Brand X",
+        "description": "green, two poles",
+        "generic": true,
+        "home_location_id": "cold"
+      }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-4p-1",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": {
+        "parent_id": "tent-4p",
+        "number": 1,
+        "home_location_id": "cold"
+      }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "tent-4p-3",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "payload": {
+        "parent_id": "tent-4p",
+        "number": 3,
+        "nickname": "patched fly",
+        "home_location_id": "cold"
+      }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "item",
+      "entity_id": "tent-4p-3",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 4000,
+      "payload": {
+        "holder_id": "bob",
+        "event": "Fall Camp"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-4p": {
+        "name": "4-person tent, Brand X",
+        "description": "green, two poles",
+        "generic": true,
+        "home_location_id": "cold",
+        "added_at": 1000,
+        "modified_at": 1000
+      },
+      "tent-4p-1": {
+        "parent_id": "tent-4p",
+        "number": 1,
+        "home_location_id": "cold",
+        "status": "in",
+        "holder_id": null,
+        "added_at": 2000,
+        "modified_at": 2000
+      },
+      "tent-4p-3": {
+        "parent_id": "tent-4p",
+        "number": 3,
+        "nickname": "patched fly",
+        "home_location_id": "cold",
+        "status": "out",
+        "holder_id": "bob",
+        "since": 4000,
+        "movement": {
+          "id": "01000000000000000000000004",
+          "type": "checked_out",
+          "holder_id": "bob",
+          "event": "Fall Camp",
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 4000
+        },
+        "added_at": 3000,
+        "modified_at": 3000
+      }
+    }
+  }
+}

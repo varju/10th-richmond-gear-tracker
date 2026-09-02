@@ -43,15 +43,9 @@ beforeEach(async () => {
 async function fixture() {
   const cold = await act.createLocation(store, "Cold locker");
   const warm = await act.createLocation(store, "Warm locker");
-  const tents = await act.createType(store, "Tent");
-  const t1 = await act.createItem(store, {
-    name: "Tent 1",
-    home_location_id: cold,
-    sub_location: "shelf 4",
-    type_id: tents,
-  });
+  const t1 = await act.createItem(store, { name: "Tent 1", home_location_id: cold, sub_location: "shelf 4" });
   const stove = await act.createItem(store, { name: "Stove", home_location_id: warm });
-  return { cold, warm, tents, t1, stove };
+  return { cold, warm, t1, stove };
 }
 
 const mount = () =>
@@ -195,7 +189,7 @@ test("Add another keeps the form up; the template checkbox carries the values ov
   expect(
     inv
       .items(store.state)
-      .filter((i) => i.name.startsWith("Tarp"))
+      .filter((i) => i.name?.startsWith("Tarp"))
       .map((i) => i.home_location_id),
   ).toEqual([f.cold, f.cold]);
 });
@@ -215,20 +209,22 @@ test("Add another on its own clears the form", async () => {
   expect(screen.getByLabelText("Home location")).toHaveValue("");
 });
 
-test("a type is named on the item form and picked straight away (FR-SET-10)", async () => {
-  await fixture();
-  navigate("/items/new");
+test("ticking several saves the name and the one in hand as #1 (FR-INV-21, S-BOOT-03)", async () => {
+  const f = await fixture();
+  navigate("/items/new?code=ABCDEFGH23");
   mount();
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText("Name"), "Tarp");
-  await user.selectOptions(screen.getByLabelText("Type"), screen.getByRole("option", { name: "New type…" }));
-  await user.type(screen.getByLabelText("New type"), "3x3 tarp");
-  await user.click(screen.getByRole("button", { name: "Add" }));
+  await user.type(screen.getByLabelText("Name"), "3x3 tarp");
+  await user.click(screen.getByLabelText("We have several of these"));
+  await user.selectOptions(screen.getByLabelText("Default home"), f.warm);
+  await user.click(screen.getByRole("button", { name: "Save" }));
 
-  const type = inv.itemTypes(store.state).find((t) => t.name === "3x3 tarp")!;
-  expect(type).toBeDefined();
-  await waitFor(() => expect(screen.getByLabelText("Type")).toHaveValue(type.id));
-  expect(screen.queryByLabelText("New type")).not.toBeInTheDocument();
+  await waitFor(() => expect(location.pathname).toBe("/scan"));
+  const generic = inv.generics(store.state).find((g) => g.name === "3x3 tarp")!;
+  const units = inv.unitsOf(store.state, generic.id);
+  expect(units.map((u) => inv.displayName(store.state, u))).toEqual(["3x3 tarp #1"]);
+  expect(units[0]).toMatchObject({ home_location_id: f.warm });
+  expect(inv.currentCode(store.state, units[0]!.id)?.id).toBe("ABCDEFGH23");
 });
 
 test("back with a half-typed new item asks; Keep editing stays, Save creates it, Discard drops it", async () => {

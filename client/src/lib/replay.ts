@@ -81,7 +81,8 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       Object.assign(entity, p);
       entity.added_at = event.effective_at;
       entity.modified_at = event.effective_at;
-      if (event.entity_type === "item") {
+      // A generic item is a name several things share; it never moves, so it has no status (FR-INV-21).
+      if (event.entity_type === "item" && !p.generic) {
         if (!("status" in entity)) entity.status = "in";
         if (!("holder_id" in entity)) entity.holder_id = null;
       }

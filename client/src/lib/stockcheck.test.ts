@@ -29,7 +29,7 @@ async function fixture() {
   return { cold, warm, t1, t2, axe, stove, rope, old };
 }
 
-const names = (list: { name: string }[]) => list.map((i) => i.name);
+const names = (list: { name?: string | null }[]) => list.map((i) => i.name);
 
 test("a shelf: scanned strangers are misplaced, unscanned residents are not seen, out gear is not expected", async () => {
   const f = await fixture();

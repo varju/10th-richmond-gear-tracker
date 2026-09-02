@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { homeLabel, item, typeName } from "../lib/inventory";
+import { displayName, homeLabel, item, nameOf } from "../lib/inventory";
 import { cancelReservation, conflicts, reservation } from "../lib/reservations";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -79,7 +79,7 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
       )}
 
       <h3 className="section">Items</h3>
-      {r.items.length === 0 && r.types.length === 0 && <p className="muted">No gear listed.</p>}
+      {r.items.length === 0 && r.generics.length === 0 && <p className="muted">No gear listed.</p>}
       {r.items.length > 0 && (
         <ul className="items">
           {r.items.map((itemId) => {
@@ -87,7 +87,7 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
             return (
               <li key={itemId}>
                 <button className="item" type="button" onClick={() => navigate(`/items/${itemId}`)}>
-                  <span className="item-name">{it?.name ?? "(unknown item)"}</span>
+                  <span className="item-name">{it ? displayName(state, it) : "(unknown item)"}</span>
                   {it && (
                     <span className="muted small">
                       {[homeLabel(state, it), statusLabel(state, it)].filter(Boolean).join(" · ")}
@@ -99,12 +99,12 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
           })}
         </ul>
       )}
-      {r.types.length > 0 && (
+      {r.generics.length > 0 && (
         <ul className="names">
-          {r.types.map((t) => (
-            <li key={t.type_id} className="row">
+          {r.generics.map((g) => (
+            <li key={g.item_id} className="row">
               <span className="name">
-                {t.quantity} × {typeName(state, t.type_id)}
+                {g.quantity} × {nameOf(state, g.item_id)}
               </span>
             </li>
           ))}

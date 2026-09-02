@@ -61,7 +61,8 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             entity.update(p)
             entity["added_at"] = event.effective_at
             entity["modified_at"] = event.effective_at
-            if event.entity_type == "item":
+            # A generic item is a name several things share; it never moves, so it has no status (FR-INV-21).
+            if event.entity_type == "item" and not p.get("generic"):
                 entity.setdefault("status", "in")
                 entity.setdefault("holder_id", None)
             if event.entity_type == "repair":

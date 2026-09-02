@@ -4,13 +4,22 @@
  */
 import type { Store } from "./store";
 import { newUlid } from "./ulid";
-import { blockers, type Item, item } from "./inventory";
+import { blockers, displayName, type Item, item, nextNumber, numberTaken, unitsOf } from "./inventory";
 
 /** What the item form holds. The price is typed as text and stored as a number (FR-INV-12). */
 export type ItemInput = Pick<
   Item,
-  "name" | "description" | "home_location_id" | "sub_location" | "type_id" | "purchase_date" | "supplier"
+  "name" | "description" | "home_location_id" | "sub_location" | "purchase_date" | "supplier"
 > & { price?: number | string | null };
+
+/** What the unit form holds. A unit has no name: its number and nickname make it (FR-INV-23). */
+export interface UnitInput {
+  parent_id: string;
+  number: number;
+  nickname?: string | null;
+  home_location_id?: string | null;
+  sub_location?: string;
+}
 
 function actor(store: Store): string {
   const id = store.meta.user?.id;
@@ -44,7 +53,89 @@ async function changed(store: Store, entity_type: string, id: string, patch: Rec
 export const createItem = (store: Store, input: ItemInput) => created(store, "item", clean(input));
 export const updateItem = (store: Store, id: string, patch: Partial<ItemInput>) =>
   changed(store, "item", id, clean(patch));
-export const retireItem = (store: Store, id: string) => changed(store, "item", id, { retired: true });
+
+/** One thing the group owns several of. No code, no movements; its units carry both (FR-INV-21). */
+export const createGeneric = (store: Store, input: ItemInput) =>
+  created(store, "item", { ...clean(input), generic: true });
+
+/** One of them, numbered under its generic (FR-INV-22). The number is checked here, on this device. */
+export async function createUnit(store: Store, input: UnitInput): Promise<string> {
+  const parent = item(store.state, input.parent_id);
+  if (!parent?.generic) throw new Error("not a generic item");
+  if (!(input.number > 0)) throw new Error("a number starts at 1");
+  if (numberTaken(store.state, input.parent_id, input.number)) throw new Error(`#${input.number} is taken`);
+  return created(store, "item", clean(input));
+}
+
+/** The next unit of a generic, taking its number and its default home (FR-INV-24, FR-INV-29). */
+export function addUnit(store: Store, genericId: string): Promise<string> {
+  const parent = item(store.state, genericId);
+  if (!parent) throw new Error("no such item");
+  return createUnit(store, {
+    parent_id: genericId,
+    number: nextNumber(store.state, genericId),
+    home_location_id: parent.home_location_id ?? null,
+    sub_location: parent.sub_location ?? "",
+  });
+}
+
+/**
+ * Mark a single item as generic (FR-INV-26). A new generic takes its name,
+ * description and home; the item becomes unit #1 under it and loses the name
+ * it no longer needs. Nothing in its history is rewritten, so its code,
+ * movements and tickets stay where they are. Photos stay on the unit: only the
+ * server may say a photo exists, so a device cannot copy one across.
+ */
+export async function makeGeneric(store: Store, id: string): Promise<string> {
+  const it = item(store.state, id);
+  if (!it) throw new Error("no such item");
+  if (it.generic) throw new Error("already generic");
+  if (it.parent_id) throw new Error("this is already one of several");
+  const genericId = await createGeneric(store, {
+    name: it.name ?? "",
+    description: it.description ?? "",
+    home_location_id: it.home_location_id ?? null,
+    sub_location: it.sub_location ?? "",
+  });
+  await changed(store, "item", id, { parent_id: genericId, number: 1, name: null });
+  return genericId;
+}
+
+/** A unit's own fields: its number under the parent, and its nickname (FR-INV-23). */
+export async function updateUnit(
+  store: Store,
+  id: string,
+  patch: { number?: number; nickname?: string | null },
+): Promise<void> {
+  const it = item(store.state, id);
+  if (!it?.parent_id) throw new Error("not a unit");
+  if (patch.number !== undefined) {
+    if (!(patch.number > 0)) throw new Error("a number starts at 1");
+    if (numberTaken(store.state, it.parent_id, patch.number, id)) throw new Error(`#${patch.number} is taken`);
+  }
+  await changed(store, "item", id, patch as Record<string, unknown>);
+}
+
+/** A unit was filed under the wrong generic (FR-INV-28). Its history moves with it; a taken number is bumped. */
+export async function moveUnit(store: Store, id: string, parentId: string): Promise<void> {
+  const it = item(store.state, id);
+  const parent = item(store.state, parentId);
+  if (!it?.parent_id) throw new Error("not a unit");
+  if (!parent?.generic) throw new Error("not a generic item");
+  if (parentId === it.parent_id) return;
+  const number = numberTaken(store.state, parentId, it.number ?? 0) ? nextNumber(store.state, parentId) : it.number;
+  await changed(store, "item", id, { parent_id: parentId, number });
+}
+
+/** A generic goes only when every unit has gone; retiring the last unit leaves it (FR-INV-27). */
+export async function retireItem(store: Store, id: string): Promise<void> {
+  const it = item(store.state, id);
+  if (it?.generic && unitsOf(store.state, id).some((u) => !u.retired)) {
+    throw new Error("retire its units first");
+  }
+  await changed(store, "item", id, { retired: true });
+}
+
 export const unretireItem = (store: Store, id: string) => changed(store, "item", id, { retired: false });
 
 /** Lost, not written off (FR-INV-19). A field, not a status: it can be out and missing. */
@@ -105,32 +196,22 @@ export async function bindCode(store: Store, codeId: string, itemId: string): Pr
   });
 }
 
-// --- locations and types -------------------------------------------------------------------
+// --- locations -------------------------------------------------------------------
 
 export const createLocation = (store: Store, name: string) => created(store, "location", { name: name.trim() });
 export const renameLocation = (store: Store, id: string, name: string) =>
   changed(store, "location", id, { name: name.trim() });
-export const createType = (store: Store, name: string) => created(store, "item_type", { name: name.trim() });
-export const renameType = (store: Store, id: string, name: string) =>
-  changed(store, "item_type", id, { name: name.trim() });
-
 export class InUse extends Error {
-  constructor(public items: Item[]) {
-    super(`in use by ${items.map((i) => i.name).join(", ")}`);
+  constructor(public names: string[]) {
+    super(`in use by ${names.join(", ")}`);
   }
 }
 
 /** Blocked while any item points at it; the error names them (FR-SET-05). */
 export async function deleteLocation(store: Store, id: string): Promise<void> {
-  const using = blockers(store.state, "home_location_id", id);
-  if (using.length) throw new InUse(using);
+  const using = blockers(store.state, id);
+  if (using.length) throw new InUse(using.map((it) => displayName(store.state, it)));
   await changed(store, "location", id, { deleted: true });
-}
-
-export async function deleteType(store: Store, id: string): Promise<void> {
-  const using = blockers(store.state, "type_id", id);
-  if (using.length) throw new InUse(using);
-  await changed(store, "item_type", id, { deleted: true });
 }
 
 // --- group ---------------------------------------------------------------------------------

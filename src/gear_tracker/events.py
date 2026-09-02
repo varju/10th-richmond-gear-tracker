@@ -29,9 +29,7 @@ from pydantic import (
 from gear_tracker.replay import DERIVED_FIELDS
 from gear_tracker.ulid import is_ulid, new_ulid
 
-EntityType = Literal[
-    "item", "item_type", "user", "location", "code", "reservation", "repair", "found_report", "setting"
-]
+EntityType = Literal["item", "user", "location", "code", "reservation", "repair", "found_report", "setting"]
 ENTITY_TYPES = frozenset(get_args(EntityType))
 
 REPAIR_STATES = ("open", "in_progress", "resolved", "wont_fix")
@@ -155,19 +153,21 @@ IsoDate = Annotated[str, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
 """A calendar day as a person picked it, not an instant. Compared as text."""
 
 
-class TypeQuantity(Payload):
-    type_id: NonEmpty
+class GenericQuantity(Payload):
+    """So many of a generic item, in place of named units (FR-RES-13)."""
+
+    item_id: NonEmpty
     quantity: Annotated[int, Field(ge=1)]
 
 
 class ReservationDetails(Payload):
-    """An event, its days, and what it needs: named items, or so many of a type (FR-RES-01, FR-RES-13)."""
+    """An event, its days, and what it needs: named items, or so many of a generic (FR-RES-01, FR-RES-13)."""
 
     event: NonEmpty
     starts: IsoDate
     ends: IsoDate
     items: list[NonEmpty] = []
-    types: list[TypeQuantity] = []
+    generics: list[GenericQuantity] = []
 
     @model_validator(mode="after")
     def _in_order(self):

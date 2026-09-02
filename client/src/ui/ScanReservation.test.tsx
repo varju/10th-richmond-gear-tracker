@@ -15,6 +15,7 @@ import { Scan } from "./Scan";
 // Packing for a camp: the session seeded with the reservation (S-RES-02, S-RES-03, S-RES-04).
 let store: Store;
 let tent: string;
+let tent2: string;
 let tarp: string;
 let stove: string;
 let fall: string;
@@ -25,9 +26,9 @@ beforeEach(async () => {
   await printCodes(store, ["AAAAAAAAAA", "BBBBBBBBBB"]);
   const cold = await act.createLocation(store, "Cold locker");
   const warm = await act.createLocation(store, "Warm locker");
-  const tents = await act.createType(store, "4-person tent");
-  tent = await act.createItem(store, { name: "Tent 1", home_location_id: cold, type_id: tents });
-  await act.createItem(store, { name: "Tent 2", home_location_id: cold, type_id: tents });
+  const tents = await act.createGeneric(store, { name: "4-person tent", home_location_id: cold });
+  tent = await act.addUnit(store, tents);
+  tent2 = await act.addUnit(store, tents);
   tarp = await act.createItem(store, { name: "Tarp", home_location_id: warm });
   stove = await act.createItem(store, { name: "Stove", home_location_id: warm });
   await act.bindCode(store, "AAAAAAAAAA", tent);
@@ -37,7 +38,7 @@ beforeEach(async () => {
     starts: "2026-10-02",
     ends: "2026-10-04",
     items: [tarp, tent],
-    types: [{ type_id: tents, quantity: 1 }],
+    generics: [{ item_id: tents, quantity: 1 }],
   });
   navigate(`/scan?reservation=${fall}`);
 });
@@ -62,7 +63,7 @@ test("the session takes the event from the reservation and lists what is left, b
   expect(store.meta.session_event).toBe("Fall Camp");
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Pack");
 
-  expect(rows().map((b) => b.textContent)).toEqual(["Tent 1Cold locker", "TarpWarm locker"]);
+  expect(rows().map((b) => b.textContent)).toEqual(["4-person tent #1Cold locker", "TarpWarm locker"]);
   expect(remaining()).toHaveTextContent("0 of 1 × 4-person tent");
 });
 
@@ -70,7 +71,7 @@ test("a scan ticks an item off; an unlisted one is appended with no fuss (FR-RES
   renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");
   await user.click(screen.getByRole("button", { name: "Check out" }));
-  await screen.findByText("Checked out · Tent 1");
+  await screen.findByText("Checked out · 4-person tent #1");
   expect(rows().map((b) => b.textContent)).toEqual(["TarpWarm locker"]);
   expect(item(store.state, tent)?.movement?.event).toBe("Fall Camp");
 
@@ -89,12 +90,11 @@ test("gear with no sticker is ticked off from the list itself (FR-OUT-02)", asyn
     status: "out",
     movement: expect.objectContaining({ event: "Fall Camp" }),
   });
-  expect(rows().map((b) => b.textContent)).toEqual(["Tent 1Cold locker"]);
+  expect(rows().map((b) => b.textContent)).toEqual(["4-person tent #1Cold locker"]);
 });
 
-test("any item of a reserved type counts toward it", async () => {
+test("any unit of a reserved generic counts toward it", async () => {
   renderInShell(<Scan store={store} />);
-  const tent2 = Object.entries(store.state.item!).find(([, f]) => f.name === "Tent 2")![0];
   await mv.checkOut(store, tent2, { event: "Fall Camp" });
   await waitFor(() => expect(remaining()).toHaveTextContent("1 of 1 × 4-person tent"));
 });
@@ -103,7 +103,7 @@ test("Finish with items unscanned names them; Finish anyway leaves (FR-RES-04)",
   renderInShell(<Scan store={store} />);
   await user.click(screen.getByRole("button", { name: "Finish" }));
   const ask = screen.getByRole("group", { name: "Finish" });
-  expect(within(ask).getByRole("alert")).toHaveTextContent("Not scanned: Tent 1, Tarp, 1 × 4-person tent.");
+  expect(within(ask).getByRole("alert")).toHaveTextContent("Not scanned: 4-person tent #1, Tarp, 1 × 4-person tent.");
 
   await user.click(within(ask).getByRole("button", { name: "Keep packing" }));
   expect(screen.queryByRole("group", { name: "Finish" })).not.toBeInTheDocument();
@@ -117,7 +117,6 @@ test("Finish with items unscanned names them; Finish anyway leaves (FR-RES-04)",
 test("with everything packed, Finish just leaves", async () => {
   await mv.checkOut(store, tent, { event: "Fall Camp" });
   await mv.checkOut(store, tarp, { event: "Fall Camp" });
-  const tent2 = Object.entries(store.state.item!).find(([, f]) => f.name === "Tent 2")![0];
   await mv.checkOut(store, tent2, { event: "Fall Camp" });
   renderInShell(<Scan store={store} />);
   expect(remaining()).toHaveTextContent("Everything is packed.");

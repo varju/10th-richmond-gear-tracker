@@ -25,6 +25,8 @@ function actor(store: Store): string {
 function current(store: Store, itemId: string): Item {
   const it = item(store.state, itemId);
   if (!it) throw new Error("no such item");
+  // A generic is a name several things share; the unit in your hand is what moves (FR-INV-21).
+  if (it.generic) throw new Error("a generic item does not move; its units do");
   return it;
 }
 

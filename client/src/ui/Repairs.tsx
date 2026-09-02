@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { DAY_MS } from "../lib/clock";
-import { item } from "../lib/inventory";
+import { nameOf } from "../lib/inventory";
 import { openTickets, type Repair, repairHistory, stateLabel } from "../lib/repairs";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -35,7 +35,7 @@ function TicketList({ store, tickets, detail }: { store: Store; tickets: Repair[
       {tickets.map((r) => (
         <li key={r.id}>
           <button className="item" type="button" onClick={() => navigate(`/repairs/${r.id}`)}>
-            <span className="item-name">{item(store.state, r.item_id)?.name ?? "(unknown item)"}</span>
+            <span className="item-name">{nameOf(store.state, r.item_id)}</span>
             <span className="muted small">{detail(r)}</span>
           </button>
         </li>

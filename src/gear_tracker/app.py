@@ -333,7 +333,9 @@ def create_app(
         """The one route with no account behind it: what a stranger who scans a sticker sees.
 
         The item name, the group name, and how to reach us (FR-PUB-01). Nothing
-        else is read here, so nothing else can leak (NFR-SEC-03).
+        else is read here, so nothing else can leak (NFR-SEC-03). A unit has no
+        name of its own, so it answers with its generic's; the number is ours to
+        know and no use to a finder.
         """
         if not codes.is_code(code):
             raise BadRequest("not a code")
@@ -341,6 +343,8 @@ def create_app(
         if state is None:
             raise NotFound("not one of our codes")
         item = derived.get_entity(conn, "item", state["item_id"]) if state.get("item_id") else None
+        if item is not None and item.get("parent_id"):
+            item = derived.get_entity(conn, "item", str(item["parent_id"])) or {}
         group = derived.get_entity(conn, "setting", "group") or {}
         return stamped(
             {

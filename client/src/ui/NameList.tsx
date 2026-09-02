@@ -8,7 +8,7 @@ interface Named {
 }
 
 interface Props {
-  /** Singular, lower case: "location", "type". */
+  /** Singular, lower case: "location". */
   noun: string;
   items: Named[];
   onAdd: (name: string) => Promise<unknown>;
@@ -16,7 +16,7 @@ interface Props {
   onDelete: (id: string) => Promise<unknown>;
 }
 
-/** Locations and types: a list of names to add to, rename, or delete (FR-SET-02, FR-SET-05). */
+/** Locations: a list of names to add to, rename, or delete (FR-SET-02, FR-SET-05). */
 export function NameList({ noun, items, onAdd, onRename, onDelete }: Props) {
   const [adding, setAdding] = useState("");
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
@@ -35,7 +35,7 @@ export function NameList({ noun, items, onAdd, onRename, onDelete }: Props) {
     try {
       await onDelete(id);
     } catch (e) {
-      if (e instanceof InUse) setError(`In use by ${e.items.map((i) => i.name).join(", ")}. Move them first.`);
+      if (e instanceof InUse) setError(`In use by ${e.names.join(", ")}. Move them first.`);
       else throw e;
     }
   }

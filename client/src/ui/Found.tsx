@@ -1,5 +1,5 @@
 import { type FoundReport, foundReports, resolveFound } from "../lib/found";
-import { item } from "../lib/inventory";
+import { displayName, item } from "../lib/inventory";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { isoDate } from "../lib/time";
@@ -24,7 +24,7 @@ export function Found({ store }: { store: Store }) {
 
 function ReportBlock({ store, report }: { store: Store; report: FoundReport }) {
   const it = report.item_id ? item(store.state, report.item_id) : undefined;
-  const name = it?.name ?? report.code;
+  const name = it ? displayName(store.state, it) : report.code;
   return (
     <section className="found" aria-label={name}>
       <button

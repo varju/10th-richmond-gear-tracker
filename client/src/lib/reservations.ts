@@ -7,14 +7,15 @@
  * event, which replay already knows, so two phones packing one camp agree
  * after a sync and a reload loses nothing.
  */
-import { homeLabel, type Item, type ItemType, items, itemTypes, resolveItem } from "./inventory";
+import { displayName, homeLabel, type Item, item, nameOf, resolveItem, unitsOf } from "./inventory";
 import type { Fields, State } from "./replay";
 import type { Store } from "./store";
 import { localDate } from "./time";
 import { newUlid } from "./ulid";
 
-export interface TypeQuantity {
-  type_id: string;
+/** So many of a generic item, in place of named units (FR-RES-13). */
+export interface GenericQuantity {
+  item_id: string;
   quantity: number;
 }
 
@@ -25,13 +26,13 @@ export interface Reservation {
   starts: string;
   ends: string;
   items: string[];
-  types: TypeQuantity[];
+  generics: GenericQuantity[];
   cancelled?: boolean;
   added_at?: number;
   modified_at?: number;
 }
 
-export type ReservationInput = Pick<Reservation, "event" | "starts" | "ends" | "items" | "types">;
+export type ReservationInput = Pick<Reservation, "event" | "starts" | "ends" | "items" | "generics">;
 
 /** The calendar day where the gear is, not where the server is (NFR-DATA-12). */
 export const todayIso = (now: number, timeZone?: string): string => localDate(now, timeZone);
@@ -72,9 +73,9 @@ export interface Conflict {
 
 /**
  * Other reservations this one cannot share the dates with (FR-RES-05). An item
- * named in both is a clash. A type is a clash when everything reserved of it
- * across the overlapping dates, by count or by name, is more than we own
- * (FR-RES-15). One entry per other reservation.
+ * named in both is a clash. A generic is a clash when everything reserved of it
+ * across the overlapping dates, by count or by name, is more than we have
+ * unretired units (FR-RES-15). One entry per other reservation.
  */
 export function conflicts(state: State, draft: ReservationInput, excludeId?: string): Conflict[] {
   const others = reservations(state).filter((r) => r.id !== excludeId && overlaps(r, draft));
@@ -84,22 +85,22 @@ export function conflicts(state: State, draft: ReservationInput, excludeId?: str
   for (const other of others) {
     const theirs = namedItems(state, other);
     const shared = namedItems(state, draft).filter((id) => theirs.includes(id));
-    for (const id of shared) add(other, (state.item?.[id]?.name as string | undefined) ?? "an item");
+    for (const id of shared) add(other, nameOf(state, id));
   }
 
-  // Only for types the draft reserves by count. Named items of the type count once each, however
-  // many reservations name them; naming the same tent twice is the item clash above, not a type one.
-  const all = items(state);
+  // Only for generics the draft reserves by count. Named units count once each, however many
+  // reservations name them; naming the same tent twice is the item clash above, not a count one.
   const involved = [draft, ...others];
-  for (const typeId of new Set(draft.types.map((t) => t.type_id))) {
-    const owned = all.filter((it) => it.type_id === typeId && !it.retired).length;
+  for (const genericId of new Set(draft.generics.map((g) => g.item_id))) {
+    const owned = unitsOf(state, genericId).filter((u) => !u.retired).length;
     const byCount = (r: ReservationInput) =>
-      r.types.filter((t) => t.type_id === typeId).reduce((n, t) => n + t.quantity, 0);
-    const byName = (r: ReservationInput) => namedItems(state, r).filter((id) => state.item?.[id]?.type_id === typeId);
+      r.generics.filter((g) => g.item_id === genericId).reduce((n, g) => n + g.quantity, 0);
+    const byName = (r: ReservationInput) =>
+      namedItems(state, r).filter((id) => state.item?.[id]?.parent_id === genericId);
     const named = new Set(involved.flatMap(byName));
     const total = named.size + involved.reduce((n, r) => n + byCount(r), 0);
     if (total > owned) {
-      const name = (state.item_type?.[typeId]?.name as string | undefined) ?? "a type";
+      const name = nameOf(state, genericId);
       for (const other of others) {
         if (byCount(other) > 0 || byName(other).length > 0) add(other, `${total} × ${name}, we have ${owned}`);
       }
@@ -112,8 +113,8 @@ export function conflicts(state: State, draft: ReservationInput, excludeId?: str
   });
 }
 
-export interface TypeProgress {
-  type: ItemType;
+export interface GenericProgress {
+  generic: Item;
   quantity: number;
   done: number;
 }
@@ -121,7 +122,7 @@ export interface TypeProgress {
 export interface Remaining {
   /** Named items not yet out under the event, ordered by home (FR-RES-06). */
   items: Item[];
-  types: TypeProgress[];
+  generics: GenericProgress[];
 }
 
 const ticked = (it: Item, event: string): boolean => it.status === "out" && it.movement?.event === event;
@@ -136,22 +137,25 @@ export function remaining(state: State, r: Reservation): Remaining {
   const left = namedItems(state, r)
     .map((id) => (state.item?.[id] ? ({ id, ...state.item[id] } as Item) : undefined))
     .filter((it): it is Item => it !== undefined && !ticked(it, r.event))
-    .sort((a, b) => homeLabel(state, a).localeCompare(homeLabel(state, b)) || a.name.localeCompare(b.name));
+    .sort(
+      (a, b) =>
+        homeLabel(state, a).localeCompare(homeLabel(state, b)) ||
+        displayName(state, a).localeCompare(displayName(state, b)),
+    );
 
-  const all = items(state);
   const chosen = new Set(namedItems(state, r));
-  const types = r.types.map((t) => {
-    const type = itemTypes(state).find((x) => x.id === t.type_id) ?? { id: t.type_id, name: "(unknown type)" };
-    // Any item of the type counts, except one the reservation names: that one is its own line.
-    const done = all.filter((it) => it.type_id === t.type_id && !chosen.has(it.id) && ticked(it, r.event)).length;
-    return { type, quantity: t.quantity, done: Math.min(done, t.quantity) };
+  const generics = r.generics.map((g) => {
+    const generic = item(state, g.item_id) ?? ({ id: g.item_id, name: "(unknown item)" } as Item);
+    // Any unit of the generic counts, except one the reservation names: that one is its own line.
+    const done = unitsOf(state, g.item_id).filter((u) => !chosen.has(u.id) && ticked(u, r.event)).length;
+    return { generic, quantity: g.quantity, done: Math.min(done, g.quantity) };
   });
 
-  return { items: left, types };
+  return { items: left, generics };
 }
 
 export const isPacked = (rem: Remaining): boolean =>
-  rem.items.length === 0 && rem.types.every((t) => t.done >= t.quantity);
+  rem.items.length === 0 && rem.generics.every((g) => g.done >= g.quantity);
 
 // --- actions -------------------------------------------------------------------------------
 
@@ -167,7 +171,7 @@ function clean(input: ReservationInput): ReservationInput {
     starts: input.starts,
     ends: input.ends,
     items: [...new Set(input.items)],
-    types: input.types.filter((t) => t.quantity > 0),
+    generics: input.generics.filter((g) => g.quantity > 0),
   };
 }
 

@@ -1,7 +1,16 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { seen } from "../lib/actions";
 import { parseCode } from "../lib/codes";
-import { code as codeOf, codeStatus, homeLabel, type Item, item, locations, subLocations } from "../lib/inventory";
+import {
+  code as codeOf,
+  codeStatus,
+  displayName,
+  homeLabel,
+  type Item,
+  item,
+  locations,
+  subLocations,
+} from "../lib/inventory";
 import { navigate } from "../lib/router";
 import { startScanner } from "../lib/scanner";
 import {
@@ -113,7 +122,8 @@ function Walk({ store, check }: { store: Store; check: Check }) {
     await seen(store, itemId);
     await store.setMeta({ stock_check: withSeen(store.meta.stock_check ?? check, itemId) });
     const home = homeLabel(state, it);
-    say(atHome(it, check) ? `Seen · ${it.name}` : `Misplaced · ${it.name} · ${home ? `home ${home}` : "no home"}`);
+    const label = displayName(state, it);
+    say(atHome(it, check) ? `Seen · ${label}` : `Misplaced · ${label} · ${home ? `home ${home}` : "no home"}`);
   }
 
   const latest = useRef(handle);
@@ -234,7 +244,7 @@ function Lists({ store, misplaced, notSeen }: { store: Store; misplaced: Item[];
             {misplaced.map((it) => (
               <li key={it.id}>
                 <button className="item" type="button" onClick={() => navigate(`/items/${it.id}`)}>
-                  <span className="item-name">{it.name}</span>
+                  <span className="item-name">{displayName(state, it)}</span>
                   <span className="muted small">
                     {homeLabel(state, it) ? `Home: ${homeLabel(state, it)}` : "No home"}
                   </span>
@@ -253,7 +263,7 @@ function Lists({ store, misplaced, notSeen }: { store: Store; misplaced: Item[];
             {notSeen.map((it) => (
               <li key={it.id}>
                 <button className="item" type="button" onClick={() => navigate(`/items/${it.id}`)}>
-                  <span className="item-name">{it.name}</span>
+                  <span className="item-name">{displayName(state, it)}</span>
                   <span className="muted small">{homeLabel(state, it)}</span>
                 </button>
               </li>

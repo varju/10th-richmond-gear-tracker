@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { type OpenConflict, openConflicts, reviewConflict } from "../lib/conflicts";
+import { displayName } from "../lib/inventory";
 import { checkIn } from "../lib/movement";
 import { addNote } from "../lib/notes";
 import type { Movement, State } from "../lib/replay";
@@ -66,9 +67,9 @@ function ConflictCard({ store, conflict }: { store: Store; conflict: OpenConflic
   }
 
   return (
-    <section className="conflict" aria-label={it.name}>
+    <section className="conflict" aria-label={displayName(state, it)}>
       <button className="link" type="button" onClick={() => guard(() => navigate(`/items/${it.id}`))}>
-        {it.name}
+        {displayName(state, it)}
       </button>
       <ol className="versions">
         <li>{describeVersion(state, earlier)}</li>

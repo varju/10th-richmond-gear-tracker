@@ -1,0 +1,124 @@
+{
+  "name": "a single item becomes unit #1 of a new generic: its name clears, its movements stand (FR-INV-26)",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "stove-1",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "name": "Two-burner stove",
+        "home_location_id": "warm"
+      }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "stove-1",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": {
+        "holder_id": "bob",
+        "event": "Fall Camp"
+      }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "stove",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "payload": {
+        "name": "Two-burner stove",
+        "generic": true,
+        "home_location_id": "warm"
+      }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "item",
+      "entity_id": "stove-1",
+      "type": "field_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 3000,
+      "payload": {
+        "field": "parent_id",
+        "value": "stove",
+        "old": null
+      }
+    },
+    {
+      "id": "01000000000000000000000005",
+      "entity_type": "item",
+      "entity_id": "stove-1",
+      "type": "field_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 5,
+      "effective_at": 3000,
+      "payload": {
+        "field": "number",
+        "value": 1,
+        "old": null
+      }
+    },
+    {
+      "id": "01000000000000000000000006",
+      "entity_type": "item",
+      "entity_id": "stove-1",
+      "type": "field_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 6,
+      "effective_at": 3000,
+      "payload": {
+        "field": "name",
+        "value": null,
+        "old": "Two-burner stove"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "stove": {
+        "name": "Two-burner stove",
+        "generic": true,
+        "home_location_id": "warm",
+        "added_at": 3000,
+        "modified_at": 3000
+      },
+      "stove-1": {
+        "name": null,
+        "parent_id": "stove",
+        "number": 1,
+        "home_location_id": "warm",
+        "status": "out",
+        "holder_id": "bob",
+        "since": 2000,
+        "movement": {
+          "id": "01000000000000000000000002",
+          "type": "checked_out",
+          "holder_id": "bob",
+          "event": "Fall Camp",
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 2000
+        },
+        "added_at": 1000,
+        "modified_at": 3000
+      }
+    }
+  }
+}

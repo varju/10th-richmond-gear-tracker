@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
+import * as inv from "../lib/inventory";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { CodeLanding } from "./CodeLanding";
@@ -64,4 +65,29 @@ test("a sticker on a merged duplicate opens the survivor (FR-INV-13)", async () 
   navigate("/g/AAAAAAAAAA");
   render(<CodeLanding store={store} code="AAAAAAAAAA" />);
   await waitFor(() => expect(location.pathname).toBe(`/items/${tent}`));
+});
+
+test("an unassigned code makes another of a generic we labelled a moment ago (FR-INV-24)", async () => {
+  const user = userEvent.setup();
+  const cold = await act.createLocation(store, "Cold locker");
+  const tents = await act.createGeneric(store, { name: "4-person tent", home_location_id: cold });
+  await act.addUnit(store, tents);
+  navigate("/g/CCCCCCCCCC");
+  render(<CodeLanding store={store} code="CCCCCCCCCC" />);
+
+  await user.click(screen.getByRole("button", { name: "Another 4-person tent #2" }));
+  await waitFor(() => expect(location.pathname).toBe("/scan"));
+  const units = inv.unitsOf(store.state, tents);
+  expect(units.map((u) => inv.displayName(store.state, u))).toEqual(["4-person tent #1", "4-person tent #2"]);
+  expect(units[1]).toMatchObject({ home_location_id: cold });
+  expect(inv.currentCode(store.state, units[1]!.id)?.id).toBe("CCCCCCCCCC");
+});
+
+test("a number can be picked instead, on the unit form", async () => {
+  const user = userEvent.setup();
+  const tents = await act.createGeneric(store, { name: "4-person tent" });
+  navigate("/g/CCCCCCCCCC");
+  render(<CodeLanding store={store} code="CCCCCCCCCC" />);
+  await user.click(screen.getByRole("button", { name: "Another 4-person tent, with a number I pick" }));
+  expect(location.pathname + location.search).toBe(`/items/new?parent=${tents}&code=CCCCCCCCCC`);
 });

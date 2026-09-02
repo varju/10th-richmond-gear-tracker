@@ -1,0 +1,73 @@
+{
+  "name": "two phones number one generic offline: both units land, each keeps the number it was given",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tarp-3x3",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "name": "3x3 tarp",
+        "generic": true
+      }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tarp-from-b",
+      "type": "created",
+      "actor_id": "bob",
+      "device_id": "b",
+      "device_seq": 1,
+      "effective_at": 2000,
+      "payload": {
+        "parent_id": "tarp-3x3",
+        "number": 2
+      }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "tarp-from-a",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 3000,
+      "payload": {
+        "parent_id": "tarp-3x3",
+        "number": 2
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "tarp-3x3": {
+        "name": "3x3 tarp",
+        "generic": true,
+        "added_at": 1000,
+        "modified_at": 1000
+      },
+      "tarp-from-b": {
+        "parent_id": "tarp-3x3",
+        "number": 2,
+        "status": "in",
+        "holder_id": null,
+        "added_at": 2000,
+        "modified_at": 2000
+      },
+      "tarp-from-a": {
+        "parent_id": "tarp-3x3",
+        "number": 2,
+        "status": "in",
+        "holder_id": null,
+        "added_at": 3000,
+        "modified_at": 3000
+      }
+    }
+  }
+}

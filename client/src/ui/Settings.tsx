@@ -1,16 +1,8 @@
 import { useState } from "react";
 import type { Shell } from "../shell";
-import {
-  createLocation,
-  createType,
-  deleteLocation,
-  deleteType,
-  renameLocation,
-  renameType,
-  setGroup,
-} from "../lib/actions";
+import { createLocation, deleteLocation, renameLocation, setGroup } from "../lib/actions";
 import type { Api } from "../lib/api";
-import { group, itemTypes, locations } from "../lib/inventory";
+import { group, locations } from "../lib/inventory";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useUnsaved } from "../lib/unsaved";
@@ -81,18 +73,6 @@ export function Settings({ store, shell }: Props) {
             onAdd={(name) => createLocation(store, name)}
             onRename={(id, name) => renameLocation(store, id, name)}
             onDelete={(id) => deleteLocation(store, id)}
-          />
-          <h2 className="section">Types</h2>
-          <p className="muted small">
-            Gear that is interchangeable, like “4-person tent”. A camp can book two of a type instead of two named
-            items.
-          </p>
-          <NameList
-            noun="type"
-            items={itemTypes(store.state)}
-            onAdd={(name) => createType(store, name)}
-            onRename={(id, name) => renameType(store, id, name)}
-            onDelete={(id) => deleteType(store, id)}
           />
           <h2 className="section">Print a sheet of codes</h2>
           <PrintCodes store={store} onDone={shell.sync} />

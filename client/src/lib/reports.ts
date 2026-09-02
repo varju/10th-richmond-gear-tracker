@@ -4,7 +4,7 @@
  * functions over state; the phone answers this with no network.
  */
 import { DAY_MS } from "./clock";
-import { group, type Item, items } from "./inventory";
+import { displayName, group, type Item, items } from "./inventory";
 import type { State } from "./replay";
 
 export interface OutItem {
@@ -58,7 +58,9 @@ export function whatIsOut(state: State, now: number): OutReport {
     .map(([id, list]) => ({
       id,
       name: id ? holderName(state, id) : "(no holder)",
-      items: list.sort((a, b) => b.days - a.days || a.item.name.localeCompare(b.item.name)),
+      items: list.sort(
+        (a, b) => b.days - a.days || displayName(state, a.item).localeCompare(displayName(state, b.item)),
+      ),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
   return { holders, total: holders.reduce((n, h) => n + h.items.length, 0), overdue };

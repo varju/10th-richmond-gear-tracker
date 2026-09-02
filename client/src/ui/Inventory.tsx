@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { openConflicts } from "../lib/conflicts";
 import { foundReports } from "../lib/found";
-import { type Filter, homeLabel, items, itemTypes, locations, search, subLocations } from "../lib/inventory";
+import { countItems, type Filter, homeLabel, items, locations, movable, rows, subLocations } from "../lib/inventory";
 import { openRepairs, openTickets } from "../lib/repairs";
 import { todayIso, upcoming } from "../lib/reservations";
 import { navigate } from "../lib/router";
@@ -21,10 +21,10 @@ export function Inventory({ store }: Props) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>({});
   const state = store.state;
-  const results = search(state, { ...filter, query });
+  const list = rows(state, { ...filter, query });
   const empty = items(state).length === 0;
-  // Missing gear is not out (FR-INV-19); the report agrees.
-  const out = items(state).filter((it) => it.status === "out" && !it.missing).length;
+  // Units and single items, never a generic. Missing gear is not out (FR-INV-19); the report agrees.
+  const out = movable(state).filter((it) => it.status === "out" && !it.missing).length;
   const found = foundReports(state).length;
   const clashes = openConflicts(state).length;
   const broken = openTickets(state).length;
@@ -41,7 +41,7 @@ export function Inventory({ store }: Props) {
       </header>
       <main>
         <p className="muted small">
-          {plural(results.length, "item")}
+          {plural(countItems(list), "item")}
           {store.meta.last_sync_at !== undefined && ` · ${syncLabel(store.meta.last_sync_at, Date.now(), false, null)}`}
         </p>
         {/* Things wrong, only when something is wrong. */}
@@ -88,18 +88,25 @@ export function Inventory({ store }: Props) {
           <>
             <Filters store={store} filter={filter} onChange={setFilter} />
             <ul className="items">
-              {results.map((it) => (
-                <li key={it.id}>
-                  <button className="item" type="button" onClick={() => navigate(`/items/${it.id}`)}>
+              {list.map((row) => (
+                <li key={row.item.id}>
+                  <button className="item" type="button" onClick={() => navigate(`/items/${row.item.id}`)}>
                     <span>
-                      <span className="item-name">{it.name}</span>
-                      {openRepairs(state, it.id).length > 0 && <span className="badge">Repair</span>}
-                      {it.missing && <span className="badge">Missing</span>}
+                      <span className="item-name">{row.name}</span>
+                      {row.kind === "single" && openRepairs(state, row.item.id).length > 0 && (
+                        <span className="badge">Repair</span>
+                      )}
+                      {row.kind === "single" && row.item.missing && <span className="badge">Missing</span>}
                     </span>
                     <span className="muted small">
-                      {[homeLabel(state, it), it.status === "out" && !it.missing ? statusLabel(state, it) : ""]
-                        .filter(Boolean)
-                        .join(" · ")}
+                      {row.kind === "generic"
+                        ? `${plural(row.counts.total, "unit")} · ${row.counts.in} in`
+                        : [
+                            homeLabel(state, row.item),
+                            row.item.status === "out" && !row.item.missing ? statusLabel(state, row.item) : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
                     </span>
                   </button>
                 </li>
@@ -169,17 +176,6 @@ function Filters({ store, filter, onChange }: { store: Store; filter: Filter; on
         </label>
       </div>
       <div className="row">
-        <label className="tight">
-          <span>Type</span>
-          <select value={filter.type_id ?? ""} onChange={(e) => set({ type_id: e.target.value || undefined })}>
-            <option value="">Any</option>
-            {itemTypes(state).map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </label>
         <label className="tight">
           <span>Status</span>
           <select

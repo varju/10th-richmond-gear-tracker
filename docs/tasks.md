@@ -43,26 +43,6 @@ Config seeding is built. What is left waits on M8 for generics.
       `gear-admin load --file` into an empty database only; refuses otherwise (NFR-MAINT-10).
 - [ ] `inventory = "demo"` or a path in `seed.toml` runs the loader after config. The e2e suite loads the same file.
 
-## M8 — Generic items and units
-
-Before the labelling walk (M9): this is what makes the walk one tap per tent, and the deployed database is reset rather
-than migrated. Design in [architecture.md](architecture.md#inventory).
-
-- [ ] Replay: `generic`, `parent_id`, `number`, `nickname` on items; the `item_type` entity removed. Both replays and
-      the vectors, including two phones numbering the same generic offline.
-- [ ] Item form: "we have several of these". On a new item, saves a generic. On an existing item, creates the generic
-      and moves the item under it as #1 (FR-INV-26).
-- [ ] Unit form: suggested next number, editable, unique under the parent; optional nickname; home defaulting from the
-      generic (FR-INV-23, FR-INV-29).
-- [ ] Code landing: "another of" recent generics beside New item, one tap to a unit (FR-INV-24).
-- [ ] Inventory list: one row per generic with counts, opening to units; search on the generic's name; filters on units
-      (FR-INV-25). Type filter removed.
-- [ ] Item page for a generic: shared fields, units with status; retire only when every unit is (FR-INV-27). Unit page:
-      parent link, number, nickname, move to another generic (FR-INV-28).
-- [ ] Reservations: quantity lines point at generics; clash check counts unretired units (FR-RES-13, FR-RES-15).
-- [ ] Public page shows the generic's name for a unit (FR-PUB-01).
-- [ ] Settings: the Types section goes.
-
 ## M9 — Go live
 
 First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is

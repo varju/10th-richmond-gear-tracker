@@ -1,4 +1,4 @@
-import { group, homeLabel } from "../lib/inventory";
+import { displayName, group, homeLabel } from "../lib/inventory";
 import { type OutItem, whatIsOut } from "../lib/reports";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -45,7 +45,7 @@ export function Report({ store }: { store: Store }) {
                   <li key={entry.item.id}>
                     <button className="item" type="button" onClick={() => navigate(`/items/${entry.item.id}`)}>
                       <span>
-                        <span className="item-name">{entry.item.name}</span>
+                        <span className="item-name">{displayName(store.state, entry.item)}</span>
                         {entry.overdue && <span className="badge overdue">Overdue</span>}
                       </span>
                       <span className="muted small">{detail(store, entry)}</span>
