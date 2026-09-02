@@ -1,0 +1,144 @@
+/* Dark, one-handed, gloved (NFR-USE-03). The group's navy, white on top. */
+:root {
+  --navy: #001a70;
+  --ink: #ffffff;
+  --rule: rgba(255, 255, 255, 0.4);
+  --muted: rgba(255, 255, 255, 0.7);
+  --warn: #ffb000;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--navy);
+  color: var(--ink);
+  font:
+    18px/1.4 system-ui,
+    -apple-system,
+    sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+.app {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  padding: calc(16px + env(safe-area-inset-top)) 16px 12px;
+  border-bottom: 1px solid var(--rule);
+  text-align: center;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+main {
+  flex: 1;
+  padding: 16px;
+}
+
+/* Primary actions live in the lower half, where a thumb is. */
+.actions {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--rule);
+}
+
+button,
+input {
+  font: inherit;
+  width: 100%;
+  min-height: 56px;
+  border-radius: 12px;
+}
+
+button {
+  font-size: 20px;
+  font-weight: 600;
+  border: 2px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+}
+
+button.primary {
+  background: var(--ink);
+  color: var(--navy);
+}
+
+button:disabled {
+  opacity: 0.5;
+}
+
+input {
+  padding: 0 14px;
+  border: 1px solid var(--rule);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+}
+
+label {
+  display: block;
+  margin-bottom: 16px;
+}
+
+label span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.banner {
+  padding: 12px 16px;
+  background: var(--warn);
+  color: #000;
+  font-weight: 600;
+  text-align: center;
+}
+
+.notice {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--warn);
+  border-radius: 12px;
+}
+
+.notice button {
+  margin-top: 12px;
+  min-height: 44px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.big {
+  font-size: 40px;
+  font-weight: 700;
+  margin: 24px 0 4px;
+}
+
+.error {
+  color: var(--warn);
+}
+
+.interrupt {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 16px;
+}

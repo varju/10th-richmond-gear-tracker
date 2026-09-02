@@ -11,7 +11,7 @@ The server is small. The client is where the work is.
 | Backend  | Python                 | The maintainer's strongest language. Nothing in the requirements argues against it. |
 | Database | SQLite                 | One file. Backups and moving house become a file copy (NFR-DATA-06, NFR-MAINT-05).  |
 | API      | FastAPI + Pydantic     | Three endpoints carry the sync. Pydantic models are the only schema.                |
-| Client   | TypeScript PWA         | The only way to meet NFR-DEP-01 without an app store.                               |
+| Client   | TypeScript PWA         | The only way to meet NFR-DEP-01 without an app store. React and Vite, nothing else. |
 | Local    | IndexedDB              | Persistence only. Not a query engine; see [In memory](#in-memory).                  |
 | Scanning | WebAssembly QR decoder | iOS has no platform API; see [Scanning](#scanning).                                 |
 | Labels   | Server-rendered PDF    | Printing needs a computer anyway.                                                   |
@@ -184,6 +184,20 @@ budget is then met by an array filter with room to spare, and there is no client
 IndexedDB is the persistence layer underneath: write through on change, read once on boot. NFR-PERF-07 budgets 10 MB for
 500 items, which is generous for records with no photos.
 
+### On the device
+
+Two stores: `meta` (device id, session, cursor, clock offset, snapshot) and `events`. State is the snapshot with every
+known event replayed on top, recomputed on each change; at this size that is cheaper than keeping it incrementally
+correct. Every event this device records is stamped with the current clock offset (NFR-DATA-13) and marked unsent until
+the server confirms it. An event the server rejects is kept for the record and no longer replayed.
+
+Each sync pushes first, then pulls until a page comes back empty. On a 410 it bootstraps again; unsent work survives a
+bootstrap and is replayed on top of the new snapshot. After a sync, events older than 90 days that the server has
+already sequenced are folded into the snapshot (NFR-DATA-03). Nothing unsent is ever folded.
+
+The Python server serves the built client, so one process is the whole deployment. In development Vite serves the client
+and forwards API calls.
+
 ### Photos
 
 Photos are server-only and never cached (FR-INV-11). They are fetched on demand when online. This is what keeps the
@@ -344,8 +358,9 @@ place, and they are the only thing keeping the two replays honest (NFR-MAINT-04)
 
 ### Browser tests
 
-These are the ones that cost seconds rather than milliseconds: a service worker, IndexedDB, and an offline toggle. Keep
-them few — one per risk, not one per feature. Scan-to-move, offline merge, and the unsent banner earn one each.
+These are the ones that cost seconds rather than milliseconds: a service worker, a real browser, and an offline toggle.
+Keep them few — one per risk, not one per feature. Cold start offline, scan-to-move, and offline merge earn one each.
+IndexedDB does not need a browser: the client suite runs the store against an in-memory implementation of the same API.
 
 The server side of sync does not need a browser. Test it through real HTTP, in process, against a real SQLite file. That
 covers most of what a browser would otherwise be asked to prove.

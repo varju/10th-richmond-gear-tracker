@@ -17,8 +17,15 @@ uv python install 3.14
 echo "Syncing dependencies..."
 uv sync
 
+if command -v npm >/dev/null 2>&1; then
+  echo "Installing client dependencies..."
+  (cd client && npm ci)
+else
+  echo "npm not found: skipping the client. Install Node 26 or newer to work on it."
+fi
+
 echo "Installing git hooks..."
 uv run pre-commit install
 
 echo
-echo "Ready. Try: make test"
+echo "Ready. Try: make check"

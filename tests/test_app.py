@@ -221,3 +221,32 @@ def test_reset_link_over_http(real):
     assert r.status_code == 200
     assert real.get("/sync/bootstrap", headers=admin).status_code == 401, "old sessions are revoked by a reset"
     sign_in(real, password="a new password")
+
+
+# --- the built client ------------------------------------------------------------------
+
+
+@pytest.fixture
+def site(db_path, tmp_path):
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<h1>app</h1>")
+    (dist / "assets" / "app.js").write_text("console.log(1)")
+    (tmp_path / "secret.txt").write_text("no")
+    return TestClient(create_app(db_path, authenticate=authenticate, static=dist))
+
+
+def test_client_files_are_served_and_unknown_paths_fall_back_to_index(site):
+    assert site.get("/").text == "<h1>app</h1>"
+    assert site.get("/assets/app.js").text == "console.log(1)"
+    assert site.get("/some/client/route").text == "<h1>app</h1>"
+
+
+def test_client_serving_does_not_escape_its_directory(site):
+    assert site.get("/../secret.txt").text == "<h1>app</h1>"
+    assert site.get("/%2e%2e/secret.txt").text == "<h1>app</h1>"
+
+
+def test_api_routes_win_over_the_client(site):
+    assert site.get("/sync/bootstrap").status_code == 401
+    assert site.get("/sync/pull?since=0", headers={"X-Test-User": "u", "X-Test-Device": "d"}).status_code == 200

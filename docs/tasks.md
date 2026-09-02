@@ -22,21 +22,6 @@ Deferred until we have Avery 6576 stock. Not blocked on us, and not holding anyt
 - [ ] Confirm the sheet registers on real stock, and record the margins for FR-TAG-02
 - [ ] Test through a scuffed sticker and a wet one
 
-## M5 — The client shell
-
-- [ ] TypeScript PWA that installs to a home screen (NFR-DEP-01, NFR-DEP-06)
-- [ ] Request persistent storage; tell the user if it is refused (NFR-DATA-11)
-- [ ] Prompt to install, and explain why: an uninstalled tab loses unsent work after 7 days on iOS
-- [ ] Bootstrap on first run, then pull; replay shared with the server via the M2 test vectors
-- [ ] Keep a snapshot plus the last 90 days; never trim an unsent event (NFR-DATA-03)
-- [ ] Store the clock offset from every sync response and stamp it on each event recorded after (NFR-DATA-13)
-- [ ] Service worker caches the app shell; cold start under 3 seconds offline (NFR-PERF-03)
-- [ ] IndexedDB persistence; full item set held in memory (NFR-PERF-07)
-- [ ] Sync on app open, on regaining connectivity, and after every movement (FR-OFF-03)
-- [ ] Persistent unsent-count banner on every screen (FR-OFF-04)
-- [ ] Records pending more than 3 days interrupt on open (FR-OFF-09)
-- [ ] Dark, gloved, one-handed layout: 44 px targets, actions in the lower half (NFR-USE-03)
-
 ## M6 — Items and codes
 
 Scanning tasks here reuse the camera and decode loop proven in M0.
@@ -60,6 +45,7 @@ Scanning tasks here reuse the camera and decode loop proven in M0.
 The vertical slice. After this the system is usable for its main purpose.
 
 - [ ] Scanning is contextual: out means check in, in means check out (FR-OUT-06)
+- [ ] Sync after every movement (FR-OFF-03); the shell already syncs on open and on regaining connectivity
 - [ ] One scan, one tap; scanner stays live between items (FR-OUT-03, NFR-USE-02)
 - [ ] Session event set once, applied until changed (FR-OUT-05)
 - [ ] Check in and out by search for unlabelled gear (FR-OUT-02, FR-OUT-07)
@@ -82,6 +68,7 @@ going live early buys feedback while the inventory is fresh from the labelling w
 system needs before it is done, not what M9 needs.
 
 - [ ] Point the group's domain at the server (NFR-DEP-09)
+- [ ] Replace the placeholder app icons in `client/public/`
 - [ ] Deploy to the home server behind an outbound tunnel (NFR-DEP-05)
 - [ ] HTTPS (NFR-SEC-01)
 - [ ] Nightly backup of the SQLite file, off the machine, kept 30 days (NFR-DATA-05, NFR-DATA-06)

@@ -49,8 +49,11 @@ what was done.
 ## Testing
 
 Real dependencies, no mocks. Database code runs against real SQLite — a migrated file per test, never `:memory:`,
-because in-memory databases ignore the WAL setting we ship. Pure logic is tested without a database. See
-[architecture.md](docs/architecture.md#testing) for the layers and what each costs.
+because in-memory databases ignore the WAL setting we ship. Pure logic is tested without a database. Client tests run
+against a real IndexedDB implementation and a fake `fetch`; browser tests (`make e2e`) run the built client against the
+real server. See [architecture.md](docs/architecture.md#testing) for the layers and what each costs.
+
+Replay exists in Python and TypeScript. A change to either means changing `vectors/replay/` too.
 
 ## Formatting
 

@@ -12,7 +12,7 @@ from typing import Annotated, Any
 
 from fastapi import Body, Depends, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from gear_tracker import accounts, sync
 from gear_tracker.db import connect
@@ -32,7 +32,10 @@ def by_token(request: Request, conn: sqlite3.Connection) -> Principal | None:
     return accounts.authenticate(conn, bearer(request))
 
 
-def create_app(db_path: str | Path, authenticate: Authenticator = by_token) -> FastAPI:
+def create_app(
+    db_path: str | Path, authenticate: Authenticator = by_token, static: str | Path | None = None
+) -> FastAPI:
+    """`static` is the built client (client/dist). Without it the server is API only, as in development."""
     app = FastAPI(title="Gear Tracker")
 
     def db() -> Iterator[sqlite3.Connection]:
@@ -135,7 +138,22 @@ def create_app(db_path: str | Path, authenticate: Authenticator = by_token) -> F
     def reset_link(conn: Db, who: Who, user_id: str) -> dict[str, Any]:
         return stamped({"token": accounts.reset_link(conn, who, user_id)})
 
+    if static is not None:
+        serve_client(app, Path(static))
     return app
+
+
+def serve_client(app: FastAPI, root: Path) -> None:
+    """Files from the build, and index.html for anything else so the client owns its own routes."""
+    root = root.resolve()
+    index = root / "index.html"
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def client(path: str) -> FileResponse:
+        target = (root / path).resolve()
+        if path and target.is_file() and target.is_relative_to(root):
+            return FileResponse(target)
+        return FileResponse(index)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -148,6 +166,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--db", required=True, help="path to the SQLite file")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--static", help="serve the built client from this directory")
     args = parser.parse_args(argv)
-    uvicorn.run(create_app(args.db), host=args.host, port=args.port)
+    uvicorn.run(create_app(args.db, static=args.static), host=args.host, port=args.port)
     return 0

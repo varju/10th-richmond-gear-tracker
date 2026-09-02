@@ -23,7 +23,8 @@ Early build. The requirements are settled and the scanner is proven; the applica
 
 ## Getting started
 
-Needs Python 3.14 or newer. One command sets up everything else, including `uv` if you do not have it:
+Needs Python 3.14 or newer, and Node 26 or newer for the client. One command sets up everything else, including `uv` if
+you do not have it:
 
 ```sh
 ./bin/setup
@@ -32,10 +33,14 @@ Needs Python 3.14 or newer. One command sets up everything else, including `uv` 
 Then:
 
 ```sh
-make test      # run the tests
-make lint      # format and lint
+make check     # lint, then the server and client tests
+make e2e       # browser tests: real server, real browser, built client
 make migrate   # bring a database up to date (DB=path/to.db)
+make serve     # the API with the built client in front of it
 ```
+
+To work on the client with live reload, run the API with `uv run gear-serve --db gear.db` and `npm run dev` in
+`client/`. Vite forwards API calls to the server.
 
 ## Running your own copy
 
