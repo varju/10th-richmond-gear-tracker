@@ -43,13 +43,6 @@ Item page:
 
 - [ ] Notes should be deletable
 
-Settings:
-
-- [ ] Enter in the new-name box adds it
-- [ ] No requirement IDs on screen, here or anywhere
-- [ ] A line under Locations and Types saying what each is for
-- [ ] The group name prefixes the page title
-
 Desktop, for work at a table rather than a locker:
 
 - [ ] A layout for wide screens

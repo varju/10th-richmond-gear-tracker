@@ -67,6 +67,9 @@ export function Settings({ store, shell }: Props) {
           <h2 className="section">Group</h2>
           <GroupForm store={store} />
           <h2 className="section">Locations</h2>
+          <p className="muted small">
+            Where gear lives when it is not out. Every item has one home, picked from this list.
+          </p>
           <NameList
             noun="location"
             items={locations(store.state)}
@@ -75,6 +78,10 @@ export function Settings({ store, shell }: Props) {
             onDelete={(id) => deleteLocation(store, id)}
           />
           <h2 className="section">Types</h2>
+          <p className="muted small">
+            Gear that is interchangeable, like “4-person tent”. A camp can book two of a type instead of two named
+            items.
+          </p>
           <NameList
             noun="type"
             items={itemTypes(store.state)}
@@ -137,7 +144,7 @@ function GroupForm({ store }: { store: Store }) {
         />
       </label>
       <p className="muted small">
-        Printed on every sticker, so it must be a domain the group owns, not this server’s address (FR-TAG-13).
+        Printed on every sticker, so it must be a domain the group owns, not this server’s address.
       </p>
       <label>
         <span>How to reach us</span>

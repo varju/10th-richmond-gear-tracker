@@ -288,6 +288,18 @@ test("back with a location typed but not added asks; Discard drops it", async ()
   expect(inv.locations(store.state).map((l) => l.name)).toEqual(["Cold locker", "Warm locker"]);
 });
 
+test("Enter in the new-name box adds it", async () => {
+  await fixture();
+  navigate("/settings");
+  mount();
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("New location"), "Dry locker{Enter}");
+  await waitFor(() =>
+    expect(inv.locations(store.state).map((l) => l.name)).toEqual(["Cold locker", "Warm locker", "Dry locker"]),
+  );
+  expect(screen.getByLabelText("New location")).toHaveValue("");
+});
+
 test("deleting a location in use is refused and names the items", async () => {
   await fixture();
   navigate("/settings");
@@ -321,6 +333,8 @@ test("a group name that arrives after the settings page opens fills the form", a
   await user.click(screen.getByRole("button", { name: "Save group" }));
   await waitFor(() => expect(inv.group(store.state).name).toBe("10th Richmond Sea Scouts"));
   expect(await screen.findByText("Saved")).toBeInTheDocument();
+  // The group name says whose copy this is, in the tab and under the home-screen icon.
+  await waitFor(() => expect(document.title).toBe("10th Richmond Sea Scouts · Gear Tracker"));
 });
 
 test("the overdue period is one group setting; blank means never (FR-OUT-14)", async () => {

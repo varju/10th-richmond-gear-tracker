@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { type Api, Offline } from "./lib/api";
 import { autoSync } from "./lib/autosync";
 import { STALE_PENDING_MS } from "./lib/clock";
+import { group } from "./lib/inventory";
 import { navigate, type Route, useRoute } from "./lib/router";
 import { ensurePersistent } from "./lib/storage";
 import type { Store } from "./lib/store";
@@ -86,6 +87,12 @@ export function App({ store, api, now = Date.now }: Props) {
   useEffect(() => {
     void ensurePersistent();
   }, []);
+
+  // Whose gear this is, in the tab and under the home-screen icon. One server, one group.
+  const groupName = group(store.state).name;
+  useEffect(() => {
+    document.title = groupName ? `${groupName} · Gear Tracker` : "Gear Tracker";
+  }, [groupName]);
 
   // Closing or reloading the tab with a draft open gets the browser's own question.
   useEffect(() => {

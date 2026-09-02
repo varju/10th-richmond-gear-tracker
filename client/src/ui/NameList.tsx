@@ -62,6 +62,7 @@ export function NameList({ noun, items, onAdd, onRename, onDelete }: Props) {
                 aria-label={`New name for ${n.name}`}
                 value={editing.name}
                 onChange={(e) => setEditing({ id: n.id, name: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void rename())}
                 autoFocus
               />
               <button className="small" type="button" onClick={rename} aria-label={`Save ${n.name}`}>
@@ -100,6 +101,7 @@ export function NameList({ noun, items, onAdd, onRename, onDelete }: Props) {
           placeholder={`New ${noun}`}
           value={adding}
           onChange={(e) => setAdding(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void add())}
           autoComplete="off"
         />
         <button className="small" type="button" onClick={add} disabled={!adding.trim()}>
