@@ -209,6 +209,9 @@ and forwards API calls.
 Photos are server-only and never cached (FR-INV-11). They are fetched on demand when online. This is what keeps the
 offline copy small and the sync target honest — one phone photo outweighs a day of events by two orders of magnitude.
 
+They are plain files in a directory beside `gear.db`, on the same volume. No object store, no second service. Whatever
+snapshots and copies the database already covers them, and moving house stays a copy of one directory (NFR-MAINT-05).
+
 ### Service worker
 
 Caches the app shell so it starts offline within 3 seconds (NFR-PERF-03). It does **not** do background sync: iOS does
