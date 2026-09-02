@@ -13,15 +13,31 @@ from typing import Annotated, Any
 from fastapi import Body, Depends, FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import Field
+from pydantic import Field, StringConstraints
 
-from gear_tracker import accounts, codes, derived, labels, sync
+from gear_tracker import accounts, codes, derived, events, labels, sync
 from gear_tracker.db import connect
-from gear_tracker.errors import ApiError, BadRequest, Conflict, NotFound, Unauthorized
-from gear_tracker.events import Strict, now_ms
+from gear_tracker.errors import ApiError, BadRequest, Conflict, NotFound, TooMany, Unauthorized
+from gear_tracker.events import PUBLIC_ACTOR, Strict, now_ms
+from gear_tracker.ratelimit import RateLimit
 from gear_tracker.sync import Principal
+from gear_tracker.ulid import new_ulid
 
 Authenticator = Callable[[Request, sqlite3.Connection], Principal | None]
+
+HOUR_MS = 3_600_000
+DAY_MS = 24 * HOUR_MS
+
+FOUND_PER_ADDRESS = (5, HOUR_MS)
+FOUND_PER_CODE = (3, DAY_MS)
+FOUND_IN_ALL = (30, HOUR_MS)
+"""How often a stranger may report gear found (FR-PUB-04): per address, per sticker, and in total."""
+
+
+def client_address(request: Request) -> str:
+    """The first hop of X-Forwarded-For when a proxy is in front, as in deployment; else the peer."""
+    first = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+    return first or (request.client.host if request.client else "?")
 
 
 def bearer(request: Request) -> str | None:
@@ -38,6 +54,13 @@ def create_app(
 ) -> FastAPI:
     """`static` is the built client (client/dist). Without it the server is API only, as in development."""
     app = FastAPI(title="Gear Tracker")
+
+    # In memory, in this process. One uvicorn worker serves the group, so that is the whole picture.
+    found_limits = {
+        "address": RateLimit(*FOUND_PER_ADDRESS),
+        "code": RateLimit(*FOUND_PER_CODE),
+        "all": RateLimit(*FOUND_IN_ALL),
+    }
 
     def db() -> Iterator[sqlite3.Connection]:
         conn = connect(db_path)
@@ -190,6 +213,39 @@ def create_app(
             }
         )
 
+    @app.post("/public/codes/{code}/found")
+    def report_found(request: Request, conn: Db, code: str, body: FoundBody) -> dict[str, Any]:
+        """A stranger says where our gear is (FR-PUB-02). Written to the log, so it reaches the app (FR-PUB-03).
+
+        The server records the event itself, under the actor `public`. Nothing else about
+        the item is read here, and nothing is returned (NFR-SEC-03).
+        """
+        if not codes.is_code(code):
+            raise BadRequest("not a code")
+        if body.website:
+            # No person sees that field. A bot filled it: say thanks and keep nothing (FR-PUB-04).
+            return stamped({})
+        state = codes.resolve(conn, code)
+        if state is None:
+            raise NotFound("not one of our codes")
+        now = now_ms()
+        if not (
+            found_limits["address"].allow(client_address(request), now)
+            and found_limits["code"].allow(code, now)
+            and found_limits["all"].allow("all", now)
+        ):
+            raise TooMany("too many reports; try again later")
+        events.append_server(
+            conn,
+            PUBLIC_ACTOR,
+            "found_report",
+            new_ulid(now),
+            "created",
+            {"code": code, "item_id": state.get("item_id"), "note": body.note, "contact": body.contact},
+            now,
+        )
+        return stamped({})
+
     if static is not None:
         serve_client(app, Path(static))
     return app
@@ -197,6 +253,14 @@ def create_app(
 
 class SheetRequest(Strict):
     sheets: Annotated[int, Field(ge=1, le=10)] = 1
+
+
+class FoundBody(Strict):
+    """What a finder types. `website` is a honeypot: no person sees the field, so anything in it is a bot."""
+
+    note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+    contact: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] = ""
+    website: str = ""
 
 
 def serve_client(app: FastAPI, root: Path) -> None:

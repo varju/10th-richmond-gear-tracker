@@ -388,3 +388,74 @@ def test_a_printed_but_unbound_code_still_says_whose_it_is(public):
 def test_the_public_route_refuses_a_code_that_is_not_ours(public):
     assert public.get("/public/codes/not-a-code").status_code == 400
     assert public.get("/public/codes/ZZZZZZZZZZ").status_code == 404
+
+
+# --- found gear ------------------------------------------------------------------------------
+
+
+def report(public, code="AAAAAAAAAA", address="203.0.113.1", **body):
+    return public.post(
+        f"/public/codes/{code}/found",
+        json={"note": "by the gate at Camp Byng", **body},
+        headers={"X-Forwarded-For": address},
+    )
+
+
+def found_reports(public):
+    snapshot = public.get("/sync/bootstrap", headers=as_alice()).json()["snapshot"]
+    return list(snapshot.get("found_report", {}).values())
+
+
+def test_a_found_report_lands_on_the_log_under_the_public_actor(public, db_path):
+    r = report(public, contact="  finder@example.org ")
+    assert r.status_code == 200, r.text
+    assert set(r.json()) == {"server_time"}
+
+    [found] = found_reports(public)
+    assert found["code"] == "AAAAAAAAAA"
+    assert found["item_id"] == "item-1"
+    assert found["note"] == "by the gate at Camp Byng"
+    assert found["contact"] == "finder@example.org"
+    with open_db(db_path) as conn:
+        [stored] = [e for e in events.in_replay_order(conn) if e.entity_type == "found_report"]
+    assert stored.actor_id == "public"
+    assert stored.device_id == "server"
+
+
+def test_a_report_on_a_sticker_not_yet_on_anything_has_no_item(public):
+    assert report(public, code="BBBBBBBBBB").status_code == 200
+    [found] = found_reports(public)
+    assert found["item_id"] is None
+
+
+def test_a_report_needs_one_of_our_codes_and_a_note(public):
+    assert report(public, code="not-a-code").status_code == 400
+    assert report(public, code="ZZZZZZZZZZ").status_code == 404
+    r = report(public, note="   ")
+    assert r.status_code == 400
+    assert r.json()["message"].startswith("note:")
+    assert found_reports(public) == []
+
+
+def test_a_filled_honeypot_is_thanked_and_dropped(public):
+    assert report(public, website="http://spam.example").status_code == 200
+    assert found_reports(public) == []
+
+
+def test_one_address_gets_five_an_hour(public):
+    for n in range(5):
+        assert report(public, code="BBBBBBBBBB" if n % 2 else "AAAAAAAAAA").status_code == 200, n
+    refused = report(public)
+    assert refused.status_code == 429
+    assert refused.json()["error"] == "rate_limited"
+    assert refused.json()["message"] == "too many reports; try again later"
+    # Someone else behind the same proxy is not the same someone.
+    assert report(public, code="BBBBBBBBBB", address="198.51.100.7").status_code == 200
+    assert len(found_reports(public)) == 6
+
+
+def test_one_sticker_gets_three_a_day(public):
+    for n in range(3):
+        assert report(public, address=f"203.0.113.{n}").status_code == 200
+    assert report(public, address="203.0.113.9").status_code == 429
+    assert report(public, code="BBBBBBBBBB", address="203.0.113.9").status_code == 200

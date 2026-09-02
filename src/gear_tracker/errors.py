@@ -41,6 +41,11 @@ class Conflict(ApiError):
     code = "conflict"
 
 
+class TooMany(ApiError):
+    status = 429
+    code = "rate_limited"
+
+
 class Rebootstrap(ApiError):
     """The cursor cannot be honoured. Not silence: the device must start again from a snapshot."""
 
