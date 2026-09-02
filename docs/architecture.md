@@ -241,7 +241,9 @@ iOS deletes a website's storage after 7 days without a visit. A phone that scans
 would lose the evening's work, which is exactly the failure NFR-DATA-01 forbids. Two defences, both required:
 
 - **Install to the home screen** (NFR-DEP-06). Home-screen apps are exempt from the 7-day rule. This is why that
-  requirement is a Must and not a nicety.
+  requirement is a Must and not a nicety. Install before recording anything: on iOS the installed app has its own
+  cookies, local storage and IndexedDB, so it opens signed out and empty and cannot rescue what is already sitting in
+  the Safari tab. The prompt says so.
 - **Ask for persistent storage** via `navigator.storage.persist()` (NFR-DATA-11). Chromium grants it to an installed
   app. iOS refuses every site, so a refusal is not shown: the unsent count is already on every screen, and the answer to
   both is the same, open the app with signal.

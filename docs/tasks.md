@@ -47,11 +47,6 @@ Desktop, for work at a table rather than a locker:
 
 - [ ] A layout for wide screens
 - [ ] Every section reachable from the home screen, reports and users included
-- [ ] No install prompt
-
-Mobile:
-
-- [ ] Fix the install note: an installed app starts empty, so install before working, not after
 
 Mail:
 
