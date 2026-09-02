@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
@@ -312,6 +314,8 @@ def site(db_path, tmp_path):
     dist = tmp_path / "dist"
     (dist / "assets").mkdir(parents=True)
     (dist / "index.html").write_text("<h1>app</h1>")
+    manifest = {"name": "Gear Tracker", "short_name": "Gear", "display": "standalone"}
+    (dist / "manifest.webmanifest").write_text(json.dumps(manifest))
     (dist / "assets" / "app.js").write_text("console.log(1)")
     (tmp_path / "secret.txt").write_text("no")
     return TestClient(create_app(db_path, authenticate=authenticate, static=dist))
@@ -326,6 +330,23 @@ def test_client_files_are_served_and_unknown_paths_fall_back_to_index(site):
 def test_client_serving_does_not_escape_its_directory(site):
     assert site.get("/../secret.txt").text == "<h1>app</h1>"
     assert site.get("/%2e%2e/secret.txt").text == "<h1>app</h1>"
+
+
+def test_the_manifest_carries_the_group_name(site, db_path):
+    # No group set yet: the build's own names stand.
+    r = site.get("/manifest.webmanifest")
+    assert r.headers["content-type"] == "application/manifest+json"
+    assert r.headers["cache-control"] == "no-cache"
+    assert r.json()["name"] == "Gear Tracker"
+
+    with open_db(db_path) as conn:
+        events.append_server(conn, "alice", "setting", "group", "created", {"name": "10th Richmond"})
+
+    body = site.get("/manifest.webmanifest").json()
+    assert body["name"] == "10th Richmond Gear"
+    assert body["short_name"] == "10th Richmond Gear"
+    # Everything else the build wrote is untouched.
+    assert body["display"] == "standalone"
 
 
 def test_api_routes_win_over_the_client(site):

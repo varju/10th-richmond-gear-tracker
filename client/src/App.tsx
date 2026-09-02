@@ -100,6 +100,15 @@ export function App({ store, api, now = Date.now }: Props) {
   const groupName = group(store.state).name;
   useEffect(() => {
     document.title = groupName ? `${groupName} · Gear Tracker` : "Gear Tracker";
+    // The icon's name comes from the manifest, which the server rewrites. Older
+    // iOS reads this tag instead, so it says the same thing.
+    let tag = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]');
+    if (!tag) {
+      tag = document.createElement("meta");
+      tag.name = "apple-mobile-web-app-title";
+      document.head.appendChild(tag);
+    }
+    tag.content = groupName ? `${groupName} Gear` : "Gear";
   }, [groupName]);
 
   // Closing or reloading the tab with a draft open gets the browser's own question.

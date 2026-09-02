@@ -5,6 +5,7 @@ without a password. The default is the real one: a bearer token from
 accounts.authenticate.
 """
 
+import json
 import sqlite3
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
@@ -46,6 +47,10 @@ def client_address(request: Request) -> str:
     """The first hop of X-Forwarded-For when a proxy is in front, as in deployment; else the peer."""
     first = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
     return first or (request.client.host if request.client else "?")
+
+
+def group_name(conn: sqlite3.Connection) -> str:
+    return (derived.get_entity(conn, "setting", "group") or {}).get("name") or ""
 
 
 def bearer(request: Request) -> str | None:
@@ -119,9 +124,6 @@ def create_app(
 
     def stamped(payload: dict[str, Any]) -> dict[str, Any]:
         return {**payload, "server_time": now_ms()}
-
-    def group_name(conn: sqlite3.Connection) -> str:
-        return (derived.get_entity(conn, "setting", "group") or {}).get("name") or ""
 
     def posted(conn: sqlite3.Connection, kind: LinkKind, to: str, link: str | None) -> dict[str, Any]:
         """Try to mail a one-time link (FR-USR-15).
@@ -441,7 +443,7 @@ def create_app(
         return stamped({})
 
     if static is not None:
-        serve_client(app, Path(static))
+        serve_client(app, Path(static), db)
     return app
 
 
@@ -457,15 +459,30 @@ class FoundBody(Strict):
     website: str = ""
 
 
-def serve_client(app: FastAPI, root: Path) -> None:
+def manifest(file: Path, group: str) -> JSONResponse:
+    """The name under the home-screen icon is the group's, and the group is a setting (NFR-DEP-06).
+
+    The build cannot know it, so it is written in here. Never cached: a group
+    that renames itself should see the new name on the next install.
+    """
+    body = json.loads(file.read_text())
+    if group:
+        body["name"] = body["short_name"] = f"{group} Gear"
+    return JSONResponse(body, media_type="application/manifest+json", headers={"Cache-Control": "no-cache"})
+
+
+def serve_client(app: FastAPI, root: Path, db: Callable[[], Iterator[sqlite3.Connection]]) -> None:
     """Files from the build, and index.html for anything else so the client owns its own routes."""
     root = root.resolve()
     index = root / "index.html"
+    Conn = Annotated[sqlite3.Connection, Depends(db)]
 
     @app.get("/{path:path}", include_in_schema=False)
-    def client(path: str) -> FileResponse:
+    def client(path: str, conn: Conn) -> Response:
         target = (root / path).resolve()
         if path and target.is_file() and target.is_relative_to(root):
+            if target.name == "manifest.webmanifest":
+                return manifest(target, group_name(conn))
             return FileResponse(target)
         return FileResponse(index)
 
