@@ -1,0 +1,31 @@
+# Keep the build context small and the image reproducible: everything the build
+# needs is either in the lock files or built inside the image.
+.git/
+.github/
+.venv/
+.direnv/
+.envrc
+.env
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3
+
+client/node_modules/
+client/dist/
+client/dev-dist/
+client/playwright-report/
+client/test-results/
+client/e2e/
+*.tsbuildinfo
+
+docs/
+tests/
+vectors/
+.DS_Store

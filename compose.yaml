@@ -1,0 +1,18 @@
+# The deployed shape: one container, one SQLite file on the host.
+#
+# Everything specific to one house comes from the environment, so nothing about
+# where this runs is committed to a public repository. Set GEAR_DATA, and
+# DOCKER_HOST to build and run on the server rather than here. See
+# docs/deploy.md.
+
+services:
+  gear:
+    image: gear-tracker:${GEAR_TAG:-latest}
+    container_name: gear-tracker
+    # A bind mount, not a named volume: a backup is then a copy of a file on the
+    # host, and moving house is a copy of a directory (NFR-DATA-06, NFR-MAINT-05).
+    volumes:
+      - ${GEAR_DATA:?set GEAR_DATA to the host directory for gear.db}:/data
+    ports:
+      - "${GEAR_PORT:-8000}:8000"
+    restart: unless-stopped

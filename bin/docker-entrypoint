@@ -1,0 +1,7 @@
+#!/bin/sh
+# Migrate, then serve. Migrations run on start so a deploy is one step
+# (NFR-MAINT-07); they are idempotent, so restarting is safe.
+set -eu
+
+gear-migrate --db "$DB"
+exec gear-serve --db "$DB" --static /app/client --host 0.0.0.0 --port 8000

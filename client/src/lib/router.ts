@@ -1,14 +1,21 @@
 /**
  * Paths, not hashes: a sticker's URL is /g/<code>, and the server hands
  * index.html to any path it does not own. Thirty lines beat a dependency.
+ *
+ * The app may be served under a path rather than at a domain root, so every
+ * route in the code is written without one. BASE is added on the way out and
+ * taken off on the way in, here and nowhere else.
  */
 import { useSyncExternalStore } from "react";
+
+export const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const listeners = new Set<() => void>();
 
 export function navigate(path: string, replace = false): void {
-  if (replace) history.replaceState(null, "", path);
-  else history.pushState(null, "", path);
+  const href = BASE + path;
+  if (replace) history.replaceState(null, "", href);
+  else history.pushState(null, "", href);
   for (const listener of listeners) listener();
 }
 
@@ -32,7 +39,17 @@ export function useRoute(): Route {
   return parseRoute(href);
 }
 
-export function parseRoute(href: string): Route {
+export function parseRoute(href: string, base = BASE): Route {
   const url = new URL(href, "http://x");
-  return { path: url.pathname, segments: url.pathname.split("/").filter(Boolean), query: url.searchParams };
+  const path = strip(url.pathname, base);
+  return {
+    path,
+    segments: path.split("/").filter(Boolean),
+    query: url.searchParams,
+  };
+}
+
+function strip(pathname: string, base: string): string {
+  if (!base || !pathname.startsWith(base)) return pathname;
+  return pathname.slice(base.length) || "/";
 }

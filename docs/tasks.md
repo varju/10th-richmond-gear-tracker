@@ -43,7 +43,7 @@ system needs before it is done, not what M9 needs.
 
 - [ ] Point the group's domain at the server (NFR-DEP-09)
 - [ ] Replace the placeholder app icons in `client/public/`
-- [ ] Deploy to the home server behind an outbound tunnel (NFR-DEP-05)
+- [ ] Reach the server from the internet through an outbound tunnel (NFR-DEP-05)
 - [ ] HTTPS (NFR-SEC-01)
 - [ ] Nightly backup of the SQLite file, off the machine, kept 30 days (NFR-DATA-05, NFR-DATA-06)
 - [ ] Restore tested and written down (NFR-DATA-07)

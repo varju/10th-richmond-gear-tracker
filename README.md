@@ -20,6 +20,7 @@ Early build. The requirements are settled and the scanner is proven; the applica
 | [docs/requirements/non-functional-requirements.md](docs/requirements/non-functional-requirements.md) | How well (NFR-\*)                 |
 | [docs/stories/](docs/stories/README.md)                                                              | What a Friday evening looks like  |
 | [docs/tasks.md](docs/tasks.md)                                                                       | The build, in order               |
+| [docs/deploy.md](docs/deploy.md)                                                                     | Running your own copy             |
 
 ## Getting started
 
@@ -44,8 +45,7 @@ To work on the client with live reload, run the API with `uv run gear-serve --db
 
 ## Running your own copy
 
-Not yet. The deployment path is written down in [docs/architecture.md](docs/architecture.md#server) but there is nothing
-to deploy so far.
+One container on a machine at home, with the database as a file beside it. See [docs/deploy.md](docs/deploy.md).
 
 ## Licence
 

@@ -8,13 +8,21 @@ const NAVY = "#001a70";
 // forwards them; in production the server serves the built app itself.
 const API = ["/sync", "/auth", "/users"];
 
+// Where the app is served from. A domain root in development and for anyone
+// hosting it alone; a path when it sits under an existing site. Set at build
+// time, because it is baked into every asset URL. Always ends in a slash.
+const base = process.env.BASE_PATH || "/";
+
 export default defineConfig({
+  base,
   plugins: [
     react(),
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
         name: "Gear Tracker",
+        scope: base,
+        start_url: base,
         short_name: "Gear",
         description: "Where the gear is, and who has it",
         theme_color: NAVY,
@@ -22,13 +30,18 @@ export default defineConfig({
         display: "standalone",
         icons: [
           { src: "icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
+          {
+            src: "icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any maskable",
+          },
         ],
       },
       workbox: {
         // The app shell only. Data lives in IndexedDB, and API calls must never be answered from a cache.
         globPatterns: ["**/*.{js,css,html,png,svg,wasm}"],
-        navigateFallbackDenylist: API.map((p) => new RegExp(`^${p}`)),
+        navigateFallbackDenylist: API.map((p) => new RegExp(`^${base}${p.slice(1)}`)),
       },
     }),
   ],
