@@ -46,33 +46,6 @@ system needs before it is done, not what M9 needs.
 
 Public pages come before the labelling walk, not after it. From the moment stickers go on gear, a stranger can scan one.
 
-## M10 — Repairs
-
-- [ ] Raise a ticket against an item, with optional photo (FR-REP-01, FR-REP-02)
-- [ ] States: open, in progress, resolved, won't fix (FR-REP-03)
-- [ ] Open tickets flagged in lists and at check-out (FR-REP-05)
-- [ ] Free-form comments, editable through the repair (FR-REP-06)
-- [ ] Raise a ticket from the check-in screen (FR-OUT-09)
-- [ ] History stays on the item after close (FR-REP-04)
-
-## M11 — Reservations
-
-- [ ] Create a reservation: event name, dates, items (FR-RES-01)
-- [ ] Check-out starts a seeded scanning session (FR-RES-02)
-- [ ] Event name inherited from the reservation (FR-RES-03)
-- [ ] Unscanned items named at finish, not blocked (FR-RES-04)
-- [ ] Unlisted scans append silently (FR-RES-07)
-- [ ] Conflicting reservations named (FR-RES-05)
-- [ ] Duplicate a reservation (FR-RES-10)
-- [ ] Reserve a quantity of a type; any item of the type ticks it off at check-out (FR-RES-13)
-- [ ] A type reservation conflicts when demand exceeds the unretired items of that type (FR-RES-15)
-
-## M12 — Found gear
-
-- [ ] Found-gear form with note and optional contact (FR-PUB-02)
-- [ ] Reports reach the Quartermaster in the app (FR-PUB-03)
-- [ ] Rate limiting and spam resistance (FR-PUB-04)
-
 ## M13 — The rest
 
 Pulled forward only when someone asks for them.
@@ -80,7 +53,8 @@ Pulled forward only when someone asks for them.
 - [ ] Mark an item missing; clears on the next scan (FR-INV-19)
 - [ ] Revoke one device without deactivating its account (FR-USR-14)
 - [ ] Screen for reviewing queued conflicts (FR-OFF-10)
-- [ ] Photos: never cached, captured offline, uploaded at next sync (FR-INV-11)
+- [ ] Photos: never cached, captured offline, uploaded at next sync (FR-INV-11); then the photo on a repair ticket
+      (FR-REP-01)
 - [ ] Purchase date, price, supplier (FR-INV-12)
 - [ ] Merge duplicate items, once the append-only design for it is settled (FR-INV-13)
 - [ ] Browse by location and sub-location (FR-INV-10)
