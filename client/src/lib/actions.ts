@@ -103,7 +103,7 @@ export async function deleteType(store: Store, id: string): Promise<void> {
 /** Admin only; the server refuses it from anyone else. */
 export async function setGroup(
   store: Store,
-  patch: { name?: string; code_url?: string; overdue_days?: number | null },
+  patch: { name?: string; code_url?: string; contact?: string; overdue_days?: number | null },
 ): Promise<void> {
   if (!store.state.setting?.group) await created(store, "setting", clean(patch), "group");
   else await changed(store, "setting", "group", clean(patch));

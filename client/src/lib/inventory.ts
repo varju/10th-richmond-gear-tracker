@@ -44,6 +44,8 @@ export interface Code {
 export interface GroupSetting {
   name?: string;
   code_url?: string;
+  /** How a finder reaches us. Shown on the public page (FR-PUB-01). */
+  contact?: string;
   /** Out longer than this is flagged (FR-OUT-14). Unset means never. */
   overdue_days?: number | null;
 }

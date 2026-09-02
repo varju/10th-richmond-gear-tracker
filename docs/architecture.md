@@ -428,6 +428,12 @@ The only unauthenticated surface: scan a code while signed out, see the item nam
 contact (NFR-SEC-03). Report it found. Nothing else — no member names, no prices, no history, and no check-in or
 check-out (FR-PUB-06).
 
+One route answers it, `/public/codes/<code>`, and it names the three fields it returns rather than filtering an item
+down. Nothing else is read, so a field added to an item later cannot arrive on the public page by accident.
+
+The contact route is a group setting. A sheet of codes will not print until it is set: a sticker becomes a public page
+the moment it goes on gear, and one with no way back to us is no use to whoever finds the tent.
+
 Rate-limited, because it is the one door anyone can knock on.
 
 ## Testing

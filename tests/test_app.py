@@ -51,10 +51,13 @@ def push_body(*events):
     return {"device_id": "phone-a", "client_time": T0, "events": list(events)}
 
 
-def test_every_route_needs_a_principal(client):
+def test_every_route_but_the_public_one_needs_a_principal(client):
     assert client.get("/sync/bootstrap").status_code == 401
     assert client.get("/sync/pull?since=0").status_code == 401
     assert client.post("/sync/push", json={}).status_code == 401
+
+    assert client.get("/codes/AAAAAAAAAA").status_code == 401
+    assert client.get("/public/codes/AAAAAAAAAA").status_code == 404  # signed out, and looked it up anyway
 
     body = client.get("/sync/bootstrap").json()
     assert body["error"] == "unauthorized"
@@ -266,10 +269,17 @@ def test_sheets_are_for_admins(client):
     assert r.status_code == 403
 
 
-def test_sheets_need_the_group_setting(client, admin):
+def test_sheets_need_the_group_setting(client, admin, db_path):
     r = client.post("/codes/sheets", json={}, headers=admin)
     assert r.status_code == 409
-    assert r.json()["message"] == "set the group name and code URL in Settings first"
+    assert r.json()["message"] == "set the group name, code URL and contact in Settings first"
+
+    # Name and URL alone are not enough: a sticker is a public page, and it needs a way back to us.
+    with open_db(db_path) as conn:
+        events.append_server(
+            conn, "alice", "setting", "group", "created", {"name": "10th Richmond", "code_url": "https://example.org/g"}
+        )
+    assert client.post("/codes/sheets", json={}, headers=admin).status_code == 409
 
 
 def test_sheets_body_is_validated(client, admin):
@@ -281,7 +291,12 @@ def test_sheets_body_is_validated(client, admin):
 def test_a_sheet_of_codes(client, admin, db_path):
     with open_db(db_path) as conn:
         events.append_server(
-            conn, "alice", "setting", "group", "created", {"name": "10th Richmond", "code_url": "https://example.org/g"}
+            conn,
+            "alice",
+            "setting",
+            "group",
+            "created",
+            {"name": "10th Richmond", "code_url": "https://example.org/g", "contact": "gear@example.org"},
         )
 
     r = client.post("/codes/sheets", json={}, headers=admin)
@@ -308,3 +323,68 @@ def test_looking_up_a_code(client):
     assert client.get("/codes/ABCDEFGH23").status_code == 401
     assert client.get("/codes/not-a-code", headers=as_alice()).status_code == 400
     assert client.get("/codes/ABCDEFGH23", headers=as_alice()).status_code == 404
+
+
+# --- public -----------------------------------------------------------------------------
+
+
+@pytest.fixture
+def public(client, db_path):
+    """A tent with a sticker on it, and a group that says how to reach it."""
+    with open_db(db_path) as conn:
+        events.append_server(
+            conn,
+            "alice",
+            "setting",
+            "group",
+            "created",
+            {"name": "10th Richmond", "code_url": "https://example.org/g", "contact": "gear@example.org"},
+        )
+        for code in ("AAAAAAAAAA", "BBBBBBBBBB"):
+            events.append_server(conn, "alice", "code", code, "created", {})
+    client.post(
+        "/sync/push",
+        json=push_body(
+            event(
+                entity_type="item",
+                entity_id="item-1",
+                type="created",
+                payload={"name": "Tent 4", "description": "green, patched fly"},
+            ),
+            event(
+                entity_type="code",
+                entity_id="AAAAAAAAAA",
+                type="code_bound",
+                payload={"item_id": "item-1"},
+                device_seq=2,
+            ),
+        ),
+        headers=as_alice(),
+    )
+    return client
+
+
+def test_a_stranger_sees_the_item_the_group_and_a_way_to_reach_us(public):
+    r = public.get("/public/codes/AAAAAAAAAA")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["item"] == {"name": "Tent 4"}
+    assert body["group"] == {"name": "10th Richmond", "contact": "gear@example.org"}
+
+
+def test_the_public_page_carries_nothing_else(public):
+    """Whatever else the item holds stays on our side of the wall (NFR-SEC-03)."""
+    r = public.get("/public/codes/AAAAAAAAAA")
+    assert set(r.json()) == {"item", "group", "server_time"}
+    assert "patched fly" not in r.text
+
+
+def test_a_printed_but_unbound_code_still_says_whose_it_is(public):
+    body = public.get("/public/codes/BBBBBBBBBB").json()
+    assert body["item"] is None
+    assert body["group"]["name"] == "10th Richmond"
+
+
+def test_the_public_route_refuses_a_code_that_is_not_ours(public):
+    assert public.get("/public/codes/not-a-code").status_code == 400
+    assert public.get("/public/codes/ZZZZZZZZZZ").status_code == 404

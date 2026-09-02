@@ -146,8 +146,10 @@ def create_app(
         """Print a batch of unassigned codes (FR-TAG-02). Admins only."""
         accounts._require_admin(who)
         group = derived.get_entity(conn, "setting", "group") or {}
-        if not group.get("name") or not group.get("code_url"):
-            raise Conflict("set the group name and code URL in Settings first")
+        if not group.get("name") or not group.get("code_url") or not group.get("contact"):
+            # Every sticker is a public page from the moment it goes on gear, and a
+            # public page with no way to reach us is no use to a finder (FR-PUB-01).
+            raise Conflict("set the group name, code URL and contact in Settings first")
         made = codes.create_codes(conn, who.user_id, body.sheets * labels.LABELS_PER_SHEET)
         pdf = labels.sheet(made, group["name"], group["code_url"])
         return Response(
@@ -164,6 +166,29 @@ def create_app(
         if state is None:
             raise NotFound("not one of our codes")
         return stamped({"code": code, "item_id": state.get("item_id")})
+
+    # --- public -------------------------------------------------------------------------
+
+    @app.get("/public/codes/{code}")
+    def public_code(conn: Db, code: str) -> dict[str, Any]:
+        """The one route with no account behind it: what a stranger who scans a sticker sees.
+
+        The item name, the group name, and how to reach us (FR-PUB-01). Nothing
+        else is read here, so nothing else can leak (NFR-SEC-03).
+        """
+        if not codes.is_code(code):
+            raise BadRequest("not a code")
+        state = codes.resolve(conn, code)
+        if state is None:
+            raise NotFound("not one of our codes")
+        item = derived.get_entity(conn, "item", state["item_id"]) if state.get("item_id") else None
+        group = derived.get_entity(conn, "setting", "group") or {}
+        return stamped(
+            {
+                "item": None if item is None else {"name": item.get("name", "")},
+                "group": {"name": group.get("name", ""), "contact": group.get("contact", "")},
+            }
+        )
 
     if static is not None:
         serve_client(app, Path(static))

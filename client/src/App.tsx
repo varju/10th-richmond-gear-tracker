@@ -17,6 +17,7 @@ import { LeaveDialog } from "./ui/LeaveDialog";
 import { NewItem } from "./ui/NewItem";
 import { Page } from "./ui/Page";
 import { PendingInterrupt } from "./ui/PendingInterrupt";
+import { PublicItem } from "./ui/PublicItem";
 import { Report } from "./ui/Report";
 import { Scan } from "./ui/Scan";
 import { Settings } from "./ui/Settings";
@@ -38,6 +39,7 @@ export function App({ store, api, now = Date.now }: Props) {
   const [persistence, setPersistence] = useState<Persistence>("persisted");
   const [storageNoticeSeen, setStorageNoticeSeen] = useState(false);
   const [interruptSeen, setInterruptSeen] = useState(false);
+  const [signInWanted, setSignInWanted] = useState(false);
   const inFlight = useRef(false);
 
   // One sync at a time; a second request while one runs is dropped, not queued.
@@ -93,7 +95,14 @@ export function App({ store, api, now = Date.now }: Props) {
     await store.setMeta({ token: undefined, user: undefined });
   }
 
-  if (!store.meta.token) return <SignIn store={store} api={api} onSignedIn={runSync} />;
+  if (!store.meta.token) {
+    // A sticker's URL is the same signed in or out. Signed out it is a stranger
+    // holding our gear, not a member who forgot to sign in (FR-PUB-01).
+    const [head, second] = route.segments;
+    if (head === "g" && second && !signInWanted)
+      return <PublicItem api={api} code={second} onSignIn={() => setSignInWanted(true)} />;
+    return <SignIn store={store} api={api} onSignedIn={runSync} />;
+  }
 
   const shell: Shell = { busy, outcome, now, sync: runSync, signOut };
   const pending = store.pending;

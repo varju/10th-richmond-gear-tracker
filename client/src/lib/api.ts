@@ -43,6 +43,12 @@ export interface Session {
   user: User;
 }
 
+/** All a scan shows to someone with no account (FR-PUB-01). */
+export interface PublicCode {
+  item: { name: string } | null;
+  group: { name: string; contact: string };
+}
+
 export interface Timed<T> {
   data: T;
   offset: number;
@@ -110,5 +116,6 @@ export function createApi(options: ApiOptions = {}) {
     signIn: (email: string, password: string, device_id: string) =>
       request<Session>("POST", "/auth/sign-in", { email, password, device_id }),
     signOut: () => request<Record<string, never>>("POST", "/auth/sign-out"),
+    publicCode: (code: string) => request<PublicCode>("GET", `/public/codes/${code}`),
   };
 }

@@ -28,6 +28,8 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
     return json({ snapshot: { item: { a: { name: "Tent" }, b: { name: "Stove" } } }, cursor: 2 });
   if (path === "/sync/pull") return json({ events: [], cursor: 2 });
   if (path === "/sync/push") return json({ accepted: [], rejected: [] });
+  if (path.startsWith("/public/codes/"))
+    return json({ item: { name: "Tent" }, group: { name: "10th Richmond", contact: "gear@example.org" } });
   return json({ error: "not_found", message: path }, 404);
 };
 
@@ -110,4 +112,24 @@ test("records pending more than 3 days interrupt on open", async () => {
   expect(await screen.findByRole("alertdialog")).toHaveTextContent("1 record has been waiting 4 days ago");
   await userEvent.setup().click(screen.getByRole("button", { name: "Continue anyway" }));
   await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+});
+
+test("a sticker scanned while signed out shows the public page, not the sign-in form (FR-PUB-01)", async () => {
+  navigate("/g/AAAAAAAAAA");
+  mount();
+
+  expect(await screen.findByText("Tent")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "10th Richmond" })).toBeInTheDocument();
+  expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+  expect(calls).toEqual(["/public/codes/AAAAAAAAAA"]);
+
+  // A member who lands on one of our own stickers takes the way in.
+  await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  expect(screen.getByLabelText("Password")).toBeInTheDocument();
+});
+
+test("any other path while signed out is the sign-in form", async () => {
+  navigate("/items/a");
+  mount();
+  expect(await screen.findByLabelText("Password")).toBeInTheDocument();
 });
