@@ -355,6 +355,23 @@ a 0.95in printed box including the quiet zone, at error correction M:
 24% larger modules, for nothing but a shorter path. Decode margin is cheap at design time and impossible to retrofit
 once the stickers are on the gear, so the public route is a short path on a short domain (FR-TAG-13).
 
+Size changes in steps, though, not smoothly. What matters is which side of a step a URL falls on:
+
+| Encoded length | QR version | Module pitch |
+| -------------- | ---------- | ------------ |
+| up to 26 ch    | 2, 25x25   | 0.73 mm      |
+| 27 to 42 ch    | 3, 29x29   | 0.65 mm      |
+| 43 ch and up   | 4, 33x33   | 0.59 mm      |
+
+That settles a question worth not reopening. `10thrichmond.ca` is 15 characters, so 25x25 was never within reach: even
+`10thrichmond.ca/g/XXXXXXXXXX` is 28. The app is served under `/gear`, and `10thrichmond.ca/gear/g/XXXXXXXXXX` is 33 —
+the same 29x29 as the shorter path, with nine characters spare. Giving the codes their own route at the domain root
+would buy no decode margin at all.
+
+The step at 43 is the one to stay under, and `https://www.10thrichmond.ca/gear/g/XXXXXXXXXX` is 45. Dropping the `www.`
+is enough to clear it; dropping the scheme as well leaves real headroom, and is what the shorter example above does. Set
+the group's code URL accordingly before any sheet is printed.
+
 ## Server
 
 A single self-hosted instance on a box at a volunteer's house (NFR-DEP-03, NFR-DEP-04). Reachable through an outbound
