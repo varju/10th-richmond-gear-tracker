@@ -3,6 +3,7 @@ import { displayName, homeLabel, item, nameOf } from "../lib/inventory";
 import { cancelReservation, conflicts, linkOut, outElsewhere, reservation } from "../lib/reservations";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
+import { useWide } from "../lib/wide";
 import { useStore } from "../useStore";
 import { statusLabel } from "./labels";
 import { Page } from "./Page";
@@ -14,6 +15,7 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pick, setPick] = useState("");
+  const wide = useWide();
   const state = store.state;
   const r = reservation(state, id);
 
@@ -27,6 +29,8 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
 
   const clashes = r.cancelled ? [] : conflicts(state, r, r.id);
   const others = r.cancelled ? [] : outElsewhere(state, r);
+  // One column when the second would be empty.
+  const twoCol = wide && others.length > 0;
 
   /** The session takes the event from here; nobody types it again (FR-RES-03). */
   async function checkOut() {
@@ -56,44 +60,8 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
     setConfirmCancel(false);
   }
 
-  return (
-    <Page
-      title="Reservation"
-      back="/reservations"
-      actions={
-        <>
-          {!r.cancelled && (
-            <button className="primary" type="button" onClick={checkOut}>
-              Check out
-            </button>
-          )}
-          <div className="row">
-            <button type="button" onClick={() => navigate(`/reservations/${id}/edit`)}>
-              Edit
-            </button>
-            <button type="button" onClick={() => navigate(`/reservations/new?from=${id}`)}>
-              Duplicate
-            </button>
-          </div>
-          {!r.cancelled && (
-            <button type="button" className={confirmCancel ? "warn" : ""} onClick={cancel}>
-              {confirmCancel ? "Really cancel?" : "Cancel reservation"}
-            </button>
-          )}
-        </>
-      }
-    >
-      <h2 className="item-title">
-        {r.event}
-        {r.cancelled && <span className="badge">Cancelled</span>}
-      </h2>
-      <p>{datesLabel(r)}</p>
-      {clashes.length > 0 && (
-        <p className="notice" role="note">
-          Also reserved for {clashes.map((c) => `${c.event} (${c.detail})`).join("; ")}.
-        </p>
-      )}
-
+  const gear = (
+    <>
       <h3 className="section">Items</h3>
       {error && (
         <p className="error" role="alert">
@@ -143,6 +111,11 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
           ))}
         </ul>
       )}
+    </>
+  );
+
+  const linking = (
+    <>
       {!r.cancelled && others.length > 0 && (
         <>
           <h3 className="section">Link other gear that is out</h3>
@@ -171,6 +144,59 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
               It's with us
             </button>
           </div>
+        </>
+      )}
+    </>
+  );
+
+  return (
+    <Page
+      title="Reservation"
+      back="/reservations"
+      actions={
+        <>
+          {!r.cancelled && (
+            <button className="primary" type="button" onClick={checkOut}>
+              Check out
+            </button>
+          )}
+          <div className="row">
+            <button type="button" onClick={() => navigate(`/reservations/${id}/edit`)}>
+              Edit
+            </button>
+            <button type="button" onClick={() => navigate(`/reservations/new?from=${id}`)}>
+              Duplicate
+            </button>
+          </div>
+          {!r.cancelled && (
+            <button type="button" className={confirmCancel ? "warn" : ""} onClick={cancel}>
+              {confirmCancel ? "Really cancel?" : "Cancel reservation"}
+            </button>
+          )}
+        </>
+      }
+    >
+      <h2 className="item-title">
+        {r.event}
+        {r.cancelled && <span className="badge">Cancelled</span>}
+      </h2>
+      <p>{datesLabel(r)}</p>
+      {clashes.length > 0 && (
+        <p className="notice" role="note">
+          Also reserved for {clashes.map((c) => `${c.event} (${c.detail})`).join("; ")}.
+        </p>
+      )}
+
+      {/* At a desk the list stands beside the gear that might join it (NFR-USE-10). */}
+      {twoCol ? (
+        <div className="two-col">
+          <div>{gear}</div>
+          <div>{linking}</div>
+        </div>
+      ) : (
+        <>
+          {gear}
+          {linking}
         </>
       )}
     </Page>

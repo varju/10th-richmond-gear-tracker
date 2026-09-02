@@ -437,7 +437,9 @@ test("the Help link in Settings opens the guide (NFR-USE-11)", async () => {
 test("the guide is the compiled markdown, with contents that reach each task", async () => {
   navigate("/help");
   mount();
-  expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Scouter");
+  // One heading per section, in the order the build lists them.
+  const sections = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+  expect(sections.slice(0, 2)).toEqual(["Scouter", "Quartermaster"]);
   // The first task, and the contents link that jumps to it.
   expect(screen.getAllByRole("heading", { level: 3 })[0]).toHaveTextContent("Take gear out");
   const contents = within(screen.getByRole("navigation", { name: "Scouter contents" }));

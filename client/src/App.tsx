@@ -8,14 +8,17 @@ import { ensurePersistent } from "./lib/storage";
 import type { Store } from "./lib/store";
 import { sync, type SyncOutcome } from "./lib/sync";
 import { unsaved } from "./lib/unsaved";
+import { useWide } from "./lib/wide";
 import { Banner } from "./ui/Banner";
 import { Bind } from "./ui/Bind";
 import { CodeLanding } from "./ui/CodeLanding";
 import { Conflicts } from "./ui/Conflicts";
+import { Desk } from "./ui/Desk";
 import { Found } from "./ui/Found";
 import { Help } from "./ui/Help";
 import { InstallPrompt } from "./ui/InstallPrompt";
 import { Inventory } from "./ui/Inventory";
+import { ItemTable } from "./ui/ItemTable";
 import { LocationPage, Locations } from "./ui/Locations";
 import { ItemPage } from "./ui/ItemPage";
 import { Join } from "./ui/Join";
@@ -32,6 +35,7 @@ import { ReservationForm } from "./ui/ReservationForm";
 import { ReservationPage } from "./ui/ReservationPage";
 import { Reservations } from "./ui/Reservations";
 import { Scan } from "./ui/Scan";
+import { Sections } from "./ui/Sections";
 import { Settings } from "./ui/Settings";
 import { StockCheck } from "./ui/StockCheck";
 import { SignIn } from "./ui/SignIn";
@@ -48,6 +52,7 @@ interface Props {
 export function App({ store, api, now = Date.now }: Props) {
   useStore(store);
   const route = useRoute();
+  const wide = useWide();
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<SyncOutcome | null>(null);
   const [interruptSeen, setInterruptSeen] = useState(false);
@@ -146,10 +151,19 @@ export function App({ store, api, now = Date.now }: Props) {
             onSync={runSync}
             onContinue={() => setInterruptSeen(true)}
           />
+        ) : wide ? (
+          // At a desk every screen keeps the sections beside it (NFR-USE-10).
+          <div className="desk">
+            <Sections store={store} layout="sidebar" />
+            <div className="desk-main">
+              <Screen store={store} api={api} route={route} shell={shell} wide />
+            </div>
+          </div>
         ) : (
           <>
+            {/* Installing matters on the phone that goes to the locker, and only there. */}
             {route.segments.length === 0 && <InstallPrompt />}
-            <Screen store={store} api={api} route={route} shell={shell} />
+            <Screen store={store} api={api} route={route} shell={shell} wide={false} />
           </>
         )}
         <LeaveDialog />
@@ -158,20 +172,33 @@ export function App({ store, api, now = Date.now }: Props) {
   );
 }
 
-function Screen({ store, api, route, shell }: { store: Store; api: Api; route: Route; shell: Shell }) {
+function Screen({
+  store,
+  api,
+  route,
+  shell,
+  wide,
+}: {
+  store: Store;
+  api: Api;
+  route: Route;
+  shell: Shell;
+  wide: boolean;
+}) {
   const [head, second, third] = route.segments;
   switch (head) {
     case undefined:
-      return <Inventory store={store} />;
+      // The locker opens on the list; the desk opens on what needs a person.
+      return wide ? <Desk store={store} /> : <Inventory store={store} />;
     case "items":
+      if (!second) return wide ? <ItemTable store={store} /> : <Inventory store={store} />;
       if (second === "new") {
         const parent = route.query.get("parent");
         const code = route.query.get("code");
         // Another of a generic, or something on its own (FR-INV-24).
         return parent ? <NewUnit store={store} parent={parent} code={code} /> : <NewItem store={store} code={code} />;
       }
-      if (second) return <ItemPage store={store} id={second} />;
-      break;
+      return <ItemPage store={store} id={second} />;
     case "scan":
       return <Scan store={store} />;
     case "out":

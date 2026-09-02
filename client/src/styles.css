@@ -929,7 +929,7 @@ h3.section.small {
  */
 @media (min-width: 900px) {
   .app {
-    max-width: 960px;
+    max-width: 1440px;
     margin: 0 auto;
     border-inline: 1px solid var(--rule);
   }
@@ -946,6 +946,7 @@ h3.section.small {
   .actions {
     display: flex;
     flex-wrap: wrap;
+    align-items: flex-start;
     padding: 16px 24px;
   }
 
@@ -978,6 +979,172 @@ h3.section.small {
   }
 }
 
+/* --- M15: the desk -------------------------------------------------------------------
+ *
+ * The phone is for the locker; this is the table the paperwork is done at
+ * (NFR-USE-10). The sections move to a sidebar, the home screen opens on
+ * exceptions, and the inventory becomes a table. Tap targets keep their 44 px:
+ * the same components are opened on a phone (NFR-USE-03).
+ *
+ * These blocks are only ever rendered above the breakpoint, so they are not
+ * inside the media query; a print stylesheet must still reach them.
+ */
+
+.desk {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.desk-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sidebar {
+  display: flex;
+  flex: 0 0 240px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 24px 16px;
+  border-right: 1px solid var(--rule);
+}
+
+.sidebar button.link {
+  text-align: left;
+}
+
+/* Things wrong, above the day's work and ruled off from it. */
+.sidebar .alerts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.sidebar-foot {
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+/* What needs a person, each row a count and a way in. */
+.attention {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Rows of facts: what is out, and the inventory. */
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.grid th,
+.grid td {
+  padding: 8px 16px 8px 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+  font-size: 16px;
+}
+
+.grid th {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* A cell is not a row: a link in one takes the width of its words. */
+.grid button.link {
+  width: auto;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.grid th button.link {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+/* The second line of a name cell: a home, or how many units are in. */
+.grid .home {
+  display: block;
+}
+
+.grid tr.unit td:first-child {
+  padding-left: 32px;
+}
+
+/* Opens a generic to its units (FR-INV-25). */
+button.disclose {
+  width: 24px;
+  vertical-align: middle;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 16px;
+}
+
+/* Search, filters and the two buttons, in one row that is always open. */
+.table-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.table-top > label.tight {
+  flex: 1 1 240px;
+}
+
+.table-top > .row {
+  display: flex;
+  flex: 2 1 320px;
+  gap: 12px;
+  margin: 0;
+}
+
+.table-top > .row > label {
+  flex: 1 1 140px;
+}
+
+.table-actions {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.table-actions button {
+  width: auto;
+  min-width: 140px;
+  padding: 0 20px;
+}
+
+/* An item beside its history, a reservation beside what can join it. Only at a
+ * desk: on a phone the same markup stacks in the order it is written. */
+@media (min-width: 900px) {
+  .two-col {
+    display: grid;
+    margin-top: 28px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0 32px;
+    align-items: start;
+  }
+
+  .two-col > div > :first-child {
+    margin-top: 0;
+  }
+}
+
 /* --- M17: the user guide -------------------------------------------------------------
  *
  * Prose, not controls: docs/guide/*.md turned into HTML by the build. Wide screens
@@ -1002,4 +1169,53 @@ h3.section.small {
 .guide p {
   margin: 0 0 12px;
   max-width: 60ch;
+}
+
+/* --- M15: the desk screens on paper --------------------------------------------------
+ *
+ * What is out, pinned to the locker door: the data, without the ways of
+ * changing it. After the desk rules, because it overrides them.
+ */
+@media print {
+  .sidebar,
+  .table-top {
+    display: none;
+  }
+
+  .desk,
+  .two-col {
+    display: block;
+  }
+
+  /* Section headings are muted white on screen, which is nothing on paper. */
+  h2.section,
+  h3.section {
+    color: #000;
+  }
+
+  .grid th,
+  .grid td {
+    color: #000;
+    border-bottom-color: #ccc;
+  }
+
+  .grid tr {
+    break-inside: avoid;
+  }
+
+  button.link,
+  .grid th button.link {
+    color: #000;
+    text-decoration: none;
+  }
+
+  .badge {
+    border-color: #000;
+    color: #000;
+  }
+
+  .badge.overdue {
+    background: #000;
+    color: #fff;
+  }
 }

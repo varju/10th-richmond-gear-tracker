@@ -10,6 +10,7 @@ import {
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { guard, useUnsaved } from "../lib/unsaved";
+import { useWide } from "../lib/wide";
 import { useStore } from "../useStore";
 import { Page } from "./Page";
 
@@ -44,6 +45,7 @@ export function ReservationForm({ store, id, from }: Props) {
   const [quantity, setQuantity] = useState("1");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const wide = useWide();
   const state = store.state;
   const set = (patch: Partial<ReservationInput>) => setValues((v) => ({ ...v, ...patch }));
 
@@ -87,6 +89,117 @@ export function ReservationForm({ store, id, from }: Props) {
     setQuantity("1");
   }
 
+  const gearList = (
+    <>
+      <h3 className="section">Items</h3>
+      <ul className="names">
+        {values.items.map((itemId) => {
+          return (
+            <li key={itemId} className="row">
+              <span className="name">{nameOf(state, itemId)}</span>
+              <button
+                className="small"
+                type="button"
+                onClick={() => set({ items: values.items.filter((x) => x !== itemId) })}
+                aria-label={`Remove ${nameOf(state, itemId)}`}
+              >
+                Remove
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+
+  const addItem = (
+    <>
+      <input
+        aria-label="Add an item"
+        placeholder="Search items to add"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        autoComplete="off"
+      />
+      {results.length > 0 && (
+        <ul className="rows">
+          {results.slice(0, 8).map((it) => (
+            <li key={it.id}>
+              <button
+                type="button"
+                className="row"
+                onClick={() => {
+                  set({ items: [...values.items, it.id] });
+                  setQuery("");
+                }}
+              >
+                <span>{displayName(state, it)}</span>
+                <span className="muted">{homeLabel(state, it)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+
+  const quantities = (
+    <>
+      <h3 className="section">So many of one thing</h3>
+      <ul className="names">
+        {values.generics.map((g) => (
+          <li key={g.item_id} className="row">
+            <span className="name">
+              {g.quantity} × {nameOf(state, g.item_id)}
+            </span>
+            <button
+              className="small"
+              type="button"
+              onClick={() => set({ generics: values.generics.filter((x) => x.item_id !== g.item_id) })}
+              aria-label={`Remove ${nameOf(state, g.item_id)}`}
+            >
+              Remove
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+
+  const addQuantity = (
+    <>
+      <div className="row">
+        <label className="tight">
+          <span>Item</span>
+          <select aria-label="Item" value={genericId} onChange={(e) => setGenericId(e.target.value)}>
+            <option value="">Choose</option>
+            {generics(state)
+              .filter((g) => !g.retired)
+              .map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label className="tight">
+          <span>How many</span>
+          <input
+            type="number"
+            min={1}
+            inputMode="numeric"
+            aria-label="How many"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+          />
+        </label>
+        <button className="small" type="button" onClick={addGeneric} disabled={!genericId}>
+          Add
+        </button>
+      </div>
+    </>
+  );
+
   return (
     <Page
       title={id ? "Edit reservation" : "New reservation"}
@@ -121,98 +234,26 @@ export function ReservationForm({ store, id, from }: Props) {
         </label>
       </div>
 
-      <h3 className="section">Items</h3>
-      <ul className="names">
-        {values.items.map((itemId) => {
-          return (
-            <li key={itemId} className="row">
-              <span className="name">{nameOf(state, itemId)}</span>
-              <button
-                className="small"
-                type="button"
-                onClick={() => set({ items: values.items.filter((x) => x !== itemId) })}
-                aria-label={`Remove ${nameOf(state, itemId)}`}
-              >
-                Remove
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      <input
-        aria-label="Add an item"
-        placeholder="Search items to add"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        autoComplete="off"
-      />
-      {results.length > 0 && (
-        <ul className="rows">
-          {results.slice(0, 8).map((it) => (
-            <li key={it.id}>
-              <button
-                type="button"
-                className="row"
-                onClick={() => {
-                  set({ items: [...values.items, it.id] });
-                  setQuery("");
-                }}
-              >
-                <span>{displayName(state, it)}</span>
-                <span className="muted">{homeLabel(state, it)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+      {/* At a desk the list is beside the ways of adding to it, not above them (NFR-USE-10). */}
+      {wide ? (
+        <div className="two-col">
+          <div>
+            {gearList}
+            {quantities}
+          </div>
+          <div>
+            {addItem}
+            {addQuantity}
+          </div>
+        </div>
+      ) : (
+        <>
+          {gearList}
+          {addItem}
+          {quantities}
+          {addQuantity}
+        </>
       )}
-
-      <h3 className="section">So many of one thing</h3>
-      <ul className="names">
-        {values.generics.map((g) => (
-          <li key={g.item_id} className="row">
-            <span className="name">
-              {g.quantity} × {nameOf(state, g.item_id)}
-            </span>
-            <button
-              className="small"
-              type="button"
-              onClick={() => set({ generics: values.generics.filter((x) => x.item_id !== g.item_id) })}
-              aria-label={`Remove ${nameOf(state, g.item_id)}`}
-            >
-              Remove
-            </button>
-          </li>
-        ))}
-      </ul>
-      <div className="row">
-        <label className="tight">
-          <span>Item</span>
-          <select aria-label="Item" value={genericId} onChange={(e) => setGenericId(e.target.value)}>
-            <option value="">Choose</option>
-            {generics(state)
-              .filter((g) => !g.retired)
-              .map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-          </select>
-        </label>
-        <label className="tight">
-          <span>How many</span>
-          <input
-            type="number"
-            min={1}
-            inputMode="numeric"
-            aria-label="How many"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-          />
-        </label>
-        <button className="small" type="button" onClick={addGeneric} disabled={!genericId}>
-          Add
-        </button>
-      </div>
     </Page>
   );
 }

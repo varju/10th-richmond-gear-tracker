@@ -12,8 +12,21 @@ export default defineConfig({
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
-    ...devices["Pixel 7"],
   },
+  // The same build at both widths (NFR-USE-10). One database and one server:
+  // the projects run in order, not at the same time.
+  projects: [
+    {
+      name: "phone",
+      use: { ...devices["Pixel 7"] },
+      testIgnore: /desk\.spec\.ts/,
+    },
+    {
+      name: "desk",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } },
+      testMatch: /(desk|a11y)\.spec\.ts/,
+    },
+  ],
   webServer: {
     command: "./e2e/serve.sh",
     port: PORT,

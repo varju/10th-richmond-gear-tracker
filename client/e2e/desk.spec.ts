@@ -1,0 +1,47 @@
+import { expect, type Page, test } from "@playwright/test";
+
+// The desk layout at a desk's width (NFR-USE-10): the sections beside every
+// screen, a home that opens on exceptions, and the inventory as a table. The
+// phone specs prove the same build at a phone's width.
+
+async function signIn(page: Page) {
+  await page.goto("/");
+  await page.getByLabel("Email").fill("alice@example.org");
+  await page.getByLabel("Password").fill("correct horse");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  // The sections are on the home screen at a phone's width and beside it at a desk's.
+  await expect(page.getByRole("navigation", { name: "Sections" })).toBeVisible();
+}
+
+test("the sections stay beside the screen, and home opens on what needs a person", async ({ page }) => {
+  await signIn(page);
+  const sections = page.getByRole("navigation", { name: "Sections" });
+  await expect(sections.getByRole("button", { name: /^Inventory · \d+/ })).toBeVisible();
+  await expect(sections.getByRole("button", { name: "Help" })).toBeVisible();
+
+  for (const heading of ["Needs attention", "What is out", "Coming up"]) {
+    await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+  }
+
+  await sections.getByRole("button", { name: /^Inventory/ }).click();
+  await expect(page).toHaveURL(/\/items$/);
+  // Every screen keeps them.
+  await expect(sections.getByRole("button", { name: "Help" })).toBeVisible();
+});
+
+test("the inventory is a table that sorts and opens a generic to its units", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/items");
+  const table = page.getByRole("table");
+  await expect(table).toBeVisible();
+  // A desk starts typing.
+  await expect(page.getByLabel("Search")).toBeFocused();
+
+  await page.getByLabel("Search").fill("tent, 4-person");
+  await expect(page.getByRole("button", { name: "Units of Tent, 4-person" })).toBeVisible();
+  await page.getByRole("button", { name: "Units of Tent, 4-person" }).click();
+  await expect(table.getByRole("button", { name: "Tent, 4-person #1" })).toBeVisible();
+
+  await page.getByRole("button", { name: /^Name/ }).click();
+  await expect(page.getByRole("columnheader", { name: /Name/ })).toHaveAttribute("aria-sort", "descending");
+});

@@ -1,14 +1,12 @@
 import { useState } from "react";
-import { openConflicts } from "../lib/conflicts";
-import { foundReports } from "../lib/found";
-import { countItems, type Filter, homeLabel, items, locations, movable, rows, subLocations } from "../lib/inventory";
-import { openRepairs, openTickets } from "../lib/repairs";
-import { todayIso, upcoming } from "../lib/reservations";
+import { countItems, type Filter, homeLabel, items, rows } from "../lib/inventory";
+import { openRepairs } from "../lib/repairs";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
-import { useShell } from "../shell";
 import { useStore } from "../useStore";
+import { Filters } from "./Filters";
 import { plural, statusLabel, syncLabel } from "./labels";
+import { Sections } from "./Sections";
 
 interface Props {
   store: Store;
@@ -17,19 +15,11 @@ interface Props {
 /** Home: the list, searched as you type, with the scanner one tap away (FR-INV-07). */
 export function Inventory({ store }: Props) {
   useStore(store);
-  const { now } = useShell();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>({});
   const state = store.state;
   const list = rows(state, { ...filter, query });
   const empty = items(state).length === 0;
-  // Units and single items, never a generic. Missing gear is not out (FR-INV-19); the report agrees.
-  const out = movable(state).filter((it) => it.status === "out" && !it.missing).length;
-  const found = foundReports(state).length;
-  const clashes = openConflicts(state).length;
-  const broken = openTickets(state).length;
-  const booked = upcoming(state, todayIso(now())).length;
-  const admin = store.meta.user?.role === "admin";
 
   return (
     <>
@@ -44,44 +34,7 @@ export function Inventory({ store }: Props) {
           {plural(countItems(list), "item")}
           {store.meta.last_sync_at !== undefined && ` · ${syncLabel(store.meta.last_sync_at, Date.now(), false, null)}`}
         </p>
-        {/* Things wrong, only when something is wrong. */}
-        {found > 0 && (
-          <button className="link" type="button" onClick={() => navigate("/found")}>
-            Found gear · {found}
-          </button>
-        )}
-        {clashes > 0 && (
-          <button className="link" type="button" onClick={() => navigate("/conflicts")}>
-            Conflicts · {clashes}
-          </button>
-        )}
-        {/* Everywhere else the app goes. Always here, so nothing is only reachable by knowing it exists. */}
-        <nav className="links" aria-label="Sections">
-          <button className="link" type="button" onClick={() => navigate("/out")}>
-            What is out{out > 0 && ` · ${out}`}
-          </button>
-          <button className="link" type="button" onClick={() => navigate("/repairs")}>
-            Needs repair{broken > 0 && ` · ${broken}`}
-          </button>
-          <button className="link" type="button" onClick={() => navigate("/reservations")}>
-            Reservations · {booked} upcoming
-          </button>
-          {!empty && (
-            <>
-              <button className="link" type="button" onClick={() => navigate("/locations")}>
-                Browse by location
-              </button>
-              <button className="link" type="button" onClick={() => navigate("/stock-check")}>
-                {store.meta.stock_check ? "Stock check · in progress" : "Stock check"}
-              </button>
-            </>
-          )}
-          {admin && (
-            <button className="link" type="button" onClick={() => navigate("/settings/users")}>
-              Users
-            </button>
-          )}
-        </nav>
+        <Sections store={store} layout="row" />
         {empty ? (
           <p>Nothing here yet. Scan a code or add a new item.</p>
         ) : (
@@ -130,69 +83,5 @@ export function Inventory({ store }: Props) {
         </div>
       </div>
     </>
-  );
-}
-
-function Filters({ store, filter, onChange }: { store: Store; filter: Filter; onChange: (f: Filter) => void }) {
-  const state = store.state;
-  const set = (patch: Partial<Filter>) => onChange({ ...filter, ...patch });
-  const active = Object.values(filter).filter(Boolean).length;
-  return (
-    <details className="filters">
-      <summary>Filters{active > 0 && ` (${active})`}</summary>
-      <div className="row">
-        <label className="tight">
-          <span>Location</span>
-          <select
-            value={filter.location_id ?? ""}
-            onChange={(e) =>
-              set({
-                location_id: e.target.value || undefined,
-                sub_location: undefined,
-              })
-            }
-          >
-            <option value="">Any</option>
-            {locations(state).map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="tight">
-          <span>Sub-location</span>
-          <select
-            value={filter.sub_location ?? ""}
-            onChange={(e) => set({ sub_location: e.target.value || undefined })}
-          >
-            <option value="">Any</option>
-            {subLocations(state, filter.location_id).map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div className="row">
-        <label className="tight">
-          <span>Status</span>
-          <select
-            value={filter.status ?? ""}
-            onChange={(e) => set({ status: (e.target.value || undefined) as Filter["status"] })}
-          >
-            <option value="">Any</option>
-            <option value="in">In</option>
-            <option value="out">Out</option>
-            <option value="missing">Missing</option>
-          </select>
-        </label>
-      </div>
-      <label className="check">
-        <input type="checkbox" checked={Boolean(filter.retired)} onChange={(e) => set({ retired: e.target.checked })} />
-        <span>Show retired</span>
-      </label>
-    </details>
   );
 }

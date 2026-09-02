@@ -1,0 +1,95 @@
+import { openConflicts } from "../lib/conflicts";
+import { foundReports } from "../lib/found";
+import { countItems, items, movable, rows } from "../lib/inventory";
+import { openTickets } from "../lib/repairs";
+import { todayIso, upcoming } from "../lib/reservations";
+import { navigate } from "../lib/router";
+import type { Store } from "../lib/store";
+import { useShell } from "../shell";
+import { useStore } from "../useStore";
+
+interface Props {
+  store: Store;
+  /** "row" is the phone home screen; "sidebar" is the desk (NFR-USE-10). */
+  layout: "row" | "sidebar";
+}
+
+interface Link {
+  label: string;
+  path: string;
+}
+
+function Links({ links }: { links: Link[] }) {
+  return links.map((l) => (
+    <button key={l.path} className="link" type="button" onClick={() => navigate(l.path)}>
+      {l.label}
+    </button>
+  ));
+}
+
+/**
+ * Everywhere else the app goes, so nothing is reachable only by knowing it is
+ * there. Alerts first, and only when something is wrong. One component, two
+ * layouts: a row under the phone's home screen, a sidebar beside every desk
+ * screen.
+ */
+export function Sections({ store, layout }: Props) {
+  useStore(store);
+  const { now } = useShell();
+  const state = store.state;
+  // Units and single items, never a generic. Missing gear is not out (FR-INV-19); the report agrees.
+  const out = movable(state).filter((it) => it.status === "out" && !it.missing).length;
+  const found = foundReports(state).length;
+  const clashes = openConflicts(state).length;
+  const broken = openTickets(state).length;
+  const booked = upcoming(state, todayIso(now())).length;
+  const empty = items(state).length === 0;
+  const admin = store.meta.user?.role === "admin";
+  const sidebar = layout === "sidebar";
+
+  const alerts: Link[] = [
+    ...(found > 0 ? [{ label: `Found gear · ${found}`, path: "/found" }] : []),
+    ...(clashes > 0 ? [{ label: `Conflicts · ${clashes}`, path: "/conflicts" }] : []),
+  ];
+  const links: Link[] = [
+    ...(sidebar ? [{ label: `Inventory · ${countItems(rows(state, {}))}`, path: "/items" }] : []),
+    { label: `What is out${out > 0 ? ` · ${out}` : ""}`, path: "/out" },
+    { label: `Needs repair${broken > 0 ? ` · ${broken}` : ""}`, path: "/repairs" },
+    { label: `Reservations · ${booked} upcoming`, path: "/reservations" },
+    ...(empty
+      ? []
+      : [
+          { label: "Browse by location", path: "/locations" },
+          { label: store.meta.stock_check ? "Stock check · in progress" : "Stock check", path: "/stock-check" },
+        ]),
+    ...(admin ? [{ label: "Users", path: "/settings/users" }] : []),
+    ...(sidebar ? [{ label: "Settings", path: "/settings" }] : []),
+  ];
+
+  if (!sidebar) {
+    return (
+      <>
+        {/* Things wrong, only when something is wrong. */}
+        <Links links={alerts} />
+        <nav className="links" aria-label="Sections">
+          <Links links={links} />
+        </nav>
+      </>
+    );
+  }
+
+  return (
+    <nav className="sidebar" aria-label="Sections">
+      {alerts.length > 0 && (
+        <div className="alerts">
+          <Links links={alerts} />
+        </div>
+      )}
+      <Links links={links} />
+      {/* The guide sits at the foot, out of the way of the day's work (NFR-USE-11). */}
+      <div className="sidebar-foot">
+        <Links links={[{ label: "Help", path: "/help" }]} />
+      </div>
+    </nav>
+  );
+}

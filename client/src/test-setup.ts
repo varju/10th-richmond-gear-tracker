@@ -2,6 +2,9 @@
 import "fake-indexeddb/auto";
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterEach } from "vitest";
+import { afterEach, beforeEach } from "vitest";
+import { PHONE, setWidth } from "./ui/widthTestKit";
 
+// A phone unless a test asks for a desk, whatever width the test DOM defaults to.
+beforeEach(() => setWidth(PHONE));
 afterEach(cleanup);

@@ -221,92 +221,102 @@ export function ItemPage({ store, id }: Props) {
         </>
       }
     >
-      {moved && (
-        <p className="confirmed" role="status">
-          {moved}
-        </p>
-      )}
-      <h2 className="item-title">
-        {displayName(state, it)}
-        {it.retired && <span className="badge">Retired</span>}
-        {it.missing && <span className="badge">Missing</span>}
-      </h2>
-      {it.missing && (
-        <p className="notice" role="note">
-          Missing. Scanning it or checking it in clears this.
-        </p>
-      )}
-      {hasOpenConflict(state, id) && (
-        <p className="notice notice-row" role="note">
-          <span>Two check-outs overlapped.</span>
-          <button type="button" className="minor" onClick={() => guard(() => navigate("/conflicts"))}>
-            Review
-          </button>
-        </p>
-      )}
-      {foundFor(state, id).map((r) => (
-        <p key={r.id} className="notice found-notice" role="note">
-          <span>Reported found · {r.note}</span>
-          <button type="button" className="minor" onClick={() => resolveFound(store, r.id)}>
-            Resolve
-          </button>
-        </p>
-      ))}
-      {open.length > 0 && (
-        <p className="notice" role="note">
-          Needs repair · {open[0]!.description}
-        </p>
-      )}
-      <dl className="facts">
-        <dt>Status</dt>
-        <dd>{statusLabel(state, it) + (isOverdue(state, it, now()) ? " · Overdue" : "")}</dd>
-        <dt>Home</dt>
-        <dd>{homeLabel(state, it) || "—"}</dd>
-        {it.parent_id && (
-          <>
-            <dt>One of</dt>
-            <dd>
-              <button className="link" type="button" onClick={() => guard(() => navigate(`/items/${it.parent_id}`))}>
-                {parentOf(state, it)?.name ?? "(unknown item)"}
+      {/* At a desk, what it is on the left and what has happened to it on the right (NFR-USE-10). */}
+      <div className="two-col">
+        <div>
+          {moved && (
+            <p className="confirmed" role="status">
+              {moved}
+            </p>
+          )}
+          <h2 className="item-title">
+            {displayName(state, it)}
+            {it.retired && <span className="badge">Retired</span>}
+            {it.missing && <span className="badge">Missing</span>}
+          </h2>
+          {it.missing && (
+            <p className="notice" role="note">
+              Missing. Scanning it or checking it in clears this.
+            </p>
+          )}
+          {hasOpenConflict(state, id) && (
+            <p className="notice notice-row" role="note">
+              <span>Two check-outs overlapped.</span>
+              <button type="button" className="minor" onClick={() => guard(() => navigate("/conflicts"))}>
+                Review
               </button>
-              {` · #${it.number ?? "?"}`}
-              {it.nickname ? ` · ${it.nickname}` : ""}
+            </p>
+          )}
+          {foundFor(state, id).map((r) => (
+            <p key={r.id} className="notice found-notice" role="note">
+              <span>Reported found · {r.note}</span>
+              <button type="button" className="minor" onClick={() => resolveFound(store, r.id)}>
+                Resolve
+              </button>
+            </p>
+          ))}
+          {open.length > 0 && (
+            <p className="notice" role="note">
+              Needs repair · {open[0]!.description}
+            </p>
+          )}
+          <dl className="facts">
+            <dt>Status</dt>
+            <dd>{statusLabel(state, it) + (isOverdue(state, it, now()) ? " · Overdue" : "")}</dd>
+            <dt>Home</dt>
+            <dd>{homeLabel(state, it) || "—"}</dd>
+            {it.parent_id && (
+              <>
+                <dt>One of</dt>
+                <dd>
+                  <button
+                    className="link"
+                    type="button"
+                    onClick={() => guard(() => navigate(`/items/${it.parent_id}`))}
+                  >
+                    {parentOf(state, it)?.name ?? "(unknown item)"}
+                  </button>
+                  {` · #${it.number ?? "?"}`}
+                  {it.nickname ? ` · ${it.nickname}` : ""}
+                </dd>
+              </>
+            )}
+            <dt>Description</dt>
+            <dd className="prose">{it.description || "—"}</dd>
+            <dt>Bought</dt>
+            <dd>{boughtLabel(it) || "—"}</dd>
+            {mergedFrom.length > 0 && (
+              <>
+                <dt>Merged from</dt>
+                <dd>{mergedFrom.map((a) => nameOf(state, a)).join(", ")}</dd>
+              </>
+            )}
+            <dt>Code</dt>
+            <dd>
+              {current ? <code>{current.id}</code> : "none"}
+              {codes.length > 1 && <span className="muted"> · {codes.length - 1} replaced</span>}
             </dd>
-          </>
-        )}
-        <dt>Description</dt>
-        <dd className="prose">{it.description || "—"}</dd>
-        <dt>Bought</dt>
-        <dd>{boughtLabel(it) || "—"}</dd>
-        {mergedFrom.length > 0 && (
-          <>
-            <dt>Merged from</dt>
-            <dd>{mergedFrom.map((a) => nameOf(state, a)).join(", ")}</dd>
-          </>
-        )}
-        <dt>Code</dt>
-        <dd>
-          {current ? <code>{current.id}</code> : "none"}
-          {codes.length > 1 && <span className="muted"> · {codes.length - 1} replaced</span>}
-        </dd>
-        <dt>Added</dt>
-        <dd>{it.added_at ? isoDate(it.added_at) : "—"}</dd>
-        <dt>Modified</dt>
-        <dd>{it.modified_at ? isoDate(it.modified_at) : "—"}</dd>
-      </dl>
+            <dt>Added</dt>
+            <dd>{it.added_at ? isoDate(it.added_at) : "—"}</dd>
+            <dt>Modified</dt>
+            <dd>{it.modified_at ? isoDate(it.modified_at) : "—"}</dd>
+          </dl>
 
-      <h3 className="section">Photos</h3>
-      <Photos store={store} on={onItem} />
+          <h3 className="section">Photos</h3>
+          <Photos store={store} on={onItem} />
+        </div>
+        <div>
+          <h3 className="section">Repairs</h3>
+          <Repairs store={store} id={id} />
 
-      <h3 className="section">Repairs</h3>
-      <Repairs store={store} id={id} />
+          <h3 className="section">History</h3>
+          <History store={store} id={id} />
+          <AddNote store={store} on={onItem} />
 
-      <h3 className="section">History</h3>
-      <History store={store} id={id} />
-      <AddNote store={store} on={onItem} />
-
-      <h3 className="section">Changes</h3>
-      <Changes store={store} id={id} />
+          <h3 className="section">Changes</h3>
+          <Changes store={store} id={id} />
+        </div>
+      </div>
     </Page>
   );
 }
