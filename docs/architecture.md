@@ -251,6 +251,27 @@ Scanning lands on `/g/<code>`, the same path a sticker's URL has, so a camera ap
 Assigned or replaced: open the item. Unassigned: create or bind. Unknown: say so, and suggest a sync, because a freshly
 printed sheet is unknown to a phone that has not pulled since.
 
+## Movement
+
+A check-out is `checked_out` with the holder, the session's event name, and nothing else; a check-in is `checked_in`.
+The holder is whoever is signed in. Gear handed to someone without an account is covered by a note (FR-OUT-15), not a
+holder field that would need its own list of people.
+
+The session event (FR-OUT-05) is a device setting in `meta`, stamped onto each check-out as it is recorded. It is not a
+record, so two phones at one camp each type the name once and nothing is shared or reconciled.
+
+Taking gear that is already out is a `checked_out` whose payload names the check-out it `supersedes` (FR-OUT-12). That
+is how replay tells a transfer from a conflict: the conflict rule (FR-OFF-10) fires on two check-outs from different
+devices with no check-in between, unless the later one says it saw the earlier. Someone who scanned an out item and
+tapped "Transfer" saw it; two phones offline in two lockers did not.
+
+Notes ride on the item, not the movement, as `note_added` events. One that belongs to a movement carries its
+`movement_id`, so it can be shown under the right check-out and still be corrected later by `note_corrected`
+(FR-OUT-16). Movement events themselves carry no note text: there is nothing on a movement to correct.
+
+The access history on an item page (FR-INV-09) is read from the events the device holds, so it reaches back 90 days
+(NFR-DATA-03). The server keeps everything; a full history is a report, not a phone screen.
+
 ## Scanning
 
 No browser on iOS implements the BarcodeDetector API, and the experimental flag from iOS 17 does not work on iOS 18. So

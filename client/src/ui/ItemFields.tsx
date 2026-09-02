@@ -72,7 +72,7 @@ export function ItemFields({ store, values, onChange }: Props) {
         <input value={values.condition ?? ""} onChange={(e) => set({ condition: e.target.value })} autoComplete="off" />
       </label>
       <label>
-        <span>Notes</span>
+        <span>Description</span>
         <textarea value={values.description ?? ""} onChange={(e) => set({ description: e.target.value })} rows={3} />
       </label>
     </>

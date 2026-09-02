@@ -31,20 +31,10 @@ Built. What is left waits on other work:
 
 ## M7 — Movement
 
-The vertical slice. After this the system is usable for its main purpose.
+The vertical slice is built. What is left needs a phone and a locker.
 
-- [ ] Scanning is contextual: out means check in, in means check out (FR-OUT-06)
-- [ ] Sync after every movement (FR-OFF-03); the shell already syncs on open and on regaining connectivity
-- [ ] One scan, one tap; scanner stays live between items (FR-OUT-03, NFR-USE-02). M6 stops the camera when the scan
-      screen unmounts; a movement session must keep it on
-- [ ] Session event set once, applied until changed (FR-OUT-05)
-- [ ] Check in and out by search for unlabelled gear (FR-OUT-02, FR-OUT-07)
-- [ ] Anyone can check in anyone's gear (FR-OUT-08)
-- [ ] Check-in shows the item's home (FR-OUT-10)
-- [ ] Edit any field from the check-in screen (FR-OUT-11)
-- [ ] Already-out gear shows the holder and offers transfer (FR-OUT-12)
-- [ ] Per-movement notes, correctable by appending (FR-OUT-13, FR-OUT-15, FR-OUT-16)
 - [ ] End-to-end test on a real phone, in a real locker, with no signal
+- [ ] The status label reads "In" on the scan card and "in" on the item page; pick one
 
 ## M8 — The first report
 

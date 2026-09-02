@@ -460,3 +460,180 @@ h2.section {
 a {
   color: var(--ink);
 }
+
+/* --- M7: movement ------------------------------------------------------------------------ */
+
+/* Smaller buttons for secondary things: note toggles, the session event. Still 44 px tall. */
+button.minor {
+  min-height: 44px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* The session row sits above the camera; the camera still fills the rest. */
+main:has(> .viewfinder) {
+  flex-direction: column;
+}
+
+.session {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.session span {
+  flex: 1;
+  font-weight: 600;
+}
+
+.session input {
+  flex: 1;
+  width: auto;
+  min-height: 44px;
+}
+
+.session button {
+  width: auto;
+  padding: 0 16px;
+}
+
+/* The card sits over the lower part of the viewfinder; the video keeps running behind it. */
+.move-card {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  background: rgba(0, 26, 112, 0.92);
+  border-top: 1px solid var(--rule);
+}
+
+.move-card h2 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.move-card p {
+  margin: 0;
+}
+
+/* Where it goes back, big enough to read from a trailer (FR-OUT-10). */
+.move-home {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.move-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.move-actions .notice,
+.move-actions .error,
+.move-actions .event-hint {
+  margin: 0;
+  text-align: center;
+}
+
+/* "Checked out · Tent 1", gone in a moment. */
+.confirmed {
+  margin: 0 0 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--navy);
+  font-weight: 600;
+  text-align: center;
+}
+
+.viewfinder .confirmed {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  margin: 0;
+}
+
+/* Notes and history on the item page. */
+.notes,
+.history {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.notes li,
+.history li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.notes li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  align-items: center;
+}
+
+.notes .note-text {
+  grid-column: 1;
+  white-space: pre-wrap;
+}
+
+.notes li > button {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  width: auto;
+  padding: 0 16px;
+}
+
+.notes .note-edit {
+  grid-column: 1 / -1;
+}
+
+.note-edit {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+}
+
+.note-edit input {
+  min-height: 44px;
+}
+
+.note-edit button {
+  width: auto;
+  padding: 0 16px;
+}
+
+.note-edit .error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.history .notes {
+  margin: 4px 0 0 16px;
+}
+
+.history .notes li:last-child {
+  border-bottom: 0;
+}
+
+/* Sections under an item's title, one level down from the page's own. */
+h3.section {
+  margin: 28px 0 12px;
+  font-size: 20px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
