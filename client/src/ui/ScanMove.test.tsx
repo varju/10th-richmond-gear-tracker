@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
 import { item } from "../lib/inventory";
+import * as rep from "../lib/repairs";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { unsaved } from "../lib/unsaved";
@@ -123,6 +124,37 @@ test("a note typed on the card rides on the movement (FR-OUT-13)", async () => {
   expect(pending("note_added").map((e) => e.payload)).toEqual([
     { text: "handed to a patrol leader", movement_id: out.id },
   ]);
+});
+
+test("an open ticket shows on the card and does not block the move (FR-REP-05)", async () => {
+  await rep.raiseTicket(store, tent, "zipper broken");
+  await rep.raiseTicket(store, tent, "pole bent");
+  renderInShell(<Scan store={store} />);
+  await typeCode("AAAAAAAAAA");
+  expect(within(card()).getByRole("note")).toHaveTextContent("Needs repair · pole bent · 1 more");
+  await user.click(within(card()).getByRole("button", { name: "Check out" }));
+  expect(await screen.findByText("Checked out · Tent 1")).toBeInTheDocument();
+});
+
+test("a fault typed at check-in raises a ticket after the move, without leaving the flow (FR-OUT-09)", async () => {
+  renderInShell(<Scan store={store} />);
+  await typeCode("AAAAAAAAAA");
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+  await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
+
+  await typeCode("AAAAAAAAAA");
+  await user.click(within(card()).getByRole("button", { name: "Report a fault" }));
+  // One thing typed at a time: the note button goes while the fault is open.
+  expect(within(card()).queryByRole("button", { name: "Add note" })).not.toBeInTheDocument();
+  await user.type(screen.getByLabelText("Fault"), "zipper broken on the bag");
+  await user.click(within(card()).getByRole("button", { name: "Check in" }));
+  expect(await screen.findByText("Checked in · Tent 1")).toHaveAttribute("role", "status");
+  expect(location.pathname).toBe("/scan");
+
+  const [ticket] = pending("created").filter((e) => e.entity_type === "repair");
+  expect(ticket!.payload).toEqual({ item_id: tent, description: "zipper broken on the bag" });
+  expect(ticket!.device_seq).toBeGreaterThan(pending("checked_in")[0]!.device_seq);
+  expect(rep.openRepairs(store.state, tent)).toHaveLength(1);
 });
 
 test("a retired item cannot be moved from the card", async () => {

@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import { addNote, correctNote } from "../lib/movement";
+import { addNote, correctNote, type EntityRef } from "../lib/notes";
 import type { Note } from "../lib/replay";
 import type { Store } from "../lib/store";
 import { isoDate } from "../lib/time";
@@ -7,18 +7,18 @@ import { useUnsaved } from "../lib/unsaved";
 import { userName } from "./labels";
 
 /** Notes with an Edit beside each. A correction is appended; the original stays in the log (FR-OUT-16). */
-export function NoteList({ store, itemId, notes }: { store: Store; itemId: string; notes: Note[] }) {
+export function NoteList({ store, on, notes }: { store: Store; on: EntityRef; notes: Note[] }) {
   if (notes.length === 0) return null;
   return (
     <ul className="notes">
       {notes.map((n) => (
-        <NoteLine key={n.id} store={store} itemId={itemId} note={n} />
+        <NoteLine key={n.id} store={store} on={on} note={n} />
       ))}
     </ul>
   );
 }
 
-function NoteLine({ store, itemId, note }: { store: Store; itemId: string; note: Note }) {
+function NoteLine({ store, on, note }: { store: Store; on: EntityRef; note: Note }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const text = draft?.trim() ?? "";
@@ -26,7 +26,7 @@ function NoteLine({ store, itemId, note }: { store: Store; itemId: string; note:
 
   async function commit(): Promise<boolean> {
     try {
-      if (text && text !== note.text) await correctNote(store, itemId, note.id, text);
+      if (text && text !== note.text) await correctNote(store, on, note.id, text);
       setDraft(null);
       return true;
     } catch (err) {
@@ -73,14 +73,14 @@ function NoteLine({ store, itemId, note }: { store: Store; itemId: string; note:
   );
 }
 
-/** A note on the item itself, not on a movement. */
-export function AddNote({ store, itemId }: { store: Store; itemId: string }) {
+/** A note on the entity itself: an item, not one of its movements; or a comment on a ticket (FR-REP-06). */
+export function AddNote({ store, on }: { store: Store; on: EntityRef }) {
   const [draft, setDraft] = useState<string | null>(null);
   const text = draft?.trim() ?? "";
   useUnsaved(text !== "", { save: commit });
 
   async function commit(): Promise<boolean> {
-    if (text) await addNote(store, itemId, text);
+    if (text) await addNote(store, on, text);
     setDraft(null);
     return true;
   }

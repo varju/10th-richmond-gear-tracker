@@ -7,6 +7,7 @@ import * as act from "../lib/actions";
 import { createApi } from "../lib/api";
 import { openDb } from "../lib/db";
 import * as inv from "../lib/inventory";
+import * as rep from "../lib/repairs";
 import { navigate } from "../lib/router";
 import { Store } from "../lib/store";
 
@@ -72,6 +73,18 @@ test("the list narrows by query and by location", async () => {
   await user.clear(screen.getByLabelText("Search"));
   await user.selectOptions(screen.getByLabelText("Location"), f.warm);
   expect(rows()).toEqual(["StoveWarm locker"]);
+});
+
+test("an open ticket badges the row and counts on the home screen (FR-REP-05)", async () => {
+  const f = await fixture();
+  await rep.raiseTicket(store, f.t1, "zipper broken");
+  mount();
+  const user = userEvent.setup();
+  expect(rows()).toEqual(["StoveWarm locker", "Tent 1RepairCold locker / shelf 4"]);
+
+  await user.click(screen.getByRole("button", { name: "Needs repair · 1" }));
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Needs repair");
+  expect(screen.getByRole("button", { name: /Tent 1/ })).toHaveTextContent("Open · zipper broken");
 });
 
 test("editing an item records the change and shows it", async () => {

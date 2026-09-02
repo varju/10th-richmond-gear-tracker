@@ -19,6 +19,8 @@ import { NewItem } from "./ui/NewItem";
 import { Page } from "./ui/Page";
 import { PendingInterrupt } from "./ui/PendingInterrupt";
 import { PublicItem } from "./ui/PublicItem";
+import { RepairPage } from "./ui/RepairPage";
+import { Repairs } from "./ui/Repairs";
 import { Report } from "./ui/Report";
 import { Scan } from "./ui/Scan";
 import { Settings } from "./ui/Settings";
@@ -163,6 +165,8 @@ function Screen({ store, api, route, shell }: { store: Store; api: Api; route: R
       break;
     case "found":
       return <Found store={store} />;
+    case "repairs":
+      return second ? <RepairPage store={store} id={second} /> : <Repairs store={store} />;
     case "settings":
       return <Settings store={store} api={api} shell={shell} />;
   }

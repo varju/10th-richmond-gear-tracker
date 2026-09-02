@@ -1,6 +1,7 @@
 import { type ReactNode, useCallback, useState } from "react";
 import type { Item } from "../lib/inventory";
 import { checkIn, checkOut, transfer } from "../lib/movement";
+import { openRepairs, raiseTicket } from "../lib/repairs";
 import type { Store } from "../lib/store";
 import { useUnsaved } from "../lib/unsaved";
 
@@ -34,17 +35,20 @@ interface Props {
 
 /**
  * The buttons that move an item, chosen by its state (FR-OUT-06, FR-OUT-12),
- * with an optional note on the movement (FR-OUT-13). The shell pushes the
- * move as soon as it is recorded (FR-OFF-03).
+ * with an optional note on the movement (FR-OUT-13) or a fault to raise a
+ * ticket for once it has moved (FR-OUT-09). The shell pushes the move as soon
+ * as it is recorded (FR-OFF-03).
  */
 export function MoveActions({ store, it, showEvent = false, onMoved, children }: Props) {
   const [note, setNote] = useState<string | null>(null);
+  const [fault, setFault] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // A typed note only makes sense with a move, so leaving asks but cannot save it.
-  useUnsaved(note !== null && note.trim() !== "");
+  // A typed note or fault only makes sense with a move, so leaving asks but cannot save it.
+  useUnsaved((note !== null && note.trim() !== "") || (fault !== null && fault.trim() !== ""));
   const me = store.meta.user?.id;
   const event = store.meta.session_event;
+  const open = openRepairs(store.state, it.id);
 
   const out = it.status === "out";
   const canTake = !out && !it.retired;
@@ -55,6 +59,7 @@ export function MoveActions({ store, it, showEvent = false, onMoved, children }:
     setError(null);
     try {
       await act();
+      if (fault?.trim()) await raiseTicket(store, it.id, fault);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not record the move");
       return;
@@ -62,8 +67,11 @@ export function MoveActions({ store, it, showEvent = false, onMoved, children }:
       setBusy(false);
     }
     setNote(null);
+    setFault(null);
     onMoved(kind);
   }
+
+  const typing = note !== null || fault !== null;
 
   const options = { event, note: note ?? undefined };
 
@@ -78,6 +86,23 @@ export function MoveActions({ store, it, showEvent = false, onMoved, children }:
         <p className="notice" role="note">
           Retired. Cannot be checked out.
         </p>
+      )}
+      {open.length > 0 && (
+        // Warn, never block (FR-REP-05, FR-RES-08).
+        <p className="notice" role="note">
+          Needs repair · {open[0]!.description}
+          {open.length > 1 && ` · ${open.length - 1} more`}
+        </p>
+      )}
+      {fault !== null && (
+        <textarea
+          aria-label="Fault"
+          rows={2}
+          autoFocus
+          placeholder="e.g. zipper broken on the bag"
+          value={fault}
+          onChange={(e) => setFault(e.target.value)}
+        />
       )}
       {note !== null && (
         <textarea
@@ -110,7 +135,7 @@ export function MoveActions({ store, it, showEvent = false, onMoved, children }:
           Check in
         </button>
       )}
-      {(canTransfer || ((canTake || out) && note === null)) && (
+      {(canTransfer || ((canTake || out) && !typing)) && (
         <div className="row">
           {canTransfer && (
             <button
@@ -121,10 +146,15 @@ export function MoveActions({ store, it, showEvent = false, onMoved, children }:
               Transfer to me
             </button>
           )}
-          {(canTake || out) && note === null && (
-            <button type="button" className="minor" onClick={() => setNote("")}>
-              Add note
-            </button>
+          {(canTake || out) && !typing && (
+            <>
+              <button type="button" className="minor" onClick={() => setNote("")}>
+                Add note
+              </button>
+              <button type="button" className="minor" onClick={() => setFault("")}>
+                Report a fault
+              </button>
+            </>
           )}
         </div>
       )}

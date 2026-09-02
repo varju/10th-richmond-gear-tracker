@@ -3,6 +3,7 @@ import { type ItemInput, retireItem, unretireItem, updateItem } from "../lib/act
 import { foundFor, resolveFound } from "../lib/found";
 import { codesFor, homeLabel, item, typeName } from "../lib/inventory";
 import { history, type HistoryEntry } from "../lib/movement";
+import { openRepairs, raiseTicket, type Repair, repairsFor, stateLabel } from "../lib/repairs";
 import type { Note, State } from "../lib/replay";
 import { isOverdue } from "../lib/reports";
 import { navigate, useRoute } from "../lib/router";
@@ -71,6 +72,8 @@ export function ItemPage({ store, id }: Props) {
   const current = codes[0];
   const notes = (it.notes ?? []) as Note[];
   const itemNotes = notes.filter((n) => !n.movement_id);
+  const onItem = { entity_type: "item", entity_id: id };
+  const open = openRepairs(state, id);
 
   async function retire() {
     if (!confirmRetire) {
@@ -130,6 +133,11 @@ export function ItemPage({ store, id }: Props) {
           </button>
         </p>
       ))}
+      {open.length > 0 && (
+        <p className="notice" role="note">
+          Needs repair · {open[0]!.description}
+        </p>
+      )}
       <dl className="facts">
         <dt>Status</dt>
         <dd>{statusLabel(state, it) + (isOverdue(state, it, now()) ? " · Overdue" : "")}</dd>
@@ -153,8 +161,11 @@ export function ItemPage({ store, id }: Props) {
       </dl>
 
       <h3 className="section">Notes</h3>
-      <NoteList store={store} itemId={id} notes={itemNotes} />
-      <AddNote store={store} itemId={id} />
+      <NoteList store={store} on={onItem} notes={itemNotes} />
+      <AddNote store={store} on={onItem} />
+
+      <h3 className="section">Repairs</h3>
+      <Repairs store={store} id={id} />
 
       <h3 className="section">History</h3>
       <History store={store} id={id} />
@@ -171,6 +182,77 @@ export function describeMovement(state: State, e: HistoryEntry): string {
   return e.event ? `${verb} ${who} for ${e.event} · ${when}` : `${verb} ${who} · ${when}`;
 }
 
+/** Every ticket the item has had, open ones first; closed ones stay (FR-REP-04). */
+function Repairs({ store, id }: Props) {
+  const tickets = repairsFor(store.state, id);
+  return (
+    <>
+      {tickets.length > 0 && (
+        <ul className="items">
+          {tickets.map((r) => (
+            <li key={r.id}>
+              <button className="item" type="button" onClick={() => guard(() => navigate(`/repairs/${r.id}`))}>
+                <span className="item-name">{describeRepair(r)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <ReportFault store={store} id={id} />
+    </>
+  );
+}
+
+/** "Open · zipper broken · 2026-09-01". */
+export function describeRepair(r: Repair): string {
+  return [stateLabel(r.state), r.description, r.added_at ? isoDate(r.added_at) : ""].filter(Boolean).join(" · ");
+}
+
+/** Any signed-in user, a description, nothing else (FR-REP-01, FR-REP-02). */
+function ReportFault({ store, id }: Props) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const text = draft?.trim() ?? "";
+  useUnsaved(text !== "", { save: commit });
+
+  async function commit(): Promise<boolean> {
+    if (text) await raiseTicket(store, id, text);
+    setDraft(null);
+    return true;
+  }
+
+  if (draft === null) {
+    return (
+      <button type="button" className="minor" onClick={() => setDraft("")}>
+        Report a fault
+      </button>
+    );
+  }
+  return (
+    <form
+      className="note-edit"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void commit();
+      }}
+    >
+      <textarea
+        aria-label="Fault"
+        autoFocus
+        rows={2}
+        placeholder="e.g. zipper broken on the bag"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+      />
+      <button type="submit" className="minor primary" disabled={text === ""}>
+        Save
+      </button>
+      <button type="button" className="minor" onClick={() => setDraft(null)}>
+        Cancel
+      </button>
+    </form>
+  );
+}
+
 function History({ store, id }: Props) {
   const entries = history(store, id);
   return (
@@ -182,7 +264,7 @@ function History({ store, id }: Props) {
           {entries.map((e) => (
             <li key={e.id}>
               <span>{describeMovement(store.state, e)}</span>
-              <NoteList store={store} itemId={id} notes={e.notes} />
+              <NoteList store={store} on={{ entity_type: "item", entity_id: id }} notes={e.notes} />
             </li>
           ))}
         </ol>

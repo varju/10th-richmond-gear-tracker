@@ -4,6 +4,7 @@
  * syncs afterwards (FR-OFF-03).
  */
 import { item, type Item } from "./inventory";
+import * as notes from "./notes";
 import type { Movement, Note } from "./replay";
 import type { Store } from "./store";
 
@@ -74,26 +75,15 @@ export async function transfer(store: Store, itemId: string, options: MoveOption
   );
 }
 
+const onItem = (itemId: string) => ({ entity_type: "item", entity_id: itemId });
+
 /** A note on the item, or on one of its movements (FR-OUT-13). */
-export async function addNote(store: Store, itemId: string, text: string, movementId?: string) {
-  current(store, itemId);
-  const payload: Record<string, unknown> = { text: text.trim() };
-  if (movementId) payload.movement_id = movementId;
-  return store.record({ entity_type: "item", entity_id: itemId, type: "note_added", actor_id: actor(store), payload });
-}
+export const addNote = (store: Store, itemId: string, text: string, movementId?: string) =>
+  notes.addNote(store, onItem(itemId), text, movementId);
 
 /** The original stays in the log; the item shows the new text (FR-OUT-16). */
-export async function correctNote(store: Store, itemId: string, noteId: string, text: string) {
-  const notes = (current(store, itemId).notes ?? []) as Note[];
-  if (!notes.some((n) => n.id === noteId)) throw new Error("no such note");
-  return store.record({
-    entity_type: "item",
-    entity_id: itemId,
-    type: "note_corrected",
-    actor_id: actor(store),
-    payload: { note_id: noteId, text: text.trim() },
-  });
-}
+export const correctNote = (store: Store, itemId: string, noteId: string, text: string) =>
+  notes.correctNote(store, onItem(itemId), noteId, text);
 
 export interface HistoryEntry {
   id: string;

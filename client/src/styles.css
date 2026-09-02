@@ -748,3 +748,17 @@ h3.section {
   margin: 0;
   padding: 0 16px;
 }
+
+/* --- repairs ------------------------------------------------------------------------- */
+
+/* A fault typed under the item's tickets, like a note but taller. */
+.note-edit textarea {
+  grid-column: 1 / -1;
+  min-height: 56px;
+}
+
+/* A ticket's state, named where the item's title is. */
+.repair-state {
+  font-size: 22px;
+  font-weight: 600;
+}

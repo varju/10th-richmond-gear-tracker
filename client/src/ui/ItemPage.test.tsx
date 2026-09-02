@@ -1,10 +1,11 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
 import { DAY_MS } from "../lib/clock";
 import { item } from "../lib/inventory";
 import * as mv from "../lib/movement";
+import * as rep from "../lib/repairs";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { unsaved } from "../lib/unsaved";
@@ -135,6 +136,41 @@ test("an item-level note is added from the page", async () => {
   });
 });
 
+test("a fault reported from the page raises a ticket, which flags the item (FR-REP-01, FR-REP-05)", async () => {
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(screen.queryByRole("note")).not.toBeInTheDocument();
+  // The actions area has its own "Report a fault", for a fault that rides on a move.
+  const main = document.querySelector("main") as HTMLElement;
+  await user.click(within(main).getByRole("button", { name: "Report a fault" }));
+  await user.type(screen.getByLabelText("Fault"), "zipper broken");
+  await user.click(screen.getByRole("button", { name: "Save" }));
+
+  // Once at the top of the page, once beside the movement buttons (FR-REP-05).
+  const notes = await screen.findAllByRole("note");
+  expect(notes.map((n) => n.textContent)).toEqual(["Needs repair · zipper broken", "Needs repair · zipper broken"]);
+  expect(store.pending.at(-1)).toMatchObject({
+    entity_type: "repair",
+    type: "created",
+    payload: { item_id: tent, description: "zipper broken" },
+  });
+  // The ticket is listed on the item, and opens.
+  await user.click(screen.getByRole("button", { name: /Open · zipper broken/ }));
+  expect(location.pathname).toMatch(/^\/repairs\//);
+});
+
+test("closed tickets stay on the item, after the open ones (FR-REP-04)", async () => {
+  const old = await rep.raiseTicket(store, tent, "pole bent");
+  await rep.setRepairState(store, old, "resolved");
+  await rep.raiseTicket(store, tent, "zipper broken");
+  renderInShell(<ItemPage store={store} id={tent} />);
+  const rows = [...(section("Repairs") as HTMLElement).querySelectorAll("li")].map((li) => li.textContent);
+  expect(rows).toEqual(["Open · zipper broken · 2025-09-01", "Resolved · pole bent · 2025-09-01"]);
+  expect(screen.getAllByRole("note").map((n) => n.textContent)).toEqual([
+    "Needs repair · zipper broken",
+    "Needs repair · zipper broken",
+  ]);
+});
+
 test("?edit=1 opens the form straight away, and saving drops it from the URL", async () => {
   navigate(`/items/${tent}?edit=1`);
   renderInShell(<ItemPage store={store} id={tent} />);
@@ -207,7 +243,7 @@ test("a found report shows on the item until someone resolves it (FR-PUB-03)", a
   expect(notice).toHaveTextContent("Reported found · by the gate");
 
   await user.click(within(notice).getByRole("button", { name: "Resolve" }));
-  expect(screen.queryByRole("note")).not.toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByRole("note")).not.toBeInTheDocument());
   expect(store.pending.at(-1)).toMatchObject({
     entity_type: "found_report",
     type: "field_changed",

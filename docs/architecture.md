@@ -279,6 +279,21 @@ Notes ride on the item, not the movement, as `note_added` events. One that belon
 The access history on an item page (FR-INV-09) is read from the events the device holds, so it reaches back 90 days
 (NFR-DATA-03). The server keeps everything; a full history is a report, not a phone screen.
 
+## Repairs
+
+A ticket is a `repair` entity: `created` with the item it is against and a description (FR-REP-01), by anyone signed in
+(FR-REP-02). Its state is a field, moved by `field_changed` through open, in progress, resolved and won't fix
+(FR-REP-03); replay opens it open, so a device sends no state. Comments are the same `note_added` and `note_corrected`
+as an item's notes (FR-REP-06). Cost, time and parts go in a comment; there are no fields for them.
+
+Open means open or in progress. An item with an open ticket is flagged in the list, on its page and on the scan card,
+and the flag warns without blocking (FR-REP-05, FR-RES-08). Closed tickets stay on the item (FR-REP-04): the list on the
+item page is read from state, not from the 90 days of history the phone holds.
+
+A fault typed on the scan card is recorded after the movement, as a second event, so a check-in and the ticket it raises
+are one flow (FR-OUT-09). The ticket's photo (FR-REP-01) waits on the photo work in M13 (FR-INV-11); there is no file
+store yet, and a ticket is its description until there is.
+
 ## Reports
 
 The first report, what is out and who has it, is derived on the phone from local state. It needs no network and no

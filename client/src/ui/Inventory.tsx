@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { foundReports } from "../lib/found";
 import { type Filter, homeLabel, items, itemTypes, locations, search, subLocations } from "../lib/inventory";
+import { openRepairs, openTickets } from "../lib/repairs";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
@@ -20,6 +21,7 @@ export function Inventory({ store }: Props) {
   const empty = items(state).length === 0;
   const out = items(state).filter((it) => it.status === "out").length;
   const found = foundReports(state).length;
+  const broken = openTickets(state).length;
 
   return (
     <>
@@ -39,6 +41,11 @@ export function Inventory({ store }: Props) {
             What is out · {out}
           </button>
         )}
+        {broken > 0 && (
+          <button className="link" type="button" onClick={() => navigate("/repairs")}>
+            Needs repair · {broken}
+          </button>
+        )}
         {found > 0 && (
           <button className="link" type="button" onClick={() => navigate("/found")}>
             Found gear · {found}
@@ -53,7 +60,10 @@ export function Inventory({ store }: Props) {
               {results.map((it) => (
                 <li key={it.id}>
                   <button className="item" type="button" onClick={() => navigate(`/items/${it.id}`)}>
-                    <span className="item-name">{it.name}</span>
+                    <span>
+                      <span className="item-name">{it.name}</span>
+                      {openRepairs(state, it.id).length > 0 && <span className="badge">Repair</span>}
+                    </span>
                     <span className="muted small">
                       {[homeLabel(state, it), it.status === "out" ? statusLabel(state, it) : ""]
                         .filter(Boolean)
