@@ -31,9 +31,9 @@ Built. What is left waits on other work:
 
 ## M7 — Movement
 
-The vertical slice is built. What is left needs a phone and a locker.
+The vertical slice is built. What is left needs a phone.
 
-- [ ] End-to-end test on a real phone, in a real locker, with no signal
+- [ ] End-to-end test on a real phone with wifi and data turned off
 - [ ] The status label reads "In" on the scan card and "in" on the item page; pick one
 
 ## M8 — The first report
