@@ -39,11 +39,12 @@ test("a wrong password is refused with a reason", async ({ page }) => {
 
 // The labelling walk (S-BOOT-03): set the group up, print codes, land on a
 // fresh code, create the item, find it by search, and see the sticker resolve.
-test("a printed code becomes an item", async ({ page, request }) => {
+test("a printed code becomes an item", async ({ browser, page, request }) => {
   await signIn(page);
   await page.getByRole("button", { name: "Settings" }).click();
   await page.getByLabel("Group name").fill("10th Richmond");
   await page.getByLabel("Code URL").fill("https://example.org/g");
+  await page.getByLabel("How to reach us").fill("gear@example.org");
   await page.getByRole("button", { name: "Save group" }).click();
   await page.getByLabel("New location").fill("Cold locker");
   await page.getByRole("button", { name: "Add" }).first().click();
@@ -81,6 +82,16 @@ test("a printed code becomes an item", async ({ page, request }) => {
   await page.goto(`/g/${code}`);
   await expect(page).toHaveURL(/\/items\//);
   await expect(page.getByRole("heading", { name: "Tent 1" })).toBeVisible();
+
+  // The same sticker, scanned by someone with no account (S-PUB-01).
+  const stranger = await browser.newContext({ baseURL: page.url() });
+  const theirs = await stranger.newPage();
+  await theirs.goto(`/g/${code}`);
+  await expect(theirs.getByRole("heading", { name: "10th Richmond" })).toBeVisible();
+  await expect(theirs.getByText("Tent 1")).toBeVisible();
+  await expect(theirs.getByRole("link", { name: "gear@example.org" })).toBeVisible();
+  await expect(theirs.getByLabel("Password")).toHaveCount(0);
+  await stranger.close();
 });
 
 // A movement without the camera: search, open, out, in (FR-OUT-01, FR-OUT-08).

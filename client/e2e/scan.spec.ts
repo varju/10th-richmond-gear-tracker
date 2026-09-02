@@ -66,7 +66,12 @@ async function seed(request: APIRequestContext): Promise<string> {
   };
 
   await push([
-    { entity_type: "setting", entity_id: "group", type: "created", payload: { name: GROUP, code_url: CODE_URL } },
+    {
+      entity_type: "setting",
+      entity_id: "group",
+      type: "created",
+      payload: { name: GROUP, code_url: CODE_URL, contact: "gear@example.org" },
+    },
   ]);
   const sheet = await request.post("/codes/sheets", { headers, data: { sheets: 1 } });
   expect(sheet.headers()["content-type"]).toBe("application/pdf");
