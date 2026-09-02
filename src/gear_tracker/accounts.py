@@ -50,10 +50,25 @@ class Redeem(Strict):
     device_id: NonEmpty
 
 
+JoinLink = Annotated[str, StringConstraints(max_length=500, pattern=r"^https?://")]
+"""A template for the page that redeems a one-time link, with TOKEN standing in for the token.
+
+The app supplies it because only the app knows where it is served from: a host,
+a path prefix, and its own route. The server fills TOKEN in and mails the
+result (FR-USR-15). Nothing else is done with it.
+"""
+
+
 class Invite(Strict):
     name: NonEmpty
     email: Email
     role: Role = "user"
+    # Given when the app wants the link mailed as well as shown (FR-USR-15).
+    link: JoinLink | None = None
+
+
+class ResetRequest(Strict):
+    link: JoinLink | None = None
 
 
 class RoleChange(Strict):
@@ -94,6 +109,13 @@ def get_user(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
     if user is None:
         raise NotFound("no such user")
     return {"id": user_id, **user}
+
+
+def email_of(conn: sqlite3.Connection, user_id: str) -> str:
+    row = conn.execute("SELECT email FROM accounts WHERE user_id = ?", (user_id,)).fetchone()
+    if row is None:
+        raise NotFound("no such user")
+    return row["email"]
 
 
 def list_users(conn: sqlite3.Connection) -> list[dict[str, Any]]:

@@ -8,14 +8,14 @@ accounts.authenticate.
 import sqlite3
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import Body, Depends, FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import Field, StringConstraints
 
-from gear_tracker import accounts, codes, derived, events, labels, sync
+from gear_tracker import accounts, codes, derived, events, labels, mail, sync
 from gear_tracker.db import connect
 from gear_tracker.errors import ApiError, BadRequest, Conflict, Deactivated, NotFound, TooLarge, TooMany, Unauthorized
 from gear_tracker.events import PHOTO_ENTITIES, PHOTO_TYPES, PUBLIC_ACTOR, Strict, now_ms
@@ -24,6 +24,7 @@ from gear_tracker.sync import Principal
 from gear_tracker.ulid import is_ulid, new_ulid
 
 Authenticator = Callable[[Request, sqlite3.Connection], Principal | None]
+LinkKind = Literal["invite", "reset"]
 
 HOUR_MS = 3_600_000
 DAY_MS = 24 * HOUR_MS
@@ -108,6 +109,24 @@ def create_app(
     def stamped(payload: dict[str, Any]) -> dict[str, Any]:
         return {**payload, "server_time": now_ms()}
 
+    def group_name(conn: sqlite3.Connection) -> str:
+        return (derived.get_entity(conn, "setting", "group") or {}).get("name") or ""
+
+    def posted(conn: sqlite3.Connection, kind: LinkKind, to: str, link: str | None) -> dict[str, Any]:
+        """Try to mail a one-time link (FR-USR-15).
+
+        Never fatal. The link is in the reply either way, so a wrong SMTP
+        password costs an Admin a copy and paste, not the invite (FR-USR-12).
+        """
+        if link is None or not mail.configured(conn):
+            return {"emailed": False}
+        subject, body = mail.link_message(kind, group_name(conn), link)
+        try:
+            mail.send(conn, to, subject, body)
+        except ApiError as exc:
+            return {"emailed": False, "mail_error": exc.message}
+        return {"emailed": True}
+
     # --- sync ---------------------------------------------------------------------
 
     @app.get("/sync/bootstrap")
@@ -154,7 +173,8 @@ def create_app(
     @app.post("/users/invite")
     def invite(conn: Db, who: Who, body: accounts.Invite) -> dict[str, Any]:
         user_id, token = accounts.invite(conn, who, body)
-        return stamped({"user_id": user_id, "token": token})
+        link = body.link.replace("TOKEN", token) if body.link else None
+        return stamped({"user_id": user_id, "token": token, **posted(conn, "invite", str(body.email), link)})
 
     @app.post("/users/{user_id}/role")
     def set_role(conn: Db, who: Who, user_id: str, body: accounts.RoleChange) -> dict[str, Any]:
@@ -172,8 +192,10 @@ def create_app(
         return stamped({"user": accounts.get_user(conn, user_id)})
 
     @app.post("/users/{user_id}/reset-link")
-    def reset_link(conn: Db, who: Who, user_id: str) -> dict[str, Any]:
-        return stamped({"token": accounts.reset_link(conn, who, user_id)})
+    def reset_link(conn: Db, who: Who, user_id: str, body: accounts.ResetRequest | None = None) -> dict[str, Any]:
+        token = accounts.reset_link(conn, who, user_id)
+        link = body.link.replace("TOKEN", token) if body and body.link else None
+        return stamped({"token": token, **posted(conn, "reset", accounts.email_of(conn, user_id), link)})
 
     @app.get("/users/{user_id}/devices")
     def devices(conn: Db, who: Who, user_id: str) -> dict[str, Any]:
@@ -183,6 +205,35 @@ def create_app(
     def revoke_device(conn: Db, who: Who, user_id: str, device_id: str) -> dict[str, Any]:
         """One phone, not the person (FR-USR-14)."""
         return stamped({"devices": accounts.revoke_device(conn, who, user_id, device_id)})
+
+    # --- mail (Admins) --------------------------------------------------------------------
+
+    @app.get("/mail")
+    def mail_settings(conn: Db, who: Who) -> dict[str, Any]:
+        accounts._require_admin(who)
+        return stamped({"mail": mail.describe(conn)})
+
+    @app.put("/mail")
+    def set_mail(conn: Db, who: Who, body: mail.MailSettings) -> dict[str, Any]:
+        accounts._require_admin(who)
+        mail.save(conn, body)
+        return stamped({"mail": mail.describe(conn)})
+
+    @app.delete("/mail")
+    def clear_mail(conn: Db, who: Who) -> dict[str, Any]:
+        """Stop sending. Links go back to being copied by hand (FR-USR-12)."""
+        accounts._require_admin(who)
+        mail.forget(conn)
+        return stamped({"mail": None})
+
+    @app.post("/mail/test")
+    def test_mail(conn: Db, who: Who) -> dict[str, Any]:
+        """To the Admin\'s own address, so a wrong password is found now rather than at a reset (FR-USR-16)."""
+        accounts._require_admin(who)
+        to = accounts.email_of(conn, who.user_id)
+        subject, body = mail.test_message(group_name(conn))
+        mail.send(conn, to, subject, body)
+        return stamped({"sent_to": to})
 
     # --- codes ----------------------------------------------------------------------------
 
