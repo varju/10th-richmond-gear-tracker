@@ -15,6 +15,7 @@ import { ItemPage } from "./ui/ItemPage";
 import { NewItem } from "./ui/NewItem";
 import { Page } from "./ui/Page";
 import { PendingInterrupt } from "./ui/PendingInterrupt";
+import { Report } from "./ui/Report";
 import { Scan } from "./ui/Scan";
 import { Settings } from "./ui/Settings";
 import { SignIn } from "./ui/SignIn";
@@ -130,6 +131,8 @@ function Screen({ store, api, route, shell }: { store: Store; api: Api; route: R
       break;
     case "scan":
       return <Scan store={store} />;
+    case "out":
+      return <Report store={store} />;
     case "g":
       if (second) return <CodeLanding store={store} code={second} />;
       break;

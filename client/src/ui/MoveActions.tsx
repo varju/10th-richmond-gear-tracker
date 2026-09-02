@@ -2,17 +2,11 @@ import { type ReactNode, useCallback, useState } from "react";
 import type { Item } from "../lib/inventory";
 import { checkIn, checkOut, transfer } from "../lib/movement";
 import type { Store } from "../lib/store";
-import { userName } from "./labels";
 
 /** How long a "Checked out · Tent 1" strip stays up. */
 export const CONFIRM_MS = 1500;
 
 export type MoveKind = "Checked out" | "Checked in" | "Transferred";
-
-/** "In", or "Out · Alice". */
-export function statusLine(store: Store, it: Item): string {
-  return it.status === "out" ? `Out · ${userName(store.state, it.holder_id)}` : "In";
-}
 
 /** A message that clears itself after `ms`. A newer message is left alone. */
 export function useFlash(ms: number): [string | null, (message: string) => void] {

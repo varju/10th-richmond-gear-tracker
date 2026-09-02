@@ -93,8 +93,8 @@ test("an item can be checked out and in from its page", async ({ page }) => {
 
   await page.getByRole("button", { name: "Check out" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Checked out · Tent 1" })).toBeVisible();
-  await expect(page.getByText(/^out · Alice$/)).toBeVisible();
+  await expect(page.getByText(/^Out · Alice$/)).toBeVisible();
   await page.getByRole("button", { name: "Check in" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Checked in · Tent 1" })).toBeVisible();
-  await expect(page.getByText("in", { exact: true })).toBeVisible();
+  await expect(page.getByText("In", { exact: true })).toBeVisible();
 });

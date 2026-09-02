@@ -179,6 +179,21 @@ test("a group name that arrives after the settings page opens fills the form", a
   expect(await screen.findByText("Saved")).toBeInTheDocument();
 });
 
+test("the overdue period is one group setting; blank means never (FR-OUT-14)", async () => {
+  navigate("/settings");
+  mount();
+  const user = userEvent.setup();
+  const days = screen.getByLabelText("Flag gear out longer than (days)");
+  await user.type(days, "30");
+  await user.click(screen.getByRole("button", { name: "Save group" }));
+  await waitFor(() => expect(inv.group(store.state).overdue_days).toBe(30));
+  expect(days).toHaveValue(30);
+
+  await user.clear(days);
+  await user.click(screen.getByRole("button", { name: "Save group" }));
+  await waitFor(() => expect(inv.group(store.state).overdue_days ?? null).toBeNull());
+});
+
 test("settings are for admins; others see their account only", async () => {
   await store.setMeta({ user: { id: "u2", name: "Bob", role: "user", active: true } });
   navigate("/settings");

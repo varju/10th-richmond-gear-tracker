@@ -44,12 +44,12 @@ export async function seedUsers(store: Store, users: User[]): Promise<void> {
 }
 
 /** Render inside a shell whose sync is a spy. */
-export function renderInShell(node: ReactNode) {
+export function renderInShell(node: ReactNode, now: () => number = Date.now) {
   const sync = vi.fn(async () => undefined);
   const shell: Shell = {
     busy: false,
     outcome: null,
-    now: Date.now,
+    now,
     sync,
     signOut: async () => {},
   };

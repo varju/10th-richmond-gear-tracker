@@ -6,7 +6,8 @@ import { navigate, useRoute } from "../lib/router";
 import { startScanner } from "../lib/scanner";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
-import { CONFIRM_MS, MoveActions, statusLine, useFlash } from "./MoveActions";
+import { statusLabel } from "./labels";
+import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
 import { Page } from "./Page";
 
 const FLASH_MS = 2000;
@@ -146,7 +147,7 @@ export function Scan({ store }: { store: Store }) {
                 {card.status === "out" ? `Put it back: ${homeLabel(store.state, card)}` : homeLabel(store.state, card)}
               </p>
             )}
-            <p>{statusLine(store, card)}</p>
+            <p>{statusLabel(store.state, card)}</p>
             <MoveActions
               store={store}
               it={card}

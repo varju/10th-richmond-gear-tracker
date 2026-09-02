@@ -17,6 +17,7 @@ export function Inventory({ store }: Props) {
   const state = store.state;
   const results = search(state, { ...filter, query });
   const empty = items(state).length === 0;
+  const out = items(state).filter((it) => it.status === "out").length;
 
   return (
     <>
@@ -31,6 +32,11 @@ export function Inventory({ store }: Props) {
           {plural(results.length, "item")}
           {store.meta.last_sync_at !== undefined && ` · ${syncLabel(store.meta.last_sync_at, Date.now(), false, null)}`}
         </p>
+        {out > 0 && (
+          <button className="link" type="button" onClick={() => navigate("/out")}>
+            What is out · {out}
+          </button>
+        )}
         {empty ? (
           <p>Nothing here yet. Scan a code or add a new item.</p>
         ) : (

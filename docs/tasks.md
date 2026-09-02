@@ -34,12 +34,6 @@ Built. What is left waits on other work:
 The vertical slice is built. What is left needs a phone.
 
 - [ ] End-to-end test on a real phone with wifi and data turned off
-- [ ] The status label reads "In" on the scan card and "in" on the item page; pick one
-
-## M8 — The first report
-
-- [ ] What is out and who has it (FR-RPT-01)
-- [ ] Gear out longer than the group-wide period (FR-OUT-14, FR-RPT-05)
 
 ## M9 — Go live
 

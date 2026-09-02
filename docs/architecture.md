@@ -275,6 +275,12 @@ Notes ride on the item, not the movement, as `note_added` events. One that belon
 The access history on an item page (FR-INV-09) is read from the events the device holds, so it reaches back 90 days
 (NFR-DATA-03). The server keeps everything; a full history is a report, not a phone screen.
 
+## Reports
+
+The first report, what is out and who has it, is derived on the phone from local state. It needs no network and no
+server query. Items are grouped by holder. The overdue period is one group setting; there are no per-item due dates.
+Days out is the whole days since the check-out, rounded down.
+
 ## Scanning
 
 No browser on iOS implements the BarcodeDetector API, and the experimental flag from iOS 17 does not work on iOS 18. So

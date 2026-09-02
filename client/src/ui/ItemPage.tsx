@@ -3,9 +3,11 @@ import { type ItemInput, retireItem, unretireItem, updateItem } from "../lib/act
 import { codesFor, homeLabel, item, typeName } from "../lib/inventory";
 import { history, type HistoryEntry } from "../lib/movement";
 import type { Note, State } from "../lib/replay";
+import { isOverdue } from "../lib/reports";
 import { navigate, useRoute } from "../lib/router";
 import type { Store } from "../lib/store";
 import { isoDate } from "../lib/time";
+import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { ItemFields } from "./ItemFields";
 import { statusLabel, userName } from "./labels";
@@ -21,6 +23,7 @@ interface Props {
 /** One item: what it is, where it lives, who has it, and what has happened to it (FR-INV-09). */
 export function ItemPage({ store, id }: Props) {
   useStore(store);
+  const { now } = useShell();
   const openInEdit = useRoute().query.get("edit") === "1";
   const [editing, setEditing] = useState(openInEdit);
   const [confirmRetire, setConfirmRetire] = useState(false);
@@ -119,7 +122,7 @@ export function ItemPage({ store, id }: Props) {
       )}
       <dl className="facts">
         <dt>Status</dt>
-        <dd>{statusLabel(state, it)}</dd>
+        <dd>{statusLabel(state, it) + (isOverdue(state, it, now()) ? " · Overdue" : "")}</dd>
         <dt>Home</dt>
         <dd>{homeLabel(state, it) || "—"}</dd>
         <dt>Type</dt>

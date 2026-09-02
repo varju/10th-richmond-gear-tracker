@@ -2,6 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
+import { DAY_MS } from "../lib/clock";
 import { item } from "../lib/inventory";
 import * as mv from "../lib/movement";
 import { navigate } from "../lib/router";
@@ -35,7 +36,7 @@ test("Check out from the page records the session event and syncs (FR-OUT-02)", 
   expect(store.pending.filter((e) => e.type === "checked_out").map((e) => e.payload)).toEqual([
     { holder_id: "alice", event: "Spring camp" },
   ]);
-  expect(screen.getByText("out · Alice")).toBeInTheDocument();
+  expect(screen.getByText("Out · Alice")).toBeInTheDocument();
 
   // Now it is out and mine: Check in, no transfer.
   expect(screen.getByRole("button", { name: "Check in" })).toBeInTheDocument();
@@ -52,6 +53,14 @@ test("someone else's gear can be checked in or transferred (FR-OUT-07, FR-OUT-12
   await user.click(screen.getByRole("button", { name: "Check in" }));
   expect(await screen.findByText("Checked in · Tent 1")).toHaveAttribute("role", "status");
   expect(item(store.state, tent)?.status).toBe("in");
+});
+
+test("gear out longer than the group's period is flagged (FR-OUT-14)", async () => {
+  await act.setGroup(store, { name: "10th", overdue_days: 1 });
+  await mv.checkOut(store, tent, {});
+  const since = item(store.state, tent)!.since!;
+  renderInShell(<ItemPage store={store} id={tent} />, () => since + 2 * DAY_MS);
+  expect(screen.getByText("Out · Alice · Overdue")).toBeInTheDocument();
 });
 
 test("a retired item has no movement buttons", async () => {

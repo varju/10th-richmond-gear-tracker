@@ -10,9 +10,9 @@ export function userName(state: State, id: string | null | undefined): string {
   return (state.user?.[id]?.name as string | undefined) ?? "(unknown person)";
 }
 
-/** "in", or "out · Alice". */
+/** "In", or "Out · Alice". */
 export function statusLabel(state: State, it: Item): string {
-  return it.status === "out" ? `out · ${userName(state, it.holder_id)}` : "in";
+  return it.status === "out" ? `Out · ${userName(state, it.holder_id)}` : "In";
 }
 
 export function syncLabel(at: number | undefined, now: number, busy: boolean, outcome: SyncOutcome | null): string {

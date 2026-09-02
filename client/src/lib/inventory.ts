@@ -44,6 +44,8 @@ export interface Code {
 export interface GroupSetting {
   name?: string;
   code_url?: string;
+  /** Out longer than this is flagged (FR-OUT-14). Unset means never. */
+  overdue_days?: number | null;
 }
 
 /** Codes are 10 characters of Crockford base32, upper case. Matches codes.py on the server. */
