@@ -44,3 +44,30 @@ fresh from the labelling walk.
 - [ ] Print code sheets and do the labelling walk (S-BOOT-02, S-BOOT-03)
 
 Public pages come before the labelling walk, not after it. From the moment stickers go on gear, a stranger can scan one.
+
+## M10 — Structure, before the labelling walk
+
+Categories come first: the walk assigns them, and the export carries them. Nothing here changes replay, so the vectors
+stay as they are.
+
+- [ ] Categories (FR-SET-07): a `category` entity on the log, managed in Settings like a location. One `category_id` on
+      a single item or a generic; a unit reads its generic's. Delete is blocked while in use (FR-SET-05)
+- [ ] The phone list groups rows under category headings, uncategorised last. The desk table gets a sortable Category
+      column instead. Category joins the filters (FR-INV-08)
+- [ ] New item remembers the last category picked on this device, so a run of tents costs no taps
+- [ ] Assistant: `list_categories`, and `category_id` on create_item and update_item (FR-MCP-03)
+- [ ] Requirements: FR-SET-07 to Should. Drop the "when it is built" clauses from FR-INV-01 and FR-INV-08. Categories in
+      demo.toml
+- [ ] Anyone sees the devices their own account is signed in on, in Settings, and revokes one; an Admin still does it
+      for anyone (new FR-USR-17; FR-MCP-02 points at it). The device list leaves Users.tsx for a component both screens
+      use. The new-token text says to revoke it below, not to ask an Admin
+- [ ] Export the inventory as CSV (FR-RPT-03, NFR-DATA-10): every live item, one row each; home and category by name;
+      code, status and holder read-only
+- [ ] Import the same CSV (new FR-SET-11; FR-SET-08 points at it). A row with an id changes that item; a row without one
+      adds an item. A column absent from the file leaves the field alone; a blank cell clears it. A location or category
+      name not yet known is created. All or nothing, with errors by row number. Preview, then Apply, in Settings. The
+      server writes the events as the Admin
+- [ ] `gear-admin export` and `gear-admin import`: the same module from the keyboard
+- [ ] The desk table shows every unit indented under its generic, always. The disclosure triangle goes
+- [ ] A subtle link to the source, https://github.com/varju/10th-richmond-gear-tracker, at the foot of Settings
+- [ ] Record in architecture.md why sync polls rather than holding a socket open
