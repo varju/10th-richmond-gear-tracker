@@ -300,6 +300,26 @@ The first report, what is out and who has it, is derived on the phone from local
 server query. Items are grouped by holder. The overdue period is one group setting; there are no per-item due dates.
 Days out is the whole days since the check-out, rounded down.
 
+## Reservations
+
+A reservation is one entity: `created` with the event name, its days, the items it names and the types it wants so many
+of (FR-RES-01, FR-RES-13). Edits are `field_changed`, one per field, a whole list at a time. Cancelling is a field, so
+the record stays.
+
+The days are calendar dates, `YYYY-MM-DD`, not timestamps. A camp starts on a day, not at an instant, and text order is
+date order. "Today" is the day in America/Vancouver, computed on the device (NFR-DATA-12). Overlap is inclusive: two
+camps that share a day share the gear.
+
+**Packing records nothing of its own.** An item is ticked off when it is out under the reservation's event, which the
+item's last movement already says. So the remaining list is derived from state, a reload loses nothing, and two phones
+packing one camp agree as soon as they have synced. For a type, any unretired item of that type checked out under the
+event counts, except one the reservation names, which is its own line. Finishing the session records nothing either: the
+reservation is a plan, and the movements are the record.
+
+Conflicts are checked on the device, against the state it has (FR-RES-05, FR-RES-15). Two phones offline can both save
+clashing reservations; both land, and the reservation page then names the clash. That is the same trade as the in-use
+check on locations, and as rare.
+
 ## Scanning
 
 No browser on iOS implements the BarcodeDetector API, and the experimental flag from iOS 17 does not work on iOS 18. So

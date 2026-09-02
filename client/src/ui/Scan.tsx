@@ -2,6 +2,8 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from "react"
 import { bindCode } from "../lib/actions";
 import { parseCode } from "../lib/codes";
 import { code as codeOf, codeStatus, homeLabel, item } from "../lib/inventory";
+import { checkOut } from "../lib/movement";
+import { isPacked, type Remaining, remaining, type Reservation, reservation } from "../lib/reservations";
 import { navigate, useRoute } from "../lib/router";
 import { startScanner } from "../lib/scanner";
 import type { Store } from "../lib/store";
@@ -18,11 +20,14 @@ const FLASH_MS = 2000;
  * visit. A code on an item shows a card over the viewfinder; one tap moves it
  * and the next scan is taken (FR-OUT-03, FR-OUT-06). An unassigned code goes to
  * /g/<code>. With ?for=<itemId> the code is a replacement sticker for that item
- * and is bound here (FR-TAG-04).
+ * and is bound here (FR-TAG-04). With ?reservation=<id> the session is seeded
+ * with that reservation's gear (FR-RES-02).
  */
 export function Scan({ store }: { store: Store }) {
   useStore(store);
-  const forItem = useRoute().query.get("for");
+  const query = useRoute().query;
+  const forItem = query.get("for");
+  const booked = reservation(store.state, query.get("reservation") ?? "");
   const video = useRef<HTMLVideoElement>(null);
   const [flash, say] = useFlash(FLASH_MS);
   const [confirmed, confirm] = useFlash(CONFIRM_MS);
@@ -89,11 +94,12 @@ export function Scan({ store }: { store: Store }) {
 
   return (
     <Page
-      title={forItem ? "Scan new code" : "Scan"}
-      back={forItem ? `/items/${forItem}` : "/"}
+      title={forItem ? "Scan new code" : booked ? "Pack" : "Scan"}
+      back={forItem ? `/items/${forItem}` : booked ? `/reservations/${booked.id}` : "/"}
       actions={
         card ? undefined : (
           <>
+            {booked && <Finish store={store} booked={booked} />}
             {typing && (
               <form onSubmit={submit} className="scan-typed">
                 <input
@@ -120,7 +126,7 @@ export function Scan({ store }: { store: Store }) {
         )
       }
     >
-      {!forItem && <SessionEvent store={store} />}
+      {!forItem && <SessionEvent store={store} booked={booked} />}
       <div className="viewfinder">
         <video ref={video} muted playsInline hidden={cameraError !== null} />
         {cameraError ? (
@@ -180,16 +186,122 @@ export function Scan({ store }: { store: Store }) {
           </section>
         )}
       </div>
+      {booked && <RemainingList store={store} booked={booked} onMoved={(name) => confirm(`Checked out · ${name}`)} />}
     </Page>
   );
 }
 
-/** The event every check-out records under, until changed or cleared (FR-OUT-05). A setting on this device. */
-function SessionEvent({ store }: { store: Store }) {
+/**
+ * What the reservation still needs, always in view (FR-RES-02), by home (FR-RES-06).
+ * A row is a check-out for gear with no sticker (FR-OUT-02). Derived from state,
+ * so a scan on another phone ticks it here once both have synced.
+ */
+function RemainingList({
+  store,
+  booked,
+  onMoved,
+}: {
+  store: Store;
+  booked: Reservation;
+  onMoved: (name: string) => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const rem = remaining(store.state, booked);
+
+  async function take(id: string, name: string) {
+    setError(null);
+    try {
+      await checkOut(store, id, { event: booked.event });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not record the move");
+      return;
+    }
+    onMoved(name);
+  }
+
+  return (
+    <section className="remaining" aria-label="Remaining">
+      {isPacked(rem) ? (
+        <p className="muted">Everything is packed.</p>
+      ) : (
+        <>
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <ul className="items">
+            {rem.items.map((it) => (
+              <li key={it.id}>
+                <button className="item" type="button" onClick={() => take(it.id, it.name)}>
+                  <span className="item-name">{it.name}</span>
+                  <span className="muted small">{homeLabel(store.state, it) || "No home"}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {rem.types.length > 0 && (
+            <ul className="names">
+              {rem.types.map((t) => (
+                <li key={t.type.id} className={t.done >= t.quantity ? "muted" : ""}>
+                  {t.done} of {t.quantity} × {t.type.name}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Ending the session names what was not scanned, and lets the person finish anyway (FR-RES-04). */
+function Finish({ store, booked }: { store: Store; booked: Reservation }) {
+  const [asking, setAsking] = useState(false);
+  const rem: Remaining = remaining(store.state, booked);
+  const done = () => navigate(`/reservations/${booked.id}`);
+  const left = [
+    ...rem.items.map((it) => it.name),
+    ...rem.types.filter((t) => t.done < t.quantity).map((t) => `${t.quantity - t.done} × ${t.type.name}`),
+  ];
+
+  if (asking && left.length > 0) {
+    return (
+      <div className="finish" role="group" aria-label="Finish">
+        <p className="notice" role="alert">
+          Not scanned: {left.join(", ")}.
+        </p>
+        <div className="row">
+          <button type="button" className="warn" onClick={done}>
+            Finish anyway
+          </button>
+          <button type="button" onClick={() => setAsking(false)}>
+            Keep packing
+          </button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <button type="button" onClick={() => (left.length === 0 ? done() : setAsking(true))}>
+      Finish
+    </button>
+  );
+}
+
+/**
+ * The event every check-out records under, until changed or cleared (FR-OUT-05). A setting on this device.
+ * A reservation's session takes it from the reservation (FR-RES-03).
+ */
+function SessionEvent({ store, booked }: { store: Store; booked?: Reservation }) {
   const event = store.meta.session_event;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   useUnsaved(editing && draft.trim() !== (event ?? ""), { save: () => apply().then(() => true) });
+
+  useEffect(() => {
+    if (booked && booked.event !== store.meta.session_event) void store.setMeta({ session_event: booked.event });
+  }, [store, booked]);
 
   async function apply() {
     await store.setMeta({ session_event: draft.trim() || undefined });

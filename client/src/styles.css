@@ -762,3 +762,37 @@ h3.section {
   font-size: 22px;
   font-weight: 600;
 }
+
+/* --- reservations ------------------------------------------------------------------- */
+
+/* Packing: the camera gives up room to the list of what is still to take (FR-RES-02). */
+main:has(> .remaining) .viewfinder {
+  flex: 0 0 auto;
+  min-height: 35dvh;
+}
+
+.remaining {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 16px 16px;
+  border-top: 1px solid var(--rule);
+}
+
+.remaining .names {
+  margin-top: 8px;
+}
+
+.remaining .names li {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--rule);
+}
+
+.finish .notice {
+  margin-bottom: 12px;
+}
+
+.names li.row .name {
+  flex: 1;
+}

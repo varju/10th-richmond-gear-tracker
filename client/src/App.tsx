@@ -22,6 +22,9 @@ import { PublicItem } from "./ui/PublicItem";
 import { RepairPage } from "./ui/RepairPage";
 import { Repairs } from "./ui/Repairs";
 import { Report } from "./ui/Report";
+import { ReservationForm } from "./ui/ReservationForm";
+import { ReservationPage } from "./ui/ReservationPage";
+import { Reservations } from "./ui/Reservations";
 import { Scan } from "./ui/Scan";
 import { Settings } from "./ui/Settings";
 import { SignIn } from "./ui/SignIn";
@@ -145,7 +148,7 @@ export function App({ store, api, now = Date.now }: Props) {
 }
 
 function Screen({ store, api, route, shell }: { store: Store; api: Api; route: Route; shell: Shell }) {
-  const [head, second] = route.segments;
+  const [head, second, third] = route.segments;
   switch (head) {
     case undefined:
       return <Inventory store={store} />;
@@ -167,6 +170,11 @@ function Screen({ store, api, route, shell }: { store: Store; api: Api; route: R
       return <Found store={store} />;
     case "repairs":
       return second ? <RepairPage store={store} id={second} /> : <Repairs store={store} />;
+    case "reservations":
+      if (second === "new") return <ReservationForm store={store} from={route.query.get("from")} />;
+      if (second && third === "edit") return <ReservationForm store={store} id={second} />;
+      if (second) return <ReservationPage store={store} id={second} />;
+      return <Reservations store={store} />;
     case "settings":
       return <Settings store={store} api={api} shell={shell} />;
   }

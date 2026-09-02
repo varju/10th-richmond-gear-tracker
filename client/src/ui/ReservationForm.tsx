@@ -1,0 +1,214 @@
+import { useState } from "react";
+import { homeLabel, item, itemTypes, search, typeName } from "../lib/inventory";
+import {
+  conflicts,
+  createReservation,
+  reservation,
+  type ReservationInput,
+  updateReservation,
+} from "../lib/reservations";
+import { navigate } from "../lib/router";
+import type { Store } from "../lib/store";
+import { guard, useUnsaved } from "../lib/unsaved";
+import { useStore } from "../useStore";
+import { Page } from "./Page";
+
+interface Props {
+  store: Store;
+  /** Editing this reservation. Absent means a new one. */
+  id?: string;
+  /** A reservation to copy the event and gear from (FR-RES-10). */
+  from?: string | null;
+}
+
+const EMPTY: ReservationInput = { event: "", starts: "", ends: "", items: [], types: [] };
+
+function initial(store: Store, id?: string, from?: string | null): ReservationInput {
+  const source = reservation(store.state, id ?? from ?? "");
+  if (!source) return EMPTY;
+  const { event, items, types } = source;
+  // A copy keeps the gear and the name; the dates are the one thing that is always new.
+  return id ? { event, starts: source.starts, ends: source.ends, items, types } : { ...EMPTY, event, items, types };
+}
+
+/** Event, dates, and gear by name or by type (FR-RES-01, FR-RES-13). One form for new, edit and duplicate. */
+export function ReservationForm({ store, id, from }: Props) {
+  useStore(store);
+  const [values, setValues] = useState<ReservationInput>(() => initial(store, id, from));
+  const [start] = useState(values);
+  const [query, setQuery] = useState("");
+  const [typeId, setTypeId] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const state = store.state;
+  const set = (patch: Partial<ReservationInput>) => setValues((v) => ({ ...v, ...patch }));
+
+  const complete = values.event.trim() !== "" && values.starts !== "" && values.ends !== "";
+  const dirty = JSON.stringify(values) !== JSON.stringify(start);
+  useUnsaved(dirty, { save, canSave: complete });
+
+  const back = id ? `/reservations/${id}` : "/reservations";
+
+  async function save(): Promise<boolean> {
+    if (!complete) return false;
+    if (values.ends < values.starts) {
+      setError("It ends before it starts.");
+      return false;
+    }
+    // Blocked here, on this phone's state (FR-RES-05). Two phones offline can both save; the page names the clash.
+    const clashes = conflicts(state, values, id);
+    if (clashes.length > 0) {
+      setError(`Already reserved for ${clashes.map((c) => `${c.event} (${c.detail})`).join("; ")}.`);
+      return false;
+    }
+    setSaving(true);
+    try {
+      const target = id ?? (await createReservation(store, values));
+      if (id) await updateReservation(store, id, values);
+      navigate(`/reservations/${target}`, true);
+      return true;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const results = query.trim() ? search(state, { query }).filter((it) => !values.items.includes(it.id)) : [];
+
+  function addType() {
+    const n = Number.parseInt(quantity, 10);
+    if (!typeId || !(n > 0)) return;
+    const rest = values.types.filter((t) => t.type_id !== typeId);
+    set({ types: [...rest, { type_id: typeId, quantity: n }] });
+    setTypeId("");
+    setQuantity("1");
+  }
+
+  return (
+    <Page
+      title={id ? "Edit reservation" : "New reservation"}
+      actions={
+        <>
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <button className="primary" type="button" onClick={() => void save()} disabled={saving || !complete}>
+            Save
+          </button>
+          <button type="button" onClick={() => guard(() => navigate(back))}>
+            Cancel
+          </button>
+        </>
+      }
+    >
+      <label>
+        <span>Event</span>
+        <input value={values.event} onChange={(e) => set({ event: e.target.value })} autoComplete="off" required />
+      </label>
+      <div className="row">
+        <label className="tight">
+          <span>Starts</span>
+          <input type="date" value={values.starts} onChange={(e) => set({ starts: e.target.value })} required />
+        </label>
+        <label className="tight">
+          <span>Ends</span>
+          <input type="date" value={values.ends} onChange={(e) => set({ ends: e.target.value })} required />
+        </label>
+      </div>
+
+      <h3 className="section">Items</h3>
+      <ul className="names">
+        {values.items.map((itemId) => {
+          const it = item(state, itemId);
+          return (
+            <li key={itemId} className="row">
+              <span className="name">{it?.name ?? "(unknown item)"}</span>
+              <button
+                className="small"
+                type="button"
+                onClick={() => set({ items: values.items.filter((x) => x !== itemId) })}
+                aria-label={`Remove ${it?.name ?? itemId}`}
+              >
+                Remove
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <input
+        aria-label="Add an item"
+        placeholder="Search items to add"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        autoComplete="off"
+      />
+      {results.length > 0 && (
+        <ul className="rows">
+          {results.slice(0, 8).map((it) => (
+            <li key={it.id}>
+              <button
+                type="button"
+                className="row"
+                onClick={() => {
+                  set({ items: [...values.items, it.id] });
+                  setQuery("");
+                }}
+              >
+                <span>{it.name}</span>
+                <span className="muted">{homeLabel(state, it)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <h3 className="section">Types</h3>
+      <ul className="names">
+        {values.types.map((t) => (
+          <li key={t.type_id} className="row">
+            <span className="name">
+              {t.quantity} × {typeName(state, t.type_id)}
+            </span>
+            <button
+              className="small"
+              type="button"
+              onClick={() => set({ types: values.types.filter((x) => x.type_id !== t.type_id) })}
+              aria-label={`Remove ${typeName(state, t.type_id)}`}
+            >
+              Remove
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="row">
+        <label className="tight">
+          <span>Type</span>
+          <select aria-label="Type" value={typeId} onChange={(e) => setTypeId(e.target.value)}>
+            <option value="">Choose</option>
+            {itemTypes(state).map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="tight">
+          <span>How many</span>
+          <input
+            type="number"
+            min={1}
+            inputMode="numeric"
+            aria-label="How many"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+          />
+        </label>
+        <button className="small" type="button" onClick={addType} disabled={!typeId}>
+          Add
+        </button>
+      </div>
+    </Page>
+  );
+}

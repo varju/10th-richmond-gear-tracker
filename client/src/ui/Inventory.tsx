@@ -2,8 +2,10 @@ import { useState } from "react";
 import { foundReports } from "../lib/found";
 import { type Filter, homeLabel, items, itemTypes, locations, search, subLocations } from "../lib/inventory";
 import { openRepairs, openTickets } from "../lib/repairs";
+import { todayIso, upcoming } from "../lib/reservations";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
+import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { plural, statusLabel, syncLabel } from "./labels";
 
@@ -14,6 +16,7 @@ interface Props {
 /** Home: the list, searched as you type, with the scanner one tap away (FR-INV-07). */
 export function Inventory({ store }: Props) {
   useStore(store);
+  const { now } = useShell();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>({});
   const state = store.state;
@@ -22,6 +25,7 @@ export function Inventory({ store }: Props) {
   const out = items(state).filter((it) => it.status === "out").length;
   const found = foundReports(state).length;
   const broken = openTickets(state).length;
+  const booked = upcoming(state, todayIso(now())).length;
 
   return (
     <>
@@ -51,6 +55,9 @@ export function Inventory({ store }: Props) {
             Found gear · {found}
           </button>
         )}
+        <button className="link" type="button" onClick={() => navigate("/reservations")}>
+          Reservations · {booked} upcoming
+        </button>
         {empty ? (
           <p>Nothing here yet. Scan a code or add a new item.</p>
         ) : (
@@ -106,7 +113,12 @@ function Filters({ store, filter, onChange }: { store: Store; filter: Filter; on
           <span>Location</span>
           <select
             value={filter.location_id ?? ""}
-            onChange={(e) => set({ location_id: e.target.value || undefined, sub_location: undefined })}
+            onChange={(e) =>
+              set({
+                location_id: e.target.value || undefined,
+                sub_location: undefined,
+              })
+            }
           >
             <option value="">Any</option>
             {locations(state).map((l) => (
