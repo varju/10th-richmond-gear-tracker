@@ -101,7 +101,8 @@ test("history lists movements newest first, with their notes (FR-INV-09)", async
     "Checked in by Alice · 2025-09-01muddyAlice · 2025-09-01Edit",
     "Checked out by Alice for Spring camp · 2025-09-01to a patrolAlice · 2025-09-01Edit",
   ]);
-  expect(screen.getByText(/last 90 days/)).toBeInTheDocument();
+  // Once under History, once under Changes.
+  expect(screen.getAllByText(/last 90 days/)).toHaveLength(2);
 });
 
 test("a note is corrected in place and the correction is appended (FR-OUT-16)", async () => {
@@ -273,4 +274,51 @@ test("a found report shows on the item until someone resolves it (FR-PUB-03)", a
     type: "field_changed",
     payload: { field: "resolved", value: true },
   });
+});
+
+test("what was paid, when and where shows as one line (FR-INV-12)", async () => {
+  await act.updateItem(store, tent, { purchase_date: "2024-03-01", price: "249.99", supplier: "MEC" });
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(screen.getByText("2024-03-01 · $249.99 · MEC")).toBeInTheDocument();
+});
+
+test("the record's changes are listed with old and new values (FR-USR-09)", async () => {
+  await act.updateItem(store, tent, { name: "Tent 1 (green)" });
+  renderInShell(<ItemPage store={store} id={tent} />);
+  const rows = [...(section("Changes") as HTMLElement).querySelectorAll("li")].map((li) => li.textContent);
+  expect(rows).toEqual(["Name: Tent 1 → Tent 1 (green) · Alice · 2025-09-01", "Created · Alice · 2025-09-01"]);
+});
+
+test("an Admin merges a duplicate into the item it doubles, and lands on the survivor (FR-INV-13)", async () => {
+  const other = await act.createItem(store, { name: "Tent 1 (again)" });
+  renderInShell(<ItemPage store={store} id={other} />);
+  await user.click(screen.getByRole("button", { name: "Merge into another item…" }));
+  await user.type(screen.getByLabelText("Search"), "tent 1");
+  await user.click(screen.getByRole("button", { name: /^Tent 1$/ }));
+  expect(screen.getByText("Merge Tent 1 (again) into Tent 1?")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Merge" }));
+
+  await waitFor(() => expect(location.pathname).toBe(`/items/${tent}`));
+  expect(item(store.state, other)?.merged_into).toBe(tent);
+  expect(store.pending.at(-1)).toMatchObject({ type: "field_changed", payload: { field: "merged_into", value: tent } });
+});
+
+test("a merged item's page points at the survivor and offers nothing else", async () => {
+  const other = await act.createItem(store, { name: "Tent 1 (again)" });
+  await act.mergeItem(store, other, tent);
+  renderInShell(<ItemPage store={store} id={other} />);
+  expect(screen.getByRole("note")).toHaveTextContent("Merged into Tent 1");
+  expect(screen.queryByRole("button", { name: "Check out" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Tent 1" }));
+  expect(location.pathname).toBe(`/items/${tent}`);
+});
+
+test("the survivor names what was merged into it, and a user sees no merge button", async () => {
+  const other = await act.createItem(store, { name: "Tent 1 (again)" });
+  await act.mergeItem(store, other, tent);
+  await store.setMeta({ user: carol });
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(screen.getByText("Merged from").nextElementSibling).toHaveTextContent("Tent 1 (again)");
+  expect(screen.queryByRole("button", { name: /Merge into/ })).not.toBeInTheDocument();
 });

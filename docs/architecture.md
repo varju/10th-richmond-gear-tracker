@@ -279,6 +279,18 @@ Scanning lands on `/g/<code>`, the same path a sticker's URL has, so a camera ap
 Assigned or replaced: open the item. Unassigned: create or bind. Unknown: say so, and suggest a sync, because a freshly
 printed sheet is unknown to a phone that has not pulled since.
 
+## Merging duplicates
+
+The same tent entered twice is fixed with one `field_changed` on the duplicate: `merged_into`, naming the survivor
+(FR-INV-13). Nothing is rewritten. An append-only per-item log cannot move history from one id to another without
+forging events, so the pointer stays and readers follow it.
+
+What follows the pointer: a sticker on the duplicate opens the survivor; the survivor's history and repair tickets
+include the duplicate's; a reservation that named the duplicate packs the survivor; the list hides the duplicate; and
+the server refuses to check the duplicate out. What does not: notes stay on the duplicate's page, which is still
+reachable and says where it went. Only an Admin merges, and only an item that is in. Unmerging is another
+`field_changed`, setting `merged_into` back to null.
+
 ## Movement
 
 A check-out is `checked_out` with the holder, the session's event name, and nothing else; a check-in is `checked_in`.

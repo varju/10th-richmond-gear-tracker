@@ -70,6 +70,15 @@ test("comments are notes on the ticket, and can be corrected (FR-REP-06)", async
   );
 });
 
+test("a merged duplicate's tickets show on the survivor (FR-INV-13)", async () => {
+  const old = await rep.raiseTicket(store, tent, "pole bent");
+  const survivor = await act.createItem(store, { name: "Tent (again)" });
+  await store.setMeta({ user: { id: "alice", name: "Alice", role: "admin", active: true } });
+  await act.mergeItem(store, tent, survivor);
+  expect(rep.repairsFor(store.state, survivor).map((r) => r.id)).toEqual([old]);
+  expect(rep.openRepairs(store.state, survivor)).toHaveLength(1);
+});
+
 test("the state labels read as a person says them", () => {
   expect(rep.REPAIR_STATES.map((s) => s.label)).toEqual(["Open", "In progress", "Resolved", "Won't fix"]);
   expect(rep.stateLabel("wont_fix")).toBe("Won't fix");

@@ -7,7 +7,7 @@
  * event, which replay already knows, so two phones packing one camp agree
  * after a sync and a reload loses nothing.
  */
-import { homeLabel, type Item, type ItemType, items, itemTypes } from "./inventory";
+import { homeLabel, type Item, type ItemType, items, itemTypes, resolveItem } from "./inventory";
 import type { Fields, State } from "./replay";
 import type { Store } from "./store";
 import { localDate } from "./time";
@@ -82,7 +82,8 @@ export function conflicts(state: State, draft: ReservationInput, excludeId?: str
   const add = (r: Reservation, detail: string) => found.set(r.id, [...(found.get(r.id) ?? []), detail]);
 
   for (const other of others) {
-    const shared = draft.items.filter((id) => other.items.includes(id));
+    const theirs = namedItems(state, other);
+    const shared = namedItems(state, draft).filter((id) => theirs.includes(id));
     for (const id of shared) add(other, (state.item?.[id]?.name as string | undefined) ?? "an item");
   }
 
@@ -94,7 +95,7 @@ export function conflicts(state: State, draft: ReservationInput, excludeId?: str
     const owned = all.filter((it) => it.type_id === typeId && !it.retired).length;
     const byCount = (r: ReservationInput) =>
       r.types.filter((t) => t.type_id === typeId).reduce((n, t) => n + t.quantity, 0);
-    const byName = (r: ReservationInput) => r.items.filter((id) => state.item?.[id]?.type_id === typeId);
+    const byName = (r: ReservationInput) => namedItems(state, r).filter((id) => state.item?.[id]?.type_id === typeId);
     const named = new Set(involved.flatMap(byName));
     const total = named.size + involved.reduce((n, r) => n + byCount(r), 0);
     if (total > owned) {
@@ -125,19 +126,24 @@ export interface Remaining {
 
 const ticked = (it: Item, event: string): boolean => it.status === "out" && it.movement?.event === event;
 
+/** The items a reservation names, as they stand today: a merged duplicate means its survivor (FR-INV-13). */
+const namedItems = (state: State, r: ReservationInput): string[] => [
+  ...new Set(r.items.map((id) => resolveItem(state, id))),
+];
+
 /** What is still to pack. Derived from state alone: a scan anywhere ticks it here after sync. */
 export function remaining(state: State, r: Reservation): Remaining {
-  const left = r.items
+  const left = namedItems(state, r)
     .map((id) => (state.item?.[id] ? ({ id, ...state.item[id] } as Item) : undefined))
     .filter((it): it is Item => it !== undefined && !ticked(it, r.event))
     .sort((a, b) => homeLabel(state, a).localeCompare(homeLabel(state, b)) || a.name.localeCompare(b.name));
 
   const all = items(state);
-  const named = new Set(r.items);
+  const chosen = new Set(namedItems(state, r));
   const types = r.types.map((t) => {
     const type = itemTypes(state).find((x) => x.id === t.type_id) ?? { id: t.type_id, name: "(unknown type)" };
     // Any item of the type counts, except one the reservation names: that one is its own line.
-    const done = all.filter((it) => it.type_id === t.type_id && !named.has(it.id) && ticked(it, r.event)).length;
+    const done = all.filter((it) => it.type_id === t.type_id && !chosen.has(it.id) && ticked(it, r.event)).length;
     return { type, quantity: t.quantity, done: Math.min(done, t.quantity) };
   });
 

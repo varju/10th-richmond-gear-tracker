@@ -1,8 +1,17 @@
 import { useEffect, useState } from "react";
-import { type ItemInput, markMissing, retireItem, unretireItem, updateItem } from "../lib/actions";
+import {
+  type ItemInput,
+  markMissing,
+  mergeItem,
+  retireItem,
+  unmergeItem,
+  unretireItem,
+  updateItem,
+} from "../lib/actions";
+import { changes } from "../lib/audit";
 import { hasOpenConflict } from "../lib/conflicts";
 import { foundFor, resolveFound } from "../lib/found";
-import { codesFor, homeLabel, item, typeName } from "../lib/inventory";
+import { aliases, codesFor, homeLabel, item, search, typeName } from "../lib/inventory";
 import { history, type HistoryEntry } from "../lib/movement";
 import { openRepairs, raiseTicket, type Repair, repairsFor, stateLabel } from "../lib/repairs";
 import type { Note, State } from "../lib/replay";
@@ -14,7 +23,7 @@ import { guard, useUnsaved } from "../lib/unsaved";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { ItemFields } from "./ItemFields";
-import { statusLabel, userName } from "./labels";
+import { boughtLabel, statusLabel, userName } from "./labels";
 import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
 import { AddNote, NoteList } from "./Notes";
 import { Page } from "./Page";
@@ -33,9 +42,11 @@ export function ItemPage({ store, id }: Props) {
   const [editing, setEditing] = useState(openInEdit);
   const [confirmRetire, setConfirmRetire] = useState(false);
   const [confirmMissing, setConfirmMissing] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [moved, confirm] = useFlash(CONFIRM_MS);
   const state = store.state;
   const it = item(state, id);
+  const admin = store.meta.user?.role === "admin";
 
   useEffect(() => {
     if (openInEdit) setEditing(true);
@@ -61,11 +72,27 @@ export function ItemPage({ store, id }: Props) {
           sub_location: it.sub_location ?? "",
           type_id: it.type_id ?? null,
           condition: it.condition ?? "",
+          purchase_date: it.purchase_date ?? "",
+          price: it.price ?? "",
+          supplier: it.supplier ?? "",
         }}
         onDone={() => {
           setEditing(false);
           // Drop ?edit=1 so a reload shows the item, not the form.
           if (openInEdit) navigate(`/items/${id}`, true);
+        }}
+      />
+    );
+  }
+
+  if (merging) {
+    return (
+      <MergePicker
+        store={store}
+        id={id}
+        onDone={(survivor) => {
+          setMerging(false);
+          if (survivor) navigate(`/items/${survivor}`, true);
         }}
       />
     );
@@ -77,6 +104,40 @@ export function ItemPage({ store, id }: Props) {
   const itemNotes = notes.filter((n) => !n.movement_id);
   const onItem = { entity_type: "item", entity_id: id };
   const open = openRepairs(state, id);
+  const mergedFrom = aliases(state, id).slice(1);
+
+  if (it.merged_into) {
+    // A folded duplicate. Its record stays readable; the survivor does everything else (FR-INV-13).
+    const survivor = item(state, it.merged_into);
+    return (
+      <Page
+        title="Item"
+        back="/"
+        actions={
+          admin ? (
+            <button type="button" onClick={() => unmergeItem(store, id)}>
+              Unmerge
+            </button>
+          ) : undefined
+        }
+      >
+        <h2 className="item-title">
+          {it.name}
+          <span className="badge">Merged</span>
+        </h2>
+        <p className="notice" role="note">
+          Merged into{" "}
+          <button className="link" type="button" onClick={() => navigate(`/items/${it.merged_into}`)}>
+            {survivor?.name ?? "(unknown item)"}
+          </button>
+        </p>
+        <h3 className="section">Notes</h3>
+        <NoteList store={store} on={onItem} notes={itemNotes} />
+        <h3 className="section">Changes</h3>
+        <Changes store={store} id={id} />
+      </Page>
+    );
+  }
 
   async function retire() {
     if (!confirmRetire) {
@@ -128,6 +189,11 @@ export function ItemPage({ store, id }: Props) {
               </button>
             </div>
           )}
+          {admin && !it.retired && it.status === "in" && (
+            <button type="button" className="minor" onClick={() => setMerging(true)}>
+              Merge into another item…
+            </button>
+          )}
         </>
       }
     >
@@ -178,6 +244,14 @@ export function ItemPage({ store, id }: Props) {
         <dd>{it.condition || "—"}</dd>
         <dt>Description</dt>
         <dd className="prose">{it.description || "—"}</dd>
+        <dt>Bought</dt>
+        <dd>{boughtLabel(it) || "—"}</dd>
+        {mergedFrom.length > 0 && (
+          <>
+            <dt>Merged from</dt>
+            <dd>{mergedFrom.map((a) => item(state, a)?.name ?? "(unknown item)").join(", ")}</dd>
+          </>
+        )}
         <dt>Code</dt>
         <dd>
           {current ? <code>{current.id}</code> : "none"}
@@ -201,6 +275,9 @@ export function ItemPage({ store, id }: Props) {
 
       <h3 className="section">History</h3>
       <History store={store} id={id} />
+
+      <h3 className="section">Changes</h3>
+      <Changes store={store} id={id} />
     </Page>
   );
 }
@@ -303,6 +380,121 @@ function History({ store, id }: Props) {
       )}
       <p className="muted small">What this phone knows: the last 90 days.</p>
     </>
+  );
+}
+
+/** What changed on the record, from what to what, by whom (FR-USR-09). */
+function Changes({ store, id }: Props) {
+  const entries = changes(store, id);
+  const state = store.state;
+  return (
+    <>
+      {entries.length === 0 ? (
+        <p className="muted">No changes.</p>
+      ) : (
+        <ol className="history">
+          {entries.map((c) => (
+            <li key={c.id}>
+              {c.kind === "created"
+                ? `Created · ${userName(state, c.actor_id)} · ${isoDate(c.at)}`
+                : `${c.label}: ${c.old} → ${c.new} · ${userName(state, c.actor_id)} · ${isoDate(c.at)}`}
+            </li>
+          ))}
+        </ol>
+      )}
+      <p className="muted small">What this phone knows: the last 90 days.</p>
+    </>
+  );
+}
+
+/**
+ * Pick the item this one doubles, then confirm (FR-INV-13). The list is the normal search, less this item;
+ * merged and retired items are already out of it.
+ */
+function MergePicker({ store, id, onDone }: { store: Store; id: string; onDone: (survivor?: string) => void }) {
+  const [query, setQuery] = useState("");
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const state = store.state;
+  const me = item(state, id);
+  const survivor = chosen ? item(state, chosen) : undefined;
+  const candidates = search(state, { query }).filter((c) => c.id !== id);
+
+  async function merge() {
+    if (!chosen) return;
+    try {
+      await mergeItem(store, id, chosen);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not merge");
+      return;
+    }
+    onDone(chosen);
+  }
+
+  if (survivor) {
+    return (
+      <Page
+        title="Merge"
+        actions={
+          <>
+            <button type="button" className="warn" onClick={merge}>
+              Merge
+            </button>
+            <button type="button" onClick={() => setChosen(null)}>
+              Cancel
+            </button>
+          </>
+        }
+      >
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        <p>
+          Merge {me?.name} into {survivor.name}?
+        </p>
+        <p className="muted">
+          {me?.name} disappears from the list. Its stickers, movements and tickets go with {survivor.name}. This can be
+          undone from {me?.name}’s page.
+        </p>
+      </Page>
+    );
+  }
+
+  return (
+    <Page
+      title="Merge into"
+      actions={
+        <>
+          <label className="tight">
+            <span>Search</span>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              autoComplete="off"
+              autoFocus
+            />
+          </label>
+          <button type="button" onClick={() => onDone()}>
+            Cancel
+          </button>
+        </>
+      }
+    >
+      <p className="muted">Which item does {me?.name} double?</p>
+      <ul className="items">
+        {candidates.map((c) => (
+          <li key={c.id}>
+            <button className="item" type="button" onClick={() => setChosen(c.id)}>
+              <span className="item-name">{c.name}</span>
+              <span className="muted small">{homeLabel(state, c)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Page>
   );
 }
 

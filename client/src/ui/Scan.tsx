@@ -1,7 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { bindCode, seen } from "../lib/actions";
 import { parseCode } from "../lib/codes";
-import { code as codeOf, codeStatus, homeLabel, item } from "../lib/inventory";
+import { code as codeOf, codeStatus, homeLabel, item, resolveItem } from "../lib/inventory";
 import { checkOut } from "../lib/movement";
 import { isPacked, type Remaining, remaining, type Reservation, reservation } from "../lib/reservations";
 import { navigate, useRoute } from "../lib/router";
@@ -51,12 +51,13 @@ export function Scan({ store }: { store: Store }) {
       if (status === "unknown") return say("Not one of our codes");
       if (!forItem) {
         if (status === "unassigned") return navigate(`/g/${id}`);
-        const itemId = codeOf(store.state, id)?.item_id ?? null;
+        const bound = codeOf(store.state, id)?.item_id;
+        const itemId = bound ? resolveItem(store.state, bound) : null;
         if (itemId) await seen(store, itemId);
         return showCard(itemId);
       }
       if (status !== "unassigned") {
-        const owner = item(store.state, codeOf(store.state, id)?.item_id ?? "");
+        const owner = item(store.state, resolveItem(store.state, codeOf(store.state, id)?.item_id ?? ""));
         return say(`That code is already on ${owner?.name ?? "another item"}`);
       }
       try {

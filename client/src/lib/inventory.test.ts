@@ -151,3 +151,61 @@ test("a location is browsed shelf by shelf, no sub-location last, retired gear l
     ["", ["Stove"]],
   ]);
 });
+
+test("the price is stored to the cent, and blank is no price (FR-INV-12)", async () => {
+  const id = await act.createItem(store, {
+    name: "Stove",
+    price: "$1,249.999",
+    purchase_date: "2024-03-01",
+    supplier: " MEC ",
+  });
+  expect(inv.item(store.state, id)).toMatchObject({ price: 1250, purchase_date: "2024-03-01", supplier: "MEC" });
+  await act.updateItem(store, id, { price: "" });
+  expect(inv.item(store.state, id)?.price).toBeNull();
+  expect(act.price("abc")).toBeNull();
+  expect(act.price(-1)).toBeNull();
+  expect(act.price(12.345)).toBe(12.35);
+});
+
+test("a merged duplicate leaves the list, and its sticker finds the survivor (FR-INV-13)", async () => {
+  const f = await fixture();
+  await act.bindCode(store, "ABCDEFGH23", f.t1);
+  await act.bindCode(store, "BCDEFGHJ34", f.t2);
+  await act.mergeItem(store, f.t1, f.t2);
+
+  expect(inv.search(store.state, {}).map((i) => i.name)).toEqual(["Stove", "Tent 2"]);
+  expect(inv.resolveItem(store.state, f.t1)).toBe(f.t2);
+  expect(inv.resolveItem(store.state, f.t2)).toBe(f.t2);
+  expect(inv.aliases(store.state, f.t2)).toEqual([f.t2, f.t1]);
+  expect(inv.codesFor(store.state, f.t2).map((c) => c.id)).toEqual(["BCDEFGHJ34", "ABCDEFGH23"]);
+  expect(inv.codeStatus(store.state, "ABCDEFGH23")).toBe("replaced");
+  expect(inv.codeStatus(store.state, "BCDEFGHJ34")).toBe("assigned");
+  expect(store.pending.at(-1)?.payload).toEqual({ field: "merged_into", value: f.t2, old: null });
+
+  await act.unmergeItem(store, f.t1);
+  expect(inv.search(store.state, {}).map((i) => i.name)).toEqual(["Stove", "Tent 1", "Tent 2"]);
+  expect(inv.currentCode(store.state, f.t1)?.id).toBe("ABCDEFGH23");
+});
+
+test("a merge follows a chain, and refuses a loop", async () => {
+  const f = await fixture();
+  await act.mergeItem(store, f.t1, f.t2);
+  await act.mergeItem(store, f.t2, f.stove);
+  expect(inv.resolveItem(store.state, f.t1)).toBe(f.stove);
+  expect(inv.aliases(store.state, f.stove)).toEqual([f.stove, f.t2, f.t1]);
+  await act.unmergeItem(store, f.t2);
+  // t1 still points at t2, so t2 cannot point back: a survivor is never itself merged.
+  await expect(act.mergeItem(store, f.t2, f.t1)).rejects.toThrow("already merged");
+});
+
+test("merging needs an Admin and two items that are in, unretired and unmerged", async () => {
+  const f = await fixture();
+  await expect(act.mergeItem(store, f.t1, f.t1)).rejects.toThrow("itself");
+  await expect(act.mergeItem(store, f.t1, "nope")).rejects.toThrow("no such item");
+  await act.retireItem(store, f.stove);
+  await expect(act.mergeItem(store, f.t1, f.stove)).rejects.toThrow("retired");
+  await act.mergeItem(store, f.t1, f.t2);
+  await expect(act.mergeItem(store, f.t1, f.t2)).rejects.toThrow("already merged");
+  await store.setMeta({ user: { id: "carol", name: "Carol", role: "user", active: true } });
+  await expect(act.mergeItem(store, f.t2, f.t1)).rejects.toThrow("Admins only");
+});

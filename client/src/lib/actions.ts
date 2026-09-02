@@ -6,10 +6,11 @@ import type { Store } from "./store";
 import { newUlid } from "./ulid";
 import { blockers, type Item, item } from "./inventory";
 
+/** What the item form holds. The price is typed as text and stored as a number (FR-INV-12). */
 export type ItemInput = Pick<
   Item,
-  "name" | "description" | "home_location_id" | "sub_location" | "type_id" | "condition"
->;
+  "name" | "description" | "home_location_id" | "sub_location" | "type_id" | "condition" | "purchase_date" | "supplier"
+> & { price?: number | string | null };
 
 function actor(store: Store): string {
   const id = store.meta.user?.id;
@@ -60,10 +61,35 @@ function clean<T extends object>(input: T): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(input).map(([k, v]) => [
       k,
-      typeof v === "string" && v.trim() === "" ? null : typeof v === "string" ? v.trim() : v,
+      k === "price" ? price(v) : typeof v === "string" && v.trim() === "" ? null : typeof v === "string" ? v.trim() : v,
     ]),
   );
 }
+
+/** Dollars to the cent, from a number or what was typed. Blank or nonsense is no price. */
+export function price(value: unknown): number | null {
+  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value.replace(/[$,\s]/g, "")) : NaN;
+  return Number.isFinite(n) && n >= 0 && value !== "" ? Math.round(n * 100) / 100 : null;
+}
+
+/**
+ * Fold a duplicate into the item it doubles (FR-INV-13). One field on the duplicate; nothing is rewritten.
+ * Admins only; the duplicate must be in, and neither item retired or already merged.
+ */
+export async function mergeItem(store: Store, duplicateId: string, survivorId: string): Promise<void> {
+  if (store.meta.user?.role !== "admin") throw new Error("Admins only");
+  const dup = item(store.state, duplicateId);
+  const survivor = item(store.state, survivorId);
+  if (!dup || !survivor) throw new Error("no such item");
+  if (duplicateId === survivorId) throw new Error("an item cannot be merged into itself");
+  if (dup.merged_into || survivor.merged_into) throw new Error("already merged");
+  if (dup.retired || survivor.retired) throw new Error("retired items cannot be merged");
+  if (dup.status !== "in") throw new Error("check it in first");
+  await changed(store, "item", duplicateId, { merged_into: survivorId });
+}
+
+/** Undo a merge. The pointer goes, and both items stand on their own again. */
+export const unmergeItem = (store: Store, id: string) => changed(store, "item", id, { merged_into: null });
 
 // --- codes -------------------------------------------------------------------------------
 

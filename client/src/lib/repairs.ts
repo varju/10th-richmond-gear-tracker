@@ -3,6 +3,7 @@
  * item; its state moves by field_changed and its comments are notes. Pure reads
  * over state, and the two writes a person makes.
  */
+import { aliases } from "./inventory";
 import type { Fields, Note, State } from "./replay";
 import type { Store } from "./store";
 import { localDate } from "./time";
@@ -42,10 +43,11 @@ export function repairs(state: State): Repair[] {
 export const repair = (state: State, id: string): Repair | undefined =>
   state.repair?.[id] ? ({ id, ...state.repair[id] } as Repair) : undefined;
 
-/** The item's tickets, open first, then newest first. Closed ones stay (FR-REP-04). */
+/** The item's tickets, open first, then newest first. Closed ones stay (FR-REP-04). A merged duplicate's come too. */
 export function repairsFor(state: State, itemId: string): Repair[] {
+  const own = aliases(state, itemId);
   return repairs(state)
-    .filter((r) => r.item_id === itemId)
+    .filter((r) => own.includes(r.item_id))
     .sort((a, b) => Number(isOpen(b)) - Number(isOpen(a)) || newest(a, b));
 }
 

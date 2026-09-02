@@ -15,6 +15,9 @@ export const EMPTY_ITEM: ItemInput = {
   sub_location: "",
   type_id: null,
   condition: "",
+  purchase_date: "",
+  price: "",
+  supplier: "",
 };
 
 /** The fields of an item, for creating and editing. The parent owns the values and the Save button. */
@@ -74,6 +77,33 @@ export function ItemFields({ store, values, onChange }: Props) {
       <label>
         <span>Description</span>
         <textarea value={values.description ?? ""} onChange={(e) => set({ description: e.target.value })} rows={3} />
+      </label>
+      <div className="row">
+        <label className="tight">
+          <span>Bought on</span>
+          <input
+            type="date"
+            value={values.purchase_date ?? ""}
+            onChange={(e) => set({ purchase_date: e.target.value })}
+            autoComplete="off"
+          />
+        </label>
+        <label className="tight">
+          <span>Price</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step={0.01}
+            value={values.price ?? ""}
+            onChange={(e) => set({ price: e.target.value })}
+            autoComplete="off"
+          />
+        </label>
+      </div>
+      <label>
+        <span>Supplier</span>
+        <input value={values.supplier ?? ""} onChange={(e) => set({ supplier: e.target.value })} autoComplete="off" />
       </label>
     </>
   );

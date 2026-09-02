@@ -383,3 +383,21 @@ def test_a_device_cannot_say_a_photo_was_stored(db):
     result = push(db, ALICE, batch(ALICE, forged, removed), now=T0)
     assert result["rejected"][0]["reason"] == "photos are uploaded, not pushed"
     assert result["accepted"] == [removed["id"]]
+
+
+def test_merged_items_cannot_be_checked_out(db):
+    push(
+        db,
+        USER,
+        {
+            "device_id": "phone-a",
+            "client_time": T0,
+            "events": [
+                own(USER, type="created", payload={"name": "Tent"}, device_seq=1),
+                own(USER, payload={"field": "merged_into", "value": "tent-2", "old": None}, device_seq=2),
+            ],
+        },
+        now=T0,
+    )
+    out = own(USER, type="checked_out", payload={"holder_id": "alice"}, device_seq=3)
+    assert reasons(db, USER, out) == ["this item was merged into another (FR-INV-13)"]

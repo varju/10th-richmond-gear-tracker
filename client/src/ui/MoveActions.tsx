@@ -51,8 +51,8 @@ export function MoveActions({ store, it, showEvent = false, onMoved, children }:
   const open = openRepairs(store.state, it.id);
 
   const out = it.status === "out";
-  const canTake = !out && !it.retired;
-  const canTransfer = out && !it.retired && it.holder_id !== me;
+  const canTake = !out && !it.retired && !it.merged_into;
+  const canTransfer = out && !it.retired && !it.merged_into && it.holder_id !== me;
 
   async function run(kind: MoveKind, act: () => Promise<unknown>) {
     setBusy(true);

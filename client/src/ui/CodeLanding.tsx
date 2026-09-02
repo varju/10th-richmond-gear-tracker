@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { seen } from "../lib/actions";
-import { code as codeOf, codeStatus } from "../lib/inventory";
+import { code as codeOf, codeStatus, resolveItem } from "../lib/inventory";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
@@ -14,7 +14,9 @@ import { Page } from "./Page";
 export function CodeLanding({ store, code }: { store: Store; code: string }) {
   useStore(store);
   const status = codeStatus(store.state, code);
-  const itemId = codeOf(store.state, code)?.item_id;
+  // A sticker on a merged duplicate opens the survivor (FR-INV-13).
+  const bound = codeOf(store.state, code)?.item_id;
+  const itemId = bound ? resolveItem(store.state, bound) : undefined;
 
   useEffect(() => {
     if ((status === "assigned" || status === "replaced") && itemId) {

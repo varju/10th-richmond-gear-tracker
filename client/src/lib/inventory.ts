@@ -12,9 +12,16 @@ export interface Item {
   sub_location?: string;
   type_id?: string | null;
   condition?: string;
+  /** "YYYY-MM-DD" (FR-INV-12). */
+  purchase_date?: string | null;
+  /** Dollars, to the cent. */
+  price?: number | null;
+  supplier?: string | null;
   retired?: boolean;
   /** Lost, not written off (FR-INV-19). Cleared by the next scan or check-in. */
   missing?: boolean;
+  /** Set on a duplicate: the item it was folded into (FR-INV-13). Everything that reads an id follows it. */
+  merged_into?: string | null;
   status: "in" | "out";
   holder_id: string | null;
   since?: number;
@@ -69,6 +76,30 @@ export const group = (state: State): GroupSetting => (state.setting?.group ?? {}
 
 export const item = (state: State, id: string): Item | undefined =>
   state.item?.[id] ? ({ id, ...state.item[id] } as Item) : undefined;
+
+const MERGE_HOPS = 10;
+
+/** The item that stands for this id today: itself, or the survivor of a merge (FR-INV-13). */
+export function resolveItem(state: State, id: string): string {
+  let current = id;
+  for (let hop = 0; hop < MERGE_HOPS; hop++) {
+    const next = state.item?.[current]?.merged_into as string | null | undefined;
+    if (!next || !state.item?.[next]) return current;
+    current = next;
+  }
+  return current;
+}
+
+/** This id and every item merged into it, however many steps down. The first entry is the id itself. */
+export function aliases(state: State, id: string): string[] {
+  const found = [id];
+  for (let i = 0; i < found.length && found.length <= MERGE_HOPS * 10; i++) {
+    for (const [other, fields] of Object.entries(state.item ?? {})) {
+      if (fields.merged_into === found[i] && !found.includes(other)) found.push(other);
+    }
+  }
+  return found;
+}
 export const code = (state: State, id: string): Code | undefined =>
   state.code?.[id] ? ({ id, ...state.code[id] } as Code) : undefined;
 export const locationName = (state: State, id: string | null | undefined): string =>
@@ -78,10 +109,11 @@ export const typeName = (state: State, id: string | null | undefined): string =>
 
 export type CodeStatus = "unassigned" | "assigned" | "replaced" | "unknown";
 
-/** Every code that has ever been on the item, newest binding first. The first is its current code. */
+/** Every code that has ever been on the item, newest binding first. The first is its current code.
+ * A code on a merged duplicate counts as the survivor's, so the old sticker still finds the item. */
 export function codesFor(state: State, itemId: string): Code[] {
   return codes(state)
-    .filter((c) => c.item_id === itemId)
+    .filter((c) => c.item_id !== undefined && resolveItem(state, c.item_id) === itemId)
     .sort((a, b) => (b.bound_at ?? 0) - (a.bound_at ?? 0) || (a.id < b.id ? 1 : -1));
 }
 
@@ -92,7 +124,7 @@ export function codeStatus(state: State, id: string): CodeStatus {
   const c = code(state, id);
   if (!c) return "unknown";
   if (!c.item_id) return "unassigned";
-  return currentCode(state, c.item_id)?.id === id ? "assigned" : "replaced";
+  return currentCode(state, resolveItem(state, c.item_id))?.id === id ? "assigned" : "replaced";
 }
 
 /** Home as people say it: "Warm locker / shelf 4" (FR-INV-02). */
@@ -110,10 +142,12 @@ export interface Filter {
   retired?: boolean;
 }
 
-/** Search as you type (FR-INV-07): every word must appear somewhere in the name, home or type. */
+/** Search as you type (FR-INV-07): every word must appear somewhere in the name, home or type.
+ * Merged duplicates are never listed; their survivor is. */
 export function search(state: State, filter: Filter): Item[] {
   const words = (filter.query ?? "").toLowerCase().split(/\s+/).filter(Boolean);
   return items(state)
+    .filter((it) => !it.merged_into)
     .filter((it) => Boolean(it.retired) === Boolean(filter.retired))
     .filter((it) => !filter.location_id || it.home_location_id === filter.location_id)
     .filter((it) => !filter.sub_location || it.sub_location === filter.sub_location)

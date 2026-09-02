@@ -112,6 +112,8 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
         item = derived.get_entity(conn, "item", str(incoming.get("entity_id")))
         if item is not None and item.get("retired"):
             raise Rejected("retired items cannot be checked out (FR-INV-04)")
+        if item is not None and item.get("merged_into"):
+            raise Rejected("this item was merged into another (FR-INV-13)")
     if entity_type == "found_report" and kind == "created":
         raise Rejected("found reports come from the public page")
     if kind == "photo_added":

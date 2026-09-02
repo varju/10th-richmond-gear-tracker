@@ -157,3 +157,16 @@ test("an update records one field_changed per changed field, with the old list k
   ]);
   expect(res.reservation(store.state, id)).toMatchObject({ items: [f.t1, f.t2], ends: "2026-10-05" });
 });
+
+test("a reservation naming a merged duplicate packs the survivor (FR-INV-13)", async () => {
+  const f = await fixture();
+  const id = await res.createReservation(store, { ...fall, items: [f.t1, f.t2], types: [] });
+  await act.mergeItem(store, f.t1, f.t2);
+  const booked = res.reservation(store.state, id)!;
+  expect(res.remaining(store.state, booked).items.map((it) => it.name)).toEqual(["Tent 2"]);
+  await mv.checkOut(store, f.t2, { event: fall.event });
+  expect(res.isPacked(res.remaining(store.state, booked))).toBe(true);
+  // Another camp naming the duplicate clashes on the survivor.
+  const other = { ...fall, items: [f.t1], types: [] };
+  expect(res.conflicts(store.state, other).map((c) => c.detail)).toEqual(["Tent 2"]);
+});

@@ -55,3 +55,13 @@ test("a code this device has never heard of says so and suggests a sync", async 
   await user.click(screen.getByRole("button", { name: "Scan again" }));
   expect(location.pathname).toBe("/scan");
 });
+
+test("a sticker on a merged duplicate opens the survivor (FR-INV-13)", async () => {
+  const dup = await act.createItem(store, { name: "Tent" });
+  const tent = await act.createItem(store, { name: "Tent (again)" });
+  await act.bindCode(store, "AAAAAAAAAA", dup);
+  await act.mergeItem(store, dup, tent);
+  navigate("/g/AAAAAAAAAA");
+  render(<CodeLanding store={store} code="AAAAAAAAAA" />);
+  await waitFor(() => expect(location.pathname).toBe(`/items/${tent}`));
+});

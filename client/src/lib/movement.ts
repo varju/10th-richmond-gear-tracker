@@ -4,9 +4,9 @@
  * syncs afterwards (FR-OFF-03).
  */
 import { seen } from "./actions";
-import { item, type Item } from "./inventory";
+import { aliases, item, type Item } from "./inventory";
 import * as notes from "./notes";
-import type { Movement, Note } from "./replay";
+import { type Movement, type Note, replayOrder } from "./replay";
 import type { Store } from "./store";
 
 export interface MoveOptions {
@@ -44,6 +44,7 @@ async function move(store: Store, itemId: string, type: string, payload: Record<
 export async function checkOut(store: Store, itemId: string, options: MoveOptions = {}) {
   const it = current(store, itemId);
   if (it.retired) throw new Error("retired items cannot be checked out");
+  if (it.merged_into) throw new Error("merged into another item");
   if (it.status === "out") throw new Error("already out; transfer it instead");
   return move(
     store,
@@ -67,6 +68,7 @@ export async function checkIn(store: Store, itemId: string, options: MoveOptions
 export async function transfer(store: Store, itemId: string, options: MoveOptions = {}) {
   const it = current(store, itemId);
   if (it.retired) throw new Error("retired items cannot be checked out");
+  if (it.merged_into) throw new Error("merged into another item");
   const previous = it.movement as Movement | undefined;
   if (it.status !== "out" || !previous) throw new Error("not out; check it out instead");
   return move(
@@ -99,12 +101,16 @@ export interface HistoryEntry {
   notes: Note[];
 }
 
-/** The item's movements this device knows about, newest first, each with its notes (FR-INV-09). */
+/**
+ * The item's movements this device knows about, newest first, each with its notes (FR-INV-09).
+ * A merged duplicate's movements belong to the survivor (FR-INV-13).
+ */
 export function history(store: Store, itemId: string): HistoryEntry[] {
-  const notes = (item(store.state, itemId)?.notes ?? []) as Note[];
-  return store
-    .eventsFor("item", itemId)
+  const notes = aliases(store.state, itemId).flatMap((id) => (item(store.state, id)?.notes ?? []) as Note[]);
+  return aliases(store.state, itemId)
+    .flatMap((id) => store.eventsFor("item", id))
     .filter((e) => e.type === "checked_out" || e.type === "checked_in")
+    .sort(replayOrder)
     .map((e) => ({
       id: e.id,
       type: e.type as HistoryEntry["type"],

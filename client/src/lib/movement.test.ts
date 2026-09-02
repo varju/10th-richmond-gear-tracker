@@ -86,3 +86,21 @@ test("a check-in clears missing (FR-INV-19)", async () => {
     ["field_changed", { field: "missing", value: false, old: true }],
   ]);
 });
+
+test("a merged duplicate's movements join the survivor's history, and it cannot move itself (FR-INV-13)", async () => {
+  await mv.checkOut(store, tent, { event: "Spring camp" });
+  await mv.checkIn(store, tent);
+  const other = await act.createItem(store, { name: "Tent (again)" });
+  await mv.checkOut(store, other, { event: "Cub camp" });
+  await mv.checkIn(store, other);
+  await store.setMeta({ user: { id: "alice", name: "Alice", role: "admin", active: true } });
+  await act.mergeItem(store, tent, other);
+
+  expect(mv.history(store, other).map((e) => [e.type, e.event])).toEqual([
+    ["checked_in", null],
+    ["checked_out", "Cub camp"],
+    ["checked_in", null],
+    ["checked_out", "Spring camp"],
+  ]);
+  await expect(mv.checkOut(store, tent)).rejects.toThrow("merged");
+});
