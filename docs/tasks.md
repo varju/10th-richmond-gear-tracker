@@ -68,6 +68,12 @@ stay as they are.
       name not yet known is created. All or nothing, with errors by row number. Preview, then Apply, in Settings. The
       server writes the events as the Admin
 - [ ] `gear-admin export` and `gear-admin import`: the same module from the keyboard
+- [ ] The scan screen takes a mode, `/scan?mode=out` or `mode=in`, switchable on the screen. A scan that agrees with the
+      mode keeps one tap (FR-OUT-03). One that disagrees warns instead of flipping: "Already in. Nothing to do", or who
+      has it with Transfer to me as the primary action (FR-OUT-12). The other direction stays on the card as a plain
+      secondary button. A plain `/scan` behaves as today, for the desk table and old links
+- [ ] Home offers Take out and Bring back in place of Scan. Bring back shows no session event; packing a reservation
+      opens in Take out. Rewrite FR-OUT-06: the mode sets the default, and a scan that disagrees with it warns
 - [ ] The desk table shows every unit indented under its generic, always. The disclosure triangle goes
 - [ ] A subtle link to the source, https://github.com/varju/10th-richmond-gear-tracker, at the foot of Settings
 - [ ] Record in architecture.md why sync polls rather than holding a socket open
