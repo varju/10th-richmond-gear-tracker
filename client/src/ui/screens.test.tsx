@@ -7,9 +7,11 @@ import * as act from "../lib/actions";
 import { createApi } from "../lib/api";
 import { openDb } from "../lib/db";
 import * as inv from "../lib/inventory";
+import { checkOut } from "../lib/movement";
 import * as rep from "../lib/repairs";
 import { navigate } from "../lib/router";
 import { Store } from "../lib/store";
+import { printCodes } from "./codeTestKit";
 
 // The screens against a real store, with no server to talk to.
 const T0 = 1_756_684_800_000;
@@ -128,6 +130,8 @@ test("retiring hides an item until retired items are asked for", async () => {
 
 test("a new item with a code is created, bound, and the walk goes on", async () => {
   const f = await fixture();
+  // A scanned code, so the scanner is the screen behind this one.
+  navigate("/scan");
   navigate("/items/new?code=ABCDEFGH23");
   mount();
   const user = userEvent.setup();
@@ -211,6 +215,7 @@ test("Add another on its own clears the form", async () => {
 
 test("ticking several saves the name and the one in hand as #1 (FR-INV-21, S-BOOT-03)", async () => {
   const f = await fixture();
+  navigate("/scan");
   navigate("/items/new?code=ABCDEFGH23");
   mount();
   const user = userEvent.setup();
@@ -444,4 +449,99 @@ test("the guide is the compiled markdown, with contents that reach each task", a
   expect(screen.getAllByRole("heading", { level: 3 })[0]).toHaveTextContent("Take gear out");
   const contents = within(screen.getByRole("navigation", { name: "Scouter contents" }));
   expect(contents.getByRole("link", { name: "Take gear out" })).toHaveAttribute("href", "#take-gear-out");
+});
+
+// --- Back follows the way in ------------------------------------------------
+
+test("the list keeps its search in the URL, and back brings the list back as it was", async () => {
+  const f = await fixture();
+  mount();
+  const user = userEvent.setup();
+
+  await user.type(screen.getByLabelText("Search"), "shelf");
+  expect(location.pathname + location.search).toBe("/?q=shelf");
+  expect(rows()).toEqual(["Tent 1Cold locker / shelf 4"]);
+
+  await user.click(screen.getByRole("button", { name: /Tent 1/ }));
+  expect(location.pathname).toBe(`/items/${f.t1}`);
+
+  // One step back, whatever was typed to get here.
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(location.pathname + location.search).toBe("/?q=shelf");
+  expect(screen.getByLabelText("Search")).toHaveValue("shelf");
+});
+
+test("back from an item returns to the location it was opened from", async () => {
+  const f = await fixture();
+  navigate(`/locations/${f.cold}`);
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: /Tent 1/ }));
+  expect(location.pathname).toBe(`/items/${f.t1}`);
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(location.pathname).toBe(`/locations/${f.cold}`);
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Cold locker");
+});
+
+test("back from an item returns to the what-is-out report", async () => {
+  const f = await fixture();
+  await checkOut(store, f.t1, { event: "Spring camp" });
+  navigate("/out");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: /Tent 1/ }));
+  expect(location.pathname).toBe(`/items/${f.t1}`);
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(location.pathname).toBe("/out");
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("What is out");
+});
+
+test("the scanner walk: an unassigned code, a new item, and back to where it started", async () => {
+  await fixture();
+  await printCodes(store, ["ABCDEFGH23"]);
+  mount();
+  const user = userEvent.setup();
+
+  await user.click(screen.getByRole("button", { name: "Scan" }));
+  await user.click(await screen.findByRole("button", { name: "Type a code instead" }));
+  await user.type(screen.getByLabelText("Code or URL"), "ABCDEFGH23");
+  await user.click(screen.getByRole("button", { name: "Go" }));
+  expect(location.pathname).toBe("/g/ABCDEFGH23");
+
+  // The code screen is a junction, so it steps aside for the form.
+  await user.click(await screen.findByRole("button", { name: "Create a new item" }));
+  expect(location.pathname + location.search).toBe("/items/new?code=ABCDEFGH23");
+
+  await user.type(screen.getByLabelText("Name"), "Tarp");
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(location.pathname).toBe("/scan"));
+
+  // And one step back from the scanner is home, not the code screen again.
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(location.pathname).toBe("/");
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Gear Tracker");
+});
+
+test("a replacement sticker: back from the item goes home, not through the scanner", async () => {
+  const f = await fixture();
+  await printCodes(store, ["ABCDEFGH23"]);
+  mount();
+  const user = userEvent.setup();
+
+  await user.click(screen.getByRole("button", { name: /Tent 1/ }));
+  await user.click(screen.getByRole("button", { name: "Replace code" }));
+  expect(location.pathname + location.search).toBe(`/scan?for=${f.t1}`);
+
+  await user.click(await screen.findByRole("button", { name: "Type a code instead" }));
+  await user.type(screen.getByLabelText("Code or URL"), "ABCDEFGH23");
+  await user.click(screen.getByRole("button", { name: "Go" }));
+  await waitFor(() => expect(location.pathname).toBe(`/items/${f.t1}`));
+  expect(inv.currentCode(store.state, f.t1)?.id).toBe("ABCDEFGH23");
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(location.pathname).toBe(`/items/${f.t1}`);
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(location.pathname).toBe("/");
 });

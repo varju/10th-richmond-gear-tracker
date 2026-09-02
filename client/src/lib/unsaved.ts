@@ -9,7 +9,7 @@
  * A module singleton, like the router. One screen is on show at a time.
  */
 import { useEffect, useId, useRef, useSyncExternalStore } from "react";
-import { navigate } from "./router";
+import { back, navigate } from "./router";
 
 export interface Draft {
   /** Save and answer whether it worked. Absent when the draft only makes sense with another action. */
@@ -94,6 +94,11 @@ export function guard(action: () => void): void {
 /** Navigate, asking first if a draft would be lost. */
 export function leave(path: string, replace = false): void {
   guard(() => navigate(path, replace));
+}
+
+/** Go back, asking first if a draft would be lost. */
+export function leaveBack(fallback: string): void {
+  guard(() => back(fallback));
 }
 
 /** Tell the app this form holds edits while `dirty` is true. */

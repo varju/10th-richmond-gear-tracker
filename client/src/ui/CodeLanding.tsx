@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { addUnit, bindCode, seen } from "../lib/actions";
 import { code as codeOf, codeStatus, displayName, nextNumber, recentGenerics, resolveItem } from "../lib/inventory";
-import { navigate } from "../lib/router";
+import { back, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { Page } from "./Page";
@@ -11,6 +11,9 @@ import { Page } from "./Page";
  * opens the item (FR-TAG-05, FR-TAG-06); an unassigned one offers
  * create-or-bind (FR-TAG-07), and another of a generic we labelled a moment
  * ago (FR-INV-24, S-BOOT-03).
+ *
+ * A junction, not a stop. Every way out of it replaces this entry, so back
+ * from the next screen returns to the scanner, not to the code again.
  */
 export function CodeLanding({ store, code }: { store: Store; code: string }) {
   useStore(store);
@@ -29,7 +32,7 @@ export function CodeLanding({ store, code }: { store: Store; code: string }) {
   }, [store, status, itemId]);
 
   const scanAgain = (
-    <button type="button" onClick={() => navigate("/scan")}>
+    <button type="button" onClick={() => back("/scan")}>
       Scan again
     </button>
   );
@@ -43,7 +46,7 @@ export function CodeLanding({ store, code }: { store: Store; code: string }) {
       setError(e instanceof Error ? e.message : "Could not add it");
       return;
     }
-    navigate("/scan", true);
+    back("/scan");
   }
 
   if (status === "unassigned") {
@@ -61,17 +64,17 @@ export function CodeLanding({ store, code }: { store: Store; code: string }) {
                 <button
                   type="button"
                   className="small"
-                  onClick={() => navigate(`/items/new?parent=${g.id}&code=${code}`)}
+                  onClick={() => navigate(`/items/new?parent=${g.id}&code=${code}`, true)}
                   aria-label={`Another ${displayName(state, g)}, with a number I pick`}
                 >
                   Number…
                 </button>
               </div>
             ))}
-            <button type="button" className="primary" onClick={() => navigate(`/items/new?code=${code}`)}>
+            <button type="button" className="primary" onClick={() => navigate(`/items/new?code=${code}`, true)}>
               Create a new item
             </button>
-            <button type="button" onClick={() => navigate(`/bind/${code}`)}>
+            <button type="button" onClick={() => navigate(`/bind/${code}`, true)}>
               Put it on an existing item
             </button>
             {scanAgain}

@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { countItems, type Filter, homeLabel, items, rows } from "../lib/inventory";
+import { filterParams, readFilter, withQuery } from "../lib/listUrl";
 import { openRepairs } from "../lib/repairs";
-import { navigate } from "../lib/router";
+import { navigate, useRoute } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { Filters } from "./Filters";
@@ -15,9 +15,14 @@ interface Props {
 /** Home: the list, searched as you type, with the scanner one tap away (FR-INV-07). */
 export function Inventory({ store }: Props) {
   useStore(store);
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>({});
+  const route = useRoute();
+  const query = route.query.get("q") ?? "";
+  const filter = readFilter(route.query);
   const state = store.state;
+
+  // Replace, not push: typing a search must not fill the back button with keystrokes.
+  const show = (text: string, next: Filter) => navigate(withQuery(route.path, filterParams(text, next)), true);
+
   const list = rows(state, { ...filter, query });
   const empty = items(state).length === 0;
 
@@ -39,7 +44,7 @@ export function Inventory({ store }: Props) {
           <p>Nothing here yet. Scan a code or add a new item.</p>
         ) : (
           <>
-            <Filters store={store} filter={filter} onChange={setFilter} />
+            <Filters store={store} filter={filter} onChange={(f) => show(query, f)} />
             <ul className="items">
               {list.map((row) => (
                 <li key={row.item.id}>
@@ -71,7 +76,7 @@ export function Inventory({ store }: Props) {
       <div className="actions">
         <label className="tight">
           <span>Search</span>
-          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} autoComplete="off" />
+          <input type="search" value={query} onChange={(e) => show(e.target.value, filter)} autoComplete="off" />
         </label>
         <div className="row">
           <button className="primary" type="button" onClick={() => navigate("/scan")}>

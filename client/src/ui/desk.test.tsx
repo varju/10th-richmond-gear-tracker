@@ -263,3 +263,34 @@ test("a phone keeps the list, at both routes, and has no sidebar", async () => {
   expect(screen.getByRole("button", { name: /Tent 1/ })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Scan" })).toBeInTheDocument();
 });
+
+test("the table's search, filter and sort live in the URL, and back brings them back", async () => {
+  const f = await fixture();
+  navigate("/items");
+  mount();
+  const user = userEvent.setup();
+
+  await user.type(screen.getByLabelText("Search"), "t");
+  await user.click(screen.getByRole("button", { name: /^Home/ }));
+  await user.click(screen.getByRole("button", { name: /^Home/ }));
+  await user.selectOptions(screen.getByLabelText("Location"), f.cold);
+  expect(location.pathname + location.search).toBe(`/items?q=t&location=${f.cold}&sort=home&dir=down`);
+
+  await user.click(screen.getByRole("button", { name: "Tent 1" }));
+  expect(location.pathname).toBe(`/items/${f.tent}`);
+
+  // One step back, however many keystrokes went into the search.
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(location.pathname + location.search).toBe(`/items?q=t&location=${f.cold}&sort=home&dir=down`);
+  expect(screen.getByLabelText("Search")).toHaveValue("t");
+  expect(screen.getByLabelText("Location")).toHaveValue(f.cold);
+  expect(screen.getByRole("columnheader", { name: /Home/ })).toHaveAttribute("aria-sort", "descending");
+});
+
+test("the desk home ignores list parameters meant for the table", async () => {
+  await fixture();
+  navigate("/?q=nothing-matches-this");
+  mount();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Gear Tracker");
+  expect(screen.getByText("Nothing is out.")).toBeInTheDocument();
+});

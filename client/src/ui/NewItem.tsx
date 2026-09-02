@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { addUnit, bindCode, createGeneric, createItem, createUnit, type ItemInput } from "../lib/actions";
 import { displayName, item, nextNumber, numberTaken } from "../lib/inventory";
-import { navigate } from "../lib/router";
+import { back, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useUnsaved } from "../lib/unsaved";
 import { EMPTY_ITEM, HomeFields, ItemFields, SEVERAL } from "./ItemFields";
@@ -53,7 +53,8 @@ export function NewItem({ store, code }: Props) {
     const id = await create();
     // A code came from the scanner, so the walk goes back to it whatever the checkbox says.
     if (code || !again) {
-      navigate(code ? "/scan" : `/items/${id}`, true);
+      if (code) back("/scan");
+      else navigate(`/items/${id}`, true);
       return;
     }
     const next = keep ? values : EMPTY_ITEM;
@@ -147,8 +148,10 @@ export function NewUnit({ store, parent, code }: Props & { parent: string }) {
     setSaving(true);
     try {
       const id = await createUnit(store, { parent_id: parent, number: n, nickname: nickname.trim() || null, ...home });
-      if (code) await bindCode(store, code, id);
-      navigate(code ? "/scan" : `/items/${id}`, true);
+      if (code) {
+        await bindCode(store, code, id);
+        back("/scan");
+      } else navigate(`/items/${id}`, true);
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save it");

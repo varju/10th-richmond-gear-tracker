@@ -201,6 +201,11 @@ Leaving a screen that holds a draft asks first: save, discard, or keep editing (
 draft through one hook, and every exit goes through one guard that either runs at once or waits for the answer. The
 browser's own question covers closing or reloading the tab.
 
+Back follows the way in, not a fixed path: every entry the app pushes records how deep it is (`lib/router.ts`), so the
+back arrow calls the browser's own back, and falls back to a named path only when the screen was opened cold, such as
+from a sticker's URL. The lists hold their search, filters and sort in the query string and replace the entry as they
+change, so a step back restores the view someone left and typing does not fill the back button with keystrokes.
+
 The Python server serves the built client, so one process is the whole deployment. In development Vite serves the client
 and forwards API calls.
 

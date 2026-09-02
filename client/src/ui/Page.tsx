@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
-import { leave } from "../lib/unsaved";
+import { leaveBack } from "../lib/unsaved";
 
 interface Props {
   title: string;
-  /** Where the back button goes. None means no back button. */
+  /** Where back goes on a cold load, when there is no in-app history. None means no back button. */
   back?: string;
   children: ReactNode;
   /** Buttons for the lower half of the screen (NFR-USE-03). */
@@ -16,7 +16,7 @@ export function Page({ title, back, children, actions }: Props) {
     <>
       <header>
         {back !== undefined && (
-          <button className="back" type="button" onClick={() => leave(back)} aria-label="Back">
+          <button className="back" type="button" onClick={() => leaveBack(back)} aria-label="Back">
             ‹
           </button>
         )}

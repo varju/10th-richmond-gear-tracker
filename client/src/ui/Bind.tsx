@@ -11,7 +11,7 @@ import {
   nameOf,
   search,
 } from "../lib/inventory";
-import { navigate } from "../lib/router";
+import { back, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { Page } from "./Page";
@@ -31,7 +31,7 @@ export function Bind({ store, code }: { store: Store; code: string }) {
         title="Put code on an item"
         back="/scan"
         actions={
-          <button type="button" onClick={() => navigate("/scan")}>
+          <button type="button" onClick={() => back("/scan")}>
             Back
           </button>
         }

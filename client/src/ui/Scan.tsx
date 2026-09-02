@@ -4,7 +4,7 @@ import { parseCode } from "../lib/codes";
 import { code as codeOf, codeStatus, displayName, homeLabel, item, nameOf, resolveItem } from "../lib/inventory";
 import { checkOut } from "../lib/movement";
 import { addExtra, isPacked, type Remaining, remaining, type Reservation, reservation } from "../lib/reservations";
-import { navigate, useRoute } from "../lib/router";
+import { back, navigate, useRoute } from "../lib/router";
 import { startScanner } from "../lib/scanner";
 import type { Store } from "../lib/store";
 import { guard, useUnsaved } from "../lib/unsaved";
@@ -270,7 +270,7 @@ function RemainingList({
 function Finish({ store, booked }: { store: Store; booked: Reservation }) {
   const [asking, setAsking] = useState(false);
   const rem: Remaining = remaining(store.state, booked);
-  const done = () => navigate(`/reservations/${booked.id}`);
+  const done = () => back(`/reservations/${booked.id}`);
   const left = [
     ...rem.items.map((it) => displayName(store.state, it)),
     ...rem.generics.filter((g) => g.done < g.quantity).map((g) => `${g.quantity - g.done} × ${g.generic.name}`),

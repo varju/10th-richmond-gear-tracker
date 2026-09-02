@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
 import * as inv from "../lib/inventory";
-import { navigate } from "../lib/router";
+import { back, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { CodeLanding } from "./CodeLanding";
 import { openStore, printCodes } from "./codeTestKit";
@@ -48,7 +48,8 @@ test("an unassigned code offers create or bind (FR-TAG-07)", async () => {
 
 test("a code this device has never heard of says so and suggests a sync", async () => {
   const user = userEvent.setup();
-  navigate("/g/ZZZZZZZZZZ");
+  // Straight off a sticker, with nothing behind it: Scan again has to fall back.
+  navigate("/g/ZZZZZZZZZZ", true);
   render(<CodeLanding store={store} code="ZZZZZZZZZZ" />);
   expect(screen.getByRole("heading", { name: "Not one of our codes" })).toBeInTheDocument();
   expect(screen.getByText("ZZZZZZZZZZ")).toBeInTheDocument();
@@ -72,6 +73,7 @@ test("an unassigned code makes another of a generic we labelled a moment ago (FR
   const cold = await act.createLocation(store, "Cold locker");
   const tents = await act.createGeneric(store, { name: "4-person tent", home_location_id: cold });
   await act.addUnit(store, tents);
+  navigate("/scan");
   navigate("/g/CCCCCCCCCC");
   render(<CodeLanding store={store} code="CCCCCCCCCC" />);
 
@@ -90,4 +92,22 @@ test("a number can be picked instead, on the unit form", async () => {
   render(<CodeLanding store={store} code="CCCCCCCCCC" />);
   await user.click(screen.getByRole("button", { name: "Another 4-person tent, with a number I pick" }));
   expect(location.pathname + location.search).toBe(`/items/new?parent=${tents}&code=CCCCCCCCCC`);
+});
+
+test("the code screen steps aside, so back from what it opens returns to the scanner", async () => {
+  const user = userEvent.setup();
+  navigate("/scan");
+  navigate("/g/CCCCCCCCCC");
+  render(<CodeLanding store={store} code="CCCCCCCCCC" />);
+
+  await user.click(screen.getByRole("button", { name: "Create a new item" }));
+  expect(location.pathname + location.search).toBe("/items/new?code=CCCCCCCCCC");
+  back("/");
+  expect(location.pathname).toBe("/scan");
+
+  navigate("/g/CCCCCCCCCC");
+  await user.click(screen.getByRole("button", { name: "Put it on an existing item" }));
+  expect(location.pathname).toBe("/bind/CCCCCCCCCC");
+  back("/");
+  expect(location.pathname).toBe("/scan");
 });

@@ -12,11 +12,29 @@ export const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const listeners = new Set<() => void>();
 
+/** What we keep in `history.state`: how many steps into the app this entry is. */
+interface Entry {
+  depth: number;
+}
+
+/** A fresh load, or a link from outside, is 0. Anything the app pushed is deeper. */
+export function depth(): number {
+  const state = history.state as Entry | null;
+  return typeof state?.depth === "number" ? state.depth : 0;
+}
+
 export function navigate(path: string, replace = false): void {
   const href = BASE + path;
-  if (replace) history.replaceState(null, "", href);
-  else history.pushState(null, "", href);
+  const entry: Entry = { depth: replace ? depth() : depth() + 1 };
+  if (replace) history.replaceState(entry, "", href);
+  else history.pushState(entry, "", href);
   for (const listener of listeners) listener();
+}
+
+/** Back: the way the person came, or `fallback` when they arrived here cold. */
+export function back(fallback: string): void {
+  if (depth() > 0) history.back();
+  else navigate(fallback, true);
 }
 
 function subscribe(listener: () => void): () => void {

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { displayName, type Filter, homeLabel, type Item, type Row, rows } from "../lib/inventory";
+import { filterParams, readFilter, withQuery } from "../lib/listUrl";
 import { openRepairs } from "../lib/repairs";
-import { navigate } from "../lib/router";
+import { navigate, useRoute } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { FilterFields } from "./Filters";
@@ -22,6 +23,19 @@ const COLUMNS: { key: Key; label: string }[] = [
   { key: "status", label: "Status" },
   { key: "flags", label: "Flags" },
 ];
+
+/** Name ascending is the default, so it is the one arrangement the URL leaves out. */
+function readSort(query: URLSearchParams): Sort {
+  const key = COLUMNS.find((c) => c.key === query.get("sort"));
+  return { key: key?.key ?? "name", up: query.get("dir") !== "down" };
+}
+
+function tableParams(text: string, filter: Filter, sort: Sort): URLSearchParams {
+  const params = filterParams(text, filter);
+  if (sort.key !== "name") params.set("sort", sort.key);
+  if (!sort.up) params.set("dir", "down");
+  return params;
+}
 
 /** A generic has no status of its own; its units carry it. */
 const statusOf = (store: Store, row: Row): string => (row.kind === "single" ? statusLabel(store.state, row.item) : "");
@@ -50,12 +64,17 @@ function sortKey(store: Store, row: Row, key: Key): string {
  */
 export function ItemTable({ store }: { store: Store }) {
   useStore(store);
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>({});
-  const [sort, setSort] = useState<Sort>({ key: "name", up: true });
+  const route = useRoute();
+  const query = route.query.get("q") ?? "";
+  const filter = readFilter(route.query);
+  const sort = readSort(route.query);
   const [open, setOpen] = useState<string[]>([]);
   const camera = useCamera();
   const state = store.state;
+
+  // Replace, not push: typing a search must not fill the back button with keystrokes.
+  const show = (text: string, next: Filter, order: Sort) =>
+    navigate(withQuery("/items", tableParams(text, next, order)), true);
 
   const list = [...rows(state, { ...filter, query })].sort((a, b) => {
     const order = sortKey(store, a, sort.key).localeCompare(sortKey(store, b, sort.key));
@@ -63,7 +82,7 @@ export function ItemTable({ store }: { store: Store }) {
   });
 
   function sortBy(key: Key) {
-    setSort((s) => ({ key, up: s.key === key ? !s.up : true }));
+    show(query, filter, { key, up: sort.key === key ? !sort.up : true });
   }
 
   return (
@@ -72,9 +91,15 @@ export function ItemTable({ store }: { store: Store }) {
         <label className="tight">
           <span>Search</span>
           {/* A desk starts typing; a phone would raise its keyboard over the list, so this screen is wide only. */}
-          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} autoComplete="off" autoFocus />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => show(e.target.value, filter, sort)}
+            autoComplete="off"
+            autoFocus
+          />
         </label>
-        <FilterFields store={store} filter={filter} onChange={setFilter} />
+        <FilterFields store={store} filter={filter} onChange={(f) => show(query, f, sort)} />
         <div className="table-actions">
           <button className="primary" type="button" onClick={() => navigate("/items/new")}>
             New item

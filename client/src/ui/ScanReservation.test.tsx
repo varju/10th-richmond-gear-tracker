@@ -40,6 +40,8 @@ beforeEach(async () => {
     items: [tarp, tent],
     generics: [{ item_id: tents, quantity: 1 }],
   });
+  // The way in: the reservation's page, then its packing session.
+  navigate(`/reservations/${fall}`);
   navigate(`/scan?reservation=${fall}`);
 });
 
