@@ -43,12 +43,6 @@ Item page:
 
 - [ ] Notes should be deletable
 
-New item:
-
-- [ ] Home location starts blank, not at the last one used
-- [ ] Define a type inline, without a trip to Settings
-- [ ] "Add another" and "Keep these values" checkboxes, for writing up a shelf in one sitting
-
 Settings:
 
 - [ ] Enter in the new-name box adds it

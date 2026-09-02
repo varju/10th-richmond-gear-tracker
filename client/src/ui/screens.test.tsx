@@ -134,16 +134,17 @@ test("retiring hides an item until retired items are asked for", async () => {
 
 test("a new item with a code is created, bound, and the walk goes on", async () => {
   const f = await fixture();
-  window.localStorage.setItem("last-location", f.cold);
   navigate("/items/new?code=ABCDEFGH23");
   mount();
   const user = userEvent.setup();
   expect(screen.getByText(/will go on this item/)).toHaveTextContent("ABCDEFGH23");
-  expect(screen.getByLabelText("Home location")).toHaveValue(f.cold);
+  // Nothing is guessed: the home starts empty.
+  expect(screen.getByLabelText("Home location")).toHaveValue("");
   expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 
   const before = store.pending.length;
   await user.type(screen.getByLabelText("Name"), "Tarp");
+  await user.selectOptions(screen.getByLabelText("Home location"), f.cold);
   await user.click(screen.getByRole("button", { name: "Save" }));
 
   await waitFor(() => expect(location.pathname).toBe("/scan"));
@@ -163,6 +164,71 @@ test("a new item without a code opens its page", async () => {
   await user.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(location.pathname).toMatch(/^\/items\/[0-9A-Z]{26}$/));
   expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Tarp");
+});
+
+test("Add another keeps the form up; the template checkbox carries the values over", async () => {
+  const f = await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByLabelText("Add another after saving"));
+  await user.click(screen.getByLabelText("Keep these values as a template"));
+  await user.type(screen.getByLabelText("Name"), "Tarp 1");
+  await user.selectOptions(screen.getByLabelText("Home location"), f.cold);
+  await user.click(screen.getByRole("button", { name: "Save" }));
+
+  expect(await screen.findByText("Saved · Tarp 1")).toBeInTheDocument();
+  expect(location.pathname).toBe("/items/new");
+  expect(screen.getByLabelText("Home location")).toHaveValue(f.cold);
+
+  await user.clear(screen.getByLabelText("Name"));
+  await user.type(screen.getByLabelText("Name"), "Tarp 2");
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(
+      inv
+        .items(store.state)
+        .map((i) => i.name)
+        .sort(),
+    ).toContain("Tarp 2"),
+  );
+  expect(
+    inv
+      .items(store.state)
+      .filter((i) => i.name.startsWith("Tarp"))
+      .map((i) => i.home_location_id),
+  ).toEqual([f.cold, f.cold]);
+});
+
+test("Add another on its own clears the form", async () => {
+  const f = await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByLabelText("Add another after saving"));
+  await user.type(screen.getByLabelText("Name"), "Tarp 1");
+  await user.selectOptions(screen.getByLabelText("Home location"), f.cold);
+  await user.click(screen.getByRole("button", { name: "Save" }));
+
+  expect(await screen.findByText("Saved · Tarp 1")).toBeInTheDocument();
+  expect(screen.getByLabelText("Name")).toHaveValue("");
+  expect(screen.getByLabelText("Home location")).toHaveValue("");
+});
+
+test("a type is named on the item form and picked straight away (FR-SET-10)", async () => {
+  await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Name"), "Tarp");
+  await user.selectOptions(screen.getByLabelText("Type"), screen.getByRole("option", { name: "New type…" }));
+  await user.type(screen.getByLabelText("New type"), "3x3 tarp");
+  await user.click(screen.getByRole("button", { name: "Add" }));
+
+  const type = inv.itemTypes(store.state).find((t) => t.name === "3x3 tarp")!;
+  expect(type).toBeDefined();
+  await waitFor(() => expect(screen.getByLabelText("Type")).toHaveValue(type.id));
+  expect(screen.queryByLabelText("New type")).not.toBeInTheDocument();
 });
 
 test("back with a half-typed new item asks; Keep editing stays, Save creates it, Discard drops it", async () => {
