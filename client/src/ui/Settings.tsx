@@ -61,6 +61,9 @@ export function Settings({ store, shell }: Props) {
       <p className="muted">{syncLabel(store.meta.last_sync_at, shell.now(), shell.busy, shell.outcome)}</p>
       {admin && (
         <>
+          <button className="link" type="button" onClick={() => navigate("/settings/users")}>
+            Users
+          </button>
           <h2 className="section">Group</h2>
           <GroupForm store={store} />
           <h2 className="section">Locations</h2>

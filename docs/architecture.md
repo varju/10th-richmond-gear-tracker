@@ -482,6 +482,11 @@ kept, marked inactive, so the final push can land (FR-OFF-06). That push ends th
 Invite and reset links are one-time tokens the Admin passes on by hand (FR-USR-12). They die after seven days unused;
 sessions do not expire, links do. Redeeming a reset revokes the sessions the old password opened.
 
+A lost or sold phone is revoked on its own (FR-USR-14). An Admin sees the devices a person is signed in on and ends the
+sessions of one; the account, its other phones and its events are untouched. The phone keeps its copy of the inventory
+until it next tries to sync, is refused, and signs itself out. What sits on it until then is behind the phone's own lock
+(NFR-SEC-06). Invite and reset links open `/join` in the app, which sets the password and signs that phone in.
+
 The first Admin is made at the keyboard with `gear-admin create-admin` (FR-USR-13). `gear-admin reset-link` is the way
 back in when every Admin has lost their password; the keyboard is the credential.
 

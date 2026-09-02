@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
@@ -62,7 +62,7 @@ test("each report names the item, quotes the finder, and can be resolved", async
   expect(screen.getByRole("region", { name: "BBBBBBBBBB" })).toHaveTextContent("left in the car park");
 
   await user.click(within(first).getByRole("button", { name: "Resolve" }));
-  expect(screen.queryByRole("region", { name: "Tent 1" })).not.toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Tent 1" })).not.toBeInTheDocument());
   expect(store.pending.at(-1)).toMatchObject({
     entity_type: "found_report",
     entity_id: "01000000000000000000000001",
@@ -71,7 +71,7 @@ test("each report names the item, quotes the finder, and can be resolved", async
   });
 
   await user.click(within(screen.getByRole("region", { name: "BBBBBBBBBB" })).getByRole("button", { name: "Resolve" }));
-  expect(screen.getByText("No found reports.")).toBeInTheDocument();
+  expect(await screen.findByText("No found reports.")).toBeInTheDocument();
 });
 
 test("the item's name opens the item", async () => {

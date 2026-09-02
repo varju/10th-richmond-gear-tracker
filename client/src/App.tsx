@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { type Api, Offline } from "./lib/api";
 import { autoSync } from "./lib/autosync";
 import { STALE_PENDING_MS } from "./lib/clock";
-import { type Route, useRoute } from "./lib/router";
+import { navigate, type Route, useRoute } from "./lib/router";
 import { ensurePersistent } from "./lib/storage";
 import type { Store } from "./lib/store";
 import { sync, type SyncOutcome } from "./lib/sync";
@@ -14,6 +14,7 @@ import { Found } from "./ui/Found";
 import { InstallPrompt } from "./ui/InstallPrompt";
 import { Inventory } from "./ui/Inventory";
 import { ItemPage } from "./ui/ItemPage";
+import { Join } from "./ui/Join";
 import { LeaveDialog } from "./ui/LeaveDialog";
 import { NewItem } from "./ui/NewItem";
 import { Page } from "./ui/Page";
@@ -28,6 +29,7 @@ import { Reservations } from "./ui/Reservations";
 import { Scan } from "./ui/Scan";
 import { Settings } from "./ui/Settings";
 import { SignIn } from "./ui/SignIn";
+import { Users } from "./ui/Users";
 import { type Shell, ShellContext } from "./shell";
 import { useStore } from "./useStore";
 
@@ -100,12 +102,19 @@ export function App({ store, api, now = Date.now }: Props) {
     await store.setMeta({ token: undefined, user: undefined });
   }
 
+  function joined() {
+    navigate("/", true);
+    void runSync();
+  }
+
   if (!store.meta.token) {
     // A sticker's URL is the same signed in or out. Signed out it is a stranger
     // holding our gear, not a member who forgot to sign in (FR-PUB-01).
     const [head, second] = route.segments;
     if (head === "g" && second && !signInWanted)
       return <PublicItem api={api} code={second} onSignIn={() => setSignInWanted(true)} />;
+    // An invite or reset link (FR-USR-12). Once redeemed, the phone is signed in and starts at home.
+    if (head === "join") return <Join store={store} api={api} onJoined={() => joined()} />;
     return <SignIn store={store} api={api} onSignedIn={runSync} />;
   }
 
@@ -166,7 +175,11 @@ function Screen({ store, api, route, shell }: { store: Store; api: Api; route: R
       if (second) return <ReservationPage store={store} id={second} />;
       return <Reservations store={store} />;
     case "settings":
+      if (second === "users") return <Users store={store} api={api} />;
       return <Settings store={store} api={api} shell={shell} />;
+    case "join":
+      // Signed in already. Join says what to do; it needs no shell.
+      return <Join store={store} api={api} onJoined={() => undefined} />;
   }
   return (
     <Page title="Not found" back="/">

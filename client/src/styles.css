@@ -798,3 +798,19 @@ main:has(> .remaining) .viewfinder {
 .names li.row .name {
   flex: 1;
 }
+
+/* --- users (FR-USR-04, FR-USR-14) ---------------------------------------------------- */
+
+.wrap {
+  word-break: break-all;
+}
+
+.user-detail {
+  display: grid;
+  gap: 12px;
+  padding: 4px 4px 16px;
+}
+
+h3.section.small {
+  margin-bottom: 0;
+}

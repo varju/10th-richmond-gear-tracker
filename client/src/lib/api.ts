@@ -26,6 +26,18 @@ export interface User {
   active: boolean;
 }
 
+/** A user as an Admin sees them: the person from the log, plus the credential side (FR-USR-04). */
+export interface AccountUser extends User {
+  email: string;
+  has_password: boolean;
+}
+
+/** A phone with an open session (FR-USR-14). `created_at` is its latest sign-in. */
+export interface Device {
+  device_id: string;
+  created_at: number;
+}
+
 export interface Bootstrap {
   snapshot: State;
   cursor: number;
@@ -116,6 +128,20 @@ export function createApi(options: ApiOptions = {}) {
     signIn: (email: string, password: string, device_id: string) =>
       request<Session>("POST", "/auth/sign-in", { email, password, device_id }),
     signOut: () => request<Record<string, never>>("POST", "/auth/sign-out"),
+    /** Use an invite or reset link (FR-USR-12): set a password, open this device's session. */
+    redeem: (token: string, password: string, device_id: string) =>
+      request<Session>("POST", "/auth/redeem", { token, password, device_id }),
+    // Admins only. Every call needs the network; nothing here is stored on the device.
+    users: () => request<{ users: AccountUser[] }>("GET", "/users"),
+    invite: (name: string, email: string, role: string) =>
+      request<{ user_id: string; token: string }>("POST", "/users/invite", { name, email, role }),
+    setRole: (userId: string, role: string) => request<{ user: User }>("POST", `/users/${userId}/role`, { role }),
+    deactivate: (userId: string) => request<{ user: User }>("POST", `/users/${userId}/deactivate`),
+    reactivate: (userId: string) => request<{ user: User }>("POST", `/users/${userId}/reactivate`),
+    resetLink: (userId: string) => request<{ token: string }>("POST", `/users/${userId}/reset-link`),
+    devices: (userId: string) => request<{ devices: Device[] }>("GET", `/users/${userId}/devices`),
+    revokeDevice: (userId: string, deviceId: string) =>
+      request<{ devices: Device[] }>("POST", `/users/${userId}/devices/${deviceId}/revoke`),
     publicCode: (code: string) => request<PublicCode>("GET", `/public/codes/${code}`),
     /** A finder's note (FR-PUB-02). `website` is a honeypot: people never see it, so it is sent empty. */
     reportFound: (code: string, body: { note: string; contact: string; website: string }) =>
