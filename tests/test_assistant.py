@@ -923,3 +923,99 @@ def test_anyone_adds_a_category_and_a_repeat_name_returns_the_first(tools):
     assert again == first
     with pytest.raises(Forbidden):
         assistant.rename_category(first["category_id"], "Burners")
+
+
+# --- pools (FR-INV-34 to FR-INV-36, FR-OUT-22 to FR-OUT-24, FR-MCP-08) -----------------------------
+
+
+@pytest.fixture
+def pool_id(db_path, tools) -> str:
+    """A pool of tent pegs, 20 on the shelf, alongside the rest of the inventory fixture."""
+    with open_db(db_path) as conn:
+        return _new(conn, "item", {"name": "Tent pegs", "generic": True, "pool": True, "quantity": 20})
+
+
+def test_creating_a_pool_implies_generic_and_needs_a_quantity(db_path, tools):
+    made = assistant.create_item("Bowls", pool=True, quantity=12)
+    assert made["generic"] is True and made["pool"] is True
+    stored = entity(db_path, "item", made["item_id"])
+    assert stored["pool"] is True and stored["generic"] is True and stored["quantity"] == 12
+
+    with pytest.raises(BadRequest):
+        assistant.create_item("Cups", pool=True)  # no quantity
+    with pytest.raises(BadRequest):
+        assistant.create_item("Plates", quantity=5)  # quantity without pool
+
+
+def test_a_pools_page_reports_owned_in_and_out_by_holder(tools, pool_id):
+    got = assistant.get_item(pool_id)
+    assert got["pool"] is True
+    assert got["owned"] == 20 and got["in"] == 20 and got["out"] == []
+    assert "units" not in got and "code" not in got
+
+    assistant.check_out(pool_id, count=6, event="Fall Camp")
+    got = assistant.get_item(pool_id)
+    assert got["owned"] == 20 and got["in"] == 14
+    assert got["out"] == [{"holder": "Alice", "count": 6}]
+
+
+def test_search_marks_a_pool_row_and_carries_its_counts(tools, pool_id):
+    assistant.check_out(pool_id, count=6)
+    rows = {r["name"]: r for r in assistant.search_items()["rows"]}
+    assert rows["Tent pegs"]["kind"] == "pool"
+    assert rows["Tent pegs"]["owned"] == 20
+    assert rows["Tent pegs"]["in"] == 14
+    assert rows["Tent pegs"]["out"] == [{"holder": "Alice", "count": 6}]
+
+
+def test_check_out_and_in_a_pool_move_by_count(tools, pool_id):
+    with pytest.raises(BadRequest):
+        assistant.check_out(pool_id)  # a pool moves by count
+    with pytest.raises(BadRequest):
+        assistant.check_out(tools["stove"], count=1)  # count is only for a pool
+    with pytest.raises(BadRequest):
+        assistant.check_in(tools["stove"], count=1)
+
+    out = assistant.check_out(pool_id, count=6, event="Fall Camp")
+    assert out == {"item_id": pool_id, "event": "Fall Camp", "count": 6}
+
+    back = assistant.check_in(pool_id, count=2)
+    assert back == {"item_id": pool_id, "count": 2}
+    left = assistant.get_item(pool_id)
+    assert left["in"] == 16 and left["out"] == [{"holder": "Alice", "count": 4}]
+
+    # Left off, it defaults to what is still out (FR-OUT-23).
+    rest = assistant.check_in(pool_id)
+    assert rest == {"item_id": pool_id, "count": 4}
+    assert assistant.get_item(pool_id)["out"] == []
+
+    with pytest.raises(BadRequest):
+        assistant.check_in(pool_id)  # nothing left out
+
+
+def test_taking_more_than_are_in_a_pool_warns_and_does_not_block(tools, pool_id):
+    out = assistant.check_out(pool_id, count=25)
+    assert out["warning"] == "only 20 were in"
+    assert assistant.get_item(pool_id)["in"] == 0
+
+
+def test_recount_sets_what_is_on_the_shelf_and_leaves_what_is_out(tools, pool_id):
+    assistant.check_out(pool_id, count=5)
+    result = assistant.recount(pool_id, count=3, reason="shelf count")
+    assert result == {"item_id": pool_id, "in": 3, "owned": 8}
+
+    with pytest.raises(BadRequest):
+        assistant.recount(tools["stove"], count=1, reason="why not")
+    with pytest.raises(BadRequest):
+        assistant.recount(pool_id, count=1, reason="   ")
+
+
+def test_a_reservation_records_who_created_it_and_when(tools):
+    made = assistant.create_reservation(**FALL)["reservation_id"]
+    got = assistant.get_reservation(made)
+    assert got["created_by"] == "Alice"
+    assert got["added_at"] is not None
+
+    listed = assistant.list_reservations()["reservations"][0]
+    assert listed["created_by"] == "Alice"
+    assert listed["added_at"] == got["added_at"]

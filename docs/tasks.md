@@ -80,4 +80,5 @@ the pool clauses in FR-RES-13 and FR-RES-15. Queued behind go-live.
       (FR-RPT-11); the item's History shows counts on each line.
 - [ ] Reservations. Reserve a quantity of a pool (FR-RES-13); the clash rule counts against quantity owned (FR-RES-15);
       checking out from the reservation page takes a count and ticks it off.
-- [ ] Assistant. `check_out`, `check_in` and `get_item` per FR-MCP-08; `search_items` says a pool is one.
+- [ ] `views.rows` (server) only lists a pool through its no-filter fallback, so `search_items` by location or status
+      never returns one. A pool with stock at a location, or with anything out, must match those filters.

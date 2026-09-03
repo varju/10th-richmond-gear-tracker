@@ -16,6 +16,11 @@ history reads "this Scouter, via the assistant". There is no second write path.
 **A read is derived state**, through views.py, which is the Python twin of what
 appears on screen.
 
+**A pool moves by count.** Some gear is a counted stack rather than named units, like tent pegs
+(FR-INV-34). `check_out`, `check_in` and `recount` move it by `count`, not by item id alone; the
+server refuses a count on anything else and refuses a pool without one. `get_item` on a pool
+reports owned, in, and out by holder in place of units and a code (FR-INV-36, FR-MCP-08).
+
 **An Admin's token unlocks an Admin's work** (FR-MCP-10): users, mail, group
 settings, locations, categories (adding one is anyone's job), printed codes,
 CSV export and import, deleting an item, and merging or unmerging duplicates. Every one of those tools calls
@@ -71,7 +76,8 @@ return. Everything you write is recorded as the signed-in person, through the
 assistant. Users, mail, group settings, locations, renaming or deleting
 categories, printed codes, CSV import, deleting an item, and merging duplicates
 are an Admin's job in the app, and are here too when the signed-in person is an Admin; a User's token is
-refused the same way the app refuses a User."""
+refused the same way the app refuses a User. A pool is gear kept as a counted stack, not named
+units; check_out, check_in and recount move it by count."""
 
 
 @dataclass(frozen=True)
@@ -261,14 +267,25 @@ def _item_brief(state: dict[str, Any], it: dict[str, Any]) -> dict[str, Any]:
 def _row(state: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
     if row["kind"] == "single":
         return {"kind": "single", **_item_brief(state, row["item"])}
-    out = {
-        "kind": "generic",
-        "item_id": row["item"]["id"],
-        "name": row["name"],
-        "units": row["counts"]["total"],
-        "in": row["counts"]["in"],
-        "unit_ids": [u["id"] for u in row["units"]],
-    }
+    if views.is_pool(row["item"]):
+        counts = views.pool_counts(row["item"])
+        out = {
+            "kind": "pool",
+            "item_id": row["item"]["id"],
+            "name": row["name"],
+            "owned": counts["owned"],
+            "in": counts["in"],
+            "out": [{"holder": views.user_name(state, o["holder_id"]), "count": o["count"]} for o in counts["out"]],
+        }
+    else:
+        out = {
+            "kind": "generic",
+            "item_id": row["item"]["id"],
+            "name": row["name"],
+            "units": row["counts"]["total"],
+            "in": row["counts"]["in"],
+            "unit_ids": [u["id"] for u in row["units"]],
+        }
     categories = [views.category_name(state, cid) for cid in views.categories_of(state, row["item"])]
     if categories:
         out["categories"] = categories
@@ -290,8 +307,8 @@ def _ticket_brief(state: dict[str, Any], ticket: dict[str, Any]) -> dict[str, An
     }
 
 
-def _reservation_brief(r: dict[str, Any]) -> dict[str, Any]:
-    return {
+def _reservation_brief(state: dict[str, Any], r: dict[str, Any]) -> dict[str, Any]:
+    out = {
         "reservation_id": r["id"],
         "event": r.get("event"),
         "starts": r.get("starts"),
@@ -299,6 +316,11 @@ def _reservation_brief(r: dict[str, Any]) -> dict[str, Any]:
         "items": len(r.get("items") or []),
         "generics": sum(line["quantity"] for line in r.get("generics") or []),
     }
+    # Older data, from before a reservation recorded who made it, has no created_by (FR-RES-18).
+    if r.get("created_by"):
+        out["created_by"] = views.user_name(state, r["created_by"])
+        out["added_at"] = views.iso(r.get("added_at"))
+    return out
 
 
 def _history(conn: sqlite3.Connection, state: dict[str, Any], item_id: str) -> list[dict[str, Any]]:
@@ -362,17 +384,28 @@ def get_item(item_id: str) -> dict[str, Any]:
             "generic": bool(it.get("generic")),
             "since": views.iso(it.get("since")),
         }
-        if it.get("generic"):
-            out["units"] = [_item_brief(state, unit) for unit in views.units_of(state, it["id"])]
-        if it.get("parent_id"):
-            out["generic_id"] = it["parent_id"]
-            out["number"] = it.get("number")
-        code_id = views.current_code(state, it["id"])
-        if code_id:
-            out["code"] = code_id
+        if views.is_pool(it):
+            # A pool has no units and no code of its own (FR-INV-34); owned, in, and out by holder
+            # stand in for them (FR-INV-36).
+            out["pool"] = True
+            counts = views.pool_counts(it)
+            out["owned"] = counts["owned"]
+            out["in"] = counts["in"]
+            out["out"] = [
+                {"holder": views.user_name(state, o["holder_id"]), "count": o["count"]} for o in counts["out"]
+            ]
+        else:
+            if it.get("generic"):
+                out["units"] = [_item_brief(state, unit) for unit in views.units_of(state, it["id"])]
+            if it.get("parent_id"):
+                out["generic_id"] = it["parent_id"]
+                out["number"] = it.get("number")
+            code_id = views.current_code(state, it["id"])
+            if code_id:
+                out["code"] = code_id
         out["open_tickets"] = [_ticket_brief(state, t) for t in views.repairs_for(state, it["id"]) if views.is_open(t)]
         out["reservations"] = [
-            _reservation_brief(r) for r in views.reservations(state) if it["id"] in views.named_items(state, r)
+            _reservation_brief(state, r) for r in views.reservations(state) if it["id"] in views.named_items(state, r)
         ]
         out["history"] = [] if it.get("generic") else _history(conn, state, it["id"])
         out["notes"] = [
@@ -395,7 +428,7 @@ def list_reservations(upcoming_only: bool = True) -> dict[str, Any]:
         state = _state(conn)
         today = views.today(now_ms())
         found = [r for r in views.reservations(state) if not upcoming_only or (r.get("ends") or "") >= today]
-        return {"today": today, "reservations": [_reservation_brief(r) for r in found]}
+        return {"today": today, "reservations": [_reservation_brief(state, r) for r in found]}
 
 
 def get_reservation(reservation_id: str) -> dict[str, Any]:
@@ -405,7 +438,7 @@ def get_reservation(reservation_id: str) -> dict[str, Any]:
         r = _reservation(state, reservation_id)
         rem = views.remaining(state, r)
         return {
-            **_reservation_brief(r),
+            **_reservation_brief(state, r),
             "cancelled": bool(r.get("cancelled")),
             "to_pack": rem["items"],
             "packed": rem["packed"],
@@ -690,24 +723,37 @@ def create_item(
     sub_location: str | None = None,
     description: str | None = None,
     generic: bool = False,
+    pool: bool = False,
+    quantity: Annotated[int, Field(ge=0)] | None = None,
     category_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Add gear to the inventory (FR-INV-01).
 
     `generic` is for something the group owns several of: the name is stored
     once and each one becomes a numbered unit under it (FR-INV-21). Add those
-    with add_unit. `category_ids` puts it in any number of groups of similar
-    gear (FR-SET-07); call list_categories for the ids.
+    with add_unit. `pool` is for a counted stack instead, like tent pegs
+    (FR-INV-34): give `quantity`, and it moves by count through check_out,
+    check_in and recount, with no units and no code of its own; `pool` implies
+    `generic`. `category_ids` puts it in any number of groups of similar gear
+    (FR-SET-07); call list_categories for the ids.
     """
     with _open() as (conn, who):
         state = _state(conn)
         if not name.strip():
             raise BadRequest("an item needs a name")
+        if pool and quantity is None:
+            raise BadRequest("a pool needs a quantity")
+        if quantity is not None and not pool:
+            raise BadRequest("quantity is only for a pool")
         _home(state, home_location_id)
         for category_id in category_ids or []:
             _category(state, category_id)
         payload: dict[str, Any] = {"name": name.strip()}
-        if generic:
+        if pool:
+            payload["generic"] = True
+            payload["pool"] = True
+            payload["quantity"] = quantity
+        elif generic:
             payload["generic"] = True
         if home_location_id:
             payload["home_location_id"] = home_location_id
@@ -719,7 +765,7 @@ def create_item(
             payload["category_ids"] = _sorted_categories(state, category_ids)
         item_id = new_ulid()
         _push(conn, who, [_draft("item", item_id, "created", payload)])
-        return {"item_id": item_id, "name": payload["name"], "generic": generic}
+        return {"item_id": item_id, "name": payload["name"], "generic": bool(payload.get("generic")), "pool": pool}
 
 
 def _next_number(taken: set[str]) -> str:
@@ -932,51 +978,101 @@ def set_ticket_state(ticket_id: str, state: RepairState) -> dict[str, Any]:
 # --- movement tools ---------------------------------------------------------------------------------
 
 
-def check_out(item_id: str, event: str | None = None, note: str | None = None) -> dict[str, Any]:
-    """Take an item out, without a scan (FR-OUT-02). The holder is you; `event` is what it is going to."""
+Count = Annotated[int, Field(ge=1)]
+
+
+def check_out(
+    item_id: str, event: str | None = None, note: str | None = None, count: Count | None = None
+) -> dict[str, Any]:
+    """Take an item out, without a scan (FR-OUT-02). The holder is you; `event` is what it is going to.
+
+    A pool (FR-INV-34) needs `count`; anything else refuses one (FR-MCP-08). Taking more than are
+    in a pool warns, and is never blocked (FR-OUT-22).
+    """
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)
-        if it.get("generic"):
+        pool = views.is_pool(it)
+        if it.get("generic") and not pool:
             raise BadRequest("that item does not move; one of its units does")
+        if pool and count is None:
+            raise BadRequest("a pool moves by count; say how many")
+        if not pool and count is not None:
+            raise BadRequest("count is only for a pool (FR-OUT-22)")
         if it.get("retired"):
             raise BadRequest("retired items cannot be checked out")
-        if it.get("status") == "out":
+        if not pool and it.get("status") == "out":
             raise Conflict(f"already out with {views.user_name(state, it.get('holder_id'))}")
         movement_id = new_ulid()
-        drafts = [
-            _draft(
-                "item",
-                it["id"],
-                "checked_out",
-                {"holder_id": who.user_id, "event": (event or "").strip() or None},
-                movement_id,
-            )
-        ]
+        payload: dict[str, Any] = {"holder_id": who.user_id, "event": (event or "").strip() or None}
+        if pool:
+            payload["count"] = count
+        drafts = [_draft("item", it["id"], "checked_out", payload, movement_id)]
         if note and note.strip():
             drafts.append(_draft("item", it["id"], "note_added", {"text": note.strip(), "movement_id": movement_id}))
         _push(conn, who, drafts)
-        return {"item_id": it["id"], "status": "out", "event": (event or "").strip() or None}
+        out: dict[str, Any] = {"item_id": it["id"], "event": (event or "").strip() or None}
+        if pool:
+            out["count"] = count
+            still_in = views.pool_counts(it)["in"]
+            if count > still_in:
+                out["warning"] = f"only {still_in} were in"
+        else:
+            out["status"] = "out"
+        return out
 
 
-def check_in(item_id: str, note: str | None = None) -> dict[str, Any]:
-    """Bring an item back, without a scan (FR-OUT-07). Anyone can check anything in (FR-OUT-08)."""
+def check_in(item_id: str, note: str | None = None, count: Count | None = None) -> dict[str, Any]:
+    """Bring an item back, without a scan (FR-OUT-07). Anyone can check anything in (FR-OUT-08).
+
+    A pool (FR-INV-34) defaults `count` to what you have out, and refuses if you have none; say
+    `count` to return fewer and leave the rest against your name (FR-OUT-23).
+    """
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)
-        if it.get("generic"):
+        pool = views.is_pool(it)
+        if it.get("generic") and not pool:
             raise BadRequest("that item does not move; one of its units does")
-        if it.get("status") != "out":
-            raise Conflict("it is already in")
+        if pool:
+            have = next((o["count"] for o in views.pool_counts(it)["out"] if o["holder_id"] == who.user_id), 0)
+            if count is None:
+                if not have:
+                    raise BadRequest("you have none of this out")
+                count = have
+        else:
+            if count is not None:
+                raise BadRequest("count is only for a pool (FR-OUT-22)")
+            if it.get("status") != "out":
+                raise Conflict("it is already in")
         movement_id = new_ulid()
-        drafts = [_draft("item", it["id"], "checked_in", {}, movement_id)]
+        drafts = [_draft("item", it["id"], "checked_in", {"count": count} if pool else {}, movement_id)]
         if note and note.strip():
             drafts.append(_draft("item", it["id"], "note_added", {"text": note.strip(), "movement_id": movement_id}))
-        if it.get("missing"):
+        if not pool and it.get("missing"):
             # It turned up (FR-INV-19).
             drafts.append(_draft("item", it["id"], "field_changed", {"field": "missing", "value": False, "old": True}))
         _push(conn, who, drafts)
+        if pool:
+            return {"item_id": it["id"], "count": count}
         return {"item_id": it["id"], "status": "in", "home": views.home_label(state, it)}
+
+
+def recount(item_id: str, count: Annotated[int, Field(ge=0)], reason: str) -> dict[str, Any]:
+    """Record how many of a pool are in right now (FR-INV-35). Anyone signed in; pool only.
+
+    What each holder has out is unchanged; owned becomes this count plus what is out.
+    """
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, item_id)
+        if not views.is_pool(it):
+            raise BadRequest("recount is only for a pool")
+        if not reason.strip():
+            raise BadRequest("say why")
+        _push(conn, who, [_draft("item", it["id"], "recounted", {"count": count, "reason": reason.strip()})])
+        counts = views.pool_counts(_item(_state(conn), item_id))
+        return {"item_id": it["id"], "in": counts["in"], "owned": counts["owned"]}
 
 
 # --- admin tools (FR-MCP-10) -------------------------------------------------------------------------
@@ -1329,6 +1425,7 @@ TOOLS = [
     set_ticket_state,
     check_out,
     check_in,
+    recount,
     list_users,
     invite_user,
     reset_link,
