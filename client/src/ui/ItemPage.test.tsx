@@ -56,8 +56,8 @@ test("Check out from the page records the session event and syncs (FR-OUT-02)", 
   ]);
   expect(screen.getByText("Out · Alice")).toBeInTheDocument();
 
-  // Now it is out and mine: Check in, no transfer.
-  expect(screen.getByRole("button", { name: "Check in" })).toBeInTheDocument();
+  // Now it is out and mine: Return, no transfer.
+  expect(screen.getByRole("button", { name: "Return" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Check out" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Transfer to me" })).not.toBeInTheDocument();
 });
@@ -68,8 +68,8 @@ test("someone else's gear can be checked in or transferred (FR-OUT-07, FR-OUT-12
   renderInShell(<ItemPage store={store} id={tent} />);
   expect(screen.getByRole("button", { name: "Transfer to me" })).toBeInTheDocument();
 
-  await user.click(screen.getByRole("button", { name: "Check in" }));
-  expect(await screen.findByText("Checked in · Tent 1")).toHaveAttribute("role", "status");
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  expect(await screen.findByText("Returned · Tent 1")).toHaveAttribute("role", "status");
   expect(item(store.state, tent)?.status).toBe("in");
 });
 
@@ -85,7 +85,7 @@ test("a retired item has no movement buttons", async () => {
   await act.retireItem(store, tent);
   renderInShell(<ItemPage store={store} id={tent} />);
   expect(screen.queryByRole("button", { name: "Check out" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Check in" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Return" })).not.toBeInTheDocument();
   expect(screen.getByText("Retired. Cannot be checked out.")).toBeInTheDocument();
 });
 
@@ -104,7 +104,7 @@ test("history lists movements and notes together, newest first (FR-INV-09)", asy
     "pole repairedAlice · 2025-08-31 17:00EditDelete",
     "Transferred to Alice for Cub camp · 2025-08-31 17:00",
     "Checked out by Carol · 2025-08-31 17:00",
-    "Checked in by Alice · 2025-08-31 17:00muddyAlice · 2025-08-31 17:00EditDelete",
+    "Returned by Alice · 2025-08-31 17:00muddyAlice · 2025-08-31 17:00EditDelete",
     "Checked out by Alice for Spring camp · 2025-08-31 17:00to a patrolAlice · 2025-08-31 17:00EditDelete",
   ]);
   // No shell api here, so this is what the device knows: said once under History, once under Changes.
@@ -200,7 +200,7 @@ test("marking an item missing takes two taps and flags it without moving it (FR-
   await user.click(screen.getByRole("button", { name: "Really missing?" }));
 
   expect(await screen.findByText("Missing", { selector: ".badge" })).toBeInTheDocument();
-  expect(screen.getByRole("note")).toHaveTextContent("Missing. Scanning it or checking it in clears this.");
+  expect(screen.getByRole("note")).toHaveTextContent("Missing. Scanning it or returning it clears this.");
   expect(screen.queryByRole("button", { name: "Mark missing" })).not.toBeInTheDocument();
   expect(item(store.state, tent)).toMatchObject({ status: "out", missing: true });
   expect(store.pending.at(-1)).toMatchObject({
@@ -208,8 +208,8 @@ test("marking an item missing takes two taps and flags it without moving it (FR-
     payload: { field: "missing", value: true, old: null },
   });
 
-  // Checking it in clears the mark (FR-INV-19).
-  await user.click(screen.getByRole("button", { name: "Check in" }));
+  // Returning it clears the mark (FR-INV-19).
+  await user.click(screen.getByRole("button", { name: "Return" }));
   await waitFor(() => expect(screen.queryByRole("note")).not.toBeInTheDocument());
   expect(item(store.state, tent)).toMatchObject({ status: "in", missing: false });
 });

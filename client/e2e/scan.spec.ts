@@ -103,7 +103,7 @@ async function signIn(page: Page) {
   await page.getByLabel("Email").fill("alice@example.org");
   await page.getByLabel("Password").fill("correct horse");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("button", { name: "Take out" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Check out" })).toBeVisible();
 }
 
 test("a scanned sticker checks its item out and back in", async ({ request }) => {
@@ -128,16 +128,17 @@ test("a scanned sticker checks its item out and back in", async ({ request }) =>
     // First decode: the wasm loads and the camera starts. Then take the tent.
     const card = page.getByRole("heading", { name: ITEM });
     await expect(card).toBeVisible({ timeout: 10_000 });
-    await page.getByRole("button", { name: "Check out" }).click();
+    const region = page.getByRole("region");
+    await region.getByRole("button", { name: "Check out" }).click();
     await expect(page.getByRole("status").filter({ hasText: `Checked out · ${ITEM}` })).toBeVisible();
 
     // The sticker is still in front of the camera; switch to bringing gear back.
-    await page.getByRole("button", { name: "Bring back" }).click();
-    const checkIn = page.getByRole("button", { name: "Check in" });
+    await page.getByRole("group", { name: "Mode" }).getByRole("button", { name: "Return" }).click();
+    const checkIn = region.getByRole("button", { name: "Return" });
     await expect(checkIn).toBeVisible({ timeout: 5_000 });
     await expect(page.getByText(/^Out · /)).toBeVisible();
     await checkIn.click();
-    await expect(page.getByRole("status").filter({ hasText: `Checked in · ${ITEM}` })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: `Returned · ${ITEM}` })).toBeVisible();
 
     // Both movements are on the item.
     await page.goto("/");
@@ -148,9 +149,9 @@ test("a scanned sticker checks its item out and back in", async ({ request }) =>
     await page.getByText(/^History · /).click();
     const entries = page
       .getByRole("list")
-      .filter({ hasText: /^Checked/ })
+      .filter({ hasText: /^(Checked|Returned)/ })
       .getByRole("listitem");
-    await expect(entries).toHaveText([/^Checked in by Alice/, /^Checked out by Alice/]);
+    await expect(entries).toHaveText([/^Returned by Alice/, /^Checked out by Alice/]);
   } finally {
     await browser.close();
   }

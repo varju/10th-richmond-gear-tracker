@@ -234,10 +234,10 @@ back arrow calls the browser's own back, and falls back to a named path only whe
 from a sticker's URL. The lists hold their search, filters and sort in the query string and replace the entry as they
 change, so a step back restores the view someone left and typing does not fill the back button with keystrokes.
 
-The phone's home screen holds only what someone at a locker came to do: take out, bring back, search, and add an item,
-with alerts above them and every other screen in a "More" fold. The two buttons open the scanner in a mode, and a scan
-that disagrees with the mode warns instead of flipping (FR-OUT-06). The full list lives at `/items` instead, because 500
-rows pushed Scan off the screen and the list is the least of what a locker visit needs (NFR-USE-01, NFR-USE-03).
+The phone's home screen holds only what someone at a locker came to do: check out, return, search, and add an item, with
+alerts above them and every other screen in a "More" fold. The two buttons open the scanner in a mode, and a scan that
+disagrees with the mode warns instead of flipping (FR-OUT-06). The full list lives at `/items` instead, because 500 rows
+pushed Scan off the screen and the list is the least of what a locker visit needs (NFR-USE-01, NFR-USE-03).
 
 The Python server serves the built client, so one process is the whole deployment. In development Vite serves the client
 and forwards API calls.

@@ -270,7 +270,7 @@ export function ItemPage({ store, id }: Props) {
           </h2>
           {it.missing && (
             <p className="notice" role="note">
-              Missing. Scanning it or checking it in clears this.
+              Missing. Scanning it or returning it clears this.
             </p>
           )}
           {hasOpenConflict(state, id) && (
@@ -415,7 +415,7 @@ function DeleteItem({ store, it }: { store: Store; it: Item }) {
 export function describeMovement(state: State, e: HistoryEntry): string {
   const who = userName(state, e.actor_id);
   const when = localMinute(e.at);
-  if (e.type === "checked_in") return `Checked in by ${who} · ${when}`;
+  if (e.type === "checked_in") return `Returned by ${who} · ${when}`;
   const verb = e.supersedes ? "Transferred to" : "Checked out by";
   return e.event ? `${verb} ${who} for ${e.event} · ${when}` : `${verb} ${who} · ${when}`;
 }

@@ -430,7 +430,7 @@ test("deleting needs an Admin, an item that is in, and a generic with no units (
   await expect(act.deleteItem(store, "nope")).rejects.toThrow("no such item");
   await expect(act.deleteItem(store, f.tents)).rejects.toThrow("delete its units first");
   await checkOut(store, f.t1, { event: "Fall Camp" });
-  await expect(act.deleteItem(store, f.t1)).rejects.toThrow("check it in first");
+  await expect(act.deleteItem(store, f.t1)).rejects.toThrow("return it first");
   await act.mergeItem(store, f.t2, f.stove);
   await expect(act.deleteItem(store, f.t2)).rejects.toThrow("merged into another");
   // A retired item may go: retiring is for gear written off, deleting for a record made in error.

@@ -68,7 +68,7 @@ test("an assigned code shows the card; one tap checks out under the session even
   expect(within(card()).getByRole("heading")).toHaveTextContent("Tent 1");
   expect(card()).toHaveTextContent("Cold locker / shelf 4");
   expect(card()).toHaveTextContent("In");
-  expect(within(card()).queryByRole("button", { name: "Check in" })).not.toBeInTheDocument();
+  expect(within(card()).queryByRole("button", { name: "Return" })).not.toBeInTheDocument();
 
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
   expect(await screen.findByText("Checked out · Tent 1")).toHaveAttribute("role", "status");
@@ -84,7 +84,7 @@ test("moved items are not shown again until the mode switches, then the same cod
   navigate("/scan?mode=out");
   renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");
-  await user.click(screen.getByRole("button", { name: "Check out" }));
+  await user.click(within(card()).getByRole("button", { name: "Check out" }));
   await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
   const afterCheckOut = store.pending.length;
 
@@ -93,7 +93,7 @@ test("moved items are not shown again until the mode switches, then the same cod
   await waitFor(() => expect(store.pending.length).toBe(afterCheckOut));
   expect(screen.queryByRole("region")).not.toBeInTheDocument();
 
-  await user.click(screen.getByRole("button", { name: "Bring back" }));
+  await user.click(screen.getByRole("button", { name: "Return" }));
   await typeCode("AAAAAAAAAA");
   expect(card()).toHaveTextContent("Out · Alice");
   expect(card()).toHaveTextContent("Put it back: Cold locker / shelf 4");
@@ -101,8 +101,8 @@ test("moved items are not shown again until the mode switches, then the same cod
   // Alice holds it, so there is no one to transfer from.
   expect(within(card()).queryByRole("button", { name: "Transfer to me" })).not.toBeInTheDocument();
 
-  await user.click(within(card()).getByRole("button", { name: "Check in" }));
-  expect(await screen.findByText("Checked in · Tent 1")).toHaveAttribute("role", "status");
+  await user.click(within(card()).getByRole("button", { name: "Return" }));
+  expect(await screen.findByText("Returned · Tent 1")).toHaveAttribute("role", "status");
   expect(pending("checked_in")).toHaveLength(1);
   expect(item(store.state, tent)).toMatchObject({
     status: "in",
@@ -175,8 +175,8 @@ test("a problem typed at check-in raises a ticket after the move, without leavin
   // One thing typed at a time: the note button goes while the problem is open.
   expect(within(card()).queryByRole("button", { name: "Add note" })).not.toBeInTheDocument();
   await user.type(screen.getByLabelText("Problem"), "zipper broken on the bag");
-  await user.click(within(card()).getByRole("button", { name: "Check in" }));
-  expect(await screen.findByText("Checked in · Tent 1")).toHaveAttribute("role", "status");
+  await user.click(within(card()).getByRole("button", { name: "Return" }));
+  expect(await screen.findByText("Returned · Tent 1")).toHaveAttribute("role", "status");
   expect(location.pathname).toBe("/scan");
 
   const [ticket] = pending("created").filter((e) => e.entity_type === "repair");
@@ -262,7 +262,7 @@ test("a plain /scan shows no mode switch and no notice", async () => {
   expect(card()).not.toHaveTextContent("Already");
 });
 
-test("?mode=out on someone else's gear warns and offers Transfer to me as primary; Check in still works (FR-OUT-12)", async () => {
+test("?mode=out on someone else's gear warns and offers Transfer to me as primary; Return still works (FR-OUT-12)", async () => {
   navigate("/scan?mode=out");
   renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");
@@ -277,8 +277,8 @@ test("?mode=out on someone else's gear warns and offers Transfer to me as primar
   expect(card()).toHaveTextContent("Already out. Alice has it.");
   expect(within(card()).getByRole("button", { name: "Transfer to me" })).toHaveClass("primary");
 
-  await user.click(within(card()).getByRole("button", { name: "Check in" }));
-  expect(await screen.findByText("Checked in · Tent 1")).toHaveAttribute("role", "status");
+  await user.click(within(card()).getByRole("button", { name: "Return" }));
+  expect(await screen.findByText("Returned · Tent 1")).toHaveAttribute("role", "status");
   expect(item(store.state, tent)).toMatchObject({ status: "in", holder_id: null });
 });
 
@@ -305,6 +305,6 @@ test("?mode=in shows no session event control", async () => {
 test("the mode switch keeps reservation= in the URL", async () => {
   navigate("/scan?mode=out&reservation=abc123");
   renderInShell(<Scan store={store} />);
-  await user.click(screen.getByRole("button", { name: "Bring back" }));
+  await user.click(screen.getByRole("button", { name: "Return" }));
   expect(location.pathname + location.search).toBe("/scan?mode=in&reservation=abc123");
 });

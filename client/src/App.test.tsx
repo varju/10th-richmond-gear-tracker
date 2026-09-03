@@ -67,11 +67,9 @@ test("signing in bootstraps and shows the inventory", async () => {
 
   // Home opens on the two things a locker needs; the gear it pulled down is a search away.
   expect(
-    await screen.findByText(
-      "Take out or bring back gear by scanning its code. Search by name for gear with no sticker.",
-    ),
+    await screen.findByText("Check out or return gear by scanning its code. Search by name for gear with no sticker."),
   ).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Take out" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Check out" })).toBeInTheDocument();
   await user.type(screen.getByLabelText("Search"), "tent");
   expect(screen.getByRole("button", { name: /Tent/ })).toBeInTheDocument();
   expect(calls).toEqual(["/auth/sign-in", "/auth/sign-in", "/sync/bootstrap"]);

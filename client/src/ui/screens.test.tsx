@@ -500,7 +500,7 @@ test("home is empty until something is asked of it", async () => {
   await fixture();
   mount();
   const user = userEvent.setup();
-  const hint = "Take out or bring back gear by scanning its code. Search by name for gear with no sticker.";
+  const hint = "Check out or return gear by scanning its code. Search by name for gear with no sticker.";
   expect(screen.getByText(hint)).toBeInTheDocument();
   expect(screen.queryAllByRole("listitem")).toEqual([]);
   // No count, no sync line, no filters: the list is a fold away at /items.
@@ -528,10 +528,10 @@ test("the search box sits in main, and the menu takes over the screen while open
   expect(menu.getByRole("button", { name: "Settings" })).toBeInTheDocument();
   expect(menu.getByRole("button", { name: "Help" })).toBeInTheDocument();
   expect(menu.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Take out" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Check out" })).not.toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Close menu" }));
-  expect(screen.getByRole("button", { name: "Take out" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Check out" })).toBeInTheDocument();
 });
 
 test("the phone's /items is the whole list, counted and filtered", async () => {
@@ -731,7 +731,7 @@ test("the scanner walk: an unassigned code, a new item, and back to where it sta
   mount();
   const user = userEvent.setup();
 
-  await user.click(screen.getByRole("button", { name: "Take out" }));
+  await user.click(screen.getByRole("button", { name: "Check out" }));
   await user.click(await screen.findByRole("button", { name: "Type a code instead" }));
   await user.type(screen.getByLabelText("Code or URL"), "ABCDEFGH23");
   await user.click(screen.getByRole("button", { name: "Go" }));

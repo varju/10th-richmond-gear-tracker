@@ -56,7 +56,7 @@ export function Home({ store }: { store: Store }) {
               )
             ) : (
               <p className="muted">
-                Take out or bring back gear by scanning its code. Search by name for gear with no sticker.
+                Check out or return gear by scanning its code. Search by name for gear with no sticker.
               </p>
             )}
           </>
@@ -66,10 +66,10 @@ export function Home({ store }: { store: Store }) {
         <div className="actions">
           <div className="row">
             <button className="primary tall" type="button" onClick={() => navigate("/scan?mode=out")}>
-              Take out
+              Check out
             </button>
             <button className="tall" type="button" onClick={() => navigate("/scan?mode=in")}>
-              Bring back
+              Return
             </button>
           </div>
           <button type="button" onClick={() => navigate("/items/new")}>

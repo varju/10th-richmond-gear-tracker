@@ -4,7 +4,7 @@ Check-out and check-in. This is the loop that has to be faster than walking off 
 
 ## S-MOVE-01 Take gear to camp
 
-A Scouter opens Take out, names the event once, then scans six items. Each scan shows the item; one tap confirms.
+A Scouter opens Check out, names the event once, then scans six items. Each scan shows the item; one tap confirms.
 
 - The event is typed once and applies to everything scanned after it
 - Each scan shows the item so it can be checked against what is in hand
@@ -15,9 +15,9 @@ Covers: FR-OUT-01, FR-OUT-03, FR-OUT-04, FR-OUT-05, FR-OFF-01
 
 ## S-MOVE-02 Bring gear back
 
-A Scouter unpacking the trailer opens Bring back and scans each item. Each scan checks it in and shows where it goes.
+A Scouter unpacking the trailer opens Return and scans each item. Each scan checks it in and shows where it goes.
 
-- In Bring back, a scan checks the item in; one already in says so instead
+- In Return, a scan checks the item in; one already in says so instead
 - The check-in shows the item's home so it can be put away
 - Items go back in any order, over any number of sessions
 
@@ -25,9 +25,9 @@ Covers: FR-OUT-06, FR-OUT-08, FR-OUT-10
 
 ## S-MOVE-03 Return someone else's gear
 
-Whoever drove the trailer checks in gear that three different people took out.
+Whoever drove the trailer returns gear that three different people checked out.
 
-- Anyone can check in anything
+- Anyone can return anything
 - The record shows who took it and who returned it
 
 Covers: FR-OUT-08, FR-USR-05
@@ -97,6 +97,6 @@ leaving it on the out list forever.
 
 - Missing gear drops off the what-is-out report
 - It stays in the inventory and can still be found by search
-- Scanning it or checking it in clears the mark
+- Scanning it or returning it clears the mark
 
 Covers: FR-INV-19, FR-RPT-01

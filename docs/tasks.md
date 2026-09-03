@@ -39,13 +39,6 @@ The vertical slice is built. What is left needs a phone.
 From using the app at 10thrichmond.ca/gear. Fixes first, then wording, then the screens. Answers to the open questions
 are folded into each task.
 
-### Wording
-
-- [ ] Rename **Take out** to **Check out** and **Bring back** to **Return**, everywhere a person reads it: the home
-      buttons and hint, the scan mode labels, the card button in Return mode, the "Checked in" flash and history lines
-      (now "Returned"), the guide, the stories, FR-OUT-06, and architecture.md. Sweep for substrings too ("take out or
-      bring back", "taken out", "brought back") so nothing is half renamed. Assistant tool names (`check_in`) stay.
-
 ### Navigation
 
 - [ ] One header on every screen, phone and desk: back where there is a step back, the title, and the menu button. The

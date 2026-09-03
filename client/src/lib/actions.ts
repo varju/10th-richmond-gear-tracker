@@ -221,7 +221,7 @@ export async function deleteItem(store: Store, id: string): Promise<void> {
   const it = item(store.state, id);
   if (!it) throw new Error("no such item");
   if (it.merged_into) throw new Error("this item was merged into another");
-  if (it.status === "out") throw new Error("check it in first");
+  if (it.status === "out") throw new Error("return it first");
   if (it.generic && unitsOf(store.state, id).length) throw new Error("delete its units first");
   await changed(store, "item", id, { deleted: true });
 }
@@ -311,7 +311,7 @@ export async function mergeItem(store: Store, duplicateId: string, survivorId: s
   if (duplicateId === survivorId) throw new Error("an item cannot be merged into itself");
   if (dup.merged_into || survivor.merged_into) throw new Error("already merged");
   if (dup.retired || survivor.retired) throw new Error("retired items cannot be merged");
-  if (dup.status !== "in") throw new Error("check it in first");
+  if (dup.status !== "in") throw new Error("return it first");
   await changed(store, "item", duplicateId, { merged_into: survivorId });
 }
 

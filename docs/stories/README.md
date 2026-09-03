@@ -28,5 +28,5 @@ screen looks like.
 ## Actors
 
 - **Quartermaster** — owns the inventory. One or two people.
-- **Scouter** — takes gear out and brings it back. Five to fifteen people.
+- **Scouter** — checks gear out and returns it. Five to fifteen people.
 - **Finder** — someone outside the group who has found our gear. No account.

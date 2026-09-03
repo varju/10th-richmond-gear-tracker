@@ -9,7 +9,7 @@ import { userName } from "./labels";
 /** How long a "Checked out · Tent 1" strip stays up. */
 export const CONFIRM_MS = 1500;
 
-export type MoveKind = "Checked out" | "Checked in" | "Transferred";
+export type MoveKind = "Checked out" | "Returned" | "Transferred";
 
 /** A message that clears itself after `ms`. A newer message is left alone. */
 export function useFlash(ms: number): [string | null, (message: string) => void] {
@@ -153,9 +153,9 @@ export function MoveActions({ store, it, showEvent = false, mode = null, onMoved
           type="button"
           className="primary"
           disabled={busy}
-          onClick={() => run("Checked in", () => checkIn(store, it.id, options))}
+          onClick={() => run("Returned", () => checkIn(store, it.id, options))}
         >
-          Check in
+          Return
         </button>
       )}
       {(canTransfer || outDisagrees || inDisagrees || ((canTake || out) && !typing)) && (
@@ -171,12 +171,8 @@ export function MoveActions({ store, it, showEvent = false, mode = null, onMoved
             </button>
           )}
           {outDisagrees && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => run("Checked in", () => checkIn(store, it.id, options))}
-            >
-              Check in
+            <button type="button" disabled={busy} onClick={() => run("Returned", () => checkIn(store, it.id, options))}>
+              Return
             </button>
           )}
           {inDisagrees && (

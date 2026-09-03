@@ -118,15 +118,7 @@ export function Scan({ store }: { store: Store }) {
   return (
     <Page
       title={
-        forItem
-          ? "Scan new code"
-          : booked
-            ? "Pack"
-            : mode === "out"
-              ? "Take out"
-              : mode === "in"
-                ? "Bring back"
-                : "Scan"
+        forItem ? "Scan new code" : booked ? "Pack" : mode === "out" ? "Check out" : mode === "in" ? "Return" : "Scan"
       }
       back={forItem ? `/items/${forItem}` : booked ? `/reservations/${booked.id}` : "/"}
       actions={
@@ -167,7 +159,7 @@ export function Scan({ store }: { store: Store }) {
             aria-pressed={mode === "out"}
             onClick={() => setMode("out")}
           >
-            Take out
+            Check out
           </button>
           <button
             type="button"
@@ -175,7 +167,7 @@ export function Scan({ store }: { store: Store }) {
             aria-pressed={mode === "in"}
             onClick={() => setMode("in")}
           >
-            Bring back
+            Return
           </button>
         </div>
       )}
@@ -217,7 +209,7 @@ export function Scan({ store }: { store: Store }) {
                 showCard(null);
                 moved.current.add(card.id);
                 // An extra taken during a reservation session joins its gear list (FR-RES-07).
-                if (booked && kind !== "Checked in") void addExtra(store, booked.id, card.id);
+                if (booked && kind !== "Returned") void addExtra(store, booked.id, card.id);
               }}
             >
               <div className="row">

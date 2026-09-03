@@ -21,7 +21,7 @@ dies at the locker door will not get used.
 | Role          | Count | Does                                                                        |
 | ------------- | ----- | --------------------------------------------------------------------------- |
 | Quartermaster | 1-2   | Owns the inventory. Adds gear, prints labels, runs reports, closes tickets. |
-| Scouter       | 5-15  | Takes gear out, brings it back, reports damage.                             |
+| Scouter       | 5-15  | Checks gear out, returns it, reports damage.                                |
 | Public        | Any   | Scans found gear and reports it. No account.                                |
 
 Quartermaster and Scouter are what the group calls people. The system has two roles (FR-USR-02): a Quartermaster holds

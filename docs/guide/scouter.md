@@ -2,13 +2,13 @@
 
 ## Take gear out
 
-Tap Take out, then Change beside the event and type where the gear is going. Point the camera at a code and tap Check
+Tap Check out, then Change beside the event and type where the gear is going. Point the camera at a code and tap Check
 out. The event stays set for everything you scan after it.
 
 ## Bring gear back
 
-Tap Bring back and point at each code. The card says where the item goes; tap Check in and put it there. Any order, any
-number of evenings.
+Tap Return and point at each code. The card says where the item goes; tap Return and put it there. Any order, any number
+of evenings.
 
 ## Pack for a reservation
 
@@ -22,12 +22,12 @@ Filters to narrow by location, shelf, category, or in and out. Browse by locatio
 
 ## Report damage
 
-Tap Report a problem on the item's card and say what is wrong. Then tap Check in; the ticket is raised with the
-movement. The item is flagged for whoever takes it next.
+Tap Report a problem on the item's card and say what is wrong. Then tap Return; the ticket is raised with the movement.
+The item is flagged for whoever takes it next.
 
 ## Take gear someone else has
 
-Scan it in Take out. The card names who has it; tap Transfer to me. It never comes back to the locker, and the history
+Scan it in Check out. The card names who has it; tap Transfer to me. It never comes back to the locker, and the history
 keeps both of you.
 
 ## Plan a reservation
@@ -42,7 +42,7 @@ when you next open the app in signal. Records waiting three days stop the app an
 
 ## Gear with no sticker
 
-Find it by search and open it. Check out and Check in are on its page. In a packing session, tap its row in the list
+Find it by search and open it. Check out and Return are on its page. In a packing session, tap its row in the list
 instead.
 
 ## A sticker fell off
