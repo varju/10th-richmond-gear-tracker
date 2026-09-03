@@ -32,6 +32,7 @@ often than a phone because it is opened less often. Design for the phones people
 | NFR-DEP-07 | Should   | One volunteer can deploy it in under an hour from written instructions.                                                                                                                                                       |
 | NFR-DEP-10 | Should   | A fresh instance configures itself from one seed file kept outside the repository: first Admin, group name, site address, contact, mail. Applying it is idempotent and runs on every start, so wipe and redeploy is one step. |
 | NFR-DEP-08 | Could    | Runs on a small box on site with no internet at all, syncing when it gets a connection.                                                                                                                                       |
+| NFR-DEP-11 | Could    | Also installs from the App Store as an unlisted app that wraps the same web client. The browser stays the baseline: nothing works only in the wrapper.                                                                        |
 
 ## 2. Usability (USE)
 
@@ -144,7 +145,7 @@ Listed so nobody asks twice.
 
 - Payments, billing, or subscriptions
 - Gear lending between Scout groups
-- Native iOS or Android apps
+- A native rewrite for iOS or Android. A store wrapper around the web client is NFR-DEP-11.
 - Integration with Scouts Canada membership systems
 - Purchase orders and supplier management
 - Barcode formats other than QR

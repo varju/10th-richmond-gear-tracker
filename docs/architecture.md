@@ -306,6 +306,31 @@ Neither promise covers a full disk. A browser may still clear the site to free s
 when. Sync on every change, on open, and on regaining signal keeps that window to minutes with signal and hours without.
 A lost record is a missing movement, not a broken database; the next scan of the item puts it right.
 
+### Store wrapper
+
+A Could (NFR-DEP-11), not planned. Written down so the argument is settled once.
+
+**What it buys.** The home-screen install is the one step a volunteer can skip, and skipping it puts their Friday's work
+under the 7-day rule. An app from the App Store has its own storage that Apple does not purge, so the install step and
+the prompt around it go away. Nothing else improves: the scanner already meets its gate in WebAssembly, and background
+sync is still not on offer.
+
+**What it is.** Capacitor around the built client, the bundle shipped inside the app and served from a local scheme, so
+the shell is on disk and offline needs no service worker. The same code talks to the same server. No feature lives only
+in the wrapper; a volunteer on the web must never be second class, or NFR-DEP-01 is dead in all but name.
+
+**How it ships.** Unlisted App Store distribution: a normal App Review with a note asking for unlisted, plus a separate
+request form. Both are needed. The app is hidden from search and charts and installs from a link. The switch to unlisted
+is permanent for that app record. Every client release then passes review, a day or two of latency, and a phone can lag
+a release behind, so the server keeps sync compatible with the previous store build.
+
+**What can kill it.** Guideline 4.2, minimum functionality: Apple rejects apps that repackage a website. A bundled
+offline client with camera access is more than that, but the call is Apple's, and the first submission is the test.
+Android is untouched: the web client stays the only route there.
+
+**Gate.** Build it only if first feedback (M10) shows volunteers failing to install, or losing work to the 7-day rule.
+Neither has happened.
+
 ## Inventory
 
 Items and locations are entities on the same log as everything else: `created` once, then one `field_changed` per edit,
@@ -758,7 +783,8 @@ The real-phone-in-a-real-locker test (M7), and everything waiting on label stock
 - A sync framework. See above.
 - A client-side query engine. 500 items fits in memory.
 - Postgres, for now. Revisit if concurrent writes become real.
-- Native apps. NFR-DEP-01 rules them out and nothing has argued back.
+- A native rewrite. NFR-DEP-01 rules it out. A store wrapper around the same client is a Could; see
+  [Store wrapper](#store-wrapper).
 - Background sync as a design assumption. iOS will not honour it.
 - Automatic conflict resolution. Where time cannot settle it, a person does.
 
