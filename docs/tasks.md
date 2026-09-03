@@ -54,6 +54,9 @@ The vertical slice is built. What is left needs a phone.
 - [ ] Reservation shows who created it (FR-RES-18). A derived `created_by` on the reservation, set at replay from the
       creating event's actor the way `raised_by` is on a repair; in `DERIVED_FIELDS`, both replays, and a vector. The
       reservation page and `get_reservation` show "Added by <name>, <date and time>".
+- [ ] Item page shows upcoming reservations (FR-INV-37). A "Reserved" block under the status: one line per reservation
+      that names the item, or its generic, and has not ended: event, dates, each a link to the reservation. Nothing
+      shown when there are none. `get_item` reports the same.
 
 ## M9 — Go live
 
