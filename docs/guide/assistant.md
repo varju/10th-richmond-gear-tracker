@@ -1,4 +1,7 @@
-# Assistant
+# AI assistant
+
+An AI assistant that speaks MCP (Model Context Protocol) can work the inventory for you: ask it questions, or have it
+book a camp or check gear out. It acts as you, with what you are allowed to do.
 
 ## Connect an assistant
 
