@@ -71,11 +71,4 @@ This covers layout only. The House style rules above are about what you write, a
 
 ## Delegating
 
-Every edit goes to the `implementer` agent, with one exception: a few lines in one file. A change that touches two files
-is delegated, however small each piece is. "The spec would take longer than the edit" is not a reason to do it here.
-
-The top-level session keeps the parts that need this conversation: reading code, deciding the design, writing the spec,
-reviewing what comes back, and the commit.
-
-Agents defined in `.claude/agents/` pin their own model. For anything spawned without one, pick the smallest model that
-will do. Never Fable.
+If you use subagents, Sonnet is the preferred model. Never Fable.
