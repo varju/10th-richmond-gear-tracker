@@ -51,6 +51,9 @@ The vertical slice is built. What is left needs a phone.
       A generic (or pool) row carries a quantity the person adjusts in the list, default 1, so the separate "so many of
       a generic" select and quantity control go. Units already on a reservation (scanned on, FR-RES-07) still show and
       can be removed.
+- [ ] Reservation shows who created it (FR-RES-18). A derived `created_by` on the reservation, set at replay from the
+      creating event's actor the way `raised_by` is on a repair; in `DERIVED_FIELDS`, both replays, and a vector. The
+      reservation page and `get_reservation` show "Added by <name>, <date and time>".
 
 ## M9 — Go live
 
