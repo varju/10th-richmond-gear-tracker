@@ -48,7 +48,7 @@ test("a printed code becomes an item", async ({ browser, page, request }) => {
   await signIn(page);
   await page.getByRole("button", { name: "Menu" }).click();
   await page.getByRole("button", { name: "Settings" }).click();
-  await page.getByRole("button", { name: "Group" }).click();
+  await page.getByRole("button", { name: "General" }).click();
   await page.getByLabel("Group name").fill("10th Richmond");
   await page.getByLabel("Site address").fill("https://example.org/gear");
   await page.getByLabel("How to reach us").fill("gear@example.org");

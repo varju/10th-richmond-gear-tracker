@@ -24,7 +24,7 @@ export function SettingsGroup({ store }: Props) {
   }
 
   return (
-    <Page title="Group" back="/settings">
+    <Page title="General" back="/settings">
       <GroupForm store={store} />
     </Page>
   );

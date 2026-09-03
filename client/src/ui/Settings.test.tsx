@@ -30,12 +30,11 @@ test("an Admin sees every section, in order", () => {
   mount();
   const links = within(screen.getByRole("navigation", { name: "Settings" })).getAllByRole("button");
   expect(links.map((b) => b.textContent)).toEqual([
-    "Users",
+    "General",
     "Mail",
-    "Group",
     "Locations",
     "Categories",
-    "Print codes",
+    "Print QR codes",
     "Export and import",
     "Your devices",
     "Assistant",
@@ -44,7 +43,7 @@ test("an Admin sees every section, in order", () => {
 
 test("a link opens its own page", async () => {
   mount();
-  await userEvent.setup().click(screen.getByRole("button", { name: "Group" }));
+  await userEvent.setup().click(screen.getByRole("button", { name: "General" }));
   expect(location.pathname).toBe("/settings/group");
 });
 

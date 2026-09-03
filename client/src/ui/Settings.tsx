@@ -30,14 +30,11 @@ export function Settings({ store, shell }: Props) {
       <nav className="links" aria-label="Settings">
         {admin && (
           <>
-            <button className="link" type="button" onClick={() => navigate("/settings/users")}>
-              Users
+            <button className="link" type="button" onClick={() => navigate("/settings/group")}>
+              General
             </button>
             <button className="link" type="button" onClick={() => navigate("/settings/mail")}>
               Mail
-            </button>
-            <button className="link" type="button" onClick={() => navigate("/settings/group")}>
-              Group
             </button>
             <button className="link" type="button" onClick={() => navigate("/settings/locations")}>
               Locations
@@ -46,7 +43,7 @@ export function Settings({ store, shell }: Props) {
               Categories
             </button>
             <button className="link" type="button" onClick={() => navigate("/settings/codes")}>
-              Print codes
+              Print QR codes
             </button>
             <button className="link" type="button" onClick={() => navigate("/settings/csv")}>
               Export and import

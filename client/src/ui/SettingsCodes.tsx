@@ -25,7 +25,7 @@ export function SettingsCodes({ store, api, shell }: Props) {
   }
 
   return (
-    <Page title="Print codes" back="/settings">
+    <Page title="Print QR codes" back="/settings">
       <PrintCodes api={api} onDone={shell.sync} />
     </Page>
   );

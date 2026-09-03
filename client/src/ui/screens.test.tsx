@@ -733,7 +733,7 @@ test("printing posts the sheet count with the bearer token, under the app's base
   const user = userEvent.setup();
   await user.clear(screen.getByLabelText("Sheets"));
   await user.type(screen.getByLabelText("Sheets"), "3");
-  await user.click(within(screen.getByRole("main")).getByRole("button", { name: "Print codes" }));
+  await user.click(within(screen.getByRole("main")).getByRole("button", { name: "Print QR codes" }));
 
   expect(await screen.findByRole("link", { name: "Download codes.pdf" })).toHaveAttribute("href", "blob:codes");
   expect(opened).toEqual(["blob:codes"]);
@@ -751,7 +751,7 @@ test("a refused print shows the server's message", async () => {
       : offline();
   navigate("/settings/codes");
   mount(refusing);
-  await userEvent.setup().click(within(screen.getByRole("main")).getByRole("button", { name: "Print codes" }));
+  await userEvent.setup().click(within(screen.getByRole("main")).getByRole("button", { name: "Print QR codes" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("admins only");
 });
 

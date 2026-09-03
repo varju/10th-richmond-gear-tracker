@@ -47,7 +47,7 @@ export function PrintCodes({ api, onDone }: Props) {
           <input type="number" min={1} max={10} value={sheets} onChange={(e) => setSheets(e.target.value)} />
         </label>
         <button type="button" onClick={print} disabled={busy}>
-          Print codes
+          Print QR codes
         </button>
       </div>
       {error && (
