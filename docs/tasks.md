@@ -36,13 +36,6 @@ The vertical slice is built. What is left needs a phone.
 
 ## M22 — Third round of feedback
 
-### Settings
-
-- [ ] Every `nav.links` list reads like the menu: left-aligned, full width, one row per line, ruled. Settings, Users and
-      Mail have them. The rule added for `.menu` moves up to `.links`.
-- [ ] The foot of Settings reads "Source: <hash>", the hash linked to the commit; "Source: dev" with no link in a dev
-      build. The Source link itself goes.
-
 ### Assistant
 
 - [ ] Admin tools over MCP (FR-MCP-10). Each Admin action the app has gets a tool, refused for a User's token with the

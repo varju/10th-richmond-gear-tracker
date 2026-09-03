@@ -55,21 +55,13 @@ test("a User has no admin sections, only their own", async () => {
   expect(links.map((b) => b.textContent)).toEqual(["Your devices", "Assistant"]);
 });
 
-test("the Source link points at the repository", () => {
-  mount();
-  expect(screen.getByRole("link", { name: "Source" })).toHaveAttribute(
-    "href",
-    "https://github.com/varju/10th-richmond-gear-tracker",
-  );
-});
-
 // __GIT_SHA__ is a compile-time constant, baked in by vite.config.ts from the
 // GIT_SHA environment variable. Under vitest that variable is unset, so this
 // is always "dev" here; the linked-commit rendering is covered by
 // `GIT_SHA=... npm run build` in the Makefile task's verification instead.
-test("with no build sha, the foot says dev and links only to the repository", () => {
+test("with no build sha, the foot says Source: dev and links nowhere", () => {
   mount();
-  const foot = screen.getByRole("link", { name: "Source" }).closest("p");
-  expect(foot).toHaveTextContent("Source · dev");
-  expect(within(foot as HTMLElement).getAllByRole("link")).toHaveLength(1);
+  const foot = screen.getByText(/^Source:/).closest("p") as HTMLElement;
+  expect(foot).toHaveTextContent("Source: dev");
+  expect(within(foot).queryAllByRole("link")).toHaveLength(0);
 });

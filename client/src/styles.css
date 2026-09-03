@@ -1097,13 +1097,6 @@ h3.section.small {
     flex: 1 1 100%;
     margin: 0;
   }
-
-  /* Sections read across the top rather than as a stack. */
-  .links {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 4px 24px;
-  }
 }
 
 /* --- M15: the desk -------------------------------------------------------------------
@@ -1140,16 +1133,16 @@ h3.section.small {
   border-right: 1px solid var(--rule);
 }
 
-.menu button.link,
 .sidebar button.link {
   text-align: left;
 }
 
-/* The phone menu reads like a settings list: one row per line, ruled apart. */
-.menu button.link {
+/* Every list of links reads like a settings list: one row per line, ruled apart. */
+.links button.link {
   width: 100%;
   padding: 10px 0;
   border-bottom: 1px solid var(--rule);
+  text-align: left;
 }
 
 /* Things wrong, above the day's work and ruled off from it. */
