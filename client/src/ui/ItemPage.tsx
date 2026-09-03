@@ -427,7 +427,7 @@ function DeleteItem({ store, it }: { store: Store; it: Item }) {
       return;
     }
     await deleteItem(store, it.id);
-    navigate("/", true);
+    navigate("/items", true);
   }
 
   return (

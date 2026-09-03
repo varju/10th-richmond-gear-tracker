@@ -549,7 +549,7 @@ test("an Admin deletes a record made in error, in two taps from Edit (FR-INV-32)
   expect(item(store.state, tent)?.deleted).toBeUndefined();
 
   await user.click(screen.getByRole("button", { name: "Really delete? This cannot be undone" }));
-  await waitFor(() => expect(location.pathname).toBe("/"));
+  await waitFor(() => expect(location.pathname).toBe("/items"));
   expect(item(store.state, tent)?.deleted).toBe(true);
   expect(store.pending.at(-1)).toMatchObject({ type: "field_changed", payload: { field: "deleted", value: true } });
 });
