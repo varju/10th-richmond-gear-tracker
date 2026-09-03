@@ -64,6 +64,11 @@ The vertical slice is built. What is left needs a phone.
 
 ### Sync
 
+- [ ] Bug: a rename was refused with "device_seq 21 is not above the last seen, 21". `Store.record` stamps
+      `meta.device_seq + 1` from the copy in memory, so two tabs of one device each hand out the same number, and the
+      server drops the second. Take the next number inside the IndexedDB write transaction, from the stored value, not
+      memory. When the server still refuses a record for its sequence number, re-stamp the unsent records above the last
+      seen and push again, instead of marking them rejected. Test with two stores open on one database.
 - [ ] A rejected record is invisible. Today the server answers with the reason and the client drops the record from
       replay with no word, so a refused edit looks like a revert. Server: log each rejection at warning with event id,
       type, device and reason. Client: Settings shows "N records the server refused" above Your devices, each with its
