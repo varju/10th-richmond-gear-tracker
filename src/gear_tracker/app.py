@@ -6,6 +6,7 @@ accounts.authenticate.
 """
 
 import json
+import re
 import sqlite3
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
@@ -15,7 +16,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import Body, Depends, FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import Field, StringConstraints
 
 from gear_tracker import accounts, assistant, codes, derived, events, inventory_csv, labels, mail, sync
@@ -506,6 +507,18 @@ def manifest(file: Path, group: str) -> JSONResponse:
     return JSONResponse(body, media_type="application/manifest+json", headers={"Cache-Control": "no-cache"})
 
 
+def index_html(file: Path, group: str) -> Response:
+    """The home-screen title is read from this file at install, so the group's name has to be in it (NFR-DEP-06)."""
+    text = file.read_text()
+    if group:
+        # A function, not a template: a group name is free text and may hold a backslash.
+        text = re.sub(
+            r'(<meta name="apple-mobile-web-app-title" content=")[^"]*(")', lambda m: f"{m[1]}{group} Gear{m[2]}", text
+        )
+        text = re.sub(r"(<title>).*?(</title>)", lambda m: f"{m[1]}{group} · Gear Tracker{m[2]}", text)
+    return HTMLResponse(text, headers={"Cache-Control": "no-cache"})
+
+
 def serve_client(app: FastAPI, root: Path, db: Callable[[], Iterator[sqlite3.Connection]]) -> None:
     """Files from the build, and index.html for anything else so the client owns its own routes."""
     root = root.resolve()
@@ -518,8 +531,9 @@ def serve_client(app: FastAPI, root: Path, db: Callable[[], Iterator[sqlite3.Con
         if path and target.is_file() and target.is_relative_to(root):
             if target.name == "manifest.webmanifest":
                 return manifest(target, group_name(conn))
-            return FileResponse(target)
-        return FileResponse(index)
+            if target.name != "index.html":
+                return FileResponse(target)
+        return index_html(index, group_name(conn))
 
 
 def main(argv: list[str] | None = None) -> int:

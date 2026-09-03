@@ -329,7 +329,11 @@ def test_a_user_sees_and_manages_their_own_devices_over_http(real):
 def site(db_path, tmp_path):
     dist = tmp_path / "dist"
     (dist / "assets").mkdir(parents=True)
-    (dist / "index.html").write_text("<h1>app</h1>")
+    (dist / "index.html").write_text(
+        "<html><head><title>Gear Tracker</title>"
+        '<meta name="apple-mobile-web-app-title" content="Gear" /></head>'
+        "<body><h1>app</h1></body></html>"
+    )
     manifest = {"name": "Gear Tracker", "short_name": "Gear", "display": "standalone"}
     (dist / "manifest.webmanifest").write_text(json.dumps(manifest))
     (dist / "assets" / "app.js").write_text("console.log(1)")
@@ -338,14 +342,14 @@ def site(db_path, tmp_path):
 
 
 def test_client_files_are_served_and_unknown_paths_fall_back_to_index(site):
-    assert site.get("/").text == "<h1>app</h1>"
+    assert "<h1>app</h1>" in site.get("/").text
     assert site.get("/assets/app.js").text == "console.log(1)"
-    assert site.get("/some/client/route").text == "<h1>app</h1>"
+    assert "<h1>app</h1>" in site.get("/some/client/route").text
 
 
 def test_client_serving_does_not_escape_its_directory(site):
-    assert site.get("/../secret.txt").text == "<h1>app</h1>"
-    assert site.get("/%2e%2e/secret.txt").text == "<h1>app</h1>"
+    assert "<h1>app</h1>" in site.get("/../secret.txt").text
+    assert "<h1>app</h1>" in site.get("/%2e%2e/secret.txt").text
 
 
 def test_the_manifest_carries_the_group_name(site, db_path):
@@ -363,6 +367,22 @@ def test_the_manifest_carries_the_group_name(site, db_path):
     assert body["short_name"] == "10th Richmond Gear"
     # Everything else the build wrote is untouched.
     assert body["display"] == "standalone"
+
+
+def test_index_carries_the_group_name(site, db_path):
+    # No group set yet: the build's own names stand.
+    r = site.get("/")
+    assert 'content="Gear"' in r.text
+    assert "<title>Gear Tracker</title>" in r.text
+
+    with open_db(db_path) as conn:
+        events.append_server(conn, "alice", "setting", "group", "created", {"name": "10th Richmond"})
+
+    for path in ("/", "/some/client/route"):
+        r = site.get(path)
+        assert r.headers["cache-control"] == "no-cache"
+        assert 'content="10th Richmond Gear"' in r.text
+        assert "<title>10th Richmond · Gear Tracker</title>" in r.text
 
 
 def test_api_routes_win_over_the_client(site):

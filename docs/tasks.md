@@ -66,10 +66,6 @@ last.
       "Replace QR code" when it is not. Same scan flow either way.
 - [ ] Rename "Report a fault" to "Report a problem" everywhere a person reads it: buttons, guide pages, stories. Not
       code identifiers.
-- [ ] iOS home-screen title still says "Gear" after sign-in and sync, though the manifest says "10th Richmond Gear".
-      Safari reads `apple-mobile-web-app-title` at page load, before the client sets it. Have the server rewrite that
-      tag in index.html the way it rewrites the manifest, so a signed-out install gets the group name too. Confirm on a
-      phone.
 - [ ] Several categories per item (FR-SET-07): `category_id` becomes `category_ids`, a list. Touches the filter
       (FR-INV-08), item fields, CSV import and export (FR-SET-11, FR-RPT-03), the audit label, valuation (FR-RPT-06),
       the assistant's `list_categories` and `update_item`, both replays, and `vectors/replay/`. A unit still reads its
