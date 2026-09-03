@@ -36,6 +36,9 @@ COLUMNS = [
     "code",
     "status",
     "holder",
+    "quantity",
+    "in",
+    "out",
 ]
 
 EDITABLE = (
@@ -91,9 +94,11 @@ def _ordered(state: State) -> list[dict[str, Any]]:
 def _row(state: State, it: dict[str, Any]) -> list[str]:
     is_unit = bool(it.get("parent_id"))
     parent = views.item(state, it["parent_id"]) if is_unit else None
-    kind = "unit" if is_unit else ("generic" if it.get("generic") else "single")
+    is_pool = views.is_pool(it)
+    kind = "unit" if is_unit else ("pool" if is_pool else ("generic" if it.get("generic") else "single"))
     status = "" if it.get("generic") else (it.get("status") or "")
     price = it.get("price")
+    counts = views.pool_counts(it) if is_pool else None
     return [
         it["id"],
         kind,
@@ -111,6 +116,9 @@ def _row(state: State, it: dict[str, Any]) -> list[str]:
         _code_for(state, it["id"]) or "",
         status,
         views.user_name(state, it.get("holder_id")) if status == "out" else "",
+        "" if counts is None else str(counts["owned"]),
+        "" if counts is None else str(counts["in"]),
+        "" if counts is None else str(sum(o["count"] for o in counts["out"])),
     ]
 
 
@@ -159,6 +167,8 @@ def _add_name(a: dict[str, Any]) -> str:
     payload = a["payload"]
     if a["kind"] == "unit":
         return f"{payload.get('generic', '')} #{payload.get('number', '')}"
+    if a["kind"] == "pool":
+        return f"{payload.get('name', '')} (pool of {payload.get('quantity', 0)})"
     return payload.get("name", "")
 
 
@@ -184,11 +194,12 @@ def plan(state: State, text: str) -> Plan:
     }
 
     # A unit-add row may name a generic that is itself an add elsewhere in the file.
+    # A generic row with a quantity becomes a pool (FR-INV-34) and is never a valid parent.
     file_generics: dict[str, list[int]] = {}
     for row_num, vals in data_rows:
         if _cell(vals, idx, "id"):
             continue
-        if (_cell(vals, idx, "kind") or "").lower() == "generic":
+        if (_cell(vals, idx, "kind") or "").lower() == "generic" and not _cell(vals, idx, "quantity"):
             name = _cell(vals, idx, "name")
             if name:
                 file_generics.setdefault(name, []).append(row_num)
@@ -258,7 +269,7 @@ def _plan_change(
         p.errors.append({"row": row_num, "message": f"no such item {item_id!r}"})
         return
     is_unit = bool(it.get("parent_id"))
-    kind = "unit" if is_unit else ("generic" if it.get("generic") else "single")
+    kind = "unit" if is_unit else ("pool" if it.get("pool") else ("generic" if it.get("generic") else "single"))
 
     given_kind = _cell(vals, idx, "kind")
     if given_kind and given_kind.lower() != kind:
@@ -460,12 +471,40 @@ def _plan_add(
         if not name:
             p.errors.append({"row": row_num, "message": "name is required"})
             return
+        quantity_cell = _cell(vals, idx, "quantity")
+        quantity: int | None = None
+        if quantity_cell:
+            if kind != "generic":
+                p.errors.append(
+                    {"row": row_num, "message": "quantity is only for a generic (a pool must be generic, FR-INV-34)"}
+                )
+                return
+            if _cell(vals, idx, "code"):
+                p.errors.append({"row": row_num, "message": "a pool takes no code (FR-INV-34)"})
+                return
+            try:
+                quantity = int(quantity_cell)
+            except ValueError:
+                p.errors.append({"row": row_num, "message": f"quantity {quantity_cell!r} is not a whole number"})
+                return
+            if quantity < 0:
+                p.errors.append({"row": row_num, "message": "quantity must not be negative"})
+                return
         payload: dict[str, Any] = {"name": name}
+        row_kind = kind
         if kind == "generic":
             payload["generic"] = True
+        if quantity is not None:
+            payload["pool"] = True
+            payload["quantity"] = quantity
+            row_kind = "pool"
         if not _add_optional(p, row_num, vals, idx, payload, existing_locations, existing_categories, unit=False):
             return
-        p.adds.append({"row": row_num, "kind": kind, "payload": payload})
+        p.adds.append({"row": row_num, "kind": row_kind, "payload": payload})
+        return
+
+    if _cell(vals, idx, "quantity"):
+        p.errors.append({"row": row_num, "message": "a pool has no units (FR-INV-34)"})
         return
 
     generic_name = _cell(vals, idx, "generic")

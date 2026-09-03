@@ -34,6 +34,11 @@ Open Stock check, pick the location and shelf you are standing at, and tap Start
 Misplaced here lists what state says lives elsewhere; Not seen yet lists what should be here. Tap Finish, then Done. A
 check left running says so on the computer home screen until you finish it.
 
+## Recount a stack
+
+Open the pool and tap Recount. Say how many are in the locker right now, and why: a delivery, a breakage, a proper
+count. It resets what is on the shelf; what people already have out is untouched.
+
 ## Add an item
 
 Tap New item, name it, pick a home, and Save. On a computer the button sits above the inventory table, which sorts by

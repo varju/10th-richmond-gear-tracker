@@ -95,6 +95,4 @@ the pool clauses in FR-RES-13 and FR-RES-15. Queued behind go-live.
       (FR-RPT-11); the item's History shows counts on each line.
 - [ ] Reservations. Reserve a quantity of a pool (FR-RES-13); the clash rule counts against quantity owned (FR-RES-15);
       checking out from the reservation page takes a count and ticks it off.
-- [ ] CSV. Export carries a pool's quantity, in, and out; import creates a pool from a row with a quantity.
 - [ ] Assistant. `check_out`, `check_in` and `get_item` per FR-MCP-08; `search_items` says a pool is one.
-- [ ] Guide. A Scouter task "Take some of a stack" and a Quartermaster task "Recount a stack".

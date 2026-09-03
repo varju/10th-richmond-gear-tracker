@@ -15,7 +15,8 @@ ACTOR = "alice"
 
 def seeded(conn) -> dict:
     """A location, two categories, a generic with two units, a single in both categories with a
-    code bound to it, one item checked out, one retired, one deleted, and one merged away."""
+    code bound to it, one item checked out, one retired, one deleted, one merged away, and a
+    pool with some out."""
     events.append_server(conn, ACTOR, "location", "loc-1", "created", {"name": "Cold locker"})
     events.append_server(conn, ACTOR, "category", "cat-1", "created", {"name": "Tarps"})
     events.append_server(conn, ACTOR, "category", "cat-2", "created", {"name": "Tents"})
@@ -51,6 +52,10 @@ def seeded(conn) -> dict:
     events.append_server(conn, ACTOR, "item", "cot", "created", {"name": "Old cot", "retired": True})
     events.append_server(conn, ACTOR, "item", "gone", "created", {"name": "Gone tent", "deleted": True})
     events.append_server(conn, ACTOR, "item", "dup", "created", {"name": "Duplicate tent", "merged_into": "trailer"})
+    events.append_server(
+        conn, ACTOR, "item", "bowls", "created", {"name": "Bowls", "generic": True, "pool": True, "quantity": 12}
+    )
+    events.append_server(conn, ACTOR, "item", "bowls", "checked_out", {"holder_id": "bob", "count": 3})
     return derived.snapshot(conn)
 
 
@@ -115,6 +120,30 @@ def test_code_status_and_holder(db):
     # A generic never moves, so it has no status.
     assert by_id["tarp"]["status"] == ""
     assert by_id["tarp"]["code"] == ""
+
+
+def test_a_pool_row_carries_quantity_owned_in_and_out(db):
+    state = seeded(db)
+    by_id = rows_by_id(inventory_csv.export(state))
+
+    assert by_id["bowls"]["kind"] == "pool"
+    assert by_id["bowls"]["quantity"] == "12"
+    assert by_id["bowls"]["in"] == "9"
+    assert by_id["bowls"]["out"] == "3"
+    # A generic never moves, so status and holder stay blank, same as a plain generic.
+    assert by_id["bowls"]["status"] == ""
+    assert by_id["bowls"]["holder"] == ""
+    assert by_id["bowls"]["code"] == ""
+
+
+def test_a_non_pool_row_leaves_the_pool_columns_empty(db):
+    state = seeded(db)
+    by_id = rows_by_id(inventory_csv.export(state))
+
+    assert by_id["trailer"]["quantity"] == ""
+    assert by_id["trailer"]["in"] == ""
+    assert by_id["trailer"]["out"] == ""
+    assert by_id["tarp"]["quantity"] == ""
 
 
 def test_a_deleted_and_a_merged_item_are_both_absent(db):
@@ -280,6 +309,73 @@ def test_a_unit_add_can_name_a_generic_added_earlier_in_the_file(db):
     cooler_id = next(k for k, v in after["item"].items() if v.get("name") == "Cooler")
     unit = next(v for v in after["item"].values() if v.get("parent_id") == cooler_id)
     assert unit["number"] == "1"
+
+
+# --- plan: adds a pool (FR-INV-34) --------------------------------------------------------
+
+
+def test_a_generic_row_with_a_quantity_is_previewed_and_created_as_a_pool(db):
+    state = seeded(db)
+    text = make_csv(["kind", "name", "quantity"], [["generic", "Mugs", "20"]])
+
+    plan = inventory_csv.plan(state, text)
+
+    assert plan.errors == []
+    [row] = plan.summary()["rows"]
+    assert row["name"] == "Mugs (pool of 20)"
+
+    result = inventory_csv.apply(db, text, ACTOR)
+    assert result["added"] == 1
+    after = derived.snapshot(db)
+    mugs = next(v for v in after["item"].values() if v.get("name") == "Mugs")
+    assert mugs["generic"] is True
+    assert mugs["pool"] is True
+    assert mugs["pool_in"] == 20
+    assert mugs["pool_out"] == {}
+
+
+def test_a_quantity_and_a_code_together_is_refused(db):
+    state = seeded(db)
+    text = make_csv(["kind", "name", "quantity", "code"], [["generic", "Mugs", "20", "AAAAAAAAAA"]])
+
+    plan = inventory_csv.plan(state, text)
+
+    assert plan.errors == [{"row": 2, "message": "a pool takes no code (FR-INV-34)"}]
+
+
+def test_a_quantity_on_a_unit_row_is_refused(db):
+    state = seeded(db)
+    text = make_csv(
+        ["kind", "name", "generic", "number", "quantity"],
+        [["generic", "Poles", "", "", ""], ["unit", "", "Poles", "1", "5"]],
+    )
+
+    plan = inventory_csv.plan(state, text)
+
+    assert plan.errors == [{"row": 3, "message": "a pool has no units (FR-INV-34)"}]
+
+
+def test_a_quantity_on_a_single_is_refused(db):
+    state = seeded(db)
+    text = make_csv(["kind", "name", "quantity"], [["single", "Kettle", "3"]])
+
+    plan = inventory_csv.plan(state, text)
+
+    assert len(plan.errors) == 1
+    assert plan.errors[0]["row"] == 2
+
+
+def test_a_pool_row_in_the_file_is_not_a_valid_parent_for_a_unit_row(db):
+    state = seeded(db)
+    text = make_csv(
+        ["kind", "name", "generic", "number", "quantity"],
+        [["generic", "Mugs", "", "", "20"], ["unit", "", "Mugs", "1", ""]],
+    )
+
+    plan = inventory_csv.plan(state, text)
+
+    assert [e["row"] for e in plan.errors] == [3]
+    assert plan.errors[0]["message"] == "no such generic 'Mugs'"
 
 
 def test_duplicate_number_in_the_file_is_a_planned_error(db):

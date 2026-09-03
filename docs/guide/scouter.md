@@ -10,6 +10,12 @@ out. The event stays set for everything you scan after it.
 Tap Return and point at each code. The card says where the item goes; tap Return and put it there. Any order, any number
 of evenings.
 
+## Take some of a stack
+
+Some gear is a stack, not a sticker: bowls, mugs, tent pegs. Open it by search and tap Check out. It asks how many —
+starting at 1 — and the event, same as any check-out. Return offers the count you have out; confirm it, or change it if
+you are keeping some back.
+
 ## Pack for a reservation
 
 Open Reservations, pick the camp, and tap Check out. Scan each item; the list under the viewfinder shows what is still
