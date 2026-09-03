@@ -41,8 +41,6 @@ are folded into each task.
 
 ### History and repairs
 
-- [ ] History lists newest first, so a new note lands at the top while Add note sits at the foot. Add note moves to just
-      under the History heading, above the list.
 - [ ] A repair ticket says "Raised by Alice · 2026-09-01 14:32" on every device. Today the name comes from the `created`
       event, which a phone that started from a snapshot does not hold, so it says "Raised". Replay records the raiser on
       the ticket (`raised_by`) in both languages, with a vector; the label reads it, and shows the minute like History

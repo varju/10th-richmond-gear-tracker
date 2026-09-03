@@ -529,9 +529,9 @@ function HistorySection({ store, id, record, children }: Props & { record: Log |
       <summary>
         <h3 className="section">History · {entries.length}</h3>
       </summary>
+      {children}
       <History store={store} id={id} entries={entries} />
       <Reach record={record} />
-      {children}
     </details>
   );
 }

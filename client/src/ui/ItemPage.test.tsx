@@ -43,6 +43,12 @@ const section = (name: string) => {
   const heading = screen.getByRole("heading", { name: new RegExp(`^${name}(?: ·|$)`) });
   return (heading.closest("summary") ?? heading).nextElementSibling!;
 };
+// History's Add note sits above the list now, so the list itself is not the summary's next sibling.
+const historyList = () =>
+  screen
+    .getByRole("heading", { name: /^History(?: ·|$)/ })
+    .closest("details")!
+    .querySelector("ol.history") as HTMLElement;
 
 test("Check out from the page records the session event and syncs (FR-OUT-02)", async () => {
   await store.setMeta({ session_event: "Spring camp" });
@@ -99,7 +105,7 @@ test("history lists movements and notes together, newest first (FR-INV-09)", asy
   await mv.addNote(store, tent, "pole repaired");
   renderInShell(<ItemPage store={store} id={tent} />);
 
-  const rows = [...section("History").querySelectorAll(":scope > li")];
+  const rows = [...historyList().querySelectorAll(":scope > li")];
   expect(rows.map((r) => r.textContent)).toEqual([
     "pole repairedAlice · 2025-08-31 17:00EditDelete",
     "Transferred to Alice for Cub camp · 2025-08-31 17:00",
@@ -115,7 +121,7 @@ test("a note is corrected in place and the correction is appended (FR-OUT-16)", 
   const note = await mv.addNote(store, tent, "handed to a Scout");
   renderInShell(<ItemPage store={store} id={tent} />);
   await user.click(screen.getByText(/^History/));
-  const timeline = section("History") as HTMLElement;
+  const timeline = historyList();
   expect(timeline).toHaveTextContent("handed to a Scout");
 
   await user.click(within(timeline).getByRole("button", { name: "Edit" }));

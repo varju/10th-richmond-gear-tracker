@@ -69,11 +69,12 @@ const unreachable = createApi({
   },
 });
 
-// History and Changes fold their heading into a <summary>; its count makes the name inexact.
-const section = (name: string) => {
-  const heading = screen.getByRole("heading", { name: new RegExp(`^${name}(?: ·|$)`) });
-  return (heading.closest("summary") ?? heading).nextElementSibling as HTMLElement;
-};
+// History's Add note sits above the list now, so the list itself is not the summary's next sibling.
+const historyList = () =>
+  screen
+    .getByRole("heading", { name: /^History(?: ·|$)/ })
+    .closest("details")!
+    .querySelector("ol.history") as HTMLElement;
 
 test("an item's history and changes come from the server, with what this device has not sent", async () => {
   // Recorded here and not yet pushed: it must not vanish when the signal returns.
@@ -93,7 +94,7 @@ test("an item's history and changes come from the server, with what this device 
 
   await waitFor(() => expect(screen.getByText(/Winter Camp 2019/)).toBeInTheDocument());
   fireEvent.click(screen.getByText(/^History/));
-  expect(within(section("History")).getAllByRole("listitem")).toHaveLength(3);
+  expect(within(historyList()).getAllByRole("listitem")).toHaveLength(3);
   expect(screen.getByText(/for Fall Camp/)).toBeInTheDocument();
   expect(screen.getByText(/Name: Old tent → Tent 1/)).toBeInTheDocument();
   // The full record, so there is nothing to warn about.
@@ -108,7 +109,7 @@ test("with no answer from the server the same rows are drawn from this device, a
 
   await waitFor(() => expect(screen.getByText(/for Fall Camp/)).toBeInTheDocument());
   fireEvent.click(screen.getByText(/^History/));
-  expect(within(section("History")).getAllByRole("listitem")).toHaveLength(1);
+  expect(within(historyList()).getAllByRole("listitem")).toHaveLength(1);
   expect(screen.getAllByText("Offline: what this device knows, the last 90 days.")).toHaveLength(2);
 });
 
@@ -136,7 +137,7 @@ test("an event the server already has is not shown twice", async () => {
 
   await waitFor(() => expect(screen.getByText(/for Fall Camp/)).toBeInTheDocument());
   fireEvent.click(screen.getByText(/^History/));
-  expect(within(section("History")).getAllByRole("listitem")).toHaveLength(1);
+  expect(within(historyList()).getAllByRole("listitem")).toHaveLength(1);
 });
 
 test("the repair report reads every ticket the server holds", async () => {
