@@ -24,7 +24,9 @@ const FLASH_MS = 2000;
  * and is bound here (FR-TAG-04). With ?reservation=<id> the session is seeded
  * with that reservation's gear (FR-RES-02). ?mode=out or ?mode=in sets which
  * move is expected; a scan that disagrees warns instead of switching the mode
- * for you (FR-OUT-12).
+ * for you (FR-OUT-12). An item moved in this session is not shown again until
+ * the mode is switched or the screen is left, since the camera is still on
+ * the sticker when the card closes.
  */
 export function Scan({ store }: { store: Store }) {
   useStore(store);
@@ -43,6 +45,8 @@ export function Scan({ store }: { store: Store }) {
   const [cardItem, setCardItem] = useState<string | null>(null);
   // The decode loop keeps running behind the card; its reads are dropped until the card closes.
   const cardOpen = useRef(false);
+  // Items moved this visit; the camera is still on the sticker after the card closes, so a repeat decode is dropped.
+  const moved = useRef(new Set<string>());
 
   const showCard = (id: string | null) => {
     cardOpen.current = id !== null;
@@ -51,6 +55,8 @@ export function Scan({ store }: { store: Store }) {
 
   // Replace, so switching modes does not fill the back button; reservation= is kept as-is.
   function setMode(next: "out" | "in") {
+    // Switching direction means the person now means the other move for the same gear, so the log must not silence it.
+    moved.current.clear();
     const params = new URLSearchParams(query);
     params.set("mode", next);
     navigate(withQuery(route.path, params), true);
@@ -66,6 +72,7 @@ export function Scan({ store }: { store: Store }) {
         if (status === "unassigned") return navigate(`/g/${id}`);
         const bound = codeOf(store.state, id)?.item_id;
         const itemId = bound ? resolveItem(store.state, bound) : null;
+        if (itemId && moved.current.has(itemId)) return;
         if (itemId) await seen(store, itemId);
         return showCard(itemId);
       }
@@ -208,6 +215,7 @@ export function Scan({ store }: { store: Store }) {
               onMoved={(kind) => {
                 confirm(`${kind} · ${displayName(store.state, card)}`);
                 showCard(null);
+                moved.current.add(card.id);
                 // An extra taken during a reservation session joins its gear list (FR-RES-07).
                 if (booked && kind !== "Checked in") void addExtra(store, booked.id, card.id);
               }}
@@ -235,7 +243,16 @@ export function Scan({ store }: { store: Store }) {
           </section>
         )}
       </div>
-      {booked && <RemainingList store={store} booked={booked} onMoved={(name) => confirm(`Checked out · ${name}`)} />}
+      {booked && (
+        <RemainingList
+          store={store}
+          booked={booked}
+          onMoved={(id, name) => {
+            moved.current.add(id);
+            confirm(`Checked out · ${name}`);
+          }}
+        />
+      )}
     </Page>
   );
 }
@@ -252,7 +269,7 @@ function RemainingList({
 }: {
   store: Store;
   booked: Reservation;
-  onMoved: (name: string) => void;
+  onMoved: (id: string, name: string) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const rem = remaining(store.state, booked);
@@ -265,7 +282,7 @@ function RemainingList({
       setError(e instanceof Error ? e.message : "Could not record the move");
       return;
     }
-    onMoved(name);
+    onMoved(id, name);
   }
 
   return (

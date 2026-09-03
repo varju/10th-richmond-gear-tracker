@@ -117,6 +117,14 @@ test("gear with no sticker is ticked off from the list itself (FR-OUT-02)", asyn
   expect(rows().map((b) => b.textContent)).toEqual(["4-person tent #1Cold locker"]);
 });
 
+test("checking an item off the list silences its bound code", async () => {
+  renderInShell(<Scan store={store} />);
+  await user.click(within(remaining()).getByRole("button", { name: /4-person tent #1/ }));
+  expect(await screen.findByText("Checked out · 4-person tent #1")).toHaveAttribute("role", "status");
+  await typeCode("AAAAAAAAAA");
+  expect(screen.queryByRole("region", { name: "4-person tent #1" })).not.toBeInTheDocument();
+});
+
 test("any unit of a reserved generic counts toward it", async () => {
   renderInShell(<Scan store={store} />);
   await mv.checkOut(store, tent2, { event: "Fall Camp" });

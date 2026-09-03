@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
@@ -80,12 +80,20 @@ test("an assigned code shows the card; one tap checks out under the session even
   });
 });
 
-test("the same code again shows who has it, with the home to put it back in, and checks it in", async () => {
+test("moved items are not shown again until the mode switches, then the same code shows who has it and checks it in", async () => {
+  navigate("/scan?mode=out");
   renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");
   await user.click(screen.getByRole("button", { name: "Check out" }));
   await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
+  const afterCheckOut = store.pending.length;
 
+  // The camera is still on the sticker; a repeat decode of the item just moved is silent.
+  await typeCode("AAAAAAAAAA");
+  await waitFor(() => expect(store.pending.length).toBe(afterCheckOut));
+  expect(screen.queryByRole("region")).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Bring back" }));
   await typeCode("AAAAAAAAAA");
   expect(card()).toHaveTextContent("Out · Alice");
   expect(card()).toHaveTextContent("Put it back: Cold locker / shelf 4");
@@ -111,6 +119,9 @@ test("someone else's gear offers a transfer, which names the check-out it replac
   const first = pending("checked_out")[0]!;
 
   await store.setMeta({ user: carol, session_event: "Cub camp" });
+  // Carol opens the scan screen fresh; the moved log from Alice's visit does not carry over.
+  cleanup();
+  renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");
   expect(card()).toHaveTextContent("Out · Alice");
   await user.click(within(card()).getByRole("button", { name: "Transfer to me" }));
@@ -156,6 +167,9 @@ test("a fault typed at check-in raises a ticket after the move, without leaving 
   await user.click(screen.getByRole("button", { name: "Check out" }));
   await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
 
+  // Leaving and reopening the scan screen is what makes a moved item scannable again.
+  cleanup();
+  renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");
   await user.click(within(card()).getByRole("button", { name: "Report a fault" }));
   // One thing typed at a time: the note button goes while the fault is open.
@@ -189,6 +203,8 @@ test("Skip dismisses the card; Edit opens the item's form", async () => {
   expect(store.pending.filter((e) => e.type.startsWith("checked"))).toHaveLength(0);
 
   await typeCode("AAAAAAAAAA");
+  // Skip does not silence the item: the same code opens the card again.
+  expect(within(card()).getByRole("heading")).toHaveTextContent("Tent 1");
   await user.click(within(card()).getByRole("button", { name: "Edit" }));
   expect(location.pathname + location.search).toBe(`/items/${tent}?edit=1`);
 });
@@ -254,6 +270,9 @@ test("?mode=out on someone else's gear warns and offers Transfer to me as primar
   await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
 
   await store.setMeta({ user: carol });
+  // Carol opens the scan screen fresh; the moved log from Alice's visit does not carry over.
+  cleanup();
+  renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");
   expect(card()).toHaveTextContent("Already out. Alice has it.");
   expect(within(card()).getByRole("button", { name: "Transfer to me" })).toHaveClass("primary");
