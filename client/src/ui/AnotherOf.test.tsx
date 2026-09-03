@@ -17,10 +17,10 @@ beforeEach(async () => {
 
 test("a tap makes the next unit with the generic's home, labels it, and returns to the scanner (FR-INV-24)", async () => {
   const user = userEvent.setup();
+  await act.createGeneric(store, { name: "Stove" });
   const cold = await act.createLocation(store, "Cold locker");
   const tents = await act.createGeneric(store, { name: "4-person tent", home_location_id: cold });
   await act.addUnit(store, tents);
-  await act.createGeneric(store, { name: "Stove" });
   navigate("/scan");
   navigate("/another/CCCCCCCCCC");
   render(<AnotherOf store={store} code="CCCCCCCCCC" />);

@@ -69,7 +69,7 @@ export function AnotherOf({ store, code }: { store: Store; code: string }) {
             <button type="button" className="row" onClick={() => void pick(g.id)}>
               <span>{displayName(state, g)}</span>
               <span className="muted">
-                #{number.trim() || nextNumber(state, g.id)} · {homeLabel(state, g)}
+                {[`#${number.trim() || nextNumber(state, g.id)}`, homeLabel(state, g)].filter(Boolean).join(" · ")}
               </span>
             </button>
           </li>
