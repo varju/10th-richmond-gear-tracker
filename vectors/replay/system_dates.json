@@ -70,6 +70,7 @@
           "type": "checked_out",
           "holder_id": "bob",
           "event": null,
+          "reservation_id": null,
           "actor_id": "alice",
           "device_id": "a",
           "at": 3000

@@ -73,7 +73,9 @@ test("an assigned code shows the card; one tap checks out under the session even
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
   expect(await screen.findByText("Checked out · Tent 1")).toHaveAttribute("role", "status");
   expect(screen.queryByRole("region", { name: "Tent 1" })).not.toBeInTheDocument();
-  expect(pending("checked_out").map((e) => e.payload)).toEqual([{ holder_id: "alice", event: "Spring camp" }]);
+  expect(pending("checked_out").map((e) => e.payload)).toEqual([
+    { holder_id: "alice", event: "Spring camp", reservation_id: null },
+  ]);
   expect(item(store.state, tent)).toMatchObject({
     status: "out",
     holder_id: "alice",

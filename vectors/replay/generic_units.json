@@ -95,6 +95,7 @@
           "type": "checked_out",
           "holder_id": "bob",
           "event": "Fall Camp",
+          "reservation_id": null,
           "actor_id": "alice",
           "device_id": "a",
           "at": 4000

@@ -10,7 +10,12 @@
       "device_id": "a",
       "device_seq": 1,
       "effective_at": 1000,
-      "payload": { "name": "Bowls", "generic": true, "pool": true, "quantity": 10 }
+      "payload": {
+        "name": "Bowls",
+        "generic": true,
+        "pool": true,
+        "quantity": 10
+      }
     },
     {
       "id": "01000000000000000000000002",
@@ -21,7 +26,10 @@
       "device_id": "a",
       "device_seq": 2,
       "effective_at": 2000,
-      "payload": { "holder_id": "bob", "count": 4 }
+      "payload": {
+        "holder_id": "bob",
+        "count": 4
+      }
     },
     {
       "id": "01000000000000000000000003",
@@ -32,7 +40,10 @@
       "device_id": "a",
       "device_seq": 3,
       "effective_at": 3000,
-      "payload": { "count": 5, "reason": "counted on the shelf" }
+      "payload": {
+        "count": 5,
+        "reason": "counted on the shelf"
+      }
     }
   ],
   "state": {
@@ -47,18 +58,21 @@
         "status": "in",
         "holder_id": null,
         "pool_in": 5,
-        "pool_out": { "bob": 4 },
-        "pool_events": {},
+        "pool_out": {
+          "bob": 4
+        },
         "movement": {
           "id": "01000000000000000000000002",
           "type": "checked_out",
           "holder_id": "bob",
           "event": null,
+          "reservation_id": null,
           "actor_id": "alice",
           "device_id": "a",
           "at": 2000,
           "count": 4
-        }
+        },
+        "pool_reservations": {}
       }
     }
   }

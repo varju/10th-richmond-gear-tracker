@@ -20,6 +20,8 @@ class FakeServer {
   down = false;
   pageSize = 2;
   lastSeq = new Map<string, number>();
+  /** Bodies of every push this server has handled, in order (round_trip_ms among them). */
+  pushBodies: { round_trip_ms?: number }[] = [];
 
   handle = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     if (this.down) throw new TypeError("Failed to fetch");
@@ -32,12 +34,15 @@ class FakeServer {
       return json(401, { error: "unauthorized", message: "sign in first" });
 
     if (url.pathname === "/sync/push") {
-      const body = JSON.parse(String(init?.body)) as { events: ServerEvent[] };
+      const body = JSON.parse(String(init?.body)) as { events: ServerEvent[]; round_trip_ms?: number };
+      this.pushBodies.push({ round_trip_ms: body.round_trip_ms });
       const accepted: string[] = [];
-      const rejected: { id: string; reason: string }[] = [];
+      const rejected: { id: string | null; reason: string }[] = [];
       for (const e of body.events) {
         const last = this.lastSeq.get(e.device_id) ?? 0;
         if (e.payload.text === "reject me") rejected.push({ id: e.id, reason: "not today" });
+        // The server could not tell whose record this was (no matching id it holds).
+        else if (e.payload.text === "reject me unidentified") rejected.push({ id: null, reason: "not our event" });
         else if (e.device_seq <= last) {
           rejected.push({ id: e.id, reason: `device_seq ${e.device_seq} is not above the last seen, ${last}` });
         } else {
@@ -308,4 +313,90 @@ test("a photo taken offline goes up at the next sync, and its event comes back (
   expect(await pendingPhotos(store)).toEqual([]);
   const photos = store.items["tent-1"]?.photos as { content_type: string; size: number }[];
   expect(photos).toEqual([expect.objectContaining({ content_type: "image/jpeg", size: 4 })]);
+});
+
+test("a push sends the last measured round trip, and every response updates it for next time", async () => {
+  expect(await sync(store, api(), () => clock)).toEqual({ ok: true });
+  expect(store.meta.round_trip_ms).toBe(0);
+
+  // Simulate this call taking 400ms of network time: the clock moves between sentAt and receivedAt.
+  const realHandle = server.handle;
+  server.handle = async (input: string | URL | Request, init?: RequestInit) => {
+    clock += 400;
+    return realHandle(input, init);
+  };
+
+  await record();
+  server.pushBodies = [];
+  expect(await sync(store, api(), () => clock)).toEqual({ ok: true });
+  expect(server.pushBodies).toEqual([{ round_trip_ms: 0 }]); // what bootstrap had measured, sent up front
+  expect(store.meta.round_trip_ms).toBe(400); // this sync's own measurement, ready for next time
+
+  await record();
+  server.pushBodies = [];
+  await sync(store, api(), () => clock);
+  expect(server.pushBodies).toEqual([{ round_trip_ms: 400 }]);
+});
+
+test("a push reply carrying a different log_id bootstraps instead of pulling", async () => {
+  expect(await sync(store, api(), () => clock)).toEqual({ ok: true });
+  await record();
+  server.logId = "log-two"; // the server's database was replaced since we last synced
+  server.calls = [];
+
+  expect(await sync(store, api(), () => clock)).toEqual({ ok: true });
+  expect(server.calls).toEqual(["POST /sync/push", "GET /sync/bootstrap"]);
+  expect(store.meta.log_id).toBe("log-two");
+  expect(store.pending).toEqual([]); // marked pushed as usual before bootstrapping
+});
+
+test("a pull page that does not advance the cursor is a server bug, and is not swallowed", async () => {
+  await sync(store, api(), () => clock);
+  server.handle = async (input: string | URL | Request): Promise<Response> => {
+    const url = new URL(String(input), "http://x");
+    if (url.pathname === "/sync/pull") {
+      return new Response(
+        JSON.stringify({
+          events: [
+            {
+              id: "01000000000000000000000BUG",
+              entity_type: "item",
+              entity_id: "tent-1",
+              type: "note_added",
+              actor_id: "bob",
+              device_id: "other",
+              device_seq: 1,
+              occurred_at: T0,
+              clock_offset: 0,
+              effective_at: T0,
+              received_at: T0,
+              seq: 0,
+              payload: { text: "stuck" },
+            },
+          ],
+          cursor: 0,
+          log_id: "log-one",
+          server_time: T0,
+        }),
+        { status: 200 },
+      );
+    }
+    return new Response(JSON.stringify({ error: "not_found", message: url.pathname, server_time: T0 }), {
+      status: 404,
+    });
+  };
+  await expect(sync(store, api(), () => clock)).rejects.toThrow(/cursor/);
+});
+
+test("a rejection the server could not identify surfaces as an unclean sync, but the rest still runs", async () => {
+  await sync(store, api(), () => clock);
+  await record("note_added", { text: "reject me unidentified" });
+
+  const outcome = await sync(store, api(), () => clock);
+  expect(outcome).toEqual({
+    ok: false,
+    reason: "error",
+    message: "the server refused 1 record(s) it could not identify",
+  });
+  expect(store.meta.last_sync_at).toBe(clock); // pull still ran; the device is not stuck
 });

@@ -54,6 +54,7 @@
           "type": "checked_out",
           "holder_id": "bob",
           "event": "Spring camp",
+          "reservation_id": null,
           "actor_id": "alice",
           "device_id": "a",
           "at": 1000

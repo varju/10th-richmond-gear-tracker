@@ -180,7 +180,8 @@ def create_app(
     def push(request: Request, conn: Db, who: Who, body: Annotated[Any, Body()]) -> dict[str, Any]:
         result = sync.push(conn, who, body)
         if not who.active:
-            # That was the one push a deactivated account gets (FR-OFF-06). The session ends here.
+            # A deactivated account's device may push until its session is revoked; the first push
+            # that lands revokes it (FR-OFF-06). Two pushes in flight at once can both land.
             accounts.sign_out(conn, bearer(request) or "")
         return result
 

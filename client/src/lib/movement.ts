@@ -13,6 +13,9 @@ import type { Store } from "./store";
 export interface MoveOptions {
   /** The session's event name (FR-OUT-05). */
   event?: string;
+  /** The reservation this check-out packs (FR-RES-13). Only a check-out that carries it counts
+   * toward that reservation's progress; the event name alone is not enough (it repeats year to year). */
+  reservation_id?: string;
   /** A note on this movement (FR-OUT-15). */
   note?: string;
 }
@@ -53,7 +56,7 @@ export async function checkOut(store: Store, itemId: string, options: MoveOption
     store,
     itemId,
     "checked_out",
-    { holder_id: actor(store), event: options.event?.trim() || null },
+    { holder_id: actor(store), event: options.event?.trim() || null, reservation_id: options.reservation_id ?? null },
     options.note,
   );
 }
@@ -98,7 +101,12 @@ export async function checkOutPool(store: Store, itemId: string, options: PoolCh
     store,
     itemId,
     "checked_out",
-    { holder_id: actor(store), count: options.count, event: options.event?.trim() || null },
+    {
+      holder_id: actor(store),
+      count: options.count,
+      event: options.event?.trim() || null,
+      reservation_id: options.reservation_id ?? null,
+    },
     options.note,
   );
 }
@@ -161,10 +169,17 @@ export const deleteNote = (store: Store, itemId: string, noteId: string) =>
   notes.deleteNote(store, onItem(itemId), noteId);
 
 /**
- * The event a movement was recorded under, put right (FR-RES-17). Appended, the
- * same shape as a note correction: the movement itself is never rewritten (FR-OUT-16).
+ * The event a movement was recorded under, put right (FR-RES-17), and the reservation it now
+ * packs, if any. Appended, the same shape as a note correction: the movement itself is never
+ * rewritten (FR-OUT-16).
  */
-export async function correctEvent(store: Store, itemId: string, movementId: string, event: string | null) {
+export async function correctEvent(
+  store: Store,
+  itemId: string,
+  movementId: string,
+  event: string | null,
+  reservationId?: string | null,
+) {
   const it = item(store.state, itemId);
   if (!it) throw new Error("no such item");
   return store.record({
@@ -172,7 +187,7 @@ export async function correctEvent(store: Store, itemId: string, movementId: str
     entity_id: itemId,
     type: "event_corrected",
     actor_id: actor(store),
-    payload: { movement_id: movementId, event: event?.trim() || null },
+    payload: { movement_id: movementId, event: event?.trim() || null, reservation_id: reservationId ?? null },
   });
 }
 

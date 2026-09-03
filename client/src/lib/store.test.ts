@@ -3,6 +3,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import type { ServerEvent } from "./api";
 import { RETENTION_MS } from "./clock";
 import { openDb } from "./db";
+import { replay, type ReplayEvent } from "./replay";
 import { Store } from "./store";
 
 const T0 = 1_756_684_800_000;
@@ -129,7 +130,7 @@ test("a device_seq collision is re-stamped, not rejected, and asks for a retry",
     ],
   );
 
-  expect(result).toEqual({ retry: true });
+  expect(result).toEqual({ retry: true, unidentified: 0 });
   expect(store.pending.map((e) => e.device_seq)).toEqual([5, 6]);
   expect(store.pending.every((e) => e.sent === "no")).toBe(true);
   // The stored counter moved on too, so the next fresh record does not collide either.
@@ -142,7 +143,7 @@ test("an ordinary rejection is unaffected by the collision handling", async () =
   const b = await tent(store, "note_added", { text: "hi" });
   const result = await store.pushed([a.id], [{ id: b.id, reason: "not today" }]);
 
-  expect(result).toEqual({ retry: false });
+  expect(result).toEqual({ retry: false, unidentified: 0 });
   expect(store.pending).toEqual([]);
   expect(store.state.item?.["tent-1"]?.name).toBe("Tent");
 });
@@ -249,4 +250,207 @@ test("trim folds old sent events into the snapshot and never an unsent one", asy
   const reopened = await open();
   expect(reopened.state).toStrictEqual(before);
   expect(await reopened.trim()).toBe(0);
+});
+
+test("pushed counts a rejection with no id, or matching nothing stored, as unidentified", async () => {
+  const store = await open();
+  const a = await tent(store, "created", { name: "Tent" });
+  const result = await store.pushed(
+    [],
+    [
+      { id: null, reason: "could not read that as an object" },
+      { id: "01ARZ3NDEKTSV4RRFFQ69G5FAV", reason: "no such event" },
+      { id: a.id, reason: "not today" },
+    ],
+  );
+
+  expect(result).toEqual({ retry: false, unidentified: 2 });
+  expect(store.pending).toEqual([]);
+  expect(store.rejected.map((e) => e.id)).toEqual([a.id]);
+});
+
+test("incremental apply matches a full replay through a mix of record, receive, and pushed", async () => {
+  const store = await open();
+  // Mirrors what the store should consider live: every event handed to record/receive, minus
+  // anything later rejected. The store's own `state` is checked against a full replay of this
+  // after every step, so an incremental apply that gave a wrong answer would show up at once.
+  const known = new Map<string, ReplayEvent>();
+  const track = (e: ReplayEvent) => known.set(e.id, e);
+  const parity = () => expect(store.state).toStrictEqual(replay(known.values()));
+
+  clock = T0;
+  const tentCreated = await tent(store, "created", { name: "Tent" });
+  track(tentCreated);
+  clock = T0 + 100;
+  track(
+    await store.record({
+      entity_type: "item",
+      entity_id: "pool-1",
+      type: "created",
+      actor_id: "alice",
+      payload: { generic: true, pool: true, name: "Rope (30m)", quantity: 20 },
+    }),
+  );
+  clock = T0 + 200;
+  track(
+    await store.record({
+      entity_type: "item",
+      entity_id: "pool-1",
+      type: "checked_out",
+      actor_id: "alice",
+      payload: { holder_id: "bob", count: 5, event: "camp" },
+    }),
+  );
+  parity();
+
+  // A pulled event older than everything applied so far: lands in the middle of history,
+  // so this cannot be folded in incrementally.
+  const kettleCreated = fromServer({
+    seq: 1,
+    entity_id: "kettle-1",
+    effective_at: T0 + 50,
+    device_id: "other",
+    device_seq: 1,
+    payload: { name: "Kettle" },
+  });
+  await store.receive([kettleCreated], 1);
+  track(kettleCreated);
+  parity();
+
+  // Ordinary local record after a pulled batch: sorts after everything known, so this one is
+  // the incremental case the pulled batch above was not.
+  clock = T0 + 300;
+  track(await tent(store, "field_changed", { field: "name", value: "Big tent", old: "Tent" }));
+  parity();
+
+  // A pulled batch mixing a genuinely new event with the server's own copy of an event this
+  // device already recorded and had applied (a clamped effective_at, same id): the replacement
+  // alone rules out incremental apply for the whole batch.
+  const echoedTent = fromServer({
+    ...Store.outgoing(tentCreated),
+    seq: 2,
+    effective_at: T0 - 10,
+    received_at: T0 + 300,
+  });
+  const kettleRenamed = fromServer({
+    seq: 3,
+    entity_id: "kettle-1",
+    type: "field_changed",
+    effective_at: T0 + 400,
+    device_id: "other",
+    device_seq: 2,
+    payload: { field: "name", value: "Big kettle", old: "Kettle" },
+  });
+  await store.receive([echoedTent, kettleRenamed], 3);
+  track(echoedTent);
+  track(kettleRenamed);
+  parity();
+
+  // A reservation, a quantity_changed line, and a movement to correct.
+  clock = T0 + 500;
+  track(
+    await store.record({
+      entity_type: "reservation",
+      entity_id: "res-1",
+      type: "created",
+      actor_id: "alice",
+      payload: { event: "Camp", starts: "2026-09-10", ends: "2026-09-12", items: [], generics: [] },
+    }),
+  );
+  clock = T0 + 600;
+  track(
+    await store.record({
+      entity_type: "reservation",
+      entity_id: "res-1",
+      type: "quantity_changed",
+      actor_id: "alice",
+      payload: { item_id: "pool-1", quantity: 3 },
+    }),
+  );
+  parity();
+
+  clock = T0 + 700;
+  const checkedOut = await tent(store, "checked_out", { holder_id: "carol" });
+  track(checkedOut);
+  clock = T0 + 800;
+  track(
+    await store.record({
+      entity_type: "item",
+      entity_id: "tent-1",
+      type: "event_corrected",
+      actor_id: "alice",
+      payload: { movement_id: checkedOut.id, event: "Camp" },
+    }),
+  );
+  parity();
+
+  // A rejection drops an event out of the live set: only a full recompute can account for that.
+  clock = T0 + 900;
+  const badNote = await tent(store, "note_added", { text: "lost strap" });
+  track(badNote);
+  parity();
+  const result = await store.pushed([], [{ id: badNote.id, reason: "blocked" }]);
+  expect(result.unidentified).toBe(0);
+  known.delete(badNote.id);
+  parity();
+
+  // A receive whose events are older than a still-pending local one: the pending record must
+  // not be skipped over just because the pulled batch could not be applied incrementally.
+  clock = T0 + 1000;
+  track(await tent(store, "note_added", { text: "pending note" }));
+  const oldKettleUpdate = fromServer({
+    seq: 4,
+    entity_id: "kettle-1",
+    type: "field_changed",
+    effective_at: T0 + 150,
+    device_id: "other",
+    device_seq: 3,
+    payload: { field: "name", value: "Old kettle update", old: "Big kettle" },
+  });
+  await store.receive([oldKettleUpdate], 4);
+  track(oldKettleUpdate);
+  parity();
+
+  // And once more, an ordinary record after that pulled batch: back to the incremental case.
+  clock = T0 + 1100;
+  track(await tent(store, "note_added", { text: "final" }));
+  parity();
+});
+
+test("incremental apply stays fast once there is real history behind it", async () => {
+  const store = await open();
+  const COUNT = 5_000;
+  const bulk: ServerEvent[] = [];
+  for (let i = 0; i < COUNT; i++) {
+    bulk.push(
+      fromServer({
+        seq: i + 1,
+        entity_id: `item-${i % 500}`,
+        type: i % 7 === 0 ? "field_changed" : "created",
+        device_id: "bulk",
+        device_seq: i + 1,
+        effective_at: T0 + i,
+        payload: i % 7 === 0 ? { field: "name", value: `Item ${i}`, old: "" } : { name: `Item ${i}` },
+      }),
+    );
+  }
+  await store.receive(bulk, COUNT);
+  const first = bulk[0];
+  if (!first) throw new Error("test setup: expected a bulk event");
+
+  clock = T0 + COUNT + 10;
+  const incrementalStart = performance.now();
+  await tent(store, "created", { name: "Tent" });
+  const incremental = performance.now() - incrementalStart;
+
+  // discard() always falls back to a full rebuild, so this is what the incremental record above
+  // would have cost without it.
+  const fullStart = performance.now();
+  await store.discard(first.id);
+  const full = performance.now() - fullStart;
+
+  console.log(
+    `over ${COUNT} events: incremental record ${incremental.toFixed(2)}ms, full rebuild ${full.toFixed(2)}ms`,
+  );
+  expect(incremental).toBeLessThan(full);
 });

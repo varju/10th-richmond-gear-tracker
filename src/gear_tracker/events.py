@@ -115,17 +115,20 @@ class EventCorrection(Payload):
 
     movement_id: Ulid
     event: str | None
+    reservation_id: Ulid | None = None
 
 
 class CheckOut(Payload):
     """Who has it, for which event (FR-OUT-04). `supersedes` names the check-out this one knowingly replaces:
     a transfer (FR-OUT-12), not a conflict (FR-OFF-10). `count` is set only for a pool (FR-OUT-22): it adds to
-    that holder's count instead of moving the whole item."""
+    that holder's count instead of moving the whole item. `reservation_id` names the reservation this packs
+    (FR-RES-02); only a check-out that carries it counts towards that reservation's progress."""
 
     holder_id: NonEmpty
     event: str | None = None
     supersedes: Ulid | None = None
     count: Annotated[int, Field(ge=1)] | None = None
+    reservation_id: Ulid | None = None
 
 
 class CheckIn(Payload):

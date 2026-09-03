@@ -35,3 +35,29 @@ test("a normal response with server_time still yields an offset", async () => {
   const { offset } = await api.bootstrap();
   expect(offset).toBe(60_000);
 });
+
+test("every response carries the round trip it took, offset or not", async () => {
+  let calls = 0;
+  const now = () => T0 + (calls++ === 0 ? 0 : 40);
+  const fetch = async () =>
+    new Response(JSON.stringify({ snapshot: {}, cursor: 0, log_id: "log-one" }), { status: 200 });
+  const api = createApi({ fetch, now });
+
+  const { round_trip } = await api.bootstrap();
+  expect(round_trip).toBe(40);
+});
+
+test("push sends round_trip_ms only when given", async () => {
+  let body: Record<string, unknown> = {};
+  const fetch = async (_url: string, init: RequestInit) => {
+    body = JSON.parse(String(init.body));
+    return new Response(JSON.stringify({ accepted: [], rejected: [] }), { status: 200 });
+  };
+  const api = createApi({ fetch: fetch as typeof globalThis.fetch, now: () => T0 });
+
+  await api.push("device-a", T0, []);
+  expect(body.round_trip_ms).toBeUndefined();
+
+  await api.push("device-a", T0, [], 250);
+  expect(body.round_trip_ms).toBe(250);
+});

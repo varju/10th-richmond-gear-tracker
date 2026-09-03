@@ -12,6 +12,7 @@ import socket
 
 import anyio
 import httpx2
+import pydantic
 import pytest
 from aiosmtpd.controller import Controller
 from fastapi import Request
@@ -243,6 +244,95 @@ def test_the_sdks_own_client_can_talk_to_it(db_path, who, inventory):
     assert "search_items" in names
     assert not failed
     assert "Camp stove" in text
+
+
+def test_a_refusal_keeps_its_reason_over_the_wire(db_path, who, inventory):
+    """The SDK hides an unexpected exception behind a generic message; the app's refusals are not those."""
+    app = create_app(db_path, by_header)
+
+    async def scenario():
+        http = httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=app), base_url="http://testserver", headers={"X-Test-User": ALICE}
+        )
+        async with (
+            app.router.lifespan_context(app),
+            http,
+            streamable_http_client("http://testserver/mcp", http_client=http) as (read, write, *_),
+            ClientSession(read, write) as session,
+        ):
+            await session.initialize()
+            return await session.call_tool("check_out", {"item_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV"})
+
+    result = anyio.run(scenario)
+    assert result.is_error
+    assert "no item with id 01ARZ3NDEKTSV4RRFFQ69G5FAV" in result.content[0].text
+
+
+def test_a_coerced_type_is_refused_at_the_wire_not_silently_converted(db_path, who, inventory):
+    """A JSON string is not a count, over MCP's own transport, not just the arg model in isolation."""
+    app = create_app(db_path, by_header)
+
+    async def scenario():
+        http = httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=app), base_url="http://testserver", headers={"X-Test-User": ALICE}
+        )
+        async with (
+            app.router.lifespan_context(app),
+            http,
+            streamable_http_client("http://testserver/mcp", http_client=http) as (read, write, *_),
+            ClientSession(read, write) as session,
+        ):
+            await session.initialize()
+            return await session.call_tool("search_items", {"include_retired": "true"})
+
+    result = anyio.run(scenario)
+    assert result.is_error
+    assert "include_retired" in result.content[0].text
+
+
+# --- arguments validate strictly, the same as the event log -----------------------------------
+
+
+def _arg_model(name):
+    """The real model the SDK generated for one tool's arguments, coercion rules and all."""
+    return assistant.build_server()._tool_manager.get_tool(name).fn_metadata.arg_model
+
+
+def test_set_group_refuses_true_for_overdue_days():
+    with pytest.raises(pydantic.ValidationError):
+        _arg_model("set_group").model_validate({"fields": {"overdue_days": True}})
+
+
+def test_check_out_refuses_a_string_count():
+    with pytest.raises(pydantic.ValidationError):
+        _arg_model("check_out").model_validate({"item_id": "x", "count": "3"})
+
+
+def test_set_user_active_refuses_one_for_active():
+    with pytest.raises(pydantic.ValidationError):
+        _arg_model("set_user_active").model_validate({"user_id": "x", "active": 1})
+
+
+def test_recount_refuses_a_float_count():
+    with pytest.raises(pydantic.ValidationError):
+        _arg_model("recount").model_validate({"item_id": "x", "count": 2.0, "reason": "shelf check"})
+
+
+def test_create_reservation_refuses_true_for_a_generic_lines_quantity():
+    with pytest.raises(pydantic.ValidationError):
+        _arg_model("create_reservation").model_validate(
+            {
+                "event": "Camp",
+                "starts": "2026-01-01",
+                "ends": "2026-01-02",
+                "generics": [{"item_id": "x", "quantity": True}],
+            }
+        )
+
+
+def test_a_json_whole_number_still_works_for_a_float_price():
+    validated = _arg_model("update_item").model_validate({"item_id": "x", "fields": {"price": 3}})
+    assert validated.fields.price == 3.0
 
 
 # --- reading ---------------------------------------------------------------------------------
@@ -724,18 +814,29 @@ def test_duplicating_a_reservation_copies_its_gear_onto_new_days(tools):
     assert again["saved"] is False
 
 
-def test_packing_is_derived_from_what_went_out_under_the_event(tools):
+def test_packing_is_derived_from_what_went_out_for_the_reservation(tools):
     made = assistant.create_reservation(
         **FALL, items=[tools["stove"]], generics=[{"item_id": tools["tents"], "quantity": 1}]
     )["reservation_id"]
-    assistant.check_out(tools["stove"], event="Fall Camp")
-    assistant.check_out(tools["t2"], event="Fall Camp")
+    assistant.check_out(tools["stove"], event="Fall Camp", reservation_id=made)
+    assistant.check_out(tools["t2"], event="Fall Camp", reservation_id=made)
 
     packed = assistant.get_reservation(made)
     assert [row["name"] for row in packed["packed"]] == ["Camp stove"]
     assert packed["to_pack"] == []
     assert packed["generic_lines"][0]["done"] == 1
     assert packed["fully_packed"] is True
+
+
+def test_a_check_out_under_the_event_name_alone_packs_nothing(tools):
+    made = assistant.create_reservation(**FALL, items=[tools["stove"]])["reservation_id"]
+    assistant.check_out(tools["stove"], event="Fall Camp")
+    assert [row["name"] for row in assistant.get_reservation(made)["to_pack"]] == ["Camp stove"]
+
+
+def test_check_out_for_an_unknown_reservation_is_refused(tools):
+    with pytest.raises(NotFound):
+        assistant.check_out(tools["stove"], reservation_id="01ARZ3NDEKTSV4RRFFQ69G5FAV")
 
 
 def test_reservations_are_listed_upcoming_or_all(tools):

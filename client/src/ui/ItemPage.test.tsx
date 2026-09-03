@@ -59,7 +59,7 @@ test("Check out from the page records the session event and syncs (FR-OUT-02)", 
   await user.click(screen.getByRole("button", { name: "Check out" }));
   expect(await screen.findByText("Checked out · Tent 1")).toHaveAttribute("role", "status");
   expect(store.pending.filter((e) => e.type === "checked_out").map((e) => e.payload)).toEqual([
-    { holder_id: "alice", event: "Spring camp" },
+    { holder_id: "alice", event: "Spring camp", reservation_id: null },
   ]);
   expect(screen.getByText("Out · Alice")).toBeInTheDocument();
 

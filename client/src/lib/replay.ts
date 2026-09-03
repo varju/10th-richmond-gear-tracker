@@ -20,22 +20,26 @@ export type State = Record<string, Record<string, Fields>>;
 // `isPool` in inventory.ts, not directly.
 //
 // Derived fields, never set by a device:
-//   pool_in     number                     what is on the shelf right now
-//   pool_out    Record<holder_id, number>  what each holder has; a holder back at zero is removed
-//   pool_events Record<event, number>      how many went out under each named event, ever
-//                                           (FR-RES-13). Only checked_out with an event adds to
-//                                           it; a return has no event and never reduces it. Read
-//                                           by a reservation's remaining() to say how much of a
-//                                           pool line is done.
+//   pool_in           number                          what is on the shelf right now
+//   pool_out          Record<holder_id, number>       what each holder has; a holder back at zero is removed
+//   pool_reservations Record<reservation_id, number>  how many went out for each reservation, ever
+//                                                      (FR-RES-13). Only checked_out that carries a
+//                                                      reservation_id adds to it; a return never
+//                                                      reduces it. Read by that reservation's
+//                                                      remaining() to say how much of a pool line is
+//                                                      done. Keyed by reservation id, not event name,
+//                                                      so a later reservation reusing an event name
+//                                                      (e.g. next year's "Fall Camp") starts at zero.
 //
 // Events, on the pool's own entity (mirrored in views.py's `pool_counts`, `is_pool`):
-//   created    {quantity}                    pool_in = quantity, pool_out = {}, pool_events = {}
-//   checked_out {holder_id, count, event?}   pool_out[holder_id] += count; pool_in -= count,
-//                                             clamped at 0 (an overdraw warns, never blocks:
-//                                             FR-OUT-22). No supersedes, no conflict rule: counts
-//                                             from any device just add, whatever the order
-//                                             (FR-OUT-24). An event also adds count to
-//                                             pool_events[event].
+//   created    {quantity}                            pool_in = quantity, pool_out = {}, pool_reservations = {}
+//   checked_out {holder_id, count, event?,           pool_out[holder_id] += count; pool_in -= count,
+//                reservation_id?}                     clamped at 0 (an overdraw warns, never blocks:
+//                                                      FR-OUT-22). No supersedes, no conflict rule: counts
+//                                                      from any device just add, whatever the order
+//                                                      (FR-OUT-24). A reservation_id also adds count to
+//                                                      pool_reservations[reservation_id]; with none, it
+//                                                      adds to nothing.
 //   checked_in  {holder_id?, count}          holder defaults to the actor; pool_out[holder] =
 //                                             max(0, pool_out[holder] - count), removed at 0;
 //                                             pool_in += count (FR-OUT-23).
@@ -76,6 +80,8 @@ export interface Movement {
   type: string;
   holder_id: unknown;
   event: unknown;
+  /** The reservation this movement packs, or null (FR-RES-13). Only this counts toward its progress. */
+  reservation_id: unknown;
   actor_id: string;
   device_id: string;
   at: number;
@@ -86,8 +92,8 @@ export interface Movement {
 /** A pool's out side: how many one holder has (FR-INV-36). */
 export type PoolOut = Record<string, number>;
 
-/** A pool's per-event out total (FR-RES-13): how many went out under each named event, ever. */
-export type PoolEvents = Record<string, number>;
+/** A pool's per-reservation out total (FR-RES-13): how many went out for each reservation, ever. */
+export type PoolReservations = Record<string, number>;
 
 /** A file on the server. Never the bytes: those are fetched when online (FR-INV-11). */
 export interface Photo {
@@ -164,7 +170,7 @@ export function apply(entity: Fields, event: ReplayEvent): void {
         if (!("holder_id" in entity)) entity.holder_id = null;
         entity.pool_in = (p.quantity as number | undefined) ?? 0;
         entity.pool_out = {};
-        entity.pool_events = {};
+        entity.pool_reservations = {};
       }
       if (event.entity_type === "repair") {
         entity.raised_by = event.actor_id;
@@ -209,7 +215,10 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       // (FR-RES-17, as FR-OUT-16). Older movements are corrected in the log too;
       // state carries the last one, which is what "out under" means.
       const current = entity.movement as Movement | null | undefined;
-      if (current && current.id === p.movement_id) current.event = p.event ?? null;
+      if (current && current.id === p.movement_id) {
+        current.event = p.event ?? null;
+        current.reservation_id = p.reservation_id ?? null;
+      }
       break;
     }
     case "note_added": {
@@ -238,11 +247,11 @@ export function apply(entity: Fields, event: ReplayEvent): void {
         poolOut[holderId] = (poolOut[holderId] ?? 0) + count;
         entity.pool_out = poolOut;
         entity.pool_in = Math.max(0, ((entity.pool_in as number | undefined) ?? 0) - count);
-        if (p.event != null) {
-          const poolEvents = { ...((entity.pool_events ?? {}) as PoolEvents) };
-          const eventName = p.event as string;
-          poolEvents[eventName] = (poolEvents[eventName] ?? 0) + count;
-          entity.pool_events = poolEvents;
+        if (p.reservation_id != null) {
+          const poolReservations = { ...((entity.pool_reservations ?? {}) as PoolReservations) };
+          const reservationId = p.reservation_id as string;
+          poolReservations[reservationId] = (poolReservations[reservationId] ?? 0) + count;
+          entity.pool_reservations = poolReservations;
         }
         entity.movement = movement(event);
         break;
@@ -340,6 +349,7 @@ function movement(event: ReplayEvent): Movement {
     type: event.type,
     holder_id: event.payload.holder_id ?? null,
     event: event.payload.event ?? null,
+    reservation_id: event.payload.reservation_id ?? null,
     actor_id: event.actor_id,
     device_id: event.device_id,
     at: event.effective_at,

@@ -66,6 +66,7 @@
           "type": "checked_in",
           "holder_id": null,
           "event": null,
+          "reservation_id": null,
           "actor_id": "carol",
           "device_id": "b",
           "at": 3000
@@ -80,6 +81,7 @@
           "type": "checked_out",
           "holder_id": "bob",
           "event": null,
+          "reservation_id": null,
           "actor_id": "alice",
           "device_id": "a",
           "at": 2500

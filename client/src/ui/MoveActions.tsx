@@ -96,7 +96,7 @@ export function MoveActions({ store, it, showEvent = false, mode = null, onMoved
 
   const typing = note !== null || fault !== null;
 
-  const options = { event, note: note ?? undefined };
+  const options = { event, reservation_id: store.meta.session_reservation_id, note: note ?? undefined };
 
   return (
     <div className="move-actions">

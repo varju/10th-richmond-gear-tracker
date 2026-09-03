@@ -22,7 +22,7 @@ import {
   unitsOf,
 } from "./inventory";
 import { correctEvent } from "./movement";
-import type { Fields, Movement, PoolEvents, State } from "./replay";
+import type { Fields, Movement, PoolReservations, State } from "./replay";
 import type { Store } from "./store";
 import { localDate } from "./time";
 import { newUlid } from "./ulid";
@@ -206,7 +206,12 @@ export interface Remaining {
   generics: GenericProgress[];
 }
 
-const ticked = (it: Item, event: string): boolean => it.status === "out" && it.movement?.event === event;
+/**
+ * Out under a check-out that named this reservation (FR-RES-13). Not the event: an event name
+ * repeats year to year, and would read next year's camp as already packed on day one.
+ */
+const ticked = (it: Item, r: Pick<Reservation, "id">): boolean =>
+  it.status === "out" && it.movement?.reservation_id === r.id;
 
 /**
  * The items a reservation names, as they stand today: a merged duplicate means
@@ -225,21 +230,21 @@ export function remaining(state: State, r: Reservation): Remaining {
     .map((id) => (state.item?.[id] ? ({ id, ...state.item[id] } as Item) : undefined))
     .filter((it): it is Item => it !== undefined)
     .sort(byHome);
-  const left = named.filter((it) => !ticked(it, r.event));
-  const packed = named.filter((it) => ticked(it, r.event));
+  const left = named.filter((it) => !ticked(it, r));
+  const packed = named.filter((it) => ticked(it, r));
 
   const chosen = new Set(namedItems(state, r));
   const generics = r.generics.map((g) => {
     const generic = item(state, g.item_id) ?? ({ id: g.item_id, name: "(unknown item)" } as Item);
     if (isPool(generic)) {
-      // pool_events accumulates at replay (FR-RES-13): a second visit for the same camp adds to
-      // done, it does not replace it. Read off the raw entity: Item does not carry it.
-      const poolEvents = (state.item?.[g.item_id]?.pool_events as PoolEvents | undefined) ?? {};
-      const done = poolEvents[r.event] ?? 0;
+      // pool_reservations accumulates at replay (FR-RES-13): a second visit for the same
+      // reservation adds to done, it does not replace it. Read off the raw entity: Item does not carry it.
+      const poolReservations = (state.item?.[g.item_id]?.pool_reservations as PoolReservations | undefined) ?? {};
+      const done = poolReservations[r.id] ?? 0;
       return { generic, quantity: g.quantity, done: Math.min(done, g.quantity) };
     }
     // Any unretired unit of the generic counts, except one the reservation names: that one is its own line.
-    const done = unitsOf(state, g.item_id).filter((u) => !u.retired && !chosen.has(u.id) && ticked(u, r.event)).length;
+    const done = unitsOf(state, g.item_id).filter((u) => !u.retired && !chosen.has(u.id) && ticked(u, r)).length;
     return { generic, quantity: g.quantity, done: Math.min(done, g.quantity) };
   });
 
@@ -350,7 +355,7 @@ export function extraChange(state: State, r: Reservation, itemId: string): ListC
   if (!it) return null;
   const line = it.parent_id ? r.generics.find((g) => g.item_id === it.parent_id) : undefined;
   if (!line) return { kind: "item", item_id: id };
-  const done = unitsOf(state, line.item_id).filter((u) => !named.has(u.id) && ticked(u, r.event)).length;
+  const done = unitsOf(state, line.item_id).filter((u) => !named.has(u.id) && ticked(u, r)).length;
   return done > line.quantity ? { kind: "quantity", item_id: line.item_id, quantity: line.quantity + 1 } : null;
 }
 
@@ -364,11 +369,11 @@ export async function addExtra(store: Store, id: string, itemId: string): Promis
   else await setQuantity(store, id, change.item_id, change.quantity);
 }
 
-/** Gear that is out under some other event, or none. What this camp can claim (FR-RES-17). */
+/** Gear that is out but not packing this reservation. What this camp can claim (FR-RES-17). */
 export function outElsewhere(state: State, r: Reservation): Item[] {
   const named = new Set(namedItems(state, r));
   return movable(state)
-    .filter((it) => it.status === "out" && !it.merged_into && !named.has(it.id) && it.movement?.event !== r.event)
+    .filter((it) => it.status === "out" && !it.merged_into && !named.has(it.id) && it.movement?.reservation_id !== r.id)
     .sort((a, b) => displayName(state, a).localeCompare(displayName(state, b)));
 }
 
@@ -384,7 +389,9 @@ export async function linkOut(store: Store, id: string, itemId: string): Promise
   if (!it) throw new Error("no such item");
   const movement = it.movement as Movement | undefined;
   if (it.status !== "out" || !movement) throw new Error("it is not out");
-  if (movement.event !== r.event) await correctEvent(store, it.id, movement.id, r.event);
+  if (movement.event !== r.event || movement.reservation_id !== r.id) {
+    await correctEvent(store, it.id, movement.id, r.event, r.id);
+  }
   await addExtra(store, id, it.id);
 }
 
@@ -401,7 +408,7 @@ export async function checkOutPoolLine(store: Store, r: Reservation, itemId: str
     entity_id: itemId,
     type: "checked_out",
     actor_id: actor(store),
-    payload: { holder_id: actor(store), count, event: r.event },
+    payload: { holder_id: actor(store), count, event: r.event, reservation_id: r.id },
   });
 }
 

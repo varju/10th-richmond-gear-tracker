@@ -78,7 +78,8 @@ bound it.
 **Correct it.** Every sync measures the gap between the two clocks. The client sends its time, the server replies with
 its own, and the client halves the round trip to estimate the difference. It keeps that estimate and stamps it onto each
 event it records afterwards, as `clock_offset`. Sign-in needs a network, so every device has a measurement before its
-first offline evening.
+first offline evening. The device also sends the round trip its last sync took, so the server's own one-way measurement
+can allow for the same latency instead of overstating the offset by all of it.
 
 The offset is stored beside the raw reading, never folded into it. If we later learn an estimate was wrong, the events
 recorded under it can be recomputed. Destroying the original observation would be the one edit an append-only log cannot
@@ -100,8 +101,9 @@ What neither catches is a clock that changes between recording and sync — a fl
 The offset measured on Sunday was not the offset that applied on Friday, and a web app has no monotonic clock surviving
 a reload to notice the jump. The partial signal is worth taking: when a fresh measurement differs sharply from the
 stored one, the events recorded under the old estimate are suspect, and are flagged rather than trusted. "Sharply" is
-more than a minute. The flag is a row in the `flags` table, a work queue for a person; the event itself is stored as it
-arrived.
+more than a minute. The fresh measurement itself allows for latency, using the round trip the device last reported, so a
+slow push on poor signal is not mistaken for a moved clock. The flag is a row in the `flags` table, a work queue for a
+person; the event itself is stored as it arrived.
 
 **Replay order is `(effective_at, device_id, device_seq)`.** Every field is server-assigned or device-monotonic, so the
 order is total, stable, and identical everywhere. "Current" — an item's status, its holder, the text of a corrected note
@@ -167,9 +169,9 @@ would need a connection held open through the group's proxy and tunnel, a reconn
 delivery path to keep honest beside pull. Half a minute is fast enough for two phones in one locker, and it costs one
 request the server already answers.
 
-**A deactivated account still gets one final push accepted** (FR-OFF-06). The records are gear movements and they are
-true regardless of who has since left the group. Accept them, attribute them, then refuse everything else that
-credential asks for. Rejecting the push instead would violate NFR-DATA-01.
+**A deactivated account's device can still push queued gear movements** until its session is revoked (FR-OFF-06). The
+first push that lands triggers that revocation. The records are kept because they are true regardless of who has since
+left the group; rejecting them instead would violate NFR-DATA-01.
 
 An Admin can also revoke one device without touching the account, for a phone that was lost (FR-USR-14).
 
@@ -418,7 +420,10 @@ The holder is whoever is signed in. Gear handed to someone without an account is
 holder field that would need its own list of people.
 
 The session event (FR-OUT-05) is a device setting in `meta`, stamped onto each check-out as it is recorded. It is not a
-record, so two phones at one camp each type the name once and nothing is shared or reconciled.
+record, so two phones at one camp each type the name once and nothing is shared or reconciled. Packing a reservation
+seeds a second device setting alongside the event: the reservation's id, stamped onto each check-out the same way
+(FR-RES-13). Changing the event by hand clears it, since the two are meant to travel together; the event alone is not
+enough to say which reservation a check-out packs, because an event name is free text and can repeat.
 
 Taking gear that is already out is a `checked_out` whose payload names the check-out it `supersedes` (FR-OUT-12). That
 is how replay tells a transfer from a conflict: the conflict rule (FR-OFF-10) fires on two check-outs from different
@@ -494,11 +499,13 @@ The days are calendar dates, `YYYY-MM-DD`, not timestamps. A camp starts on a da
 date order. "Today" is the day in America/Vancouver, computed on the device (NFR-DATA-12). Overlap is inclusive: two
 camps that share a day share the gear.
 
-**Packing records nothing of its own.** An item is ticked off when it is out under the reservation's event, which the
-item's last movement already says. So the remaining list is derived from state, a reload loses nothing, and two phones
-packing one camp agree as soon as they have synced. For a generic, any unretired unit of it checked out under the event
-counts, except one the reservation names, which is its own line. Finishing the session records nothing either: the
-reservation is a plan, and the movements are the record.
+**Packing records nothing of its own.** An item is ticked off when it is out under a check-out that named the
+reservation's id, which the item's last movement carries as `reservation_id`. Not the event name: an event repeats year
+to year (next year's "Fall Camp"), and would read a new reservation as already packed on day one. A scan outside the
+reservation's session, with no `reservation_id`, does not count. So the remaining list is derived from state, a reload
+loses nothing, and two phones packing one camp agree as soon as they have synced. For a generic, any unretired unit of
+it checked out for the reservation counts, except one the reservation names, which is its own line. Finishing the
+session records nothing either: the reservation is a plan, and the movements are the record.
 
 Conflicts are checked on the device, against the state it has (FR-RES-05, FR-RES-15). Two phones offline can both save
 clashing reservations; both land, and the reservation page then names the clash. That is the same trade as the in-use
@@ -679,7 +686,8 @@ device. Twenty phones hold the inventory; they do not need to hold twenty email 
 
 Sessions never expire (FR-USR-07). Sign-in is exchanged once for a long-lived token per device; the app never needs to
 reach an identity provider from a locker (FR-USR-08). The token is stored hashed. A deactivated account's sessions are
-kept, marked inactive, so the final push can land (FR-OFF-06). That push ends the session; nothing else is accepted.
+kept, marked inactive, so a queued push can still land (FR-OFF-06). The first push that lands revokes the session;
+nothing else is accepted after that.
 
 Invite and reset links are one-time tokens (FR-USR-12). They die after seven days unused; sessions do not expire, links
 do. Redeeming a reset revokes the sessions the old password opened.

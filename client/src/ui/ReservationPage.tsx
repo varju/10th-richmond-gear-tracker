@@ -96,9 +96,9 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
   // One column when the second would be empty.
   const twoCol = wide && others.length > 0;
 
-  /** The session takes the event from here; nobody types it again (FR-RES-03). */
+  /** The session takes the event and the reservation from here; nobody types it again (FR-RES-03). */
   async function checkOut() {
-    await store.setMeta({ session_event: r!.event });
+    await store.setMeta({ session_event: r!.event, session_reservation_id: r!.id });
     navigate(`/scan?mode=out&reservation=${id}`);
   }
 

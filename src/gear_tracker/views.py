@@ -384,30 +384,32 @@ def named_items(state: State, r: Fields) -> list[str]:
     return [item_id for item_id in seen if not (state.get("item") or {}).get(item_id, {}).get("deleted")]
 
 
-def _ticked(it: Fields, event: str) -> bool:
-    return it.get("status") == "out" and (it.get("movement") or {}).get("event") == event
+def _ticked(it: Fields, reservation_id: str) -> bool:
+    """Out under a check-out that named this reservation (FR-RES-13). Not the event: an event
+    name repeats year to year, and would read next year's camp as already packed on day one."""
+    return it.get("status") == "out" and (it.get("movement") or {}).get("reservation_id") == reservation_id
 
 
 def remaining(state: State, r: Fields) -> dict[str, Any]:
     """What is still to pack (FR-RES-06). Derived from state alone: a scan anywhere ticks it here after sync."""
     named = [it for it in (item(state, i) for i in named_items(state, r)) if it is not None]
     named.sort(key=lambda it: (home_label(state, it), display_name(state, it)))
-    event = r.get("event") or ""
+    reservation_id = r["id"]
     chosen = set(named_items(state, r))
 
     generics = []
     for line in r.get("generics") or []:
         generic = item(state, line["item_id"]) or {"id": line["item_id"], "name": "(unknown item)"}
         if is_pool(generic):
-            # pool_events accumulates at replay (FR-RES-13): a second visit for the same camp
-            # adds to done, it does not replace it.
-            done = (generic.get("pool_events") or {}).get(event, 0)
+            # pool_reservations accumulates at replay (FR-RES-13): a second visit for the same
+            # reservation adds to done, it does not replace it.
+            done = (generic.get("pool_reservations") or {}).get(reservation_id, 0)
         else:
             # Any unretired unit of the generic counts, except one the reservation names: that one is its own line.
             done = sum(
                 1
                 for u in units_of(state, line["item_id"])
-                if u["id"] not in chosen and not u.get("retired") and _ticked(u, event)
+                if u["id"] not in chosen and not u.get("retired") and _ticked(u, reservation_id)
             )
         generics.append(
             {
@@ -419,8 +421,8 @@ def remaining(state: State, r: Fields) -> dict[str, Any]:
         )
 
     return {
-        "items": [_packing_row(state, it) for it in named if not _ticked(it, event)],
-        "packed": [_packing_row(state, it) for it in named if _ticked(it, event)],
+        "items": [_packing_row(state, it) for it in named if not _ticked(it, reservation_id)],
+        "packed": [_packing_row(state, it) for it in named if _ticked(it, reservation_id)],
         "generics": generics,
     }
 

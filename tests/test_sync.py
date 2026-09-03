@@ -30,8 +30,11 @@ ALICE = Principal(user_id="alice", device_id="phone-a")
 BOB = Principal(user_id="bob", device_id="phone-b")
 
 
-def batch(principal: Principal, *events: dict, client_time: int = T0) -> dict:
-    return {"device_id": principal.device_id, "client_time": client_time, "events": list(events)}
+def batch(principal: Principal, *events: dict, client_time: int = T0, round_trip_ms: int | None = None) -> dict:
+    body = {"device_id": principal.device_id, "client_time": client_time, "events": list(events)}
+    if round_trip_ms is not None:
+        body["round_trip_ms"] = round_trip_ms
+    return body
 
 
 def own(principal: Principal, **overrides) -> dict:
@@ -205,6 +208,29 @@ def test_a_replayed_push_does_not_flag_twice(db):
     push(db, ALICE, body, now=T0)
     push(db, ALICE, body, now=T0)
     assert len(list_flags(db)) == 1
+
+
+def test_a_slow_push_does_not_flag_when_the_round_trip_is_reported(db):
+    """The client's own offset already allows for half a round trip; the server's should too."""
+    event = own(ALICE, occurred_at=T0, clock_offset=0)
+    body = batch(ALICE, event, client_time=T0 - 90_000, round_trip_ms=180_000)
+    push(db, ALICE, body, now=T0)
+    assert list_flags(db) == []
+
+
+def test_the_same_lag_with_no_round_trip_reported_flags_it(db):
+    event = own(ALICE, occurred_at=T0, clock_offset=0)
+    body = batch(ALICE, event, client_time=T0 - 90_000)
+    push(db, ALICE, body, now=T0)
+    [flag] = list_flags(db, "clock_drift")
+    assert flag["detail"]["measured_offset"] == 90_000
+
+
+def test_a_negative_round_trip_is_a_bad_request(db):
+    event = own(ALICE, occurred_at=T0, clock_offset=0)
+    body = batch(ALICE, event, client_time=T0, round_trip_ms=-1)
+    with pytest.raises(BadRequest):
+        push(db, ALICE, body, now=T0)
 
 
 # --- pull -----------------------------------------------------------------------

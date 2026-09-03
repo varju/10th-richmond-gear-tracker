@@ -104,6 +104,8 @@ export interface Timed<T> {
   data: T;
   /** Only a server that stamped its own reply gives us one to measure against (see `request`). */
   offset?: number;
+  /** Wall-clock time this call took. Sent back on the next push so the server can allow for latency. */
+  round_trip: number;
 }
 
 /** What an import would do, without doing it: rows to add or change, and any errors (FR-SET-11). */
@@ -137,6 +139,7 @@ export class ApiError extends Error {
     public code: string,
     message: string,
     public offset?: number,
+    public round_trip?: number,
   ) {
     super(message);
   }
@@ -179,6 +182,7 @@ export function createApi(options: ApiOptions = {}) {
       throw new Offline(String(error));
     }
     const receivedAt = now();
+    const round_trip = receivedAt - sentAt;
 
     // A body that is not JSON (a proxy's HTML error page, say) is not a reason to blow up the
     // caller: treat it as empty, and let the status code carry the story.
@@ -189,8 +193,14 @@ export function createApi(options: ApiOptions = {}) {
     // unhandled 500 or a framework's own 404 does not, so there is nothing to measure against.
     const offset = Number.isFinite(data.server_time) ? measureOffset(data.server_time!, sentAt, receivedAt) : undefined;
     if (!response.ok)
-      throw new ApiError(response.status, data.error ?? "error", data.message ?? response.statusText, offset);
-    return { data: data as T, offset };
+      throw new ApiError(
+        response.status,
+        data.error ?? "error",
+        data.message ?? response.statusText,
+        offset,
+        round_trip,
+      );
+    return { data: data as T, offset, round_trip };
   }
 
   /** Bytes, not JSON: photos go up and come down whole. */
@@ -226,8 +236,14 @@ export function createApi(options: ApiOptions = {}) {
         "GET",
         entity_id === undefined ? `/history/${entity_type}` : `/history/${entity_type}/${entity_id}`,
       ),
-    push: (device_id: string, client_time: number, events: OutgoingEvent[]) =>
-      request<PushResult>("POST", "/sync/push", { device_id, client_time, events }),
+    push: (device_id: string, client_time: number, events: OutgoingEvent[], round_trip_ms?: number) =>
+      request<PushResult>(
+        "POST",
+        "/sync/push",
+        round_trip_ms === undefined
+          ? { device_id, client_time, events }
+          : { device_id, client_time, events, round_trip_ms },
+      ),
     signIn: (email: string, password: string, device_id: string) =>
       request<Session>("POST", "/auth/sign-in", { email, password, device_id }),
     signOut: () => request<Record<string, never>>("POST", "/auth/sign-out"),

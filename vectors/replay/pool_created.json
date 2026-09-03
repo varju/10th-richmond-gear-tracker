@@ -33,7 +33,7 @@
         "holder_id": null,
         "pool_in": 20,
         "pool_out": {},
-        "pool_events": {}
+        "pool_reservations": {}
       }
     }
   }

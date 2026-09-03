@@ -193,6 +193,32 @@ test("remaining adds a second check-out under the same event, it does not replac
   expect(res.isPacked(res.remaining(store.state, r))).toBe(false);
 });
 
+test("pool progress is by reservation, not event name: a repeat camp starts at zero (FR-RES-13)", async () => {
+  await store.record({
+    entity_type: "item",
+    entity_id: "bowls",
+    type: "created",
+    actor_id: "alice",
+    payload: { name: "Bowls", generic: true, pool: true, quantity: 10 },
+  });
+  const lastYear = await res.createReservation(store, {
+    ...fall,
+    starts: "2025-10-02",
+    ends: "2025-10-04",
+    items: [],
+    generics: [{ item_id: "bowls", quantity: 4 }],
+  });
+  const thisYear = await res.createReservation(store, {
+    ...fall,
+    items: [],
+    generics: [{ item_id: "bowls", quantity: 4 }],
+  });
+
+  await res.checkOutPoolLine(store, res.reservation(store.state, lastYear)!, "bowls", 4);
+  expect(res.remaining(store.state, res.reservation(store.state, lastYear)!).generics[0]).toMatchObject({ done: 4 });
+  expect(res.remaining(store.state, res.reservation(store.state, thisYear)!).generics[0]).toMatchObject({ done: 0 });
+});
+
 test("a retired pool cannot be checked out for a reservation (FR-INV-04)", async () => {
   await store.record({
     entity_type: "item",
@@ -250,7 +276,7 @@ test("editing a reservation does not conflict with itself", async () => {
   expect(res.conflicts(store.state, { ...fall, items: [f.t1], generics: [] })).toHaveLength(1);
 });
 
-test("remaining is what is not yet out under the event, by home; a generic ticks off on any unit", async () => {
+test("remaining is what is not yet out under the reservation, by home; a generic ticks off on any unit", async () => {
   const f = await fixture();
   const id = await res.createReservation(store, {
     ...fall,
@@ -264,8 +290,8 @@ test("remaining is what is not yet out under the event, by home; a generic ticks
   expect(rem.generics).toEqual([{ generic: expect.objectContaining({ name: "4-person tent" }), quantity: 2, done: 0 }]);
   expect(res.isPacked(rem)).toBe(false);
 
-  await mv.checkOut(store, f.t1, { event: "Fall Camp" });
-  await mv.checkOut(store, f.t2, { event: "Fall Camp" });
+  await mv.checkOut(store, f.t1, { event: "Fall Camp", reservation_id: id });
+  await mv.checkOut(store, f.t2, { event: "Fall Camp", reservation_id: id });
   await mv.checkOut(store, f.stove, { event: "Other trip" }); // out, but not for us
   rem = res.remaining(store.state, r);
   expect(rem.items.map(shown)).toEqual(["Stove", "Tarp"]);
@@ -273,13 +299,30 @@ test("remaining is what is not yet out under the event, by home; a generic ticks
   expect(rem.generics[0]!.done).toBe(1);
 
   await mv.checkIn(store, f.stove);
-  await mv.checkOut(store, f.stove, { event: "Fall Camp" });
-  await mv.checkOut(store, f.tarp, { event: "Fall Camp" });
-  await mv.checkOut(store, f.t3, { event: "Fall Camp" });
+  await mv.checkOut(store, f.stove, { event: "Fall Camp", reservation_id: id });
+  await mv.checkOut(store, f.tarp, { event: "Fall Camp", reservation_id: id });
+  await mv.checkOut(store, f.t3, { event: "Fall Camp", reservation_id: id });
   rem = res.remaining(store.state, r);
   expect(rem.items).toEqual([]);
   expect(rem.generics[0]!.done).toBe(2);
   expect(res.isPacked(rem)).toBe(true);
+});
+
+test("a repeat camp under the same event name does not read as packed (FR-RES-13)", async () => {
+  const f = await fixture();
+  const lastYear = await res.createReservation(store, {
+    ...fall,
+    starts: "2025-10-02",
+    ends: "2025-10-04",
+    items: [f.t1],
+    generics: [],
+  });
+  const thisYear = await res.createReservation(store, { ...fall, items: [f.t1], generics: [] });
+
+  await mv.checkOut(store, f.t1, { event: fall.event, reservation_id: lastYear });
+  expect(res.isPacked(res.remaining(store.state, res.reservation(store.state, lastYear)!))).toBe(true);
+  // Same event name, a different reservation: the check-out above must not count here.
+  expect(res.isPacked(res.remaining(store.state, res.reservation(store.state, thisYear)!))).toBe(false);
 });
 
 test("an update records one field_changed per changed field, and the gear list one event per line", async () => {
@@ -355,18 +398,18 @@ test("an extra scanned in the session joins the list; a full generic line rises 
   });
 
   // A single item nobody listed joins by name.
-  await mv.checkOut(store, f.tarp, { event: fall.event });
+  await mv.checkOut(store, f.tarp, { event: fall.event, reservation_id: id });
   await res.addExtra(store, id, f.tarp);
   expect(res.reservation(store.state, id)?.items).toEqual([f.stove, f.tarp]);
 
   // The first tent fills the line that was asked for; the list does not grow.
-  await mv.checkOut(store, f.t1, { event: fall.event });
+  await mv.checkOut(store, f.t1, { event: fall.event, reservation_id: id });
   await res.addExtra(store, id, f.t1);
   expect(res.reservation(store.state, id)?.items).toEqual([f.stove, f.tarp]);
   expect(res.reservation(store.state, id)?.generics).toEqual([{ item_id: f.tents, quantity: 1 }]);
 
   // The second overflows it, so the line rises instead of naming the unit.
-  await mv.checkOut(store, f.t2, { event: fall.event });
+  await mv.checkOut(store, f.t2, { event: fall.event, reservation_id: id });
   await res.addExtra(store, id, f.t2);
   expect(res.reservation(store.state, id)?.items).toEqual([f.stove, f.tarp]);
   expect(res.reservation(store.state, id)?.generics).toEqual([{ item_id: f.tents, quantity: 2 }]);
@@ -393,12 +436,12 @@ test("gear that left before the plan did is linked, not moved (FR-RES-17, S-RES-
   const before = inv.item(store.state, f.t1)!.movement;
   await res.linkOut(store, id, f.t1);
   const after = inv.item(store.state, f.t1)!;
-  expect(after.movement).toMatchObject({ id: before?.id, type: "checked_out", event: "Fall Camp" });
+  expect(after.movement).toMatchObject({ id: before?.id, type: "checked_out", event: "Fall Camp", reservation_id: id });
   expect(after.status).toBe("out");
   expect(store.pending.at(-1)).toMatchObject({
     type: "event_corrected",
     entity_id: f.t1,
-    payload: { movement_id: before?.id, event: "Fall Camp" },
+    payload: { movement_id: before?.id, event: "Fall Camp", reservation_id: id },
   });
 
   // One out under another event, and not on the list: it is linked and joins it.
@@ -423,7 +466,11 @@ test("the history shows a corrected event, and the original check-out stands (FR
   const out = await mv.checkOut(store, f.t1, { event: "Thursday" });
   await mv.correctEvent(store, f.t1, out.id, "Fall Camp");
   expect(mv.history(store, f.t1).map((h) => [h.id, h.event])).toEqual([[out.id, "Fall Camp"]]);
-  expect(store.pending.find((e) => e.id === out.id)?.payload).toEqual({ holder_id: "alice", event: "Thursday" });
+  expect(store.pending.find((e) => e.id === out.id)?.payload).toEqual({
+    holder_id: "alice",
+    event: "Thursday",
+    reservation_id: null,
+  });
 });
 
 test("a reservation naming a merged duplicate packs the survivor (FR-INV-13)", async () => {
@@ -432,7 +479,7 @@ test("a reservation naming a merged duplicate packs the survivor (FR-INV-13)", a
   await act.mergeItem(store, f.t1, f.t2);
   const booked = res.reservation(store.state, id)!;
   expect(res.remaining(store.state, booked).items.map(shown)).toEqual(["4-person tent #2"]);
-  await mv.checkOut(store, f.t2, { event: fall.event });
+  await mv.checkOut(store, f.t2, { event: fall.event, reservation_id: id });
   expect(res.isPacked(res.remaining(store.state, booked))).toBe(true);
   // Another camp naming the duplicate clashes on the survivor.
   const other = { ...fall, items: [f.t1], generics: [] };
@@ -442,8 +489,8 @@ test("a reservation naming a merged duplicate packs the survivor (FR-INV-13)", a
 test("remaining does not count a retired unit as packed", async () => {
   const f = await fixture();
   const id = await res.createReservation(store, { ...fall, items: [], generics: [{ item_id: f.tents, quantity: 2 }] });
-  await mv.checkOut(store, f.t1, { event: fall.event });
-  await mv.checkOut(store, f.t2, { event: fall.event });
+  await mv.checkOut(store, f.t1, { event: fall.event, reservation_id: id });
+  await mv.checkOut(store, f.t2, { event: fall.event, reservation_id: id });
   await act.retireItem(store, f.t2);
   const r = res.reservation(store.state, id)!;
   expect(res.remaining(store.state, r).generics[0]).toMatchObject({ quantity: 2, done: 1 });

@@ -41,6 +41,7 @@
           "type": "checked_out",
           "holder_id": "carol",
           "event": null,
+          "reservation_id": null,
           "actor_id": "carol",
           "device_id": "b",
           "at": 2000

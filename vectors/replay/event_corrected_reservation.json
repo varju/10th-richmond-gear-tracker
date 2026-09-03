@@ -1,0 +1,50 @@
+{
+  "name": "correcting a movement's event can also set the reservation it now packs (FR-RES-17)",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": { "holder_id": "alice", "event": null }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "event_corrected",
+      "actor_id": "bob",
+      "device_id": "b",
+      "device_seq": 1,
+      "effective_at": 2000,
+      "payload": {
+        "movement_id": "01000000000000000000000001",
+        "event": "Fall Camp",
+        "reservation_id": "r-fall"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-1": {
+        "status": "out",
+        "holder_id": "alice",
+        "since": 1000,
+        "movement": {
+          "id": "01000000000000000000000001",
+          "type": "checked_out",
+          "holder_id": "alice",
+          "event": "Fall Camp",
+          "reservation_id": "r-fall",
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 1000
+        }
+      }
+    }
+  }
+}

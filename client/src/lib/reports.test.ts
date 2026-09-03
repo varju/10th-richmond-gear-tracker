@@ -14,6 +14,7 @@ const out = (holder: string, since: number, event?: string) => ({
     type: "checked_out",
     holder_id: holder,
     event: event ?? null,
+    reservation_id: null,
     actor_id: holder,
     device_id: "d",
     at: since,

@@ -269,7 +269,7 @@ function RemainingList({
   async function take(id: string, name: string) {
     setError(null);
     try {
-      await checkOut(store, id, { event: booked.event });
+      await checkOut(store, id, { event: booked.event, reservation_id: booked.id });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not record the move");
       return;
@@ -369,11 +369,19 @@ function SessionEvent({ store, booked }: { store: Store; booked?: Reservation })
   useEffect(() => {
     if (!booked || seededFor.current === booked.id) return;
     seededFor.current = booked.id;
-    if (booked.event !== store.meta.session_event) void store.setMeta({ session_event: booked.event });
+    if (booked.event !== store.meta.session_event || booked.id !== store.meta.session_reservation_id) {
+      void store.setMeta({ session_event: booked.event, session_reservation_id: booked.id });
+    }
   }, [store, booked?.id, booked?.event]);
 
+  // Changing the event by hand breaks the link to the reservation it was seeded from: a scan
+  // afterwards would otherwise still be counted as packing that reservation. Setting it back to
+  // what it already was is not a change.
   async function apply() {
-    await store.setMeta({ session_event: draft.trim() || undefined });
+    const next = draft.trim() || undefined;
+    await store.setMeta(
+      next === event ? { session_event: next } : { session_event: next, session_reservation_id: undefined },
+    );
     setEditing(false);
   }
 
@@ -383,7 +391,7 @@ function SessionEvent({ store, booked }: { store: Store; booked?: Reservation })
   }
 
   async function clear() {
-    await store.setMeta({ session_event: undefined });
+    await store.setMeta({ session_event: undefined, session_reservation_id: undefined });
     setEditing(false);
   }
 

@@ -14,7 +14,8 @@
           "actor_id": "alice",
           "device_id": "a",
           "at": 1000,
-          "event": null
+          "event": null,
+          "reservation_id": null
         }
       }
     }
@@ -46,6 +47,7 @@
           "type": "checked_out",
           "holder_id": "carol",
           "event": null,
+          "reservation_id": null,
           "actor_id": "carol",
           "device_id": "b",
           "at": 2000
@@ -61,13 +63,15 @@
                 "actor_id": "alice",
                 "device_id": "a",
                 "at": 1000,
-                "event": null
+                "event": null,
+                "reservation_id": null
               },
               {
                 "id": "01000000000000000000000002",
                 "type": "checked_out",
                 "holder_id": "carol",
                 "event": null,
+                "reservation_id": null,
                 "actor_id": "carol",
                 "device_id": "b",
                 "at": 2000

@@ -1236,7 +1236,8 @@ function PoolActions({ store, it, onMoved }: { store: Store; it: Item; onMoved: 
     setBusy(true);
     setError(null);
     try {
-      if (mode === "out") await checkOutPool(store, it.id, { count: n, event });
+      if (mode === "out")
+        await checkOutPool(store, it.id, { count: n, event, reservation_id: store.meta.session_reservation_id });
       else if (mode === "in") await checkInPool(store, it.id, { count: n, holder_id: holder ?? undefined });
       else await recount(store, it.id, n, reason);
     } catch (e) {

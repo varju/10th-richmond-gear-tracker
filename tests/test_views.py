@@ -108,9 +108,9 @@ def test_what_is_out_skips_a_retired_pool():
     assert what_is_out(state, now=0) == {"holders": [], "total": 0, "overdue": 0}
 
 
-def test_remaining_reads_a_pool_lines_done_count_from_pool_events():
-    """FR-RES-13. pool_events accumulates at replay, so this covers two check-outs for the
-    same camp, capped at the line's quantity, not the raw total."""
+def test_remaining_reads_a_pool_lines_done_count_from_pool_reservations():
+    """FR-RES-13. pool_reservations accumulates at replay, so this covers two check-outs for the
+    same reservation, capped at the line's quantity, not the raw total."""
     state = {
         "item": {
             "bowls": {
@@ -119,7 +119,7 @@ def test_remaining_reads_a_pool_lines_done_count_from_pool_events():
                 "pool": True,
                 "pool_in": 2,
                 "pool_out": {"alice": 8},
-                "pool_events": {"Fall Camp": 8},
+                "pool_reservations": {"r-fall": 8},
             }
         },
         "reservation": {
@@ -136,7 +136,9 @@ def test_remaining_reads_a_pool_lines_done_count_from_pool_events():
     assert remaining(state, r)["generics"] == [{"item_id": "bowls", "name": "Bowls", "quantity": 4, "done": 4}]
 
 
-def test_remaining_pool_line_is_not_done_for_a_different_event():
+def test_remaining_pool_line_is_not_done_for_a_different_reservation():
+    """A repeat camp does not read as packed: another reservation's count, even under the same
+    event name, does not count toward this one's (FR-RES-13)."""
     state = {
         "item": {
             "bowls": {
@@ -145,7 +147,7 @@ def test_remaining_pool_line_is_not_done_for_a_different_event():
                 "pool": True,
                 "pool_in": 6,
                 "pool_out": {"alice": 4},
-                "pool_events": {"Other trip": 4},
+                "pool_reservations": {"r-other": 4},
             }
         },
         "reservation": {
@@ -171,9 +173,14 @@ def test_remaining_generic_line_does_not_count_a_retired_unit():
                 "number": "1",
                 "status": "out",
                 "retired": True,
-                "movement": {"event": "Fall Camp"},
+                "movement": {"event": "Fall Camp", "reservation_id": "r-fall"},
             },
-            "t2": {"parent_id": "tents", "number": "2", "status": "out", "movement": {"event": "Fall Camp"}},
+            "t2": {
+                "parent_id": "tents",
+                "number": "2",
+                "status": "out",
+                "movement": {"event": "Fall Camp", "reservation_id": "r-fall"},
+            },
         },
         "reservation": {
             "r-fall": {
@@ -187,6 +194,40 @@ def test_remaining_generic_line_does_not_count_a_retired_unit():
     }
     r = state["reservation"]["r-fall"] | {"id": "r-fall"}
     assert remaining(state, r)["generics"][0]["done"] == 1
+
+
+def test_remaining_does_not_tick_a_repeat_event_name_from_a_different_reservation():
+    """Two reservations can share an event name (a camp held again next year); a check-out under
+    the first must not tick the second (FR-RES-13)."""
+    state = {
+        "item": {
+            "tents": {"name": "4-person tent", "generic": True},
+            "t1": {
+                "parent_id": "tents",
+                "number": "1",
+                "status": "out",
+                "movement": {"event": "Fall Camp", "reservation_id": "r-2025"},
+            },
+        },
+        "reservation": {
+            "r-2025": {
+                "event": "Fall Camp",
+                "starts": "2025-10-02",
+                "ends": "2025-10-04",
+                "items": [],
+                "generics": [{"item_id": "tents", "quantity": 1}],
+            },
+            "r-2026": {
+                "event": "Fall Camp",
+                "starts": "2026-10-02",
+                "ends": "2026-10-04",
+                "items": [],
+                "generics": [{"item_id": "tents", "quantity": 1}],
+            },
+        },
+    }
+    r2026 = state["reservation"]["r-2026"] | {"id": "r-2026"}
+    assert remaining(state, r2026)["generics"][0]["done"] == 0
 
 
 # --- rows: a pool is its own kind --------------------------------------------------------

@@ -16,6 +16,10 @@ history reads "this Scouter, via the assistant". There is no second write path.
 **A read is derived state**, through views.py, which is the Python twin of what
 appears on screen.
 
+**A number or yes/no is not a string.** Every count, quantity, price, day count, port, and flag is
+strict, so a JSON `"3"` or `true` sent for one is refused rather than quietly converted, the same as
+the event layer refuses it.
+
 **A pool moves by count.** Some gear is a counted stack rather than named units, like tent pegs
 (FR-INV-34). `check_out`, `check_in` and `recount` move it by `count`, not by item id alone; the
 server refuses a count on anything else and refuses a pool without one. `get_item` on a pool
@@ -36,6 +40,7 @@ Unassigning a code (FR-MCP-09) is a User's job on any token, so
 from __future__ import annotations
 
 import base64
+import functools
 import json
 import sqlite3
 from collections.abc import Callable, Iterator
@@ -46,8 +51,9 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StringConstraints
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -384,7 +390,7 @@ def search_items(
     query: str = "",
     location_id: str | None = None,
     status: Status | None = None,
-    include_retired: bool = False,
+    include_retired: StrictBool = False,
 ) -> dict[str, Any]:
     """Find gear by name or home (FR-INV-07).
 
@@ -447,7 +453,7 @@ def whats_out() -> dict[str, Any]:
         return views.what_is_out(state, now_ms())
 
 
-def list_reservations(upcoming_only: bool = True) -> dict[str, Any]:
+def list_reservations(upcoming_only: StrictBool = True) -> dict[str, Any]:
     """Reservations, first day first. Upcoming means it has not ended yet."""
     with _open() as (conn, _who):
         state = _state(conn)
@@ -473,7 +479,7 @@ def get_reservation(reservation_id: str) -> dict[str, Any]:
         }
 
 
-def list_repairs(open_only: bool = True) -> dict[str, Any]:
+def list_repairs(open_only: StrictBool = True) -> dict[str, Any]:
     """Repair tickets, newest first. Open means open or in progress (FR-REP-05)."""
     with _open() as (conn, _who):
         state = _state(conn)
@@ -536,10 +542,10 @@ NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)
 class GenericLine(BaseModel):
     """So many of something the group owns several of, in place of named units (FR-RES-13)."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     item_id: str
-    quantity: Annotated[int, Field(ge=1)]
+    quantity: Annotated[StrictInt, Field(ge=1)]
 
 
 def _lines(generics: list[GenericLine] | None) -> list[dict[str, Any]]:
@@ -606,7 +612,7 @@ def update_reservation(
         return {"saved": True, "reservation_id": reservation_id, "changed": [d["payload"]["field"] for d in drafts]}
 
 
-def add_to_reservation(reservation_id: str, item_id: str, quantity: int | None = None) -> dict[str, Any]:
+def add_to_reservation(reservation_id: str, item_id: str, quantity: StrictInt | None = None) -> dict[str, Any]:
     """Add gear to a reservation.
 
     Without `quantity` the item joins by name. With it, `item_id` must be
@@ -713,14 +719,14 @@ def duplicate_reservation(reservation_id: str, event: str, starts: IsoDate, ends
 class ItemFields(BaseModel):
     """What an assistant may change on an item. Anything else is the app's job."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     name: str | None = None
     description: str | None = None
     home_location_id: str | None = None
     sub_location: str | None = None
     purchase_date: IsoDate | None = None
-    price: Annotated[float, Field(ge=0)] | None = None
+    price: Annotated[StrictFloat, Field(ge=0)] | None = None
     nickname: str | None = None
     number: NonBlank | None = None
     category_ids: list[str] | None = None
@@ -747,9 +753,9 @@ def create_item(
     home_location_id: str | None = None,
     sub_location: str | None = None,
     description: str | None = None,
-    generic: bool = False,
-    pool: bool = False,
-    quantity: Annotated[int, Field(ge=0)] | None = None,
+    generic: StrictBool = False,
+    pool: StrictBool = False,
+    quantity: Annotated[StrictInt, Field(ge=0)] | None = None,
     category_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Add gear to the inventory (FR-INV-01).
@@ -1009,20 +1015,27 @@ def set_ticket_state(ticket_id: str, state: RepairState) -> dict[str, Any]:
 # --- movement tools ---------------------------------------------------------------------------------
 
 
-Count = Annotated[int, Field(ge=1)]
+Count = Annotated[StrictInt, Field(ge=1)]
 
 
 def check_out(
-    item_id: str, event: str | None = None, note: str | None = None, count: Count | None = None
+    item_id: str,
+    event: str | None = None,
+    note: str | None = None,
+    count: Count | None = None,
+    reservation_id: str | None = None,
 ) -> dict[str, Any]:
     """Take an item out, without a scan (FR-OUT-02). The holder is you; `event` is what it is going to.
 
     A pool (FR-INV-34) needs `count`; anything else refuses one (FR-MCP-08). Taking more than are
-    in a pool warns, and is never blocked (FR-OUT-22).
+    in a pool warns, and is never blocked (FR-OUT-22). `reservation_id` says this packs that
+    reservation (FR-RES-02); without it the check-out counts towards no reservation's progress.
     """
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)
+        if reservation_id is not None:
+            _reservation(state, reservation_id)
         pool = views.is_pool(it)
         if it.get("generic") and not pool:
             raise BadRequest("that item does not move; one of its units does")
@@ -1035,7 +1048,11 @@ def check_out(
         if not pool and it.get("status") == "out":
             raise Conflict(f"already out with {views.user_name(state, it.get('holder_id'))}")
         movement_id = new_ulid()
-        payload: dict[str, Any] = {"holder_id": who.user_id, "event": (event or "").strip() or None}
+        payload: dict[str, Any] = {
+            "holder_id": who.user_id,
+            "event": (event or "").strip() or None,
+            "reservation_id": reservation_id,
+        }
         if pool:
             payload["count"] = count
         drafts = [_draft("item", it["id"], "checked_out", payload, movement_id)]
@@ -1091,7 +1108,7 @@ def check_in(item_id: str, note: str | None = None, count: Count | None = None) 
         return {"item_id": it["id"], "status": "in", "home": views.home_label(state, it)}
 
 
-def recount(item_id: str, count: Annotated[int, Field(ge=0)], reason: str) -> dict[str, Any]:
+def recount(item_id: str, count: Annotated[StrictInt, Field(ge=0)], reason: str) -> dict[str, Any]:
     """Record how many of a pool are in right now (FR-INV-35). Anyone signed in; pool only.
 
     What each holder has out is unchanged; owned becomes this count plus what is out.
@@ -1171,7 +1188,7 @@ def reset_link(user_id: str) -> dict[str, Any]:
         return _link(conn, _state(conn), "reset", accounts.email_of(conn, user_id), user_id, token)
 
 
-def set_user_active(user_id: str, active: bool) -> dict[str, Any]:
+def set_user_active(user_id: str, active: StrictBool) -> dict[str, Any]:
     """Deactivate or reactivate an account (FR-USR-04).
 
     The last Admin cannot be deactivated (FR-USR-03). Admins only.
@@ -1214,7 +1231,7 @@ def get_mail() -> dict[str, Any]:
 def set_mail(
     host: str,
     from_address: str,
-    port: int = 465,
+    port: StrictInt = 465,
     encryption: mail.Encryption = "ssl",
     username: str = "",
     password: str = "",
@@ -1255,12 +1272,12 @@ def get_group() -> dict[str, Any]:
 class GroupFields(BaseModel):
     """What an assistant may change on the group setting. Only what is given is changed (FR-USR-05)."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     name: NonBlank | None = None
     code_url: str | None = None
     contact: str | None = None
-    overdue_days: Annotated[int, Field(ge=1)] | None = None
+    overdue_days: Annotated[StrictInt, Field(ge=1)] | None = None
 
 
 def set_group(fields: GroupFields) -> dict[str, Any]:
@@ -1387,7 +1404,7 @@ def delete_category(category_id: str) -> dict[str, Any]:
         return {"category_id": category_id, "deleted": True}
 
 
-def print_codes(sheets: int = 1) -> dict[str, Any]:
+def print_codes(sheets: StrictInt = 1) -> dict[str, Any]:
     """A PDF of fresh unassigned codes, laid out for Avery 6576 (FR-TAG-02). Admins only.
 
     `sheets` is 1 to 10, 32 codes to a sheet. The group name, site address and
@@ -1490,11 +1507,25 @@ a User."""
 # --- the server ---------------------------------------------------------------------------------------
 
 
+def _reported(tool: Callable[..., Any]) -> Callable[..., Any]:
+    """A refusal keeps its reason. The SDK passes a ToolError's text to the caller and hides every
+    other exception behind "Error executing tool", so the app's own errors are re-raised as one."""
+
+    @functools.wraps(tool)
+    def run(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return tool(*args, **kwargs)
+        except ApiError as exc:
+            raise ToolError(exc.message) from exc
+
+    return run
+
+
 def build_server() -> MCPServer:
     """A server with every tool on it. One per app, so two apps in one process do not share a session manager."""
     server = MCPServer(name="Gear Tracker", instructions=INSTRUCTIONS, version="1")
     for tool in TOOLS:
-        server.add_tool(tool)
+        server.add_tool(_reported(tool))
     return server
 
 

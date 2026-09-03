@@ -25,21 +25,26 @@ State = dict[str, dict[str, dict[str, Any]]]
 # of every count in `pool_out`; it is never stored.
 #
 # Derived fields, in DERIVED_FIELDS so a device cannot set them directly:
-#   pool_in     int                    what is on the shelf right now
-#   pool_out    {holder_id: int > 0}   what each holder has; a holder back at zero is removed
-#   pool_events {event: int > 0}       how many went out under each named event, ever (FR-RES-13).
-#                                       Only checked_out with an event adds to it; a return has no
-#                                       event and never reduces it. Read by a reservation's
-#                                       remaining() to say how much of a pool line is done.
+#   pool_in          int                          what is on the shelf right now
+#   pool_out         {holder_id: int > 0}         what each holder has; a holder back at zero is removed
+#   pool_reservations {reservation_id: int > 0}   how many went out for each reservation, ever
+#                                                  (FR-RES-13). Only checked_out that carries a
+#                                                  reservation_id adds to it; a return never reduces
+#                                                  it. Read by that reservation's remaining() to say
+#                                                  how much of a pool line is done. Keyed by
+#                                                  reservation id, not by event name, so a later
+#                                                  reservation reusing an event name (e.g. next
+#                                                  year's "Fall Camp") starts at zero.
 #
 # Events, on the pool's own entity (mirrored in inventory.ts's `poolCounts`, `isPool`):
-#   created    {quantity}                    pool_in = quantity, pool_out = {}, pool_events = {}
-#   checked_out {holder_id, count, event?}   pool_out[holder_id] += count; pool_in -= count,
-#                                             clamped at 0 (an overdraw warns, never blocks:
-#                                             FR-OUT-22). No supersedes, no conflict rule: counts
-#                                             from any device just add, whatever the order
-#                                             (FR-OUT-24). An event also adds count to
-#                                             pool_events[event].
+#   created    {quantity}                            pool_in = quantity, pool_out = {}, pool_reservations = {}
+#   checked_out {holder_id, count, event?,           pool_out[holder_id] += count; pool_in -= count,
+#                reservation_id?}                     clamped at 0 (an overdraw warns, never blocks:
+#                                                      FR-OUT-22). No supersedes, no conflict rule: counts
+#                                                      from any device just add, whatever the order
+#                                                      (FR-OUT-24). A reservation_id also adds count to
+#                                                      pool_reservations[reservation_id]; with none, it
+#                                                      adds to nothing.
 #   checked_in  {holder_id?, count}          holder defaults to the actor; pool_out[holder] =
 #                                             max(0, pool_out[holder] - count), removed at 0;
 #                                             pool_in += count (FR-OUT-23).
@@ -67,7 +72,7 @@ DERIVED_FIELDS = frozenset(
         "created_by",
         "pool_in",
         "pool_out",
-        "pool_events",
+        "pool_reservations",
     }
 )
 
@@ -108,7 +113,7 @@ def apply(entity: dict[str, Any], event: Event) -> None:
                 entity.setdefault("holder_id", None)
                 entity["pool_in"] = p.get("quantity") or 0
                 entity["pool_out"] = {}
-                entity["pool_events"] = {}
+                entity["pool_reservations"] = {}
             if event.entity_type == "repair":
                 entity["raised_by"] = event.actor_id
                 entity.setdefault("state", "open")
@@ -147,6 +152,7 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             movement = entity.get("movement")
             if movement is not None and movement["id"] == p["movement_id"]:
                 movement["event"] = p.get("event")
+                movement["reservation_id"] = p.get("reservation_id")
         case "note_added":
             note = {"id": event.id, "text": p["text"], "actor_id": event.actor_id, "at": event.effective_at}
             if p.get("movement_id") is not None:
@@ -168,10 +174,10 @@ def apply(entity: dict[str, Any], event: Event) -> None:
                 pool_out[p["holder_id"]] = pool_out.get(p["holder_id"], 0) + p["count"]
                 entity["pool_out"] = pool_out
                 entity["pool_in"] = max(0, entity.get("pool_in", 0) - p["count"])
-                if p.get("event") is not None:
-                    pool_events = dict(entity.get("pool_events", {}))
-                    pool_events[p["event"]] = pool_events.get(p["event"], 0) + p["count"]
-                    entity["pool_events"] = pool_events
+                if p.get("reservation_id") is not None:
+                    pool_reservations = dict(entity.get("pool_reservations", {}))
+                    pool_reservations[p["reservation_id"]] = pool_reservations.get(p["reservation_id"], 0) + p["count"]
+                    entity["pool_reservations"] = pool_reservations
                 entity["movement"] = _movement(event)
             else:
                 # Two check-outs from different devices with no check-in between:
@@ -249,6 +255,7 @@ def _movement(event: Event) -> dict[str, Any]:
         "type": event.type,
         "holder_id": event.payload.get("holder_id"),
         "event": event.payload.get("event"),
+        "reservation_id": event.payload.get("reservation_id"),
         "actor_id": event.actor_id,
         "device_id": event.device_id,
         "at": event.effective_at,

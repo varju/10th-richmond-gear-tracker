@@ -7,7 +7,7 @@
  * parent and a number, and no name of its own: its name is derived, so read it
  * with displayName and never with `it.name`.
  */
-import type { Fields, Movement, Note, PoolEvents, PoolOut, State } from "./replay";
+import type { Fields, Movement, Note, PoolOut, PoolReservations, State } from "./replay";
 
 export interface Item {
   id: string;
@@ -29,8 +29,8 @@ export interface Item {
   pool_in?: number;
   /** Holder id to count, for what is checked out of a pool. Holders at zero are absent (FR-INV-34). */
   pool_out?: PoolOut;
-  /** Event name to count checked out under it, never reduced by a return. Set only on a pool (FR-RES-13). */
-  pool_events?: PoolEvents;
+  /** Reservation id to count checked out for it, never reduced by a return. Set only on a pool (FR-RES-13). */
+  pool_reservations?: PoolReservations;
   /** Set on a unit: the generic it belongs to. */
   parent_id?: string | null;
   /** Set on a single item or a generic; a unit reads its generic's (FR-SET-07). */

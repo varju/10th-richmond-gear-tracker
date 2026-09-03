@@ -1,0 +1,35 @@
+{
+  "name": "a check-out that names the reservation it packs carries reservation_id on its movement (FR-RES-13)",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": { "holder_id": "alice", "event": "Fall Camp", "reservation_id": "r-fall" }
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-1": {
+        "status": "out",
+        "holder_id": "alice",
+        "since": 1000,
+        "movement": {
+          "id": "01000000000000000000000001",
+          "type": "checked_out",
+          "holder_id": "alice",
+          "event": "Fall Camp",
+          "reservation_id": "r-fall",
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 1000
+        }
+      }
+    }
+  }
+}

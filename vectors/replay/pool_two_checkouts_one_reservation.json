@@ -1,5 +1,5 @@
 {
-  "name": "a second check-out under the same event adds to pool_events, not replaces it (FR-RES-13)",
+  "name": "a second check-out under the same reservation adds to pool_reservations, not replaces it (FR-RES-13)",
   "events": [
     {
       "id": "01000000000000000000000001",
@@ -10,7 +10,12 @@
       "device_id": "a",
       "device_seq": 1,
       "effective_at": 1000,
-      "payload": { "name": "Bowls", "generic": true, "pool": true, "quantity": 20 }
+      "payload": {
+        "name": "Bowls",
+        "generic": true,
+        "pool": true,
+        "quantity": 20
+      }
     },
     {
       "id": "01000000000000000000000002",
@@ -21,7 +26,12 @@
       "device_id": "a",
       "device_seq": 2,
       "effective_at": 2000,
-      "payload": { "holder_id": "bob", "count": 3, "event": "Fall Camp" }
+      "payload": {
+        "holder_id": "bob",
+        "count": 3,
+        "event": "Fall Camp",
+        "reservation_id": "r-fall"
+      }
     },
     {
       "id": "01000000000000000000000003",
@@ -32,7 +42,12 @@
       "device_id": "a",
       "device_seq": 3,
       "effective_at": 3000,
-      "payload": { "holder_id": "bob", "count": 2, "event": "Fall Camp" }
+      "payload": {
+        "holder_id": "bob",
+        "count": 2,
+        "event": "Fall Camp",
+        "reservation_id": "r-fall"
+      }
     },
     {
       "id": "01000000000000000000000004",
@@ -43,7 +58,10 @@
       "device_id": "a",
       "device_seq": 4,
       "effective_at": 4000,
-      "payload": { "holder_id": "carol", "count": 5, "event": "Winter Camp" }
+      "payload": {
+        "holder_id": "carol",
+        "count": 5
+      }
     },
     {
       "id": "01000000000000000000000005",
@@ -54,7 +72,9 @@
       "device_id": "a",
       "device_seq": 5,
       "effective_at": 5000,
-      "payload": { "count": 1 }
+      "payload": {
+        "count": 1
+      }
     }
   ],
   "state": {
@@ -69,13 +89,19 @@
         "status": "in",
         "holder_id": null,
         "pool_in": 11,
-        "pool_out": { "bob": 4, "carol": 5 },
-        "pool_events": { "Fall Camp": 5, "Winter Camp": 5 },
+        "pool_out": {
+          "bob": 4,
+          "carol": 5
+        },
+        "pool_reservations": {
+          "r-fall": 5
+        },
         "movement": {
           "id": "01000000000000000000000005",
           "type": "checked_in",
           "holder_id": "bob",
           "event": null,
+          "reservation_id": null,
           "actor_id": "bob",
           "device_id": "a",
           "at": 5000,

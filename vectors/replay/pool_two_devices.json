@@ -10,7 +10,12 @@
       "device_id": "a",
       "device_seq": 1,
       "effective_at": 1000,
-      "payload": { "name": "Bowls", "generic": true, "pool": true, "quantity": 10 }
+      "payload": {
+        "name": "Bowls",
+        "generic": true,
+        "pool": true,
+        "quantity": 10
+      }
     },
     {
       "id": "01000000000000000000000002",
@@ -21,7 +26,12 @@
       "device_id": "a",
       "device_seq": 2,
       "effective_at": 2000,
-      "payload": { "holder_id": "bob", "count": 3, "event": "Fall Camp" }
+      "payload": {
+        "holder_id": "bob",
+        "count": 3,
+        "event": "Fall Camp",
+        "reservation_id": "r-fall"
+      }
     },
     {
       "id": "01000000000000000000000003",
@@ -32,7 +42,10 @@
       "device_id": "b",
       "device_seq": 1,
       "effective_at": 1500,
-      "payload": { "holder_id": "carol", "count": 4 }
+      "payload": {
+        "holder_id": "carol",
+        "count": 4
+      }
     }
   ],
   "state": {
@@ -47,17 +60,23 @@
         "status": "in",
         "holder_id": null,
         "pool_in": 3,
-        "pool_out": { "bob": 3, "carol": 4 },
-        "pool_events": { "Fall Camp": 3 },
+        "pool_out": {
+          "bob": 3,
+          "carol": 4
+        },
         "movement": {
           "id": "01000000000000000000000002",
           "type": "checked_out",
           "holder_id": "bob",
           "event": "Fall Camp",
+          "reservation_id": "r-fall",
           "actor_id": "alice",
           "device_id": "a",
           "at": 2000,
           "count": 3
+        },
+        "pool_reservations": {
+          "r-fall": 3
         }
       }
     }

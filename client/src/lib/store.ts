@@ -9,7 +9,7 @@
 import type { OutgoingEvent, ServerEvent, User } from "./api";
 import { RETENTION_MS } from "./clock";
 import { done, req } from "./db";
-import { type Fields, KNOWN_EVENT_TYPES, replay, type ReplayEvent, replayOrder, type State } from "./replay";
+import { apply, type Fields, KNOWN_EVENT_TYPES, replay, type ReplayEvent, replayOrder, type State } from "./replay";
 import { newUlid } from "./ulid";
 
 /** no: waiting to push. yes: the server has it. rejected: the server refused it; kept for the record, not replayed. */
@@ -33,6 +33,10 @@ export interface Meta {
   log_id?: string;
   /** The event name scans are for, until changed or cleared (FR-OUT-05). A device setting, not a record. */
   session_event?: string;
+  /** The reservation the session packs, if it started from one (FR-RES-02). Cleared with the event. */
+  session_reservation_id?: string;
+  /** The last measured round trip to the server, in ms. Sent with a push so the server can allow for latency. */
+  round_trip_ms?: number;
   token?: string;
   user?: User;
   last_sync_at?: number;
@@ -84,6 +88,10 @@ export class Store {
   version = 0;
   private listeners = new Set<() => void>();
   private events = new Map<string, StoredEvent>();
+  /** The known live event, if any, sorting last (replayOrder) among those folded into `state`. */
+  private frontier: ReplayEvent | undefined;
+  /** Ids of the known live events already folded into `state`. Kept in step with `frontier`. */
+  private applied = new Set<string>();
 
   private constructor(
     private db: IDBDatabase,
@@ -189,7 +197,7 @@ export class Store {
     await done(tx);
     this.meta.device_seq = device_seq;
     this.events.set(event.id, event);
-    this.recompute();
+    this.applyKnown([event]);
     return event;
   }
 
@@ -207,11 +215,23 @@ export class Store {
    * data left over from before that bug was fixed): it is not marked rejected. Instead every
    * event still unsent is re-stamped with a fresh number and `retry` comes back true, so the
    * caller can push once more.
+   *
+   * `unidentified` counts a rejection the server sent with `id: null` (something it could not
+   * even read as an object) or an id matching nothing stored here. Left silent, an event like
+   * that would be pushed again forever.
+   *
+   * Marking `sent` changes nothing replay reads, so this never needs a state rebuild by itself -
+   * except a genuine rejection, which drops an event out of the live set replay sees and so does.
    */
-  async pushed(accepted: string[], rejected: { id: string | null; reason: string }[]): Promise<{ retry: boolean }> {
+  async pushed(
+    accepted: string[],
+    rejected: { id: string | null; reason: string }[],
+  ): Promise<{ retry: boolean; unidentified: number }> {
     const tx = this.db.transaction("events", "readwrite");
     const store = tx.objectStore("events");
     let lastSeen: number | undefined;
+    let rejectedAny = false;
+    let unidentified = 0;
     for (const id of accepted) this.mark(store, id, { sent: "yes" });
     for (const { id, reason } of rejected) {
       const seen = seqCollision(reason);
@@ -219,13 +239,19 @@ export class Store {
         lastSeen = lastSeen === undefined ? seen : Math.max(lastSeen, seen);
         continue;
       }
-      if (id) this.mark(store, id, { sent: "rejected", reason });
+      if (id && this.events.has(id)) {
+        this.mark(store, id, { sent: "rejected", reason });
+        rejectedAny = true;
+      } else {
+        unidentified++;
+      }
     }
     await done(tx);
-    this.recompute();
-    if (lastSeen === undefined) return { retry: false };
+    if (rejectedAny) this.recompute();
+    else this.notify();
+    if (lastSeen === undefined) return { retry: false, unidentified };
     await this.restamp(lastSeen);
-    return { retry: true };
+    return { retry: true, unidentified };
   }
 
   /** Give every unsent event a fresh device_seq, above both `minimum` and the stored counter. */
@@ -306,7 +332,7 @@ export class Store {
     tx.objectStore("meta").put(cursor, "cursor");
     await done(tx);
     this.meta.cursor = cursor;
-    this.recompute();
+    this.applyKnown(events);
   }
 
   /**
@@ -360,19 +386,86 @@ export class Store {
     this.notify();
   }
 
-  private recompute(): void {
-    const live = [...this.events.values()].filter((e) => e.sent !== "rejected");
+  /** Skip an event of a type this build does not know, exactly as `recompute` does, and warn once. */
+  private static filterKnown(events: Iterable<ReplayEvent>): ReplayEvent[] {
     // A future build may write a type this one does not know (the PWA precaches its shell, so an
     // old build can pull events from a newer server). Skip those rather than throw: they stay
     // stored, unapplied, until a build that knows them opens the store (FR-OFF-14).
     const known: ReplayEvent[] = [];
     let skipped = 0;
-    for (const event of live) {
+    for (const event of events) {
       if (KNOWN_EVENT_TYPES.has(event.type)) known.push(event);
       else skipped++;
     }
     if (skipped > 0) console.warn(`recompute: skipped ${skipped} event(s) of a type this build does not know`);
+    return known;
+  }
+
+  /**
+   * New known events onto `state`, incrementally where that is safe, or by a full rebuild
+   * otherwise. Called after the events are already stored (in IndexedDB and `this.events`).
+   */
+  private applyKnown(events: Iterable<ReplayEvent>): void {
+    const known = Store.filterKnown(events);
+    if (known.length === 0) return;
+    if (!this.tryApply(known)) {
+      this.recompute();
+      return;
+    }
+    this.notify();
+  }
+
+  /**
+   * Apply `events` on top of the current state, mutating fresh copies of only the entities they
+   * touch, and advance `frontier`/`applied` to match. Returns false - having changed nothing - if
+   * that would not give the same answer as a full rebuild, so the caller can fall back to one.
+   *
+   * Two things make incremental apply unsafe:
+   *  - an id already in `applied`: not a new event but a replacement of one already folded in
+   *    (the server's own copy of an event this device sent, arriving with a clamped time - see
+   *    `receive`). Reapplying it would double its effect (a pool's checked_out count, say).
+   *  - sorting at or before `frontier` (replayOrder): a pulled batch from another device often
+   *    lands in the middle of history, and applying it on top would ignore that ordering.
+   * Both are cheap to check up front; the batch itself is sorted once and applied in order, each
+   * event narrowing the check for the next (the frontier only advances).
+   *
+   * `apply()` mutates some of an entity's fields in place rather than reassigning them (a note or
+   * photo pushed onto its array, the `movement` an `event_corrected` corrects) - fine when the
+   * entity was just built fresh, as `replay` always does, but not when it is one a caller may
+   * still be holding from before this call. So the touched entity is deep-cloned, not shallow-
+   * copied, before `apply` runs; the untouched rest of `state` is left exactly as it was.
+   */
+  private tryApply(events: ReplayEvent[]): boolean {
+    const sorted = [...events].sort(replayOrder);
+    const first = sorted[0];
+    if (!first) return true;
+    if (sorted.some((e) => this.applied.has(e.id))) return false;
+    if (this.frontier && replayOrder(first, this.frontier) <= 0) return false;
+    let state = this.state;
+    let last = first;
+    for (const event of sorted) {
+      const entities = { ...(state[event.entity_type] ?? {}) };
+      const entity = structuredClone(entities[event.entity_id] ?? {});
+      apply(entity, event);
+      entities[event.entity_id] = entity;
+      state = { ...state, [event.entity_type]: entities };
+      this.applied.add(event.id);
+      last = event;
+    }
+    this.state = state;
+    this.frontier = last;
+    return true;
+  }
+
+  private recompute(): void {
+    const live = [...this.events.values()].filter((e) => e.sent !== "rejected");
+    const known = Store.filterKnown(live);
     this.state = replay(known, this.snapshot);
+    this.applied = new Set(known.map((e) => e.id));
+    this.frontier = known.reduce<ReplayEvent | undefined>(
+      (max, e) => (!max || replayOrder(e, max) > 0 ? e : max),
+      undefined,
+    );
     this.notify();
   }
 

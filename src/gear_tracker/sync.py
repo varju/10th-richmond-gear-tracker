@@ -9,9 +9,9 @@ from __future__ import annotations
 import logging
 import sqlite3
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 
 from gear_tracker import derived, events
 from gear_tracker.errors import ApiError, BadRequest, Deactivated, Forbidden, Rebootstrap
@@ -46,6 +46,9 @@ class PushBody(Strict):
     client_time: int
     events: list[Any]
     """Each event is judged on its own, so a bad one is a rejection, not a 400."""
+    round_trip_ms: Annotated[int, Field(ge=0)] | None = None
+    """The device's last measured round trip (client/src/lib/clock.ts measureOffset halves this to
+    get its own offset). Omitted by an older client, or before the device has ever synced."""
 
 
 def _require_active(principal: Principal) -> None:
@@ -90,7 +93,12 @@ def push(conn: sqlite3.Connection, principal: Principal, body: Any, now: int | N
     if batch.device_id != principal.device_id:
         raise Forbidden("device_id does not match the credential")
 
-    measured_offset = now - batch.client_time
+    # The client's own offset is a round trip halved, so its recorded clock_offset already allows
+    # for half the latency of the sync that measured it. A one-way `now - client_time` here has no
+    # such allowance and overstates the offset by the full latency of this push; halving the round
+    # trip this push took (as last measured) puts the two on the same footing.
+    half_trip = batch.round_trip_ms // 2 if batch.round_trip_ms is not None else 0
+    measured_offset = now - batch.client_time - half_trip
     accepted: list[str] = []
     rejected: list[dict[str, Any]] = []
     for incoming in batch.events:

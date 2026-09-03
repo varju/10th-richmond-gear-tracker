@@ -58,25 +58,30 @@ async function typeCode(text: string) {
   await user.click(screen.getByRole("button", { name: "Go" }));
 }
 
-test("the session takes the event from the reservation and lists what is left, by home (FR-RES-02, FR-RES-03)", async () => {
+test("the session takes the event and the reservation from the reservation and lists what is left, by home (FR-RES-02, FR-RES-03)", async () => {
   await store.setMeta({ session_event: "Something else" });
   renderInShell(<Scan store={store} />);
   expect(await screen.findByText("Event: Fall Camp")).toBeInTheDocument();
   expect(store.meta.session_event).toBe("Fall Camp");
+  expect(store.meta.session_reservation_id).toBe(fall);
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Pack");
 
   expect(rows().map((b) => b.textContent)).toEqual(["4-person tent #1Cold locker", "TarpWarm locker"]);
   expect(remaining()).toHaveTextContent("0 of 1 × 4-person tent");
 });
 
-test("changing the event mid-session is not stomped back to the reservation's own (FR-OUT-05)", async () => {
+test("changing the event mid-session is not stomped back to the reservation's own, and breaks the link (FR-OUT-05, FR-RES-13)", async () => {
   renderInShell(<Scan store={store} />);
   await screen.findByText("Event: Fall Camp");
+  expect(store.meta.session_reservation_id).toBe(fall);
   await user.click(screen.getByRole("button", { name: "Change" }));
   await user.clear(screen.getByLabelText("Event"));
   await user.type(screen.getByLabelText("Event"), "Custom Talk");
   await user.click(screen.getByRole("button", { name: "Set" }));
   expect(await screen.findByText("Event: Custom Talk")).toBeInTheDocument();
+  // Setting the event by hand breaks the seeded link: a scan afterwards must not count toward
+  // this reservation's packing progress.
+  expect(store.meta.session_reservation_id).toBeUndefined();
 
   // A scan re-renders the session banner with a fresh `booked` object; the change must survive it.
   await typeCode("AAAAAAAAAA");
@@ -84,6 +89,17 @@ test("changing the event mid-session is not stomped back to the reservation's ow
   await screen.findByText("Checked out · 4-person tent #1");
   expect(store.meta.session_event).toBe("Custom Talk");
   expect(screen.getByText("Event: Custom Talk")).toBeInTheDocument();
+  expect(item(store.state, tent)?.movement?.reservation_id).toBeNull();
+});
+
+test("clearing the event by hand also clears the seeded reservation link (FR-RES-13)", async () => {
+  renderInShell(<Scan store={store} />);
+  await screen.findByText("Event: Fall Camp");
+  await user.click(screen.getByRole("button", { name: "Change" }));
+  await user.click(screen.getByRole("button", { name: "Clear" }));
+  expect(await screen.findByText("No event")).toBeInTheDocument();
+  expect(store.meta.session_event).toBeUndefined();
+  expect(store.meta.session_reservation_id).toBeUndefined();
 });
 
 test("a scan ticks an item off; an unlisted one is appended with no fuss (FR-RES-07)", async () => {
@@ -112,12 +128,12 @@ test("a unit that overflows a full generic line raises the line instead (FR-RES-
   renderInShell(<Scan store={store} />);
 
   // One tent fills the line that was asked for; the list does not grow.
-  await mv.checkOut(store, tent2, { event: "Fall Camp" });
+  await mv.checkOut(store, tent2, { event: "Fall Camp", reservation_id: fall });
   await res.addExtra(store, fall, tent2);
   await waitFor(() => expect(remaining()).toHaveTextContent("1 of 1 × 4-person tent"));
   expect(res.reservation(store.state, fall)?.generics).toEqual([{ item_id: tents, quantity: 1 }]);
 
-  await mv.checkOut(store, tent3, { event: "Fall Camp" });
+  await mv.checkOut(store, tent3, { event: "Fall Camp", reservation_id: fall });
   await res.addExtra(store, fall, tent3);
   await waitFor(() => expect(remaining()).toHaveTextContent("2 of 2 × 4-person tent"));
   expect(res.reservation(store.state, fall)?.items).toEqual([tarp, tent]);
@@ -144,7 +160,7 @@ test("checking an item off the list silences its bound code", async () => {
 
 test("any unit of a reserved generic counts toward it", async () => {
   renderInShell(<Scan store={store} />);
-  await mv.checkOut(store, tent2, { event: "Fall Camp" });
+  await mv.checkOut(store, tent2, { event: "Fall Camp", reservation_id: fall });
   await waitFor(() => expect(remaining()).toHaveTextContent("1 of 1 × 4-person tent"));
 });
 
@@ -164,9 +180,9 @@ test("Finish with items unscanned names them; Finish anyway leaves (FR-RES-04)",
 });
 
 test("with everything packed, Finish just leaves", async () => {
-  await mv.checkOut(store, tent, { event: "Fall Camp" });
-  await mv.checkOut(store, tarp, { event: "Fall Camp" });
-  await mv.checkOut(store, tent2, { event: "Fall Camp" });
+  await mv.checkOut(store, tent, { event: "Fall Camp", reservation_id: fall });
+  await mv.checkOut(store, tarp, { event: "Fall Camp", reservation_id: fall });
+  await mv.checkOut(store, tent2, { event: "Fall Camp", reservation_id: fall });
   renderInShell(<Scan store={store} />);
   expect(remaining()).toHaveTextContent("Everything is packed.");
   await user.click(screen.getByRole("button", { name: "Finish" }));

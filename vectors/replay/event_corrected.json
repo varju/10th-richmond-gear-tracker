@@ -10,7 +10,10 @@
       "device_id": "a",
       "device_seq": 1,
       "effective_at": 1000,
-      "payload": { "holder_id": "alice", "event": null }
+      "payload": {
+        "holder_id": "alice",
+        "event": null
+      }
     },
     {
       "id": "01000000000000000000000002",
@@ -21,7 +24,10 @@
       "device_id": "b",
       "device_seq": 1,
       "effective_at": 2000,
-      "payload": { "movement_id": "01000000000000000000000001", "event": "Fall Camp" }
+      "payload": {
+        "movement_id": "01000000000000000000000001",
+        "event": "Fall Camp"
+      }
     },
     {
       "id": "01000000000000000000000003",
@@ -32,7 +38,10 @@
       "device_id": "b",
       "device_seq": 2,
       "effective_at": 3000,
-      "payload": { "movement_id": "01000000000000000000000099", "event": "Cub camp" }
+      "payload": {
+        "movement_id": "01000000000000000000000099",
+        "event": "Cub camp"
+      }
     },
     {
       "id": "01000000000000000000000004",
@@ -43,7 +52,10 @@
       "device_id": "b",
       "device_seq": 3,
       "effective_at": 4000,
-      "payload": { "movement_id": "01000000000000000000000001", "event": "Fall Camp" }
+      "payload": {
+        "movement_id": "01000000000000000000000001",
+        "event": "Fall Camp"
+      }
     }
   ],
   "state": {
@@ -57,6 +69,7 @@
           "type": "checked_out",
           "holder_id": "alice",
           "event": "Fall Camp",
+          "reservation_id": null,
           "actor_id": "alice",
           "device_id": "a",
           "at": 1000
