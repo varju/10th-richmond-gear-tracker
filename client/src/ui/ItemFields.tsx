@@ -1,5 +1,6 @@
+import { useState } from "react";
 import type { RefObject } from "react";
-import type { ItemInput } from "../lib/actions";
+import { createCategory, type ItemInput } from "../lib/actions";
 import { categories, locations, subLocations } from "../lib/inventory";
 import type { Store } from "../lib/store";
 
@@ -20,7 +21,6 @@ export const EMPTY_ITEM: ItemInput = {
   sub_location: "",
   purchase_date: "",
   price: "",
-  supplier: "",
   category_ids: [],
 };
 
@@ -32,6 +32,20 @@ export function ItemFields({ store, values, onChange, nameRef, generic }: Props)
   const state = store.state;
   const set = (patch: Partial<ItemInput>) => onChange({ ...values, ...patch });
   const cats = categories(state);
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+
+  /** Ticks an existing category of the same name (case-insensitive) rather than making a second one. */
+  async function addCategory() {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    const existing = cats.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    const id = existing ? existing.id : await createCategory(store, name);
+    const ids = values.category_ids ?? [];
+    if (!ids.includes(id)) set({ category_ids: [...ids, id] });
+    setNewCategoryName("");
+    setAddingCategory(false);
+  }
 
   return (
     <>
@@ -52,26 +66,59 @@ export function ItemFields({ store, values, onChange, nameRef, generic }: Props)
         onChange={set}
         label={generic ? "Default home" : "Home location"}
       />
-      {cats.length > 0 && (
-        <fieldset className="categories">
-          <legend>Categories</legend>
-          {cats.map((c) => {
-            const ids = values.category_ids ?? [];
-            return (
-              <label key={c.id} className="check">
-                <input
-                  type="checkbox"
-                  checked={ids.includes(c.id)}
-                  onChange={(e) =>
-                    set({ category_ids: e.target.checked ? [...ids, c.id] : ids.filter((id) => id !== c.id) })
-                  }
-                />
-                <span>{c.name}</span>
-              </label>
-            );
-          })}
-        </fieldset>
-      )}
+      <fieldset className="categories">
+        <legend>Categories</legend>
+        {cats.map((c) => {
+          const ids = values.category_ids ?? [];
+          return (
+            <label key={c.id} className="check">
+              <input
+                type="checkbox"
+                checked={ids.includes(c.id)}
+                onChange={(e) =>
+                  set({ category_ids: e.target.checked ? [...ids, c.id] : ids.filter((id) => id !== c.id) })
+                }
+              />
+              <span>{c.name}</span>
+            </label>
+          );
+        })}
+        {addingCategory ? (
+          <div className="row">
+            <input
+              aria-label="New category"
+              placeholder="New category"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void addCategory())}
+              autoComplete="off"
+              autoFocus
+            />
+            <button
+              className="small"
+              type="button"
+              onClick={() => void addCategory()}
+              disabled={!newCategoryName.trim()}
+            >
+              Add
+            </button>
+            <button
+              className="small"
+              type="button"
+              onClick={() => {
+                setAddingCategory(false);
+                setNewCategoryName("");
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button className="small" type="button" onClick={() => setAddingCategory(true)}>
+            New category…
+          </button>
+        )}
+      </fieldset>
       <label>
         <span>Description</span>
         <textarea value={values.description ?? ""} onChange={(e) => set({ description: e.target.value })} rows={3} />
@@ -99,10 +146,6 @@ export function ItemFields({ store, values, onChange, nameRef, generic }: Props)
           />
         </label>
       </div>
-      <label>
-        <span>Supplier</span>
-        <input value={values.supplier ?? ""} onChange={(e) => set({ supplier: e.target.value })} autoComplete="off" />
-      </label>
     </>
   );
 }

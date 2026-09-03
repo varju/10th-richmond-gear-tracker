@@ -120,7 +120,6 @@ export function ItemPage({ store, id }: Props) {
           sub_location: it.sub_location ?? "",
           purchase_date: it.purchase_date ?? "",
           price: it.price ?? "",
-          supplier: it.supplier ?? "",
           category_ids: categoriesOf(state, it),
         }}
         onDone={() => {

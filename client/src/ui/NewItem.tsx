@@ -107,7 +107,7 @@ export function NewItem({ store, code }: Props) {
         <input type="checkbox" checked={several} onChange={(e) => setSeveral(e.target.checked)} />
         <span>{SEVERAL}</span>
       </label>
-      <p className="muted small">
+      <p className="muted small check-hint">
         {several
           ? code
             ? "Saves the name, and this one as #1. The next scan offers another."
@@ -117,13 +117,22 @@ export function NewItem({ store, code }: Props) {
       {!code && (
         <>
           <label className="check">
-            <input type="checkbox" checked={again} onChange={(e) => setAgain(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={again}
+              onChange={(e) => {
+                setAgain(e.target.checked);
+                if (!e.target.checked) setKeep(false);
+              }}
+            />
             <span>Add another after saving</span>
           </label>
-          <label className="check">
-            <input type="checkbox" checked={keep} disabled={!again} onChange={(e) => setKeep(e.target.checked)} />
-            <span>Keep these values as a template</span>
-          </label>
+          {again && (
+            <label className="check">
+              <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} />
+              <span>Copy values above</span>
+            </label>
+          )}
         </>
       )}
     </Page>

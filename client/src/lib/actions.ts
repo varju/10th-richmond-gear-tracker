@@ -21,7 +21,7 @@ import {
 /** What the item form holds. The price is typed as text and stored as a number (FR-INV-12). */
 export type ItemInput = Pick<
   Item,
-  "name" | "description" | "home_location_id" | "sub_location" | "purchase_date" | "supplier" | "category_ids"
+  "name" | "description" | "home_location_id" | "sub_location" | "purchase_date" | "category_ids"
 > & { price?: number | string | null };
 
 /** What the unit form holds. A unit has no name: its number and nickname make it (FR-INV-23). */

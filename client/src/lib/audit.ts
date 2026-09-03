@@ -38,6 +38,7 @@ const LABELS: Record<string, string> = {
   condition: "Condition",
   purchase_date: "Bought on",
   price: "Price",
+  // Dropped as a field; events that changed it are still in the log.
   supplier: "Supplier",
   retired: "Retired",
   missing: "Missing",

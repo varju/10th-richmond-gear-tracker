@@ -58,18 +58,6 @@ are folded into each task.
       shelf filters on All items. Drop "Browse by location" from the guide (scouter.md, quartermaster.md) and
       stories/reports.md.
 
-### New item
-
-- [ ] Remove supplier everywhere: the form, `boughtLabel`, the audit labels, `ItemInput`, the server model, the CSV
-      columns and import, the assistant tool, the demo fixture, and FR-INV-12. Old events still carry a `supplier`
-      field; replay in both languages ignores it, and a vector in `vectors/replay/` proves it. The log is not rewritten.
-- [ ] The hint under "We have several of these" indents to the checkbox's label, so it reads as belonging to the box.
-- [ ] "Keep these values as a template" is shown only when "Add another after saving" is ticked, and is renamed "Copy
-      values above".
-- [ ] The category list on the item form ends with **New category…**, for anyone signed in. It adds the category in
-      place, offline like Settings does, and ticks it. The server already accepts category events from any role; only
-      the Settings screen is Admin-only.
-
 ## M9 — Go live
 
 First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is

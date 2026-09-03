@@ -327,9 +327,8 @@ test("the price is stored to the cent, and blank is no price (FR-INV-12)", async
     name: "Stove",
     price: "$1,249.999",
     purchase_date: "2024-03-01",
-    supplier: " MEC ",
   });
-  expect(inv.item(store.state, id)).toMatchObject({ price: 1250, purchase_date: "2024-03-01", supplier: "MEC" });
+  expect(inv.item(store.state, id)).toMatchObject({ price: 1250, purchase_date: "2024-03-01" });
   await act.updateItem(store, id, { price: "" });
   expect(inv.item(store.state, id)?.price).toBeNull();
   expect(act.price("abc")).toBeNull();

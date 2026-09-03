@@ -37,7 +37,6 @@ export interface Item {
   purchase_date?: string | null;
   /** Dollars, to the cent. */
   price?: number | null;
-  supplier?: string | null;
   retired?: boolean;
   /** Lost, not written off (FR-INV-19). Cleared by the next scan or check-in. */
   missing?: boolean;

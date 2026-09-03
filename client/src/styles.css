@@ -1337,3 +1337,8 @@ fieldset.categories legend {
   color: var(--muted);
   font-size: 16px;
 }
+
+/* A hint under a checkbox: indented to line up with the box's own label (28px box + 12px gap). */
+.check-hint {
+  margin-left: 40px;
+}

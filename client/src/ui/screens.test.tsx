@@ -100,14 +100,14 @@ test("editing an item records the change and shows it", async () => {
 
   await user.click(screen.getByRole("button", { name: "Edit" }));
   const before = store.pending.length;
-  await user.clear(screen.getByLabelText("Supplier"));
-  await user.type(screen.getByLabelText("Supplier"), "MEC");
+  await user.clear(screen.getByLabelText("Price"));
+  await user.type(screen.getByLabelText("Price"), "249.99");
   await user.click(screen.getByRole("button", { name: "Save" }));
 
-  await screen.findByText("MEC");
+  await screen.findByText("$249.99");
   const added = store.pending.slice(before);
   expect(added.map((e) => [e.type, e.payload])).toEqual([
-    ["field_changed", { field: "supplier", value: "MEC", old: null }],
+    ["field_changed", { field: "price", value: 249.99, old: null }],
   ]);
 });
 
@@ -176,8 +176,9 @@ test("Add another keeps the form up; the template checkbox carries the values ov
   navigate("/items/new");
   mount();
   const user = userEvent.setup();
+  expect(screen.queryByLabelText("Copy values above")).not.toBeInTheDocument();
   await user.click(screen.getByLabelText("Add another after saving"));
-  await user.click(screen.getByLabelText("Keep these values as a template"));
+  await user.click(screen.getByLabelText("Copy values above"));
   await user.type(screen.getByLabelText("Name"), "Tarp 1");
   await user.selectOptions(screen.getByLabelText("Home location"), f.cold);
   await user.click(screen.getByRole("button", { name: "Save" }));
@@ -205,6 +206,20 @@ test("Add another keeps the form up; the template checkbox carries the values ov
   ).toEqual([f.cold, f.cold]);
 });
 
+test("unticking Add another hides and resets the Copy values checkbox", async () => {
+  await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByLabelText("Add another after saving"));
+  await user.click(screen.getByLabelText("Copy values above"));
+  await user.click(screen.getByLabelText("Add another after saving"));
+  expect(screen.queryByLabelText("Copy values above")).not.toBeInTheDocument();
+
+  await user.click(screen.getByLabelText("Add another after saving"));
+  expect(screen.getByLabelText("Copy values above")).not.toBeChecked();
+});
+
 test("Add another on its own clears the form", async () => {
   const f = await fixture();
   navigate("/items/new");
@@ -224,7 +239,9 @@ test("a new item remembers the last categories picked on this device (FR-SET-07)
   await fixture();
   navigate("/items/new");
   const first = mount();
-  expect(screen.queryByText("Categories")).not.toBeInTheDocument();
+  const noCats = within(screen.getByRole("group", { name: "Categories" }));
+  expect(noCats.queryAllByRole("checkbox")).toHaveLength(0);
+  expect(noCats.getByRole("button", { name: "New category…" })).toBeInTheDocument();
   first.unmount();
 
   await act.createCategory(store, "Camp kitchen");
@@ -242,6 +259,45 @@ test("a new item remembers the last categories picked on this device (FR-SET-07)
   mount();
   expect(screen.getByLabelText("Cold weather")).toBeChecked();
   expect(screen.getByLabelText("Camp kitchen")).not.toBeChecked();
+});
+
+test("New category adds one, unnamed items included, and ticks it on the item", async () => {
+  await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "New category…" }));
+  await user.type(screen.getByLabelText("New category"), "Camp kitchen");
+  await user.click(screen.getByRole("button", { name: "Add" }));
+
+  expect(await screen.findByLabelText("Camp kitchen")).toBeChecked();
+  expect(inv.categories(store.state).map((c) => c.name)).toEqual(["Camp kitchen"]);
+});
+
+test("New category with a name already in use ticks the existing one instead of making a second", async () => {
+  await act.createCategory(store, "Camp kitchen");
+  await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "New category…" }));
+  await user.type(screen.getByLabelText("New category"), "camp KITCHEN");
+  await user.click(screen.getByRole("button", { name: "Add" }));
+
+  expect(await screen.findByLabelText("Camp kitchen")).toBeChecked();
+  expect(inv.categories(store.state).map((c) => c.name)).toEqual(["Camp kitchen"]);
+});
+
+test("New category rejects a blank name", async () => {
+  await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "New category…" }));
+  expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.queryByLabelText("New category")).not.toBeInTheDocument();
+  expect(inv.categories(store.state)).toEqual([]);
 });
 
 test("ticking several saves the name and the one in hand as #1 (FR-INV-21, S-BOOT-03)", async () => {
