@@ -37,7 +37,7 @@ test("an Admin sees every section, in order", () => {
     "Print QR codes",
     "Export and import",
     "Your devices",
-    "Assistant",
+    "AI assistant",
   ]);
 });
 
@@ -51,7 +51,7 @@ test("a User has no admin sections, only their own", async () => {
   await store.setMeta({ user: { id: "bea", name: "Bea", role: "user", active: true } });
   mount();
   const links = within(screen.getByRole("navigation", { name: "Settings" })).getAllByRole("button");
-  expect(links.map((b) => b.textContent)).toEqual(["Your devices", "Assistant"]);
+  expect(links.map((b) => b.textContent)).toEqual(["Your devices", "AI assistant"]);
 });
 
 test("a refused record shows a count above Your devices, and opens the list", async () => {

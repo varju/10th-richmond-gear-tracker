@@ -59,7 +59,7 @@ export function Settings({ store, shell }: Props) {
           Your devices
         </button>
         <button className="link" type="button" onClick={() => navigate("/settings/assistant")}>
-          Assistant
+          AI assistant
         </button>
       </nav>
       <p className="muted small">

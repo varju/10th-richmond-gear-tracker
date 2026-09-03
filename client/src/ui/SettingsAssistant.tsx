@@ -10,7 +10,7 @@ interface Props {
 /** Connect an assistant to the inventory (FR-MCP-01). */
 export function SettingsAssistant({ api }: Props) {
   return (
-    <Page title="Assistant" back="/settings">
+    <Page title="AI assistant" back="/settings">
       <ConnectAssistant api={api} />
     </Page>
   );
