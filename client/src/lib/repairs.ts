@@ -19,6 +19,7 @@ export interface Repair {
   notes?: Note[];
   added_at?: number;
   modified_at?: number;
+  raised_by?: string;
 }
 
 /** In the order a ticket moves (FR-REP-03). */

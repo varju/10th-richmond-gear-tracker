@@ -5,10 +5,10 @@ import { useTypeRecord } from "../lib/record";
 import { openTickets, type Repair, repairHistory, stateLabel } from "../lib/repairs";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
-import { localDate } from "../lib/time";
+import { localDate, localMinute } from "../lib/time";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
-import { plural } from "./labels";
+import { plural, userName } from "./labels";
 import { Page } from "./Page";
 
 /** What still needs fixing: every open or in-progress ticket, newest first (FR-REP-05). Then the history (FR-RPT-02). */
@@ -75,7 +75,7 @@ function History({ store }: { store: Store }) {
           detail={(r) =>
             [
               stateLabel(r.state),
-              r.added_at !== undefined ? `raised ${localDate(r.added_at)}` : "",
+              r.added_at !== undefined ? raisedLabel(store, r) : "",
               r.modified_at !== undefined && r.modified_at !== r.added_at ? `changed ${localDate(r.modified_at)}` : "",
             ]
               .filter(Boolean)
@@ -86,4 +86,11 @@ function History({ store }: { store: Store }) {
       {!record && <p className="muted small">Offline: what this device knows, the last 90 days.</p>}
     </section>
   );
+}
+
+/** "Raised by Alice · 2026-09-01 14:32", or "Raised · 2026-09-01 14:32" when the name is not known. */
+function raisedLabel(store: Store, r: Repair): string {
+  const who = r.raised_by ? userName(store.state, r.raised_by) : "";
+  const when = r.added_at !== undefined ? localMinute(r.added_at) : "";
+  return [who ? `Raised by ${who}` : "Raised", when].filter(Boolean).join(" · ");
 }

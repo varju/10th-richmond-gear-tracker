@@ -4,7 +4,7 @@ import { REPAIR_STATES, repair, setRepairState, stateLabel } from "../lib/repair
 import type { Note } from "../lib/replay";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
-import { isoDate } from "../lib/time";
+import { localMinute } from "../lib/time";
 import { guard } from "../lib/unsaved";
 import { useStore } from "../useStore";
 import { userName } from "./labels";
@@ -79,11 +79,12 @@ export function RepairPage({ store, id }: Props) {
   );
 }
 
-/** "Raised by Alice · 2026-09-01". Who is read from the created event when the device still holds it. */
+/** "Raised by Alice · 2026-09-01 14:32". Who raised it is a field on the ticket; the created
+ * event is a fallback for a ticket recorded before that field existed. */
 function raisedByLabel(store: Store, id: string): string {
-  const created = store.eventsFor("repair", id).find((e) => e.type === "created");
   const ticket = repair(store.state, id);
-  const when = ticket?.added_at ? isoDate(ticket.added_at) : "";
-  const who = created ? userName(store.state, created.actor_id) : "";
+  const when = ticket?.added_at ? localMinute(ticket.added_at) : "";
+  const raisedById = ticket?.raised_by ?? store.eventsFor("repair", id).find((e) => e.type === "created")?.actor_id;
+  const who = raisedById ? userName(store.state, raisedById) : "";
   return [who ? `Raised by ${who}` : "Raised", when].filter(Boolean).join(" · ");
 }

@@ -33,10 +33,34 @@ test("the ticket shows what is wrong, where it stands, and who raised it", async
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Repair");
   expect(screen.getByText("zipper broken")).toBeInTheDocument();
   expect(screen.getByText("Open")).toBeInTheDocument();
-  expect(screen.getByText("Raised by Alice · 2025-09-01")).toBeInTheDocument();
+  expect(screen.getByText("Raised by Alice · 2025-08-31 17:00")).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Tent 1" }));
   expect(location.pathname).toBe(`/items/${tent}`);
+});
+
+test("a ticket from a snapshot, with no created event on this device, still shows who raised it", async () => {
+  const fresh = await openStore();
+  await fresh.bootstrap(
+    {
+      user: { alice: { name: "Alice" } },
+      repair: {
+        [ticket]: {
+          item_id: tent,
+          description: "zipper broken",
+          state: "open",
+          added_at: 1_756_684_800_000,
+          modified_at: 1_756_684_800_000,
+          raised_by: "alice",
+        },
+      },
+    },
+    0,
+  );
+  expect(fresh.eventsFor("repair", ticket)).toHaveLength(0);
+
+  renderInShell(<RepairPage store={fresh} id={ticket} />);
+  expect(screen.getByText("Raised by Alice · 2025-08-31 17:00")).toBeInTheDocument();
 });
 
 test("one button per other state moves the ticket there (FR-REP-03)", async () => {
@@ -125,7 +149,10 @@ test("the repairs screen lists open tickets, then the history over a date range 
   const history = screen.getByRole("region", { name: "History" });
   expect(screen.getAllByRole("button", { name: /Tent 1/ })).toHaveLength(3);
   const rows = [...history.querySelectorAll("li")].map((li) => li.textContent);
-  expect(rows).toEqual(["Tent 1Open · raised 2025-08-31", "Tent 1Resolved · raised 2025-08-31 · changed 2025-08-31"]);
+  expect(rows).toEqual([
+    "Tent 1Open · Raised by Alice · 2025-08-31 17:00",
+    "Tent 1Resolved · Raised by Alice · 2025-08-31 17:00 · changed 2025-08-31",
+  ]);
 
   // A range before anything happened is empty.
   await user.clear(screen.getByLabelText("To"));
@@ -134,6 +161,6 @@ test("the repairs screen lists open tickets, then the history over a date range 
 
   await user.clear(screen.getByLabelText("To"));
   await user.type(screen.getByLabelText("To"), "2025-09-01");
-  await user.click(within(history).getByRole("button", { name: /Open · raised/ }));
+  await user.click(within(history).getByRole("button", { name: /Open · Raised/ }));
   expect(location.pathname).toBe(`/repairs/${other}`);
 });

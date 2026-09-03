@@ -39,13 +39,6 @@ The vertical slice is built. What is left needs a phone.
 From using the app at 10thrichmond.ca/gear. Fixes first, then wording, then the screens. Answers to the open questions
 are folded into each task.
 
-### History and repairs
-
-- [ ] A repair ticket says "Raised by Alice · 2026-09-01 14:32" on every device. Today the name comes from the `created`
-      event, which a phone that started from a snapshot does not hold, so it says "Raised". Replay records the raiser on
-      the ticket (`raised_by`) in both languages, with a vector; the label reads it, and shows the minute like History
-      does. The Repairs list's "raised <date>" matches.
-
 ### Settings
 
 - [ ] Drop the Help link at the foot of Settings; Help is in the menu. Help's back button goes home.

@@ -52,6 +52,7 @@
         "state": "in_progress",
         "added_at": 1000,
         "modified_at": 3000,
+        "raised_by": "alice",
         "notes": [
           {
             "id": "01000000000000000000000002",

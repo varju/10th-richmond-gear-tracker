@@ -1,0 +1,31 @@
+{
+  "name": "a repair ticket records who raised it, from the created event's actor",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "repair",
+      "entity_id": "rep-1",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "item_id": "tent-1",
+        "description": "zipper broken"
+      }
+    }
+  ],
+  "state": {
+    "repair": {
+      "rep-1": {
+        "item_id": "tent-1",
+        "description": "zipper broken",
+        "state": "open",
+        "added_at": 1000,
+        "modified_at": 1000,
+        "raised_by": "alice"
+      }
+    }
+  }
+}

@@ -94,6 +94,7 @@
         "state": "open",
         "added_at": 5000,
         "modified_at": 5000,
+        "raised_by": "alice",
         "photos": [
           {
             "id": "01000000000000000000000CCC",
