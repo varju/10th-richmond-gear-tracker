@@ -297,6 +297,12 @@ it:
 docker inspect --format '{{index .Config.Labels "gear.base-path"}}' gear-tracker:latest
 ```
 
+The commit it was built from is baked in too, in the same way, and shown at the foot of Settings in the app:
+
+```sh
+docker inspect --format '{{index .Config.Labels "gear.git-sha"}}' gear-tracker:latest
+```
+
 Every build also leaves a tag named after its commit, so going back a version is a retag and a restart rather than a
 rebuild:
 

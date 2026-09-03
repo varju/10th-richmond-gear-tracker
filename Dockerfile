@@ -9,6 +9,10 @@ FROM node:26-slim AS client
 # its own, "/gear/" when it sits under an existing site. Must end in a slash.
 ARG BASE_PATH=/
 ENV BASE_PATH=$BASE_PATH
+# The commit this build is from. "dev" outside a `make image` build, which is
+# what `npm run dev` shows too.
+ARG GIT_SHA=dev
+ENV GIT_SHA=$GIT_SHA
 WORKDIR /client
 COPY client/package.json client/package-lock.json ./
 RUN npm ci
@@ -30,9 +34,11 @@ RUN uv sync --locked --no-dev
 
 FROM python:3.14-slim
 ARG BASE_PATH=/
+ARG GIT_SHA=dev
 # Recorded so `docker inspect` can say what path a running image was built for.
 # The proxy in front of it has to agree, and nothing else can check that.
 LABEL gear.base-path=$BASE_PATH
+LABEL gear.git-sha=$GIT_SHA
 WORKDIR /app
 COPY --from=server /app/.venv ./.venv
 COPY src/ ./src/

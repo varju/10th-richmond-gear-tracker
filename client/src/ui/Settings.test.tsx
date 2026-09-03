@@ -62,3 +62,14 @@ test("the Source link points at the repository", () => {
     "https://github.com/varju/10th-richmond-gear-tracker",
   );
 });
+
+// __GIT_SHA__ is a compile-time constant, baked in by vite.config.ts from the
+// GIT_SHA environment variable. Under vitest that variable is unset, so this
+// is always "dev" here; the linked-commit rendering is covered by
+// `GIT_SHA=... npm run build` in the Makefile task's verification instead.
+test("with no build sha, the foot says dev and links only to the repository", () => {
+  mount();
+  const foot = screen.getByRole("link", { name: "Source" }).closest("p");
+  expect(foot).toHaveTextContent("Source · dev");
+  expect(within(foot as HTMLElement).getAllByRole("link")).toHaveLength(1);
+});

@@ -39,13 +39,6 @@ The vertical slice is built. What is left needs a phone.
 From using the app at 10thrichmond.ca/gear. Fixes first, then wording, then the screens. Answers to the open questions
 are folded into each task.
 
-### Settings
-
-- [ ] Settings shows the build's git short hash, beside the Source link at the foot. The client build has no `.git`
-      (`.dockerignore` drops it), so `make image` passes it as a build arg (`GIT_SHA`, from
-      `git rev-parse --short     HEAD`) that the Dockerfile hands to `npm run build`, and `vite.config.ts` bakes it in
-      with `define`. A local `npm     run dev` shows "dev" when it is unset. The hash links to the commit on GitHub.
-
 ### Items
 
 - [ ] The Categories fieldset on the item form starts closed. Its summary names the ticked categories, or says "None".

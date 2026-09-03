@@ -49,6 +49,8 @@ check: lint test client-test
 
 IMAGE ?= gear-tracker
 TAG   ?= $(shell git describe --tags --always --dirty)
+# The commit the client is built from, baked in and shown in Settings.
+GIT_SHA ?= $(shell git rev-parse --short HEAD)
 # The path the app is served from. Baked into the client at build time.
 GEAR_BASE ?= /
 # What starts the container once the image is built. The default is the compose
@@ -65,7 +67,7 @@ GEAR_DATA   ?=
 export GEAR_DATA
 
 image:
-	docker build --build-arg BASE_PATH=$(GEAR_BASE) --tag $(IMAGE):$(TAG) --tag $(IMAGE):latest .
+	docker build --build-arg BASE_PATH=$(GEAR_BASE) --build-arg GIT_SHA=$(GIT_SHA) --tag $(IMAGE):$(TAG) --tag $(IMAGE):latest .
 	@echo "built $(IMAGE):$(TAG), serving from $(GEAR_BASE)"
 
 deploy: image

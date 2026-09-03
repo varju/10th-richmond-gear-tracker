@@ -62,6 +62,12 @@ export function Settings({ store, shell }: Props) {
       </nav>
       <p className="muted small">
         <a href="https://github.com/varju/10th-richmond-gear-tracker">Source</a>
+        {" · "}
+        {__GIT_SHA__ === "dev" ? (
+          "dev"
+        ) : (
+          <a href={`https://github.com/varju/10th-richmond-gear-tracker/commit/${__GIT_SHA__}`}>{__GIT_SHA__}</a>
+        )}
       </p>
     </Page>
   );

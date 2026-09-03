@@ -89,8 +89,15 @@ const API = ["/sync", "/auth", "/users", "/public", "/photos", "/mail", "/codes"
 // time, because it is baked into every asset URL. Always ends in a slash.
 const base = process.env.BASE_PATH || "/";
 
+// The commit this build is from, shown in Settings. "dev" under `npm run dev`
+// and `npm test`, where nothing sets GIT_SHA.
+const gitSha = process.env.GIT_SHA || "dev";
+
 export default defineConfig({
   base,
+  define: {
+    __GIT_SHA__: JSON.stringify(gitSha),
+  },
   plugins: [
     react(),
     guide(),
