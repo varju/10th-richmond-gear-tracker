@@ -304,7 +304,7 @@ def create_app(
         if not group.get("name") or not group.get("code_url") or not group.get("contact"):
             # Every sticker is a public page from the moment it goes on gear, and a
             # public page with no way to reach us is no use to a finder (FR-PUB-01).
-            raise Conflict("set the group name, code URL and contact in Settings first")
+            raise Conflict("set the group name, site address and contact in Settings first")
         made = codes.create_codes(conn, who.user_id, body.sheets * labels.LABELS_PER_SHEET)
         pdf = labels.sheet(made, group["name"], group["code_url"])
         return Response(

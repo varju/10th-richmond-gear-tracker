@@ -520,7 +520,8 @@ times onto stickers that will outlive several server moves, so the hostname in i
 
 So the URL uses a domain the group already owns, pointed at wherever the server currently runs (NFR-DEP-09). The server
 can then move house without reprinting the inventory. The path is the random code; the same URL opens the public page
-when signed out and the item in the app when signed in.
+when signed out and the item in the app when signed in. The address is the group's site address, a setting in the app;
+the app appends `/g/<code>` to it to make the URL.
 
 ### Code lifecycle
 
@@ -559,7 +560,7 @@ would buy no decode margin at all.
 
 The step at 43 is the one to stay under, and `https://www.10thrichmond.ca/gear/g/XXXXXXXXXX` is 45. Dropping the `www.`
 is enough to clear it; dropping the scheme as well leaves real headroom, and is what the shorter example above does. Set
-the group's code URL accordingly before any sheet is printed.
+the group's site address accordingly before any sheet is printed.
 
 **Capitals would buy a step, and we are not taking it.** All of the above is byte mode, at 8 bits a character. QR also
 has an alphanumeric mode at 5.5, whose charset is digits, uppercase A-Z and a few symbols — a whole URL, so long as

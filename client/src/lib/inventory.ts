@@ -81,6 +81,7 @@ export interface Code {
 
 export interface GroupSetting {
   name?: string;
+  /** The address the app lives at; stickers carry it plus /g/<code>. The key predates the meaning. */
   code_url?: string;
   /** How a finder reaches us. Shown on the public page (FR-PUB-01). */
   contact?: string;

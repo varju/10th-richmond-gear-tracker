@@ -39,9 +39,9 @@ def pages_needed(count: int) -> int:
     return math.ceil(count / LABELS_PER_SHEET)
 
 
-def sheet(codes: list[str], group_name: str, url_base: str) -> bytes:
-    """One label per code, as many pages as needed. The QR encodes url_base/code; keep url_base short."""
-    base = url_base.rstrip("/")
+def sheet(codes: list[str], group_name: str, site_url: str) -> bytes:
+    """One label per code, as many pages as needed. The QR encodes site_url/g/code; keep site_url short."""
+    base = site_url.rstrip("/")
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=letter)
     pdf.setTitle("codes")
@@ -51,7 +51,7 @@ def sheet(codes: list[str], group_name: str, url_base: str) -> bytes:
             pdf.showPage()
         x = LEFT_MARGIN + (slot % COLUMNS) * PITCH_X
         y = PAGE_HEIGHT - TOP_MARGIN - (slot // COLUMNS + 1) * PITCH_Y
-        _label(pdf, x, y, f"{base}/{code}", group_name)
+        _label(pdf, x, y, f"{base}/g/{code}", group_name)
     pdf.showPage()
     pdf.save()
     return buffer.getvalue()

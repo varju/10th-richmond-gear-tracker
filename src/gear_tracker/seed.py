@@ -41,6 +41,7 @@ class Admin(Section):
 
 class Group(Section):
     name: NonEmpty
+    # The address the app lives at; stickers carry it plus /g/<code>. The key predates the meaning.
     code_url: str = ""
     contact: str = ""
     # Omitted means never flag (FR-OUT-14).

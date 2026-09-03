@@ -22,8 +22,8 @@ test("anything else is not a code", () => {
 });
 
 test("codeUrl joins the group's base with the code, or gives up without a base", () => {
-  expect(codeUrl("https://varju.ca/g", "ABCDEFGH23")).toBe("https://varju.ca/g/ABCDEFGH23");
-  expect(codeUrl("https://varju.ca/g/", "ABCDEFGH23")).toBe("https://varju.ca/g/ABCDEFGH23");
+  expect(codeUrl("https://varju.ca", "ABCDEFGH23")).toBe("https://varju.ca/g/ABCDEFGH23");
+  expect(codeUrl("https://varju.ca/", "ABCDEFGH23")).toBe("https://varju.ca/g/ABCDEFGH23");
   expect(codeUrl(undefined, "ABCDEFGH23")).toBeNull();
   expect(codeUrl("  ", "ABCDEFGH23")).toBeNull();
 });

@@ -92,7 +92,7 @@ function stickerVideo(code: string): string {
   const dir = resolve(test.info().project.outputDir);
   mkdirSync(dir, { recursive: true });
   const file = resolve(dir, `sticker-${code}.y4m`);
-  execFileSync("uv", ["run", "--project", "..", "python", "e2e/qr_video.py", `${CODE_URL}/${code}`, file], {
+  execFileSync("uv", ["run", "--project", "..", "python", "e2e/qr_video.py", `${CODE_URL}/g/${code}`, file], {
     stdio: "inherit",
   });
   return file;

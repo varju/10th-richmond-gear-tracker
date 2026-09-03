@@ -23,8 +23,8 @@ password = "at least eight characters"
 # What the stickers and the public page say (FR-PUB-01).
 [group]
 name = "10th Richmond"
-# Where a sticker's QR code points. The public page lives under it.
-code_url = "https://example.org/gear/c"
+# Where the app lives. A sticker's QR points at this address plus /g/<code>.
+code_url = "https://example.org/gear"
 # How a finder reaches the group: a phone number or an address.
 contact = "604-555-0100"
 # Flag gear that has been out this long. Omit the line to never flag.

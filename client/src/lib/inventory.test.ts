@@ -281,11 +281,11 @@ test("shelf labels are the ones in use, optionally within one location", async (
 });
 
 test("group settings are created once, then changed", async () => {
-  await act.setGroup(store, { name: "10th Richmond", code_url: "https://example.org/g/" });
+  await act.setGroup(store, { name: "10th Richmond", code_url: "https://example.org" });
   await act.setGroup(store, { name: "10th Richmond Sea Scouts" });
   expect(inv.group(store.state)).toMatchObject({
     name: "10th Richmond Sea Scouts",
-    code_url: "https://example.org/g/",
+    code_url: "https://example.org",
   });
   expect(store.pending.map((e) => e.type)).toEqual(["created", "field_changed"]);
 });

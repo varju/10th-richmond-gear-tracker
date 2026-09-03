@@ -387,12 +387,12 @@ def test_sheets_are_for_admins(client):
 def test_sheets_need_the_group_setting(client, admin, db_path):
     r = client.post("/codes/sheets", json={}, headers=admin)
     assert r.status_code == 409
-    assert r.json()["message"] == "set the group name, code URL and contact in Settings first"
+    assert r.json()["message"] == "set the group name, site address and contact in Settings first"
 
     # Name and URL alone are not enough: a sticker is a public page, and it needs a way back to us.
     with open_db(db_path) as conn:
         events.append_server(
-            conn, "alice", "setting", "group", "created", {"name": "10th Richmond", "code_url": "https://example.org/g"}
+            conn, "alice", "setting", "group", "created", {"name": "10th Richmond", "code_url": "https://example.org"}
         )
     assert client.post("/codes/sheets", json={}, headers=admin).status_code == 409
 
@@ -411,7 +411,7 @@ def test_a_sheet_of_codes(client, admin, db_path):
             "setting",
             "group",
             "created",
-            {"name": "10th Richmond", "code_url": "https://example.org/g", "contact": "gear@example.org"},
+            {"name": "10th Richmond", "code_url": "https://example.org", "contact": "gear@example.org"},
         )
 
     r = client.post("/codes/sheets", json={}, headers=admin)
@@ -487,7 +487,7 @@ def public(client, db_path):
             "setting",
             "group",
             "created",
-            {"name": "10th Richmond", "code_url": "https://example.org/g", "contact": "gear@example.org"},
+            {"name": "10th Richmond", "code_url": "https://example.org", "contact": "gear@example.org"},
         )
         for code in ("AAAAAAAAAA", "BBBBBBBBBB"):
             events.append_server(conn, "alice", "code", code, "created", {})

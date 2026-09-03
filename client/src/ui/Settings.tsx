@@ -175,17 +175,18 @@ function GroupForm({ store }: { store: Store }) {
         <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
       </label>
       <label>
-        <span>Code URL</span>
+        <span>Site address</span>
         <input
           type="url"
           value={codeUrl}
           onChange={(e) => setCodeUrl(e.target.value)}
-          placeholder="https://example.org/g"
+          placeholder="https://example.org/gear"
           autoComplete="off"
         />
       </label>
       <p className="muted small">
-        Printed on every sticker, so it must be a domain the group owns, not this server’s address.
+        Where the app lives. Stickers point at this address plus <code>/g/&lt;code&gt;</code>, so it must be a domain
+        the group owns, not this server’s address.
       </p>
       <label>
         <span>How to reach us</span>

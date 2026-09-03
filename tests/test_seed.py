@@ -21,7 +21,7 @@ password = "correct horse"
 
 [group]
 name = "10th Richmond"
-code_url = "https://example.org/gear/c"
+code_url = "https://example.org/gear"
 contact = "604-555-0100"
 overdue_days = 30
 
@@ -76,7 +76,7 @@ def test_seeds_everything(db, tmp_path):
         group(db).items()
         >= {
             "name": "10th Richmond",
-            "code_url": "https://example.org/gear/c",
+            "code_url": "https://example.org/gear",
             "contact": "604-555-0100",
             "overdue_days": 30,
         }.items()

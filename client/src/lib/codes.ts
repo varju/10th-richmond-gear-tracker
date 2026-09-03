@@ -1,5 +1,5 @@
 /**
- * What a scan or a typed string means. A sticker's QR holds `<code_url>/<CODE>`;
+ * What a scan or a typed string means. A sticker's QR holds `<code_url>/g/<CODE>`;
  * a person may type just the code. Both end in the same 10 characters.
  */
 import { CODE_PATTERN } from "./inventory";
@@ -12,8 +12,8 @@ export function parseCode(text: string): string | null {
   return CODE_PATTERN.test(code) ? code : null;
 }
 
-/** The URL a sticker for this code carries. Null until the group has set its code URL. */
+/** The URL a sticker for this code carries. Null until the group has set its site address. */
 export function codeUrl(base: string | undefined, code: string): string | null {
   const trimmed = base?.trim().replace(/\/+$/, "");
-  return trimmed ? `${trimmed}/${code}` : null;
+  return trimmed ? `${trimmed}/g/${code}` : null;
 }
