@@ -45,10 +45,10 @@ The vertical slice is built. What is left needs a phone.
 
 ### Codes
 
-- [ ] Clear an item's code (FR-TAG-13). A `code_released` event on the code; replay in both languages sets the item's
-      current code to none and keeps the code resolving to the item (FR-TAG-05), with a vector. The server validates it
-      like `code_bound`. An assistant tool `clear_code` (FR-MCP-09) does it; the app's item page needs no button for
-      now.
+- [ ] Unassign an item's code (FR-TAG-13). A `code_released` event on the code; replay in both languages sets the item's
+      current code to none and the code back to unassigned, so scanning it offers a new item or a bind (FR-TAG-07), with
+      a vector. The server validates it like `code_bound`. An assistant tool `unassign_code` (FR-MCP-09) does it; the
+      app's item page needs no button for now.
 
 ## M9 — Go live
 
