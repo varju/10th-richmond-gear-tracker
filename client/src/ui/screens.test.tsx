@@ -295,7 +295,7 @@ test("back with a half-typed new item asks; Keep editing stays, Save creates it,
 });
 
 test("back with an unsaved group name asks; Save keeps it and goes home", async () => {
-  navigate("/settings");
+  navigate("/settings/group");
   mount();
   const user = userEvent.setup();
   await user.type(screen.getByLabelText("Group name"), "10th Richmond");
@@ -309,7 +309,7 @@ test("back with an unsaved group name asks; Save keeps it and goes home", async 
 
 test("back with a location typed but not added asks; Discard drops it", async () => {
   await fixture();
-  navigate("/settings");
+  navigate("/settings/locations");
   mount();
   const user = userEvent.setup();
   await user.type(screen.getByLabelText("New location"), "Dry locker");
@@ -322,7 +322,7 @@ test("back with a location typed but not added asks; Discard drops it", async ()
 
 test("Enter in the new-name box adds it", async () => {
   await fixture();
-  navigate("/settings");
+  navigate("/settings/locations");
   mount();
   const user = userEvent.setup();
   await user.type(screen.getByLabelText("New location"), "Dry locker{Enter}");
@@ -334,10 +334,9 @@ test("Enter in the new-name box adds it", async () => {
 
 test("deleting a location in use is refused and names the items", async () => {
   await fixture();
-  navigate("/settings");
+  navigate("/settings/locations");
   mount();
   const user = userEvent.setup();
-  expect(screen.getByText("Signed in as Alice")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Delete Cold locker" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("In use by Tent 1");
   expect(inv.locations(store.state)).toHaveLength(2);
@@ -351,7 +350,7 @@ test("deleting a location in use is refused and names the items", async () => {
 
 test("an Admin adds a category in Settings and it appears (FR-SET-07)", async () => {
   await fixture();
-  navigate("/settings");
+  navigate("/settings/categories");
   mount();
   const user = userEvent.setup();
   await user.type(screen.getByLabelText("New category"), "Camp kitchen{Enter}");
@@ -363,7 +362,7 @@ test("deleting a category in use is refused and names the item (FR-SET-07, FR-SE
   const f = await fixture();
   const camp = await act.createCategory(store, "Camp kitchen");
   await act.updateItem(store, f.stove, { category_ids: [camp] });
-  navigate("/settings");
+  navigate("/settings/categories");
   mount();
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Delete Camp kitchen" }));
@@ -372,7 +371,7 @@ test("deleting a category in use is refused and names the item (FR-SET-07, FR-SE
 });
 
 test("a group name that arrives after the settings page opens fills the form", async () => {
-  navigate("/settings");
+  navigate("/settings/group");
   mount();
   const nameField = screen.getByLabelText("Group name");
   expect(nameField).toHaveValue("");
@@ -392,7 +391,7 @@ test("a group name that arrives after the settings page opens fills the form", a
 });
 
 test("the overdue period is one group setting; blank means never (FR-OUT-14)", async () => {
-  navigate("/settings");
+  navigate("/settings/group");
   mount();
   const user = userEvent.setup();
   const days = screen.getByLabelText("Flag gear out longer than (days)");
@@ -430,6 +429,15 @@ test("the menu reaches every section, users included", async () => {
   await user.click(screen.getByRole("button", { name: "Menu" }));
   await user.click(screen.getByRole("button", { name: "All items" }));
   expect(location.pathname).toBe("/items");
+});
+
+test("Sign out in the menu is blocked while records are unsent", async () => {
+  // Offline sync leaves fixture()'s creations unsent.
+  await fixture();
+  mount();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Menu" }));
+  expect(screen.getByRole("button", { name: "Sign out" })).toBeDisabled();
+  expect(screen.getByText("Sign out after your unsent records are sent.")).toBeInTheDocument();
 });
 
 test("home is empty until something is asked of it", async () => {
@@ -567,7 +575,7 @@ test("printing posts the sheet count with the bearer token, under the app's base
     return null;
   }) as typeof window.open;
 
-  navigate("/settings");
+  navigate("/settings/codes");
   mount(recording, "/gear");
   const user = userEvent.setup();
   await user.clear(screen.getByLabelText("Sheets"));
@@ -588,7 +596,7 @@ test("a refused print shows the server's message", async () => {
     String(input).includes("/codes/sheets")
       ? new Response(JSON.stringify({ error: "forbidden", message: "admins only" }), { status: 403 })
       : offline();
-  navigate("/settings");
+  navigate("/settings/codes");
   mount(refusing);
   await userEvent.setup().click(screen.getByRole("button", { name: "Print codes" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("admins only");

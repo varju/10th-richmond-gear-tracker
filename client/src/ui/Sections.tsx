@@ -68,6 +68,7 @@ export function Sections({ store, layout }: Props) {
   const empty = items(state).length === 0;
   const admin = store.meta.user?.role === "admin";
   const sidebar = layout === "sidebar";
+  const pending = store.pending.length;
 
   if (!sidebar) {
     const links: Link[] = [
@@ -86,9 +87,16 @@ export function Sections({ store, layout }: Props) {
     return (
       <nav className="links menu" aria-label="Menu">
         <Links links={links} />
-        <button className="link" type="button" onClick={() => void signOut()}>
+        <button
+          className="link"
+          type="button"
+          onClick={() => void signOut()}
+          disabled={pending > 0}
+          title={pending > 0 ? "Send your unsent records first" : ""}
+        >
           Sign out
         </button>
+        {pending > 0 && <p className="muted small">Sign out after your unsent records are sent.</p>}
       </nav>
     );
   }

@@ -93,11 +93,13 @@ test("unsent work shows in the banner and blocks signing out", async () => {
     actor_id: "u1",
     payload: { text: "x" },
   });
-  navigate("/settings");
+  navigate("/");
   mount();
+  const user = userEvent.setup();
   expect(await screen.findByRole("status")).toHaveTextContent("1 unsent record · offline");
-  expect(screen.getByText("Signed in as Alice")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Menu" }));
   expect(screen.getByRole("button", { name: "Sign out" })).toBeDisabled();
+  expect(screen.getByText("Sign out after your unsent records are sent.")).toBeInTheDocument();
 });
 
 test("a record made while online is pushed without anyone asking", async () => {

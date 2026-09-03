@@ -4,7 +4,7 @@ import { beforeEach, expect, test } from "vitest";
 import { createApi } from "../lib/api";
 import type { Store } from "../lib/store";
 import { openStore } from "./codeTestKit";
-import { Settings } from "./Settings";
+import { SettingsCsv } from "./SettingsCsv";
 
 // Export and import in Settings, Admin only (FR-RPT-03, FR-SET-11). A fake server answers the CSV routes.
 const T0 = 1_756_684_800_000;
@@ -27,7 +27,6 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
   const path = new URL(String(input), "http://x").pathname;
   calls.push({ path, body: String(init?.body ?? "") });
   const json = (body: object, status = 200) => new Response(JSON.stringify({ ...body, server_time: T0 }), { status });
-  if (path === "/users/alice/devices") return json({ devices: [] });
   if (path === "/inventory.csv") return new Response("id,kind,name\n,single,Tent\n", { status: 200 });
   if (path === "/inventory/import/preview") {
     const text = String(init?.body ?? "");
@@ -50,7 +49,7 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
       new_categories: [],
       rows: [
         { row: 2, action: "add", name: "Stove", changes: [] },
-        { row: 3, action: "change", name: "Tent 1", changes: [{ field: "supplier", old: "", new: "MEC" }] },
+        { row: 3, action: "change", name: "Tent 1", changes: [{ field: "sub_location", old: "", new: "shelf 4" }] },
       ],
       errors: [],
     });
@@ -70,7 +69,7 @@ beforeEach(async () => {
 
 const user = userEvent.setup();
 const mount = () =>
-  render(<Settings store={store} api={createApi({ fetch: fetchFake, token: () => "t" })} shell={shell} />);
+  render(<SettingsCsv store={store} api={createApi({ fetch: fetchFake, token: () => "t" })} shell={shell} />);
 
 test("downloading saves the file in one click", async () => {
   const clicks: { href: string; download: string }[] = [];
@@ -100,7 +99,7 @@ test("choosing a file previews it, and applying writes it", async () => {
   expect(preview.getByText("New locations: Shed.")).toBeInTheDocument();
   const changes = within(screen.getByRole("list", { name: "Import changes" }));
   expect(changes.getByText(/Row 3: Tent 1/)).toBeInTheDocument();
-  expect(changes.getByText("supplier: was blank now MEC")).toBeInTheDocument();
+  expect(changes.getByText("sub_location: was blank now shelf 4")).toBeInTheDocument();
 
   const previewCall = calls.find((c) => c.path === "/inventory/import/preview");
   expect(previewCall?.body).toContain("Stove");
@@ -120,12 +119,4 @@ test("a plan with an error disables Apply and shows the error", async () => {
   const errors = await screen.findByRole("list", { name: "Import errors" });
   expect(within(errors).getByText("Row 2: no such item 'BAD'")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
-});
-
-test("the Source link points at the repository", async () => {
-  mount();
-  expect(screen.getByRole("link", { name: "Source" })).toHaveAttribute(
-    "href",
-    "https://github.com/varju/10th-richmond-gear-tracker",
-  );
 });

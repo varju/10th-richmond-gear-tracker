@@ -58,13 +58,6 @@ are folded into each task.
       shelf filters on All items. Drop "Browse by location" from the guide (scouter.md, quartermaster.md) and
       stories/reports.md.
 
-### Settings
-
-- [ ] Settings becomes a list. At the top: who is signed in, the sync line, Sync now. Then one link per section, each
-      its own page with back to Settings: Users, Mail, Group, Locations, Categories, Print codes, Export and import,
-      Your devices, Assistant. Sign out leaves Settings; it lives in the menu, and takes the unsent-records guard with
-      it.
-
 ### New item
 
 - [ ] Remove supplier everywhere: the form, `boughtLabel`, the audit labels, `ItemInput`, the server model, the CSV

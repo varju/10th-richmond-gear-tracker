@@ -39,6 +39,13 @@ import { Reservations } from "./ui/Reservations";
 import { Scan } from "./ui/Scan";
 import { Sections } from "./ui/Sections";
 import { Settings } from "./ui/Settings";
+import { SettingsAssistant } from "./ui/SettingsAssistant";
+import { SettingsCategories } from "./ui/SettingsCategories";
+import { SettingsCodes } from "./ui/SettingsCodes";
+import { SettingsCsv } from "./ui/SettingsCsv";
+import { SettingsDevices } from "./ui/SettingsDevices";
+import { SettingsGroup } from "./ui/SettingsGroup";
+import { SettingsLocations } from "./ui/SettingsLocations";
 import { StockCheck } from "./ui/StockCheck";
 import { SignIn } from "./ui/SignIn";
 import { Users } from "./ui/Users";
@@ -245,7 +252,14 @@ function Screen({
     case "settings":
       if (second === "users") return <Users store={store} api={api} />;
       if (second === "mail") return <Mail store={store} api={api} />;
-      return <Settings store={store} api={api} shell={shell} />;
+      if (second === "group") return <SettingsGroup store={store} />;
+      if (second === "locations") return <SettingsLocations store={store} />;
+      if (second === "categories") return <SettingsCategories store={store} />;
+      if (second === "codes") return <SettingsCodes store={store} api={api} shell={shell} />;
+      if (second === "csv") return <SettingsCsv store={store} api={api} shell={shell} />;
+      if (second === "devices") return <SettingsDevices store={store} api={api} />;
+      if (second === "assistant") return <SettingsAssistant api={api} />;
+      return <Settings store={store} shell={shell} />;
     case "join":
       // Signed in already. Join says what to do; it needs no shell.
       return <Join store={store} api={api} onJoined={() => undefined} />;

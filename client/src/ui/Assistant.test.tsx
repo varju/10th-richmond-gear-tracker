@@ -2,13 +2,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test } from "vitest";
 import { createApi, isAssistant } from "../lib/api";
-import type { Store } from "../lib/store";
-import { openStore } from "./codeTestKit";
-import { Settings } from "./Settings";
+import { SettingsAssistant } from "./SettingsAssistant";
 
 // "Connect an assistant" in Settings (FR-MCP-01). A fake server mints the token.
 const T0 = 1_756_684_800_000;
-let store: Store;
 let calls: string[];
 let refuse: boolean;
 
@@ -20,34 +17,19 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
     if (refuse) return json({ error: "deactivated", message: "this account has been deactivated" }, 403);
     return json({ token: "secret-token", device_id: "mcp-01BBBBBBBBBBBBBBBBBBBBBBBB", path: "/mcp" });
   }
-  // Settings shows the signed-in person's own devices too (FR-USR-17).
-  if (path === "/users/alice/devices") return json({ devices: [] });
   return json({ error: "not_found", message: path }, 404);
 };
 
-const shell = {
-  busy: false,
-  outcome: null,
-  now: () => T0,
-  sync: async () => undefined,
-  signOut: async () => {},
-};
-
-beforeEach(async () => {
+beforeEach(() => {
   calls = [];
   refuse = false;
-  store = await openStore();
 });
 
 const user = userEvent.setup();
-const mount = () =>
-  render(<Settings store={store} api={createApi({ fetch: fetchFake, token: () => "t" })} shell={shell} />);
+const mount = () => render(<SettingsAssistant api={createApi({ fetch: fetchFake, token: () => "t" })} />);
 
 test("the token is minted on request and shown once, with where to send it (FR-MCP-01)", async () => {
   mount();
-  // The page also loads the signed-in person's own devices; let that settle first.
-  await screen.findByText("Not signed in anywhere.");
-  calls.length = 0;
   await user.click(screen.getByRole("button", { name: "Connect an assistant" }));
 
   expect(calls).toEqual(["POST /assistant/connect"]);

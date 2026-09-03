@@ -5,21 +5,13 @@ import { beforeEach, expect, test } from "vitest";
 import { createApi } from "../lib/api";
 import { openDb } from "../lib/db";
 import { Store } from "../lib/store";
-import { Settings } from "./Settings";
+import { SettingsDevices } from "./SettingsDevices";
 
 // "Your devices" in Settings (FR-USR-17), the same list Users.tsx shows an Admin for someone else.
 const T0 = 1_756_684_800_000;
 let store: Store;
 let devices: { device_id: string; created_at: number }[];
 let calls: string[];
-
-const shell = {
-  busy: false,
-  outcome: null,
-  now: () => T0,
-  sync: async () => undefined,
-  signOut: async () => {},
-};
 
 const fetchFake = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
   const path = new URL(String(input), "http://x").pathname;
@@ -46,8 +38,7 @@ beforeEach(async () => {
 });
 
 const user = userEvent.setup();
-const mount = () =>
-  render(<Settings store={store} api={createApi({ fetch: fetchFake, token: () => "t" })} shell={shell} />);
+const mount = () => render(<SettingsDevices store={store} api={createApi({ fetch: fetchFake, token: () => "t" })} />);
 
 test("Settings shows a non-admin their own devices; the one in use cannot be revoked", async () => {
   mount();
@@ -76,7 +67,7 @@ test("offline, the devices section says so quietly; no alert (settings are opene
   const offline: typeof fetch = async () => {
     throw new TypeError("Failed to fetch");
   };
-  render(<Settings store={store} api={createApi({ fetch: offline, token: () => "t" })} shell={shell} />);
+  render(<SettingsDevices store={store} api={createApi({ fetch: offline, token: () => "t" })} />);
   expect(await screen.findByText("Needs a connection to list devices.")).toBeInTheDocument();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
@@ -86,7 +77,7 @@ test("a revoke that fails offline does alert: the person tapped something", asyn
     new URL(String(input), "http://x").pathname.includes("/revoke")
       ? Promise.reject(new TypeError("Failed to fetch"))
       : fetchFake(input, init);
-  render(<Settings store={store} api={createApi({ fetch: droppedFetch, token: () => "t" })} shell={shell} />);
+  render(<SettingsDevices store={store} api={createApi({ fetch: droppedFetch, token: () => "t" })} />);
 
   const list = await screen.findByRole("list", { name: "Your devices" });
   await user.click(within(list).getAllByRole("button", { name: "Revoke" })[1]!);
