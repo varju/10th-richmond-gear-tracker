@@ -12,8 +12,9 @@ tickets, and check gear out and in. It tells you about a clash the way the app d
 
 ## What it will not do
 
-Nothing an Admin does: no people, no locations, no settings, no printing codes. It also needs a connection, so it is no
-use in the yard.
+For a User, nothing an Admin does. If you are an Admin, that work is here too: people, mail, group settings, locations,
+categories, printing codes, importing a CSV, deleting an item, and merging duplicates. It refuses anyone else the same
+way the app does. It also needs a connection, so it is no use in the yard.
 
 ## Revoke it
 

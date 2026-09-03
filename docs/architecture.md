@@ -729,8 +729,14 @@ live in `views.py`, a Python twin of the client's `inventory`, `reservations`, `
 the reply, so `conflicts` gets a Python twin with shared vectors under `vectors/reservations/`, the same arrangement as
 replay. A reservation tool that hits a clash refuses to save and names it, exactly as the app does.
 
-**What is not there.** Nothing an Admin does. The app gates locations to Admins, so MCP does too, though the server
-would let a device write them.
+**An Admin's token unlocks an Admin's work too** (FR-MCP-10): users, mail, group settings, locations, categories,
+printed codes, CSV import, deleting an item, and merging duplicates. Each tool calls the same accounts.py, mail.py,
+codes.py or inventory_csv.py function the app's own endpoint calls, so there is no second write path for these either.
+Most of that reuse also gets the refusal for free: `accounts._require_admin` is the same "Admins only" the endpoint
+raises. Locations and categories are the exception — the sync layer does not gate `location` or `category` events by
+role the way it gates `setting`, so a device could in principle write them; the app keeps them to Admins only in the
+browser, and the MCP tools call `accounts._require_admin` themselves to hold the same line the app draws, not one the
+server enforces underneath them.
 
 ## Public pages
 

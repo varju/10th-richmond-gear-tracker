@@ -58,6 +58,17 @@ The vertical slice is built. What is left needs a phone.
       that names the item, or its generic, and has not ended: event, dates, each a link to the reservation. Nothing
       shown when there are none. `get_item` reports the same.
 
+- [ ] Near clashes (FR-RES-19). On the reservation page and in the form, an item or generic line another reservation
+      names within seven days either side carries a muted note: "Also Fall Camp, 2 to 4 Oct". Overlaps stay blocked as
+      today (FR-RES-05); this is the hint before the block. Twin the date window in `reservations.ts` and `views.py`.
+
+### Sync
+
+- [ ] A rejected record is invisible. Today the server answers with the reason and the client drops the record from
+      replay with no word, so a refused edit looks like a revert. Server: log each rejection at warning with event id,
+      type, device and reason. Client: Settings shows "N records the server refused" above Your devices, each with its
+      reason and a way to discard it.
+
 ### Item page
 
 - [ ] "Mark missing…" and "Delete for good…" leave the item page's footer and sit at the bottom of the Edit screen,
