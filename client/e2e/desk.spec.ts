@@ -16,14 +16,14 @@ async function signIn(page: Page) {
 test("the sections stay beside the screen, and home opens on what needs a person", async ({ page }) => {
   await signIn(page);
   const sections = page.getByRole("navigation", { name: "Sections" });
-  await expect(sections.getByRole("button", { name: /^Inventory · \d+/ })).toBeVisible();
+  await expect(sections.getByRole("button", { name: "All items" })).toBeVisible();
   await expect(sections.getByRole("button", { name: "Help" })).toBeVisible();
 
   for (const heading of ["Needs attention", "What is out", "Coming up"]) {
     await expect(page.getByRole("heading", { name: heading })).toBeVisible();
   }
 
-  await sections.getByRole("button", { name: /^Inventory/ }).click();
+  await sections.getByRole("button", { name: "All items" }).click();
   await expect(page).toHaveURL(/\/items$/);
   // Every screen keeps them.
   await expect(sections.getByRole("button", { name: "Help" })).toBeVisible();

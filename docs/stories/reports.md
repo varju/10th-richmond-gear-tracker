@@ -23,12 +23,11 @@ Covers: FR-OUT-14, FR-RPT-05
 
 ## S-RPT-03 Find things before camp
 
-A Scouter filters the inventory to tents that are in, then browses the Warm locker shelf by shelf.
+A Scouter filters the inventory to tents that are in, narrowed to the Warm locker.
 
 - Filter by category, location, shelf, and status
-- Browse by location to see what belongs where
 
-Covers: FR-INV-08, FR-INV-10
+Covers: FR-INV-08
 
 ## S-RPT-04 A stock check
 

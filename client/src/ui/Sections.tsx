@@ -1,10 +1,10 @@
 import { openConflicts } from "../lib/conflicts";
 import { foundReports } from "../lib/found";
-import { countItems, items, rows } from "../lib/inventory";
+import { items } from "../lib/inventory";
 import type { State } from "../lib/replay";
 import { openTickets } from "../lib/repairs";
 import { outCount } from "../lib/reports";
-import { todayIso, upcoming } from "../lib/reservations";
+import { upcoming } from "../lib/reservations";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useShell } from "../shell";
@@ -38,7 +38,7 @@ function alertLinks(state: State): Link[] {
   ];
 }
 
-/** The read-mostly lists: what is out, what needs fixing, what is coming up. Shared by the sidebar and the Reports page. */
+/** The read-mostly lists on the Reports page: what is out, what needs fixing, what is coming up. */
 export function reportLinks(state: State, today: string): Link[] {
   const out = outCount(state);
   const broken = openTickets(state).length;
@@ -56,63 +56,58 @@ export function Alerts({ store }: { store: Store }) {
   return <Links links={alertLinks(store.state)} />;
 }
 
+/** Everywhere the app goes, no counts: shared by the phone's menu and the desk's sidebar. */
+function menuLinks(state: State, admin: boolean, empty: boolean, stockCheck: boolean): Link[] {
+  return [
+    { label: "Home", path: "/" },
+    { label: "All items", path: "/items" },
+    { label: "Reports", path: "/reports" },
+    { label: "Reservations", path: "/reservations" },
+    ...(empty ? [] : [{ label: stockCheck ? "Stock check · in progress" : "Stock check", path: "/stock-check" }]),
+    ...(admin ? [{ label: "Users", path: "/settings/users" }] : []),
+    { label: "Settings", path: "/settings" },
+    { label: "Help", path: "/help" },
+  ];
+}
+
 /**
  * Everywhere else the app goes, so nothing is reachable only by knowing it is
- * there. One component, two layouts: the phone's full-screen menu, a sidebar
+ * there. One list, two layouts: the phone's full-screen menu, and a sidebar
  * beside every desk screen.
  */
 export function Sections({ store, layout }: Props) {
   useStore(store);
-  const { now, signOut } = useShell();
+  const { signOut } = useShell();
   const state = store.state;
   const empty = items(state).length === 0;
   const admin = store.meta.user?.role === "admin";
   const sidebar = layout === "sidebar";
   const pending = store.pending.length;
+  const links = menuLinks(state, admin, empty, Boolean(store.meta.stock_check));
+
+  const signOutRow = (
+    <>
+      <button
+        className="link"
+        type="button"
+        onClick={() => void signOut()}
+        disabled={pending > 0}
+        title={pending > 0 ? "Send your unsent records first" : ""}
+      >
+        Sign out
+      </button>
+      {pending > 0 && <p className="muted small">Sign out after your unsent records are sent.</p>}
+    </>
+  );
 
   if (!sidebar) {
-    const links: Link[] = [
-      { label: "All items", path: "/items" },
-      { label: "Reports", path: "/reports" },
-      ...(empty
-        ? []
-        : [
-            { label: store.meta.stock_check ? "Stock check · in progress" : "Stock check", path: "/stock-check" },
-            { label: "Browse by location", path: "/locations" },
-          ]),
-      ...(admin ? [{ label: "Users", path: "/settings/users" }] : []),
-      { label: "Settings", path: "/settings" },
-      { label: "Help", path: "/help" },
-    ];
     return (
       <nav className="links menu" aria-label="Menu">
         <Links links={links} />
-        <button
-          className="link"
-          type="button"
-          onClick={() => void signOut()}
-          disabled={pending > 0}
-          title={pending > 0 ? "Send your unsent records first" : ""}
-        >
-          Sign out
-        </button>
-        {pending > 0 && <p className="muted small">Sign out after your unsent records are sent.</p>}
+        {signOutRow}
       </nav>
     );
   }
-
-  const links: Link[] = [
-    { label: `Inventory · ${countItems(rows(state, {}))}`, path: "/items" },
-    ...reportLinks(state, todayIso(now())),
-    ...(empty
-      ? []
-      : [
-          { label: "Browse by location", path: "/locations" },
-          { label: store.meta.stock_check ? "Stock check · in progress" : "Stock check", path: "/stock-check" },
-        ]),
-    ...(admin ? [{ label: "Users", path: "/settings/users" }] : []),
-    { label: "Settings", path: "/settings" },
-  ];
 
   const alerts = alertLinks(state);
   return (
@@ -123,10 +118,7 @@ export function Sections({ store, layout }: Props) {
         </div>
       )}
       <Links links={links} />
-      {/* The guide sits at the foot, out of the way of the day's work (NFR-USE-11). */}
-      <div className="sidebar-foot">
-        <Links links={[{ label: "Help", path: "/help" }]} />
-      </div>
+      {signOutRow}
     </nav>
   );
 }

@@ -57,7 +57,6 @@ test("the main screens have no WCAG 2.2 AA violations", async ({ page }) => {
     ["/reservations/new", "New reservation"],
     ["/repairs", "Needs repair"],
     ["/out", "What is out"],
-    ["/locations", "Locations"],
   ] as const) {
     await page.goto(path);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(heading);

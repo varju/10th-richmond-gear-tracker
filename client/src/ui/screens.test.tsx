@@ -468,10 +468,11 @@ test("the menu reaches every section, users included", async () => {
   await user.click(screen.getByRole("button", { name: "Menu" }));
   const sections = within(screen.getByRole("navigation", { name: "Menu" })).getAllByRole("button");
   expect(sections.map((b) => b.textContent)).toEqual([
+    "Home",
     "All items",
     "Reports",
+    "Reservations",
     "Stock check",
-    "Browse by location",
     "Users",
     "Settings",
     "Help",
@@ -485,6 +486,38 @@ test("the menu reaches every section, users included", async () => {
   await user.click(screen.getByRole("button", { name: "Menu" }));
   await user.click(screen.getByRole("button", { name: "All items" }));
   expect(location.pathname).toBe("/items");
+});
+
+test("the menu opens from any screen, not only Home, and lists Home first", async () => {
+  await fixture();
+  navigate("/repairs");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Menu" }));
+  const sections = within(screen.getByRole("navigation", { name: "Menu" })).getAllByRole("button");
+  expect(sections[0]!.textContent).toBe("Home");
+
+  await user.click(screen.getByRole("button", { name: "Home" }));
+  expect(location.pathname).toBe("/");
+  // The link landed with the menu closed, not still open over the home screen.
+  expect(screen.queryByRole("navigation", { name: "Menu" })).not.toBeInTheDocument();
+});
+
+test("the title is a link home, on every screen", async () => {
+  await fixture();
+  navigate("/repairs");
+  mount();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Needs repair");
+  await userEvent.setup().click(screen.getByRole("button", { name: "Needs repair" }));
+  expect(location.pathname).toBe("/");
+});
+
+test("the Locations pages are gone", async () => {
+  await fixture();
+  navigate("/locations");
+  mount();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Not found");
+  expect(screen.getByText("Nothing lives at /locations.")).toBeInTheDocument();
 });
 
 test("Sign out in the menu is blocked while records are unsent", async () => {
@@ -636,7 +669,7 @@ test("printing posts the sheet count with the bearer token, under the app's base
   const user = userEvent.setup();
   await user.clear(screen.getByLabelText("Sheets"));
   await user.type(screen.getByLabelText("Sheets"), "3");
-  await user.click(screen.getByRole("button", { name: "Print codes" }));
+  await user.click(within(screen.getByRole("main")).getByRole("button", { name: "Print codes" }));
 
   expect(await screen.findByRole("link", { name: "Download codes.pdf" })).toHaveAttribute("href", "blob:codes");
   expect(opened).toEqual(["blob:codes"]);
@@ -654,7 +687,7 @@ test("a refused print shows the server's message", async () => {
       : offline();
   navigate("/settings/codes");
   mount(refusing);
-  await userEvent.setup().click(screen.getByRole("button", { name: "Print codes" }));
+  await userEvent.setup().click(within(screen.getByRole("main")).getByRole("button", { name: "Print codes" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("admins only");
 });
 
@@ -698,17 +731,17 @@ test("the list keeps its search in the URL, and back brings the list back as it 
   expect(screen.getByLabelText("Search")).toHaveValue("shelf");
 });
 
-test("back from an item returns to the location it was opened from", async () => {
+test("back from an item returns to the list it was opened from", async () => {
   const f = await fixture();
-  navigate(`/locations/${f.cold}`);
+  navigate("/items");
   mount();
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: /Tent 1/ }));
   expect(location.pathname).toBe(`/items/${f.t1}`);
 
   await user.click(screen.getByRole("button", { name: "Back" }));
-  expect(location.pathname).toBe(`/locations/${f.cold}`);
-  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Cold locker");
+  expect(location.pathname).toBe("/items");
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Inventory");
 });
 
 test("back from an item returns to the what-is-out report", async () => {

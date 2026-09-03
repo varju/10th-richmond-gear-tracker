@@ -305,23 +305,6 @@ test("missing is a field, filterable, and does not change status (FR-INV-19)", a
   expect(store.pending.length).toBe(before);
 });
 
-test("a location is browsed shelf by shelf, no shelf last, retired gear left out (FR-INV-10)", async () => {
-  const f = await fixture();
-  const bag = await act.createItem(store, { name: "Bag", home_location_id: f.cold, sub_location: "" });
-  await act.createItem(store, { name: "Axe", home_location_id: f.cold, sub_location: "bin 1" });
-  const old = await act.createItem(store, { name: "Old tent", home_location_id: f.cold, sub_location: "shelf 4" });
-  await act.retireItem(store, old);
-  expect(inv.bySubLocation(store.state, f.cold).map((s) => [s.sub_location, s.items.map((i) => i.name)])).toEqual([
-    ["bin 1", ["Axe"]],
-    ["shelf 4", ["Tent 1", "Tent 2"]],
-    ["", ["Bag"]],
-  ]);
-  expect(inv.atLocation(store.state, f.cold).map((i) => i.id)).toContain(bag);
-  expect(inv.bySubLocation(store.state, f.warm).map((s) => [s.sub_location, s.items.map((i) => i.name)])).toEqual([
-    ["", ["Stove"]],
-  ]);
-});
-
 test("the price is stored to the cent, and blank is no price (FR-INV-12)", async () => {
   const id = await act.createItem(store, {
     name: "Stove",

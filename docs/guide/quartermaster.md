@@ -67,7 +67,7 @@ Add photos on an item's page and on a repair ticket. They need a connection, and
 ## Locations and categories
 
 Add, rename and delete locations and categories in Settings. One in use will not delete; the message names what is still
-there. Browse by location walks a locker shelf by shelf.
+there.
 
 ## Export and import
 

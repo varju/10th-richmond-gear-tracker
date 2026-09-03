@@ -20,7 +20,6 @@ import { Home } from "./ui/Home";
 import { InstallPrompt } from "./ui/InstallPrompt";
 import { Inventory } from "./ui/Inventory";
 import { ItemTable } from "./ui/ItemTable";
-import { LocationPage, Locations } from "./ui/Locations";
 import { ItemPage } from "./ui/ItemPage";
 import { Join } from "./ui/Join";
 import { LeaveDialog } from "./ui/LeaveDialog";
@@ -156,7 +155,7 @@ export function App({ store, api, now = Date.now }: Props) {
     return <SignIn store={store} api={api} onSignedIn={runSync} />;
   }
 
-  const shell: Shell = { busy, outcome, now, sync: runSync, signOut, api };
+  const shell: Shell = { busy, outcome, now, sync: runSync, signOut, api, store };
   const pending = store.pending;
   const stale = pending.filter((e) => e.occurred_at < now() - STALE_PENDING_MS);
   return (
@@ -238,8 +237,6 @@ function Screen({
       return <Help />;
     case "conflicts":
       return <Conflicts store={store} />;
-    case "locations":
-      return second ? <LocationPage store={store} id={second} /> : <Locations store={store} />;
     case "stock-check":
       return <StockCheck store={store} />;
     case "repairs":

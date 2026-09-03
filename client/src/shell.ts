@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type { Api } from "./lib/api";
+import type { Store } from "./lib/store";
 import type { SyncOutcome } from "./lib/sync";
 
 /** What every screen may need from the app around it. */
@@ -12,6 +13,8 @@ export interface Shell {
   signOut: () => Promise<void>;
   /** For the few screens that talk to the server directly, such as photos. Absent means offline. */
   api?: Api;
+  /** Absent before sign-in: the public sticker page runs with no app around it. */
+  store?: Store;
 }
 
 export const ShellContext = createContext<Shell>({

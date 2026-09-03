@@ -90,22 +90,22 @@ const cells = (row: HTMLElement) =>
     .getAllByRole("cell")
     .map((c) => c.textContent);
 
-test("the sidebar carries every section, with Help at its foot", async () => {
+test("the sidebar carries every section, no counts", async () => {
   await fixture();
   mount();
   expect(sidebar().map((b) => b.textContent)).toEqual([
-    "Inventory · 4",
-    "What is out",
-    "Needs repair",
-    "Reservations · 0 upcoming",
-    "Browse by location",
+    "Home",
+    "All items",
+    "Reports",
+    "Reservations",
     "Stock check",
     "Users",
     "Settings",
     "Help",
+    "Sign out",
   ]);
 
-  await userEvent.setup().click(screen.getByRole("button", { name: "Inventory · 4" }));
+  await userEvent.setup().click(screen.getByRole("button", { name: "All items" }));
   expect(location.pathname).toBe("/items");
   // Every desk screen keeps the sections beside it.
   expect(sidebar()).not.toHaveLength(0);
@@ -205,7 +205,7 @@ test("the inventory is a table, sortable, its units always shown under their gen
   expect(names()).toEqual(["Tent 1", "Stove", "3x3 tarp", "3x3 tarp #1", "3x3 tarp #2"]);
   expect(screen.getByRole("columnheader", { name: /Name/ })).toHaveAttribute("aria-sort", "descending");
 
-  await user.click(screen.getByRole("button", { name: /^Home/ }));
+  await user.click(within(screen.getByRole("table")).getByRole("button", { name: /^Home/ }));
   expect(screen.getByRole("columnheader", { name: /Home/ })).toHaveAttribute("aria-sort", "ascending");
 });
 
@@ -294,8 +294,9 @@ test("the table's search, filter and sort live in the URL, and back brings them 
   const user = userEvent.setup();
 
   await user.type(screen.getByLabelText("Search"), "t");
-  await user.click(screen.getByRole("button", { name: /^Home/ }));
-  await user.click(screen.getByRole("button", { name: /^Home/ }));
+  const table = within(screen.getByRole("table"));
+  await user.click(table.getByRole("button", { name: /^Home/ }));
+  await user.click(table.getByRole("button", { name: /^Home/ }));
   await user.selectOptions(screen.getByLabelText("Location"), f.cold);
   expect(location.pathname + location.search).toBe(`/items?q=t&location=${f.cold}&sort=home&dir=down`);
 

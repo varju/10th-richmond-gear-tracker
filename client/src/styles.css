@@ -51,6 +51,16 @@ header h1 {
   text-transform: uppercase;
 }
 
+/* The title, styled as the h1 it sits in; tapping it goes home. */
+button.title {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
 main {
   flex: 1;
   padding: 16px;
@@ -1130,8 +1140,16 @@ h3.section.small {
   border-right: 1px solid var(--rule);
 }
 
+.menu button.link,
 .sidebar button.link {
   text-align: left;
+}
+
+/* The phone menu reads like a settings list: one row per line, ruled apart. */
+.menu button.link {
+  width: 100%;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule);
 }
 
 /* Things wrong, above the day's work and ruled off from it. */
@@ -1143,11 +1161,6 @@ h3.section.small {
   margin-bottom: 8px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--rule);
-}
-
-.sidebar-foot {
-  margin-top: auto;
-  padding-top: 16px;
 }
 
 /* What needs a person, each row a count and a way in. */

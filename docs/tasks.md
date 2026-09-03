@@ -39,18 +39,6 @@ The vertical slice is built. What is left needs a phone.
 From using the app at 10thrichmond.ca/gear. Fixes first, then wording, then the screens. Answers to the open questions
 are folded into each task.
 
-### Navigation
-
-- [ ] One header on every screen, phone and desk: back where there is a step back, the title, and the menu button. The
-      menu opens from any screen, not only Home. Home is its first entry, and tapping the title also goes home.
-- [ ] The phone menu and the desk sidebar share one list, with no counts: Home, All items, Reports, Reservations, Stock
-      check, Users (Admins), Settings, Help, Sign out. What is out and Needs repair stay inside Reports.
-- [ ] Menu rows read like a settings list: left-aligned, full width, one per line, a rule between. `button.link` centres
-      its text unless told otherwise; the sidebar already sets `text-align: left`.
-- [ ] Delete the Locations pages and the `/locations` routes. Move FR-INV-10 to Won't, replaced by the location and
-      shelf filters on All items. Drop "Browse by location" from the guide (scouter.md, quartermaster.md) and
-      stories/reports.md.
-
 ### History and repairs
 
 - [ ] History lists newest first, so a new note lands at the top while Add note sits at the foot. Add note moves to just

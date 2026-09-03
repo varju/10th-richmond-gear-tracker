@@ -390,28 +390,6 @@ export function subLocations(state: State, locationId?: string): string[] {
   return [...seen].sort();
 }
 
-/** Live items whose home is this location, for browsing (FR-INV-10). Generics do not sit on a shelf. */
-export const atLocation = (state: State, locationId: string): Item[] =>
-  movable(state).filter((it) => !it.retired && it.home_location_id === locationId);
-
-export interface Shelf {
-  /** Empty for items with no shelf. */
-  sub_location: string;
-  items: Item[];
-}
-
-/** What belongs on each shelf (FR-INV-10). Shelves by name; items with none last. */
-export function bySubLocation(state: State, locationId: string): Shelf[] {
-  const groups = new Map<string, Item[]>();
-  for (const it of atLocation(state, locationId)) {
-    const key = it.sub_location ?? "";
-    groups.set(key, [...(groups.get(key) ?? []), it]);
-  }
-  return [...groups.entries()]
-    .sort(([a], [b]) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)))
-    .map(([sub_location, list]) => ({ sub_location, items: list.sort(byName(state)) }));
-}
-
 /** Items that stop a location being deleted (FR-SET-05). Retired items count: they can come back. */
 export function blockers(state: State, locationId: string): Item[] {
   return items(state)
