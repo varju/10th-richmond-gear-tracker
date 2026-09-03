@@ -60,12 +60,6 @@ export function Settings({ store, shell }: Props) {
           Assistant
         </button>
       </nav>
-      {/* The only way in to the guide (NFR-USE-11). */}
-      <nav className="links" aria-label="Guide">
-        <button className="link" type="button" onClick={() => navigate("/help")}>
-          Help
-        </button>
-      </nav>
       <p className="muted small">
         <a href="https://github.com/varju/10th-richmond-gear-tracker">Source</a>
       </p>

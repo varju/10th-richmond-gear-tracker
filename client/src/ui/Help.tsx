@@ -8,7 +8,7 @@ import { Page } from "./Page";
  */
 export function Help() {
   return (
-    <Page title="Help" back="/settings">
+    <Page title="Help" back="/">
       {sections.length === 0 && <p>No guide was built into this copy.</p>}
       {sections.map((section) => (
         <section key={section.id} aria-labelledby={section.id}>

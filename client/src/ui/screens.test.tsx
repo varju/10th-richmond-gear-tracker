@@ -691,12 +691,12 @@ test("a refused print shows the server's message", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("admins only");
 });
 
-test("the Help link in Settings opens the guide (NFR-USE-11)", async () => {
-  navigate("/settings");
+test("Help opened cold goes home on back, not to Settings (NFR-USE-11)", async () => {
+  navigate("/help");
   mount();
-  await userEvent.setup().click(screen.getByRole("button", { name: "Help" }));
-  expect(location.pathname).toBe("/help");
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Help");
+  await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
+  expect(location.pathname).toBe("/");
 });
 
 test("the guide is the compiled markdown, with contents that reach each task", async () => {
