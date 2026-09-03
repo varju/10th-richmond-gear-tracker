@@ -39,11 +39,13 @@ import {
   search,
   unitsOf,
 } from "../lib/inventory";
+import { itemReservations } from "../lib/itemReservations";
 import { checkInPool, checkOutPool, type HistoryEntry, recount } from "../lib/movement";
 import { openRepairs, raiseTicket, type Repair, repairsFor, stateLabel } from "../lib/repairs";
 import { type Log, useRecord } from "../lib/record";
 import type { Note, State } from "../lib/replay";
 import { isOverdue } from "../lib/reports";
+import { todayIso } from "../lib/reservations";
 import { navigate, useRoute } from "../lib/router";
 import { timeline, type TimelineEntry } from "../lib/timeline";
 import type { Store } from "../lib/store";
@@ -57,6 +59,7 @@ import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
 import { AddNote, NoteLine, NoteList } from "./Notes";
 import { Page } from "./Page";
 import { Photos } from "./Photos";
+import { datesLabel } from "./Reservations";
 
 interface Props {
   store: Store;
@@ -69,7 +72,6 @@ export function ItemPage({ store, id }: Props) {
   const { now, api } = useShell();
   const openInEdit = useRoute().query.get("edit") === "1";
   const [editing, setEditing] = useState(openInEdit);
-  const [confirmMissing, setConfirmMissing] = useState(false);
   const [merging, setMerging] = useState(false);
   const [grouping, setGrouping] = useState(false);
   const [moving, setMoving] = useState(false);
@@ -221,15 +223,7 @@ export function ItemPage({ store, id }: Props) {
     );
   }
 
-  // Lost, not written off (FR-INV-19). The next scan or check-in clears it.
-  async function missing() {
-    if (!confirmMissing) {
-      setConfirmMissing(true);
-      return;
-    }
-    await markMissing(store, id);
-    setConfirmMissing(false);
-  }
+  const reserved = itemReservations(state, it, todayIso(now()));
 
   return (
     <Page
@@ -249,12 +243,6 @@ export function ItemPage({ store, id }: Props) {
           <button type="button" onClick={() => navigate(`/scan?for=${id}`)}>
             {current ? "Replace QR code" : "Add QR code"}
           </button>
-          {/* Retiring is rare and lives at the foot of Edit. Missing is not: gear goes astray weekly. */}
-          {!it.retired && !it.missing && (
-            <button type="button" className={confirmMissing ? "warn" : ""} onClick={missing}>
-              {confirmMissing ? "Really missing?" : "Mark missing"}
-            </button>
-          )}
           {it.parent_id && !it.retired && (
             <button type="button" onClick={() => setMoving(true)}>
               Move to another generic…
@@ -273,7 +261,6 @@ export function ItemPage({ store, id }: Props) {
               This is a duplicate record…
             </button>
           )}
-          <DeleteItem store={store} it={it} />
         </>
       }
     >
@@ -319,6 +306,23 @@ export function ItemPage({ store, id }: Props) {
           <dl className="facts">
             <dt>Status</dt>
             <dd>{statusLabel(state, it) + (isOverdue(state, it, now()) ? " · Overdue" : "")}</dd>
+            {reserved.length > 0 && (
+              <>
+                <dt>Reserved</dt>
+                {/* One line per camp, each a tap away, so packing for it starts from here (FR-INV-37). */}
+                {reserved.map((r) => (
+                  <dd key={r.id}>
+                    <button
+                      className="link"
+                      type="button"
+                      onClick={() => guard(() => navigate(`/reservations/${r.id}`))}
+                    >
+                      {r.event} · {datesLabel(r)}
+                    </button>
+                  </dd>
+                ))}
+              </>
+            )}
             <dt>Home</dt>
             <dd>{homeLabel(state, it) || "—"}</dd>
             {categoriesOf(state, it).length > 0 && (
@@ -429,6 +433,32 @@ function DeleteItem({ store, it }: { store: Store; it: Item }) {
   return (
     <button type="button" className={asked ? "warn" : ""} onClick={() => void remove()}>
       {asked ? "Really delete? This cannot be undone" : "Delete for good…"}
+    </button>
+  );
+}
+
+/**
+ * Lost, not written off (FR-INV-19). The next scan or check-in clears it.
+ * Any signed-in user, not just an Admin: gear goes astray weekly, unlike
+ * Delete and Retire. Two taps, like them, and it leaves Edit once marked so
+ * the badge shows straight away.
+ */
+function MarkMissing({ store, it, onDone }: { store: Store; it: Item; onDone: () => void }) {
+  const [asked, setAsked] = useState(false);
+  if (it.generic || isPool(it) || it.retired || it.missing) return null;
+
+  async function mark() {
+    if (!asked) {
+      setAsked(true);
+      return;
+    }
+    await markMissing(store, it.id);
+    onDone();
+  }
+
+  return (
+    <button type="button" className={asked ? "warn" : ""} onClick={() => void mark()}>
+      {asked ? "Really missing?" : "Mark missing"}
     </button>
   );
 }
@@ -1038,6 +1068,9 @@ function EditItem({
           ? "A generic can be retired once every unit is (FR-INV-27)."
           : "A retired item keeps its record and its history, but drops off the list and cannot be checked out."}
       </p>
+      {/* Everyday actions live in the footer; these two are rare, so they sit here instead. */}
+      <MarkMissing store={store} it={it} onDone={onDone} />
+      <DeleteItem store={store} it={it} />
     </Page>
   );
 }
@@ -1084,7 +1117,6 @@ function PoolPage({
           <button type="button" onClick={onEdit}>
             Edit
           </button>
-          <DeleteItem store={store} it={it} />
         </>
       }
     >
@@ -1347,7 +1379,6 @@ function GenericPage({
               {confirmSingle ? "Really make it a single item?" : "Make this a single item…"}
             </button>
           )}
-          <DeleteItem store={store} it={it} />
         </>
       }
     >

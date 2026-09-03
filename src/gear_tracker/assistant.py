@@ -323,6 +323,27 @@ def _reservation_brief(state: dict[str, Any], r: dict[str, Any]) -> dict[str, An
     return out
 
 
+def _item_reservations(state: dict[str, Any], it: dict[str, Any]) -> list[dict[str, Any]]:
+    """Live reservations naming this item today or later (FR-INV-37).
+
+    By its own id, by its own line in `generics` (a generic or a pool,
+    FR-RES-13), or, for a unit, by its parent generic's line.
+    """
+    today = views.today(now_ms())
+    generic_id = it.get("parent_id") or it["id"]
+    found = []
+    for r in views.reservations(state):
+        if (r.get("ends") or "") < today:
+            continue
+        by_name = it["id"] in views.named_items(state, r)
+        by_generic = any(line["item_id"] == generic_id for line in r.get("generics") or [])
+        if by_name or by_generic:
+            found.append(
+                {"reservation_id": r["id"], "event": r.get("event"), "starts": r.get("starts"), "ends": r.get("ends")}
+            )
+    return found
+
+
 def _history(conn: sqlite3.Connection, state: dict[str, Any], item_id: str) -> list[dict[str, Any]]:
     """The item's last few movements, newest first (FR-INV-09). A merged duplicate's movements come too."""
     ids = views.aliases(state, item_id)
@@ -404,9 +425,7 @@ def get_item(item_id: str) -> dict[str, Any]:
             if code_id:
                 out["code"] = code_id
         out["open_tickets"] = [_ticket_brief(state, t) for t in views.repairs_for(state, it["id"]) if views.is_open(t)]
-        out["reservations"] = [
-            _reservation_brief(state, r) for r in views.reservations(state) if it["id"] in views.named_items(state, r)
-        ]
+        out["reservations"] = _item_reservations(state, it)
         out["history"] = [] if it.get("generic") else _history(conn, state, it["id"])
         out["notes"] = [
             {"text": note["text"], "by": views.user_name(state, note.get("actor_id")), "at": views.iso(note.get("at"))}

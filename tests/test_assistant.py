@@ -645,6 +645,33 @@ def test_a_generic_over_stock_clashes_on_the_way_in(tools):
     assert "we have 3" in over["clashes"][0]["detail"]
 
 
+def test_get_item_lists_its_upcoming_reservations(tools):
+    """Named directly, named through a generic line, cancelled, or ended (FR-INV-37, FR-RES-13)."""
+    named = assistant.create_reservation(**FALL, items=[tools["stove"]])["reservation_id"]
+    by_generic = assistant.create_reservation(
+        event="Spring camp",
+        starts="2026-11-01",
+        ends="2026-11-03",
+        generics=[{"item_id": tools["tents"], "quantity": 1}],
+    )["reservation_id"]
+    cancelled = assistant.create_reservation(
+        event="Cub camp", starts="2026-12-01", ends="2026-12-03", items=[tools["stove"]]
+    )["reservation_id"]
+    assistant.cancel_reservation(cancelled)
+    assistant.create_reservation(event="Last spring", starts="2020-04-01", ends="2020-04-03", items=[tools["stove"]])
+
+    assert assistant.get_item(tools["stove"])["reservations"] == [
+        {"reservation_id": named, "event": "Fall Camp", "starts": "2026-10-02", "ends": "2026-10-04"}
+    ]
+
+    # A generic's line reserves the type, not one particular unit: every unit sees it.
+    assert [r["reservation_id"] for r in assistant.get_item(tools["t1"])["reservations"]] == [by_generic]
+    assert [r["reservation_id"] for r in assistant.get_item(tools["t2"])["reservations"]] == [by_generic]
+    assert assistant.get_item(tools["tents"])["reservations"] == [
+        {"reservation_id": by_generic, "event": "Spring camp", "starts": "2026-11-01", "ends": "2026-11-03"}
+    ]
+
+
 def test_moving_the_dates_onto_another_camp_is_refused(tools):
     assistant.create_reservation(**FALL, items=[tools["stove"]])
     later = assistant.create_reservation(

@@ -6,6 +6,7 @@ import { DAY_MS } from "../lib/clock";
 import { currentCode, generics, item, nameOf, unitsOf } from "../lib/inventory";
 import * as mv from "../lib/movement";
 import * as rep from "../lib/repairs";
+import * as res from "../lib/reservations";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { unsaved } from "../lib/unsaved";
@@ -198,21 +199,27 @@ test("closed tickets stay on the item, after the open ones (FR-REP-04)", async (
   ]);
 });
 
-test("marking an item missing takes two taps and flags it without moving it (FR-INV-19)", async () => {
+test("marking an item missing takes two taps from Edit, and flags it without moving it (FR-INV-19)", async () => {
   await mv.checkOut(store, tent);
   renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Edit" }));
   await user.click(screen.getByRole("button", { name: "Mark missing" }));
   expect(item(store.state, tent)?.missing).toBeUndefined();
   await user.click(screen.getByRole("button", { name: "Really missing?" }));
 
+  // Marking it leaves Edit, so the badge shows straight away.
   expect(await screen.findByText("Missing", { selector: ".badge" })).toBeInTheDocument();
   expect(screen.getByRole("note")).toHaveTextContent("Missing. Scanning it or returning it clears this.");
-  expect(screen.queryByRole("button", { name: "Mark missing" })).not.toBeInTheDocument();
   expect(item(store.state, tent)).toMatchObject({ status: "out", missing: true });
   expect(store.pending.at(-1)).toMatchObject({
     type: "field_changed",
     payload: { field: "missing", value: true, old: null },
   });
+
+  // Already missing: Edit does not offer it again.
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  expect(screen.queryByRole("button", { name: "Mark missing" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
 
   // Returning it clears the mark (FR-INV-19).
   await user.click(screen.getByRole("button", { name: "Return" }));
@@ -326,6 +333,35 @@ test("a found report shows on the item until someone resolves it (FR-PUB-03)", a
     type: "field_changed",
     payload: { field: "resolved", value: true },
   });
+});
+
+test("a live reservation naming the item shows under Status, each a link (FR-INV-37)", async () => {
+  const T0 = 1_756_684_800_000; // 2025-09-01
+  const r = await res.createReservation(store, {
+    event: "Fall Camp",
+    starts: "2026-10-02",
+    ends: "2026-10-04",
+    items: [tent],
+    generics: [],
+  });
+  renderInShell(<ItemPage store={store} id={tent} />, () => T0);
+  const line = screen.getByRole("button", { name: "Fall Camp · 2026-10-02 – 2026-10-04" });
+  expect(line.closest("dl")).toBe(screen.getByText("Status").closest("dl"));
+
+  await user.click(line);
+  expect(location.pathname).toBe(`/reservations/${r}`);
+});
+
+test("nothing shows when there is no live reservation for the item (FR-INV-37)", async () => {
+  await res.createReservation(store, {
+    event: "Last spring",
+    starts: "2020-04-01",
+    ends: "2020-04-03",
+    items: [tent],
+    generics: [],
+  });
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(screen.queryByText("Reserved")).not.toBeInTheDocument();
 });
 
 test("what was paid and when shows as one line (FR-INV-12)", async () => {
@@ -506,8 +542,9 @@ test("a group of two needs two different numbers (FR-INV-23, FR-INV-30)", async 
   expect(item(store.state, tent)?.parent_id).toBeUndefined();
 });
 
-test("an Admin deletes a record made in error, in two taps (FR-INV-32)", async () => {
+test("an Admin deletes a record made in error, in two taps from Edit (FR-INV-32)", async () => {
   renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Edit" }));
   await user.click(screen.getByRole("button", { name: "Delete for good…" }));
   expect(item(store.state, tent)?.deleted).toBeUndefined();
 
@@ -531,11 +568,13 @@ test("a deleted item's page says so and offers nothing (FR-INV-32)", async () =>
 test("only an Admin may delete, and only an item that is in (FR-INV-32)", async () => {
   await mv.checkOut(store, tent, {});
   const { unmount } = renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Edit" }));
   expect(screen.queryByRole("button", { name: "Delete for good…" })).not.toBeInTheDocument();
   unmount();
 
   await mv.checkIn(store, tent, {});
   await store.setMeta({ user: carol });
   renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Edit" }));
   expect(screen.queryByRole("button", { name: "Delete for good…" })).not.toBeInTheDocument();
 });

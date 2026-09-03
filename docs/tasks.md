@@ -34,20 +34,6 @@ The vertical slice is built. What is left needs a phone.
 
 - [ ] End-to-end test on a real phone with wifi and data turned off
 
-## M22 — Third round of feedback
-
-### Reservations
-
-- [ ] Item page shows upcoming reservations (FR-INV-37). A "Reserved" block under the status: one line per reservation
-      that names the item, or its generic, and has not ended: event, dates, each a link to the reservation. Nothing
-      shown when there are none. `get_item` reports the same.
-
-### Item page
-
-- [ ] "Mark missing…" and "Delete for good…" leave the item page's footer and sit at the bottom of the Edit screen,
-      below Save, with the same two-tap confirms and the same gating (Admin, in, not retired). The generic page moves
-      its Delete the same way. The footer keeps the everyday actions only.
-
 ## M9 — Go live
 
 First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is
