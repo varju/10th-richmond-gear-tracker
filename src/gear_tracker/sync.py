@@ -119,6 +119,18 @@ def push(conn: sqlite3.Connection, principal: Principal, body: Any, now: int | N
                 principal.device_id,
                 exc.reason,
             )
+        except Exception:
+            # A bad one is a rejection, not a 500 for the whole batch. events.append rolls back
+            # its own work on the way out, so the connection is clean for the next event.
+            rejected.append({"id": incoming.get("id"), "reason": "the server could not store this event"})
+            logger.exception(
+                "event %s (%s on %s/%s) from device %s could not be stored",
+                incoming.get("id"),
+                incoming.get("type"),
+                incoming.get("entity_type"),
+                incoming.get("entity_id"),
+                principal.device_id,
+            )
     return {"accepted": accepted, "rejected": rejected, "log_id": log_id(conn), "server_time": now}
 
 
@@ -137,6 +149,11 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
         raise Rejected("user changes go through the accounts API")
     if entity_type == "setting" and principal.role != "admin":
         raise Rejected("settings are changed by an Admin")
+    if entity_type == "location" and principal.role != "admin":
+        raise Rejected("locations are an Admin's job (FR-SET-05)")
+    if entity_type == "category" and principal.role != "admin" and kind != "created":
+        # Anyone signed in may add a category, same as the item editor (see assistant.add_category).
+        raise Rejected("categories are renamed and deleted by an Admin (FR-SET-05)")
     if entity_type == "item" and kind == "field_changed":
         payload = incoming.get("payload")
         field = payload.get("field") if isinstance(payload, dict) else None
@@ -146,6 +163,8 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
         # A pool has no units (FR-INV-34): moving one under a pool is refused, whether at creation or later.
         if field == "parent_id" and _is_pool(conn, payload.get("value")):
             raise Rejected("a pool has no units (FR-INV-34)")
+        if field == "merged_into" and principal.role != "admin":
+            raise Rejected("items are merged by an Admin (FR-INV-13)")
     if entity_type == "item" and kind == "created":
         payload = incoming.get("payload")
         if isinstance(payload, dict):
@@ -239,7 +258,7 @@ def pull(
         last = conn.execute("SELECT coalesce(max(seq), 0) FROM events").fetchone()[0]
         if cursor > last:
             raise Rebootstrap("cursor is ahead of the log; the database was probably restored from backup")
-        if last > 0:
+        if cursor < last:
             if cursor == 0:
                 base = conn.execute("SELECT min(received_at) FROM events").fetchone()[0]
             else:

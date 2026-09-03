@@ -61,6 +61,22 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 BOM = "\ufeff"
 
+INJECTION_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+"""A leading character a spreadsheet reads as "this cell is a formula" (CWE-1236).
+A stored name starting with one, opened by an Admin, would run as code."""
+
+
+def _safe(text: str) -> str:
+    """`text`, with a leading quote added if it would otherwise be read as a formula."""
+    return f"'{text}" if text.startswith(INJECTION_PREFIXES) else text
+
+
+def _unsafe(text: str) -> str:
+    """Undo `_safe`: drop a leading quote that exists only to defuse the character after it."""
+    if len(text) >= 2 and text[0] == "'" and text[1] in INJECTION_PREFIXES:
+        return text[1:]
+    return text
+
 
 # --- export -------------------------------------------------------------------------------
 
@@ -102,20 +118,20 @@ def _row(state: State, it: dict[str, Any]) -> list[str]:
     return [
         it["id"],
         kind,
-        "" if is_unit else (it.get("name") or ""),
-        (parent or {}).get("name") or "" if is_unit else "",
+        "" if is_unit else _safe(it.get("name") or ""),
+        _safe((parent or {}).get("name") or "") if is_unit else "",
         (it.get("number") or "") if is_unit else "",
-        (it.get("nickname") or "") if is_unit else "",
-        "" if is_unit else "; ".join(views.category_name(state, cid) for cid in views.categories_of(state, it)),
-        views.location_name(state, it.get("home_location_id")),
-        it.get("sub_location") or "",
-        it.get("description") or "",
+        _safe(it.get("nickname") or "") if is_unit else "",
+        "" if is_unit else _safe("; ".join(views.category_name(state, cid) for cid in views.categories_of(state, it))),
+        _safe(views.location_name(state, it.get("home_location_id"))),
+        _safe(it.get("sub_location") or ""),
+        _safe(it.get("description") or ""),
         it.get("purchase_date") or "",
         "" if price is None else str(price),
         "yes" if it.get("retired") else "",
         _code_for(state, it["id"]) or "",
         status,
-        views.user_name(state, it.get("holder_id")) if status == "out" else "",
+        _safe(views.user_name(state, it.get("holder_id"))) if status == "out" else "",
         "" if counts is None else str(counts["owned"]),
         "" if counts is None else str(counts["in"]),
         "" if counts is None else str(sum(o["count"] for o in counts["out"])),
@@ -184,25 +200,44 @@ def plan(state: State, text: str) -> Plan:
     if unknown is not None:
         p.errors.append({"row": 1, "message": f"unknown column {unknown!r}"})
         return p
+    seen_cols: set[str] = set()
+    for name in cols:
+        if name in seen_cols:
+            p.errors.append({"row": 1, "message": f"column {name!r} appears twice"})
+            return p
+        seen_cols.add(name)
     idx = {name: i for i, name in enumerate(cols)}
-    data_rows = [(n, _pad(raw, len(cols))) for n, raw in enumerate(rows[1:], start=2)]
+    data_rows: list[tuple[int, list[str]]] = []
+    for n, raw in enumerate(rows[1:], start=2):
+        padded = _pad(raw, len(cols))
+        if any(cell.strip() for cell in padded):  # a blank line (an Excel trailer, say) is not a row
+            data_rows.append((n, padded))
 
     existing_locations = {loc["name"]: loc["id"] for loc in views.locations(state)}
     existing_categories = {cat["name"]: cat["id"] for cat in views.categories(state)}
     existing_generics = {
-        it["name"]: it["id"] for it in views.items(state) if it.get("generic") and not it.get("merged_into")
+        it["name"]: it["id"]
+        for it in views.items(state)
+        if it.get("generic") and not views.is_pool(it) and not it.get("merged_into")
     }
+    existing_pools = {it["name"] for it in views.items(state) if views.is_pool(it) and not it.get("merged_into")}
 
     # A unit-add row may name a generic that is itself an add elsewhere in the file.
     # A generic row with a quantity becomes a pool (FR-INV-34) and is never a valid parent.
     file_generics: dict[str, list[int]] = {}
+    file_pools: set[str] = set()
     for row_num, vals in data_rows:
         if _cell(vals, idx, "id"):
             continue
-        if (_cell(vals, idx, "kind") or "").lower() == "generic" and not _cell(vals, idx, "quantity"):
+        if (_cell(vals, idx, "kind") or "").lower() == "generic":
             name = _cell(vals, idx, "name")
-            if name:
+            if not name:
+                continue
+            if _cell(vals, idx, "quantity"):
+                file_pools.add(name)
+            else:
                 file_generics.setdefault(name, []).append(row_num)
+    pools = existing_pools | file_pools
 
     used_numbers: dict[str, set[str]] = {
         name: {_number(u) for u in views.units_of(state, gid)} for name, gid in existing_generics.items()
@@ -222,6 +257,7 @@ def plan(state: State, text: str) -> Plan:
                 existing_categories,
                 existing_generics,
                 file_generics,
+                pools,
                 used_numbers,
             )
     return p
@@ -232,9 +268,9 @@ def _pad(row: list[str], width: int) -> list[str]:
 
 
 def _cell(vals: list[str], idx: dict[str, int], name: str) -> str | None:
-    """The cell's text, stripped — or None if the column is not in the header at all."""
+    """The cell's text, stripped and unescaped — or None if the column is not in the header at all."""
     i = idx.get(name)
-    return None if i is None else vals[i].strip()
+    return None if i is None else _unsafe(vals[i].strip())
 
 
 def _number(it: dict[str, Any]) -> str:
@@ -456,25 +492,29 @@ def _plan_add(
     existing_categories: dict[str, str],
     existing_generics: dict[str, str],
     file_generics: dict[str, list[int]],
+    pools: set[str],
     used_numbers: dict[str, set[str]],
 ) -> None:
     kind = (_cell(vals, idx, "kind") or "").lower()
     if not kind:
         p.errors.append({"row": row_num, "message": "kind is required"})
         return
-    if kind not in ("single", "generic", "unit"):
+    if kind not in ("single", "generic", "unit", "pool"):
         p.errors.append({"row": row_num, "message": f"unknown kind {kind!r}"})
         return
 
-    if kind in ("single", "generic"):
+    if kind in ("single", "generic", "pool"):
         name = _cell(vals, idx, "name")
         if not name:
             p.errors.append({"row": row_num, "message": "name is required"})
             return
         quantity_cell = _cell(vals, idx, "quantity")
+        if kind == "pool" and not quantity_cell:
+            p.errors.append({"row": row_num, "message": "quantity is required for a pool"})
+            return
         quantity: int | None = None
         if quantity_cell:
-            if kind != "generic":
+            if kind == "single":
                 p.errors.append(
                     {"row": row_num, "message": "quantity is only for a generic (a pool must be generic, FR-INV-34)"}
                 )
@@ -492,7 +532,7 @@ def _plan_add(
                 return
         payload: dict[str, Any] = {"name": name}
         row_kind = kind
-        if kind == "generic":
+        if kind in ("generic", "pool"):
             payload["generic"] = True
         if quantity is not None:
             payload["pool"] = True
@@ -510,6 +550,9 @@ def _plan_add(
     generic_name = _cell(vals, idx, "generic")
     if not generic_name:
         p.errors.append({"row": row_num, "message": "generic is required"})
+        return
+    if generic_name in pools:
+        p.errors.append({"row": row_num, "message": "a pool has no units (FR-INV-34)"})
         return
     candidates = (1 if generic_name in existing_generics else 0) + len(file_generics.get(generic_name, []))
     if candidates == 0:
@@ -629,46 +672,58 @@ def apply(conn: sqlite3.Connection, text: str, actor_id: str, now: int | None = 
 
     locations = {loc["name"]: loc["id"] for loc in views.locations(state)}
     categories = {cat["name"]: cat["id"] for cat in views.categories(state)}
-    generics = {it["name"]: it["id"] for it in views.items(state) if it.get("generic") and not it.get("merged_into")}
+    generics = {
+        it["name"]: it["id"]
+        for it in views.items(state)
+        if it.get("generic") and not views.is_pool(it) and not it.get("merged_into")
+    }
 
-    for name in p.new_locations:
-        locations[name] = _created(conn, actor_id, "location", {"name": name}, now)
-    for name in p.new_categories:
-        categories[name] = _created(conn, actor_id, "category", {"name": name}, now)
+    # One transaction for the whole file: a failure on any row rolls every earlier
+    # write in this import back too, so a bad row never leaves a half-applied file.
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        for name in p.new_locations:
+            locations[name] = _created(conn, actor_id, "location", {"name": name}, now)
+        for name in p.new_categories:
+            categories[name] = _created(conn, actor_id, "category", {"name": name}, now)
 
-    added = 0
-    for a in p.adds:
-        if a["kind"] != "generic":
-            continue
-        item_id = _created(conn, actor_id, "item", _resolve_payload(a["payload"], locations, categories), now)
-        generics[a["payload"]["name"]] = item_id
-        added += 1
+        added = 0
+        for a in p.adds:
+            if a["kind"] != "generic":
+                continue
+            item_id = _created(conn, actor_id, "item", _resolve_payload(a["payload"], locations, categories), now)
+            generics[a["payload"]["name"]] = item_id
+            added += 1
 
-    for a in p.adds:
-        if a["kind"] == "generic":
-            continue
-        payload = dict(a["payload"])
-        if a["kind"] == "unit":
-            payload["parent_id"] = generics[payload.pop("generic")]
-        _created(conn, actor_id, "item", _resolve_payload(payload, locations, categories), now)
-        added += 1
+        for a in p.adds:
+            if a["kind"] == "generic":
+                continue
+            payload = dict(a["payload"])
+            if a["kind"] == "unit":
+                payload["parent_id"] = generics[payload.pop("generic")]
+            _created(conn, actor_id, "item", _resolve_payload(payload, locations, categories), now)
+            added += 1
 
-    for c in p.changes:
-        for ch in c["changes"]:
-            value = ch["new_raw"]
-            if ch["field"] == "home_location_id" and value is not None:
-                value = locations[value]
-            elif ch["field"] == "category_ids" and value is not None:
-                value = [categories[name] for name in value]
-            events.append_server(
-                conn,
-                actor_id,
-                "item",
-                c["item_id"],
-                "field_changed",
-                {"field": ch["field"], "value": value, "old": ch["old_raw"]},
-                now,
-            )
+        for c in p.changes:
+            for ch in c["changes"]:
+                value = ch["new_raw"]
+                if ch["field"] == "home_location_id" and value is not None:
+                    value = locations[value]
+                elif ch["field"] == "category_ids" and value is not None:
+                    value = [categories[name] for name in value]
+                events.append_server(
+                    conn,
+                    actor_id,
+                    "item",
+                    c["item_id"],
+                    "field_changed",
+                    {"field": ch["field"], "value": value, "old": ch["old_raw"]},
+                    now,
+                )
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
 
     return {
         "added": added,

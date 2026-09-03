@@ -4,7 +4,7 @@
  * syncs afterwards (FR-OFF-03).
  */
 import { seen } from "./actions";
-import { aliases, isPool, item, type Item } from "./inventory";
+import { aliases, isPool, item, type Item, poolCounts } from "./inventory";
 import * as notes from "./notes";
 import type { Log } from "./record";
 import { type Movement, type Note, replayOrder } from "./replay";
@@ -80,6 +80,8 @@ export interface PoolCheckOutOptions extends MoveOptions {
 
 export interface PoolCheckInOptions {
   count: number;
+  /** Return on someone else's behalf (FR-OUT-23). Defaults to the actor when omitted. */
+  holder_id?: string;
   note?: string;
 }
 
@@ -101,11 +103,22 @@ export async function checkOutPool(store: Store, itemId: string, options: PoolCh
   );
 }
 
-/** Return some of a pool (FR-OUT-23): what is left over stays against the holder's name. Anyone can return another's. */
+/**
+ * Return some of a pool (FR-OUT-23): what is left over stays against the holder's name. Anyone
+ * can return another's, named by `holder_id`; it defaults to whoever is signed in. Returning more
+ * than that holder has out would inflate `pool_in` for good (replay floors `pool_out` at zero but
+ * still credits the whole count), so it is refused here instead.
+ */
 export async function checkInPool(store: Store, itemId: string, options: PoolCheckInOptions) {
-  poolItem(store, itemId);
+  const it = poolItem(store, itemId);
   if (!Number.isInteger(options.count) || options.count < 1) throw new Error("pick a count of at least 1");
-  return move(store, itemId, "checked_in", { count: options.count }, options.note);
+  const holder = options.holder_id ?? actor(store);
+  const has = poolCounts(it).out.find((o) => o.holder_id === holder)?.count ?? 0;
+  if (has === 0) throw new Error(`nothing out to ${holder}`);
+  if (options.count > has) throw new Error(`only ${has} out to ${holder}`);
+  const payload: Record<string, unknown> = { count: options.count };
+  if (holder !== actor(store)) payload.holder_id = holder;
+  return move(store, itemId, "checked_in", payload, options.note);
 }
 
 /** How many are in right now, with a reason (FR-INV-35). What is already out is untouched; anyone signed in may record one. */

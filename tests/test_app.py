@@ -9,7 +9,7 @@ from fastapi import Request
 from fastapi.testclient import TestClient
 
 from gear_tracker import accounts, derived, events, inventory_csv
-from gear_tracker.app import create_app
+from gear_tracker.app import client_address, create_app
 from gear_tracker.db import open_db
 from gear_tracker.sync import Principal
 from tests.factories import T0, incoming
@@ -174,6 +174,18 @@ def test_a_deactivated_account_gets_403_except_on_push(client):
     assert client.post("/sync/push", json=push_body(event()), headers=gone).status_code == 200
     assert client.get("/sync/pull?since=0", headers=gone).status_code == 403
     assert client.get("/sync/bootstrap", headers=gone).json()["error"] == "deactivated"
+
+
+def test_a_deactivated_account_cannot_read_history_or_codes_but_can_still_push(client, db_path):
+    """A deactivated account can no longer read the log by another door (FR-OFF-06 is push only)."""
+    with open_db(db_path) as conn:
+        events.append_server(conn, "alice", "code", "ABCDEFGH23", "created", {})
+    gone = as_alice(**{"X-Test-Active": "no"})
+
+    assert client.get("/history/item/tent-1", headers=gone).status_code == 403
+    assert client.get("/history/item", headers=gone).status_code == 403
+    assert client.get("/codes/ABCDEFGH23", headers=gone).status_code == 403
+    assert client.post("/sync/push", json=push_body(event()), headers=gone).status_code == 200
 
 
 def test_each_request_gets_its_own_connection(client):
@@ -657,12 +669,44 @@ def test_a_unit_answers_with_its_generic_name(public):
 # --- found gear ------------------------------------------------------------------------------
 
 
-def report(public, code="AAAAAAAAAA", address="203.0.113.1", **body):
-    return public.post(
-        f"/public/codes/{code}/found",
-        json={"note": "by the gate at Camp Byng", **body},
-        headers={"X-Forwarded-For": address},
-    )
+def _request_from(peer, forwarded=None):
+    headers = [(b"x-forwarded-for", forwarded.encode())] if forwarded else []
+    return Request({"type": "http", "client": peer, "headers": headers})
+
+
+def test_client_address_ignores_a_forwarded_header_from_an_untrusted_peer():
+    """A public peer, or one we cannot even parse, could put anything in the header (FR-PUB-04).
+
+    8.8.8.8 is a real, globally-routable address, unlike the 203.0.113.0/24
+    example range used elsewhere in this file for a "stranger's" address:
+    that range is documentation-only, and Python's ipaddress module counts
+    it as not globally reachable, the same bucket as our own proxy.
+    """
+    assert client_address(_request_from(("8.8.8.8", 1), "1.2.3.4, 5.6.7.8")) == "8.8.8.8"
+    # "testclient" is what TestClient calls itself; it is not a parseable address either.
+    assert client_address(_request_from(("testclient", 1), "1.2.3.4, 5.6.7.8")) == "testclient"
+
+
+def test_client_address_trusts_the_last_hop_from_a_private_peer():
+    """A peer this close is presumed to be our own proxy, so its header is believed (deploy.md)."""
+    assert client_address(_request_from(("127.0.0.1", 1234), "1.2.3.4, 5.6.7.8")) == "5.6.7.8"
+
+
+def report(client, code="AAAAAAAAAA", **body):
+    return client.post(f"/public/codes/{code}/found", json={"note": "by the gate at Camp Byng", **body})
+
+
+def client_at(client, address):
+    """The same app, called as if from a different address.
+
+    The rate limiters live in the app's own memory, so this has to be the
+    same app object as `client` uses, not a fresh one from create_app - a
+    fresh app would have fresh, untouched limiters and prove nothing. Its
+    X-Forwarded-For is ignored (the peer here is public, not our proxy), so
+    this is the only way a test can make a report land on a different
+    address than the default client's.
+    """
+    return TestClient(client.app, client=(address, 50000))
 
 
 def found_reports(public):
@@ -713,13 +757,23 @@ def test_one_address_gets_five_an_hour(public):
     assert refused.status_code == 429
     assert refused.json()["error"] == "rate_limited"
     assert refused.json()["message"] == "too many reports; try again later"
-    # Someone else behind the same proxy is not the same someone.
-    assert report(public, code="BBBBBBBBBB", address="198.51.100.7").status_code == 200
+    # Someone else, at a different address, is not the same someone.
+    assert report(client_at(public, "198.51.100.7"), code="BBBBBBBBBB").status_code == 200
     assert len(found_reports(public)) == 6
 
 
 def test_one_sticker_gets_three_a_day(public):
     for n in range(3):
-        assert report(public, address=f"203.0.113.{n}").status_code == 200
-    assert report(public, address="203.0.113.9").status_code == 429
-    assert report(public, code="BBBBBBBBBB", address="203.0.113.9").status_code == 200
+        assert report(client_at(public, f"203.0.113.{n}"), code="AAAAAAAAAA").status_code == 200
+    assert report(client_at(public, "203.0.113.9"), code="AAAAAAAAAA").status_code == 429
+    assert report(client_at(public, "203.0.113.9"), code="BBBBBBBBBB").status_code == 200
+
+
+def test_a_report_refused_by_the_code_limit_does_not_spend_the_address_budget(public):
+    """The three limiters used to be checked with `and`, which records as it goes; a report a
+    later limiter refused had already spent the reporter's own address budget for nothing."""
+    for n in range(3):
+        assert report(client_at(public, f"203.0.113.{n}"), code="AAAAAAAAAA").status_code == 200
+    fresh = client_at(public, "198.51.100.50")
+    assert report(fresh, code="AAAAAAAAAA").status_code == 429, "the code's own limit, not this address's"
+    assert report(fresh, code="BBBBBBBBBB").status_code == 200, "so this address still has its budget"

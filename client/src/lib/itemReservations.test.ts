@@ -91,3 +91,15 @@ test("nothing shown when there are no reservations for it", async () => {
   const stove = inv.item(store.state, f.stove)!;
   expect(itemReservations(store.state, stove, today)).toEqual([]);
 });
+
+test("a reservation naming a merged duplicate shows on the survivor's page, not the duplicate's (FR-INV-13)", async () => {
+  const f = await fixture();
+  const r = await res.createReservation(store, { ...fall, items: [f.t1], generics: [] });
+  await act.mergeItem(store, f.t1, f.stove);
+
+  const survivor = inv.item(store.state, f.stove)!;
+  expect(itemReservations(store.state, survivor, today).map((x) => x.id)).toEqual([r]);
+
+  const duplicate = inv.item(store.state, f.t1)!;
+  expect(itemReservations(store.state, duplicate, today)).toEqual([]);
+});

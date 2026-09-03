@@ -137,6 +137,31 @@ test("a recount sets what is in right now, with a reason; what is out is untouch
   await expect(mv.recount(store, tent, 1, "why")).rejects.toThrow("not a pool");
 });
 
+test("returning more than a holder has out is refused, and so is returning nothing (FR-OUT-23)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  await mv.checkOutPool(store, bowls, { count: 5 });
+  await expect(mv.checkInPool(store, bowls, { count: 6 })).rejects.toThrow("only 5 out to alice");
+  await expect(mv.checkInPool(store, bowls, { holder_id: "carol", count: 1 })).rejects.toThrow("nothing out to carol");
+  // Refused before anything is written.
+  expect(item(store.state, bowls)).toMatchObject({ pool_in: 15, pool_out: { alice: 5 } });
+});
+
+test("anyone can return another's, named by holder_id in the payload (FR-OUT-23)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  await mv.checkOutPool(store, bowls, { count: 5 });
+  await store.setMeta({ user: { id: "carol", name: "Carol", role: "user", active: true } });
+  await mv.checkOutPool(store, bowls, { count: 3 });
+
+  const back = await mv.checkInPool(store, bowls, { holder_id: "alice", count: 2 });
+  expect(back.payload).toEqual({ count: 2, holder_id: "alice" });
+  expect(item(store.state, bowls)).toMatchObject({ pool_in: 14, pool_out: { alice: 3, carol: 3 } });
+
+  // Returning your own is not named in the payload.
+  const own = await mv.checkInPool(store, bowls, { count: 1 });
+  expect(own.payload).toEqual({ count: 1 });
+  expect(item(store.state, bowls)).toMatchObject({ pool_out: { alice: 3, carol: 2 } });
+});
+
 test("history carries a pool's counts, checked-out, checked-in and recounted lines alike (FR-INV-34, FR-INV-35)", async () => {
   const bowls = await act.createPool(store, { name: "Bowls" }, 20);
   await mv.checkOutPool(store, bowls, { count: 6, event: "Fall Camp" });

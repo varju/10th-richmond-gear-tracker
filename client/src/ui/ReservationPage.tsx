@@ -180,8 +180,11 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
                     {g.quantity} × {nameOf(state, g.generic.id)}
                     {pool && ` — ${g.done} out`}
                   </span>
-                  {pool && !r.cancelled && g.done < g.quantity && (
+                  {pool && !r.cancelled && g.done < g.quantity && !g.generic.retired && (
                     <PoolCheckout store={store} r={r} itemId={g.generic.id} max={g.quantity - g.done} />
+                  )}
+                  {pool && !r.cancelled && g.done < g.quantity && g.generic.retired && (
+                    <span className="muted small">Retired</span>
                   )}
                 </li>
                 {note && <li className="near">{nearbyLabel(note)}</li>}

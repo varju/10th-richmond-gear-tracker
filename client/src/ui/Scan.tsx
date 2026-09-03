@@ -363,9 +363,14 @@ function SessionEvent({ store, booked }: { store: Store; booked?: Reservation })
   const [draft, setDraft] = useState("");
   useUnsaved(editing && draft.trim() !== (event ?? ""), { save: () => apply().then(() => true) });
 
+  // Seed the event once per reservation, not on every render: `booked` is a fresh object each
+  // time, so keying off it directly would stomp an event the person changed mid-session (FR-OUT-05).
+  const seededFor = useRef<string | null>(null);
   useEffect(() => {
-    if (booked && booked.event !== store.meta.session_event) void store.setMeta({ session_event: booked.event });
-  }, [store, booked]);
+    if (!booked || seededFor.current === booked.id) return;
+    seededFor.current = booked.id;
+    if (booked.event !== store.meta.session_event) void store.setMeta({ session_event: booked.event });
+  }, [store, booked?.id, booked?.event]);
 
   async function apply() {
     await store.setMeta({ session_event: draft.trim() || undefined });

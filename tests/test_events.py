@@ -320,6 +320,18 @@ def test_a_pools_created_payload_is_shape_checked():
         validate(created("item", {"name": "Bowls", "pool": "yes"}))
 
 
+def test_a_pool_needs_a_quantity():
+    with pytest.raises(Rejected, match="a pool needs a quantity"):
+        validate(created("item", {"name": "Bowls", "generic": True, "pool": True, "quantity": None}))
+    with pytest.raises(Rejected, match="a pool needs a quantity"):
+        validate(created("item", {"name": "Bowls", "generic": True, "pool": True}))
+
+
+def test_quantity_is_only_for_a_pool():
+    with pytest.raises(Rejected, match="quantity is only for a pool"):
+        validate(created("item", {"name": "Tent", "quantity": 3}))
+
+
 def test_pool_in_and_pool_out_are_derived_not_set():
     with pytest.raises(Rejected, match="pool_in is set by the system, not by created"):
         validate(created("item", {"name": "Bowls", "pool_in": 5}))

@@ -192,7 +192,8 @@ test("closed tickets stay on the item, after the open ones (FR-REP-04)", async (
   await rep.raiseTicket(store, tent, "zipper broken");
   renderInShell(<ItemPage store={store} id={tent} />);
   const rows = [...(section("Repairs") as HTMLElement).querySelectorAll("li")].map((li) => li.textContent);
-  expect(rows).toEqual(["Open · zipper broken · 2025-09-01", "Resolved · pole bent · 2025-09-01"]);
+  // T0 is UTC midnight of 2025-09-01, which is still 2025-08-31 evening in Vancouver (NFR-DATA-12).
+  expect(rows).toEqual(["Open · zipper broken · 2025-08-31", "Resolved · pole bent · 2025-08-31"]);
   expect(screen.getAllByRole("note").map((n) => n.textContent)).toEqual([
     "Needs repair · zipper broken",
     "Needs repair · zipper broken",

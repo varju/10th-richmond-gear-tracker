@@ -374,8 +374,58 @@ def test_a_pool_row_in_the_file_is_not_a_valid_parent_for_a_unit_row(db):
 
     plan = inventory_csv.plan(state, text)
 
-    assert [e["row"] for e in plan.errors] == [3]
-    assert plan.errors[0]["message"] == "no such generic 'Mugs'"
+    assert plan.errors == [{"row": 3, "message": "a pool has no units (FR-INV-34)"}]
+
+
+def test_a_unit_row_naming_an_existing_pool_is_refused(db):
+    """`bowls`, from `seeded`, is a pool already in the database, not one added in this file."""
+    state = seeded(db)
+    text = make_csv(["kind", "generic", "number"], [["unit", "Bowls", "1"]])
+
+    plan = inventory_csv.plan(state, text)
+
+    assert plan.errors == [{"row": 2, "message": "a pool has no units (FR-INV-34)"}]
+
+
+def test_a_pool_kind_add_requires_a_quantity(db):
+    state = seeded(db)
+    text = make_csv(["kind", "name"], [["pool", "Mugs"]])
+
+    plan = inventory_csv.plan(state, text)
+
+    assert plan.errors == [{"row": 2, "message": "quantity is required for a pool"}]
+
+
+def test_a_pool_kind_add_is_the_same_as_a_generic_with_a_quantity(db):
+    state = seeded(db)
+    text = make_csv(["kind", "name", "quantity"], [["pool", "Mugs", "20"]])
+
+    plan = inventory_csv.plan(state, text)
+
+    assert plan.errors == []
+    [add] = plan.adds
+    assert add["kind"] == "pool"
+    assert add["payload"] == {"name": "Mugs", "generic": True, "pool": True, "quantity": 20}
+
+
+def test_a_pool_export_row_re_imports_as_one_pool_add(db):
+    """Export writes `kind = pool`; stripped of its id, that must be an accepted add (FR-INV-34)."""
+    state = seeded(db)
+    bowls_row = dict(rows_by_id(inventory_csv.export(state))["bowls"])
+    del bowls_row["id"]
+    text = make_csv(list(bowls_row.keys()), [list(bowls_row.values())])
+
+    plan = inventory_csv.plan(state, text)
+
+    assert plan.errors == []
+    [add] = plan.adds
+    assert add["kind"] == "pool"
+    assert add["payload"]["generic"] is True
+    assert add["payload"]["pool"] is True
+    assert add["payload"]["quantity"] == 12  # owned: pool_in (9) + out (3)
+
+    result = inventory_csv.apply(db, text, ACTOR)
+    assert result["added"] == 1
 
 
 def test_duplicate_number_in_the_file_is_a_planned_error(db):
@@ -417,6 +467,28 @@ def test_a_supplier_column_from_an_old_export_does_not_error(db):
     assert plan.unchanged == 1
 
 
+def test_a_repeated_column_name_is_an_error_on_row_one(db):
+    state = seeded(db)
+    text = make_csv(["id", "home", "home"], [["trailer", "Warm locker", "Cold locker"]])
+
+    plan = inventory_csv.plan(state, text)
+
+    assert plan.errors == [{"row": 1, "message": "column 'home' appears twice"}]
+    assert plan.adds == []
+    assert plan.changes == []
+
+
+def test_a_blank_trailing_line_is_skipped_not_planned_as_an_add(db):
+    """One stray newline from Excel must not fail the whole file (kind is required, otherwise)."""
+    state = seeded(db)
+    text = "kind,name\nsingle,Kettle\n\n"
+
+    plan = inventory_csv.plan(state, text)
+
+    assert plan.errors == []
+    assert len(plan.adds) == 1
+
+
 # --- apply: all or nothing ----------------------------------------------------------------
 
 
@@ -431,6 +503,31 @@ def test_apply_with_a_planned_error_writes_nothing(db):
     assert derived.cursor(db) == before
 
 
+def test_a_whole_successful_import_commits_as_one_transaction(db):
+    """Every row that plan accepts is also one apply can write without failing, so a genuine
+    mid-import failure cannot be provoked through the public plan/apply surface without a mock.
+    This instead checks the transaction a multi-row, multi-write import leaves behind: everything
+    lands, and no transaction is left open."""
+    seeded(db)
+    text = make_csv(
+        ["kind", "name", "home", "category"],
+        [
+            ["single", "Kettle", "Warm locker", "Tarps; Boats"],
+            ["generic", "Cooler", "", ""],
+        ],
+    )
+
+    result = inventory_csv.apply(db, text, ACTOR)
+
+    assert result["added"] == 2
+    assert result["created_locations"] == ["Warm locker"]
+    assert result["created_categories"] == ["Boats"]
+    assert db.in_transaction is False
+    after = derived.snapshot(db)
+    assert any(v.get("name") == "Kettle" for v in after["item"].values())
+    assert any(v.get("name") == "Cooler" for v in after["item"].values())
+
+
 def test_retired_yes_and_blank_round_trip_through_apply(db):
     seeded(db)
 
@@ -439,3 +536,33 @@ def test_retired_yes_and_blank_round_trip_through_apply(db):
 
     inventory_csv.apply(db, make_csv(["id", "retired"], [["trailer", ""]]), ACTOR)
     assert derived.snapshot(db)["item"]["trailer"]["retired"] is False
+
+
+# --- formula injection (CWE-1236) ---------------------------------------------------------
+
+
+def test_a_name_that_reads_as_a_formula_is_escaped_on_export(db):
+    events.append_server(db, ACTOR, "item", "evil", "created", {"name": '=HYPERLINK("http://evil","click")'})
+    state = derived.snapshot(db)
+
+    by_id = rows_by_id(inventory_csv.export(state))
+
+    assert by_id["evil"]["name"] == '\'=HYPERLINK("http://evil","click")'
+
+
+def test_a_normal_name_is_untouched_by_export(db):
+    state = seeded(db)
+    by_id = rows_by_id(inventory_csv.export(state))
+    assert by_id["trailer"]["name"] == "Trailer"
+
+
+def test_an_escaped_name_round_trips_unchanged(db):
+    events.append_server(db, ACTOR, "item", "evil", "created", {"name": '=HYPERLINK("http://evil","click")'})
+    state = derived.snapshot(db)
+    text = inventory_csv.export(state)
+
+    plan = inventory_csv.plan(state, text)
+
+    assert plan.errors == []
+    assert plan.adds == []
+    assert plan.changes == []

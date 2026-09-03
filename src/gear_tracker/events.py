@@ -228,6 +228,14 @@ class ItemCreated(Payload):
     pool: bool | None = None
     quantity: Annotated[int, Field(ge=0)] | None = None
 
+    @model_validator(mode="after")
+    def _quantity_matches_pool(self):
+        if self.pool and self.quantity is None:
+            raise ValueError("a pool needs a quantity")
+        if self.quantity is not None and not self.pool:
+            raise ValueError("quantity is only for a pool")
+        return self
+
 
 CREATED_PAYLOADS: dict[str, type[Payload]] = {
     "item": ItemCreated,
@@ -288,7 +296,7 @@ class Created(_Incoming):
         model = CREATED_PAYLOADS.get(self.entity_type)
         for key in self.payload:
             # item_id is derived on a code, and plain data on a ticket or a found report.
-            if key in DERIVED_FIELDS and not (key == "item_id" and model is not None):
+            if key in DERIVED_FIELDS and not (key == "item_id" and self.entity_type in ("repair", "found_report")):
                 raise ValueError(f"payload: {key} is set by the system, not by created")
         if model is not None:
             try:
@@ -305,6 +313,9 @@ class FieldChanged(_Incoming):
     @model_validator(mode="after")
     def _known_values(self):
         field, value = self.payload.field, self.payload.value
+        if self.entity_type == "item" and field in ("pool", "quantity"):
+            # Both are set once, at creation, and shape everything that follows (FR-INV-34).
+            raise ValueError("pool and quantity are set when the item is created (FR-INV-34)")
         if self.entity_type == "repair" and field == "state" and value not in REPAIR_STATES:
             raise ValueError(f"state must be one of {', '.join(REPAIR_STATES)}")
         if self.entity_type == "reservation" and field in ("items", "generics"):
@@ -520,11 +531,14 @@ def append(conn: sqlite3.Connection, incoming: Any, received_at: int | None = No
     if received_at is None:
         received_at = now_ms()
 
-    conn.execute("BEGIN IMMEDIATE")
+    # Inside a caller's transaction (a CSV import, an Admin change guarded by a count) this
+    # becomes a savepoint, so the caller's COMMIT or ROLLBACK decides for every event at once.
+    nested = conn.in_transaction
+    conn.execute("SAVEPOINT append_event" if nested else "BEGIN IMMEDIATE")
     try:
         existing = get(conn, e.id)
         if existing is not None:
-            conn.execute("COMMIT")
+            conn.execute("RELEASE append_event" if nested else "COMMIT")
             return existing
 
         previous = conn.execute(
@@ -562,16 +576,21 @@ def append(conn: sqlite3.Connection, incoming: Any, received_at: int | None = No
             ),
         )
         stored = get(conn, e.id)
-        assert stored is not None and stored.seq == cursor.lastrowid
+        if stored is None or stored.seq != cursor.lastrowid:
+            raise RuntimeError("the event was not stored where the cursor says")
 
         # Imported here, not at the top: derived reads the log, so the modules would be circular.
         from gear_tracker import derived
 
         derived.refresh_entity(conn, stored.entity_type, stored.entity_id, stored.seq)
-        conn.execute("COMMIT")
+        conn.execute("RELEASE append_event" if nested else "COMMIT")
         return stored
     except BaseException:
-        conn.execute("ROLLBACK")
+        if nested:
+            conn.execute("ROLLBACK TO append_event")
+            conn.execute("RELEASE append_event")
+        else:
+            conn.execute("ROLLBACK")
         raise
 
 

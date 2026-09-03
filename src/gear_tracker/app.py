@@ -5,6 +5,7 @@ without a password. The default is the real one: a bearer token from
 accounts.authenticate.
 """
 
+import ipaddress
 import json
 import re
 import sqlite3
@@ -44,10 +45,38 @@ FOUND_IN_ALL = (30, HOUR_MS)
 """How often a stranger may report gear found (FR-PUB-04): per address, per sticker, and in total."""
 
 
+def _trusted_proxy(host: str | None) -> bool:
+    """Whether the immediate peer is close enough to us to believe what it says about who is behind it.
+
+    A public peer could put anything in X-Forwarded-For, including a fresh
+    address on every request, which would let the found-report rate limit be
+    dodged for free (FR-PUB-04). An unparseable host, such as the TestClient's
+    "testclient", counts as untrusted.
+    """
+    if not host:
+        return False
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return addr.is_loopback or addr.is_private
+
+
 def client_address(request: Request) -> str:
-    """The first hop of X-Forwarded-For when a proxy is in front, as in deployment; else the peer."""
-    first = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-    return first or (request.client.host if request.client else "?")
+    """The address a found-report is rate-limited on (FR-PUB-04).
+
+    X-Forwarded-For is trusted only from a loopback or private peer, as in
+    deployment behind our own proxy, and then only its last entry: the one the
+    proxy appended, not whatever an earlier hop claimed. Anyone else's header
+    is ignored and the peer address is used instead.
+    """
+    host = request.client.host if request.client else None
+    if _trusted_proxy(host):
+        forwarded = request.headers.get("X-Forwarded-For", "")
+        last = forwarded.rsplit(",", 1)[-1].strip()
+        if last:
+            return last
+    return host or "?"
 
 
 def group_name(conn: sqlite3.Connection) -> str:
@@ -181,6 +210,7 @@ def create_app(
         duplicate is its own entity, so a reader that follows the pointer asks
         again for that id.
         """
+        _require_active(_who)
         return stamped(
             {"events": [asdict(e) for e in events.in_replay_order(conn, _entity_type(entity_type), entity_id)]}
         )
@@ -188,6 +218,7 @@ def create_app(
     @app.get("/history/{entity_type}")
     def history_of_type(conn: Db, _who: Who, entity_type: str) -> dict[str, Any]:
         """Every event of one kind, in replay order. The repair report reads its whole record this way."""
+        _require_active(_who)
         return stamped({"events": [asdict(e) for e in events.in_replay_order(conn, _entity_type(entity_type))]})
 
     # --- auth ----------------------------------------------------------------------
@@ -316,6 +347,7 @@ def create_app(
 
     @app.get("/codes/{code}")
     def code(conn: Db, _who: Who, code: str) -> dict[str, Any]:
+        _require_active(_who)
         if not codes.is_code(code):
             raise BadRequest("not a code")
         state = codes.resolve(conn, code)
@@ -378,6 +410,7 @@ def create_app(
     @app.get("/photos/{photo_id}")
     def get_photo(_who: Who, photo_id: str) -> FileResponse:
         """Never cached, anywhere: the offline copy stays small (FR-INV-11, NFR-PERF-07)."""
+        _require_active(_who)
         if not is_ulid(photo_id):
             raise BadRequest("photo_id must be a ULID")
         path = photo_path(photo_id)
@@ -429,12 +462,18 @@ def create_app(
         if state is None:
             raise NotFound("not one of our codes")
         now = now_ms()
+        address = client_address(request)
+        # Checked before any of them records a hit, so a report refused by one limiter does not
+        # spend the budget of the others (the address limiter, in particular, is a stranger's own).
         if not (
-            found_limits["address"].allow(client_address(request), now)
-            and found_limits["code"].allow(code, now)
-            and found_limits["all"].allow("all", now)
+            found_limits["address"].would_allow(address, now)
+            and found_limits["code"].would_allow(code, now)
+            and found_limits["all"].would_allow("all", now)
         ):
             raise TooMany("too many reports; try again later")
+        found_limits["address"].record(address, now)
+        found_limits["code"].record(code, now)
+        found_limits["all"].record("all", now)
         events.append_server(
             conn,
             PUBLIC_ACTOR,

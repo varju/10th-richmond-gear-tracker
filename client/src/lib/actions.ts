@@ -62,6 +62,10 @@ function sameArray(a: unknown, b: unknown): boolean {
  * (FR-USR-05). `oldOverrides` stands in for a field's raw stored value when a
  * caller needs the old value read a different way, e.g. through a fallback
  * (FR-SET-07).
+ *
+ * Refuses an id that does not exist: without this, a caller that skips its own
+ * check (an item, location or category already gone) would write a
+ * field_changed against nothing, and replay would materialise a phantom entity.
  */
 async function changed(
   store: Store,
@@ -70,7 +74,9 @@ async function changed(
   patch: Record<string, unknown>,
   oldOverrides: Record<string, unknown> = {},
 ) {
-  const before = { ...(store.state[entity_type]?.[id] ?? {}), ...oldOverrides };
+  const existing = store.state[entity_type]?.[id];
+  if (!existing) throw new Error(`no such ${entity_type}`);
+  const before = { ...existing, ...oldOverrides };
   for (const [field, value] of Object.entries(patch)) {
     const old = before[field] ?? null;
     if (sameArray(value, old) || (value ?? null) === old) continue;
@@ -283,10 +289,12 @@ function clean<T extends object>(input: T): Record<string, unknown> {
   );
 }
 
-/** Dollars to the cent, from a number or what was typed. Blank or nonsense is no price. */
+/** Dollars to the cent, from a number or what was typed. Blank (or all whitespace) or nonsense is no price. */
 export function price(value: unknown): number | null {
-  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value.replace(/[$,\s]/g, "")) : NaN;
-  return Number.isFinite(n) && n >= 0 && value !== "" ? Math.round(n * 100) / 100 : null;
+  const trimmed = typeof value === "string" ? value.trim() : value;
+  const n =
+    typeof trimmed === "number" ? trimmed : typeof trimmed === "string" ? Number(trimmed.replace(/[$,\s]/g, "")) : NaN;
+  return Number.isFinite(n) && n >= 0 && trimmed !== "" ? Math.round(n * 100) / 100 : null;
 }
 
 /**

@@ -57,7 +57,8 @@ test("each report names the item, quotes the finder, and can be resolved", async
     "href",
     "mailto:finder@example.org",
   );
-  expect(first).toHaveTextContent("Reported 2025-09-01");
+  // T0 is UTC midnight of 2025-09-01, which is still 2025-08-31 evening in Vancouver (NFR-DATA-12).
+  expect(first).toHaveTextContent("Reported 2025-08-31");
   // A sticker not yet on anything is named by its code.
   expect(screen.getByRole("region", { name: "BBBBBBBBBB" })).toHaveTextContent("left in the car park");
 

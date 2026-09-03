@@ -14,16 +14,25 @@ class RateLimit:
         self._hits: dict[str, deque[int]] = {}
 
     def allow(self, key: str, now: int) -> bool:
-        """Record a hit and say whether it was within the limit. A refused hit is not recorded."""
+        """Check and record in one step: say whether a hit was within the limit, and count it if so."""
+        if not self.would_allow(key, now):
+            return False
+        self.record(key, now)
+        return True
+
+    def would_allow(self, key: str, now: int) -> bool:
+        """Whether a hit would be within the limit, without recording it. For checking several limits before
+        committing to any of them, so a hit refused by one does not spend the budget of the others."""
         hits = self._hits.setdefault(key, deque())
         cutoff = now - self.window_ms
         while hits and hits[0] <= cutoff:
             hits.popleft()
-        if len(hits) >= self.limit:
-            return False
-        hits.append(now)
+        return len(hits) < self.limit
+
+    def record(self, key: str, now: int) -> None:
+        """Count a hit. Only correct to call after would_allow said yes for the same key and a close-by now."""
+        self._hits.setdefault(key, deque()).append(now)
         self._forget(now)
-        return True
 
     def _forget(self, now: int) -> None:
         """Drop keys with nothing left in the window, so a long-running process does not grow."""

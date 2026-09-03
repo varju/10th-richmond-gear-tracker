@@ -259,16 +259,23 @@ def sign_in(conn: sqlite3.Connection, body: SignIn, now: int | None = None) -> S
 
 
 def redeem(conn: sqlite3.Connection, body: Redeem, now: int | None = None) -> Session:
-    """Use an invite or reset link: set the password, open a session. The link is spent either way."""
+    """Use an invite or reset link: set the password, open a session. The link is spent either way.
+
+    The check and the spend are one transaction, so two concurrent redeems of
+    the same token cannot both pass: the loser's UPDATE matches no row.
+    """
     now = now_ms() if now is None else now
-    link = conn.execute("SELECT * FROM links WHERE token_hash = ?", (_hash_token(body.token),)).fetchone()
-    if link is None or link["used_at"] is not None or link["created_at"] + LINK_TTL_MS < now:
-        raise Unauthorized("this link is not valid")
-    if not get_user(conn, link["user_id"])["active"]:
-        raise Deactivated("this account has been deactivated")
+    token_hash = _hash_token(body.token)
     conn.execute("BEGIN IMMEDIATE")
     try:
-        conn.execute("UPDATE links SET used_at = ? WHERE token_hash = ?", (now, link["token_hash"]))
+        link = conn.execute("SELECT * FROM links WHERE token_hash = ?", (token_hash,)).fetchone()
+        if link is None or link["used_at"] is not None or link["created_at"] + LINK_TTL_MS < now:
+            raise Unauthorized("this link is not valid")
+        if not get_user(conn, link["user_id"])["active"]:
+            raise Deactivated("this account has been deactivated")
+        spent = conn.execute("UPDATE links SET used_at = ? WHERE token_hash = ? AND used_at IS NULL", (now, token_hash))
+        if spent.rowcount == 0:
+            raise Unauthorized("this link is not valid")
         conn.execute(
             "UPDATE accounts SET password_hash = ? WHERE user_id = ?", (_hasher.hash(body.password), link["user_id"])
         )
@@ -350,16 +357,35 @@ def set_role(conn: sqlite3.Connection, who: Principal, user_id: str, role: Role,
     _require_admin(who)
     now = now_ms() if now is None else now
     if role != "admin":
-        _guard_last_admin(conn, user_id)
+        # The guard and the write are one transaction, so two concurrent demotions of the last
+        # two Admins cannot both read "someone else is still one" before either commits.
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            _guard_last_admin(conn, user_id)
+            _change(conn, who.user_id, user_id, "role", role, now)
+            conn.execute("COMMIT")
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise
+        return
     _change(conn, who.user_id, user_id, "role", role, now)
 
 
 def deactivate(conn: sqlite3.Connection, who: Principal, user_id: str, now: int | None = None) -> None:
-    """Access ends at the server now (NFR-SEC-07). Sessions stay, so a final push can still land (FR-OFF-06)."""
+    """Access ends at the server now (NFR-SEC-07). Sessions stay, so a final push can still land (FR-OFF-06).
+
+    The guard and the write are one transaction, for the same reason as set_role's demotion.
+    """
     _require_admin(who)
     now = now_ms() if now is None else now
-    _guard_last_admin(conn, user_id)
-    _change(conn, who.user_id, user_id, "active", False, now)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        _guard_last_admin(conn, user_id)
+        _change(conn, who.user_id, user_id, "active", False, now)
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
 
 
 def reactivate(conn: sqlite3.Connection, who: Principal, user_id: str, now: int | None = None) -> None:

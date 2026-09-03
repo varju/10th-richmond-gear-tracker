@@ -78,6 +78,12 @@ export function App({ store, api, now = Date.now }: Props) {
       const outcome = await sync(store, api, now);
       setOutcome(outcome);
       return outcome;
+    } catch (error) {
+      // Anything sync() did not turn into a SyncOutcome itself (a malformed response, say) still
+      // has to reach the banner: otherwise it keeps its last state and autosync never backs off.
+      const outcome: SyncOutcome = { ok: false, reason: "error", message: String(error) };
+      setOutcome(outcome);
+      return outcome;
     } finally {
       inFlight.current = false;
       setBusy(false);

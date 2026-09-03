@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { addUnit, bindCode } from "../lib/actions";
 import { displayName, homeLabel, nextNumber, recentGenerics } from "../lib/inventory";
 import { back } from "../lib/router";
@@ -20,7 +20,10 @@ export function AnotherOf({ store, code }: { store: Store; code: string }) {
   const [error, setError] = useState<string | null>(null);
   const state = store.state;
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const results = recentGenerics(state, Infinity).filter((g) => {
+  // Every keystroke re-renders; recentGenerics walks every item, so it is done once per state
+  // change rather than once per keystroke.
+  const recent = useMemo(() => recentGenerics(state, Infinity), [state]);
+  const results = recent.filter((g) => {
     const hay = displayName(state, g).toLowerCase();
     return words.every((w) => hay.includes(w));
   });

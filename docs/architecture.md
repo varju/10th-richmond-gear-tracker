@@ -733,10 +733,10 @@ replay. A reservation tool that hits a clash refuses to save and names it, exact
 printed codes, CSV import, deleting an item, and merging duplicates. Each tool calls the same accounts.py, mail.py,
 codes.py or inventory_csv.py function the app's own endpoint calls, so there is no second write path for these either.
 Most of that reuse also gets the refusal for free: `accounts._require_admin` is the same "Admins only" the endpoint
-raises. Locations and categories are the exception — the sync layer does not gate `location` or `category` events by
-role the way it gates `setting`, so a device could in principle write them; the app keeps them to Admins only in the
-browser, and the MCP tools call `accounts._require_admin` themselves to hold the same line the app draws, not one the
-server enforces underneath them.
+raises. Locations, categories and merges are events, so the sync layer gates them by role the way it gates `setting`: a
+`location` event, a `category` rename or delete, or an item's `merged_into` from a User's device is rejected. Anyone may
+create a category, as the item editor allows. The MCP tools call `accounts._require_admin` as well, so the refusal reads
+the same as the app's.
 
 ## Public pages
 

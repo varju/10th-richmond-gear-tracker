@@ -4,7 +4,17 @@ directly; the rest is through tests/test_assistant.py, which calls these through
 
 from __future__ import annotations
 
-from gear_tracker.views import DAY_MS, is_pool, pool_counts, remaining, rows, what_is_out
+from gear_tracker.views import (
+    DAY_MS,
+    category_blockers,
+    current_code,
+    has_gear_out,
+    is_pool,
+    pool_counts,
+    remaining,
+    rows,
+    what_is_out,
+)
 
 
 def test_is_pool():
@@ -73,15 +83,28 @@ def test_what_is_out_lists_a_pool_once_per_holder():
     by_holder = {h["holder"]: h["items"] for h in report["holders"]}
     assert by_holder["Bob"] == [
         {"item_id": "tent-1", "name": "Tent", "days": 1, "event": "Fall Camp", "overdue": False},
-        {"item_id": "bowls", "name": "Bowls", "count": 4},
+        # A pool's entry carries the same fields as an ordinary one, for parity with reports.ts,
+        # even though days, event, and overdue mean nothing for it (FR-RPT-11).
+        {"item_id": "bowls", "name": "Bowls", "days": 0, "event": None, "overdue": False, "count": 4},
     ]
-    assert by_holder["Carol"] == [{"item_id": "bowls", "name": "Bowls", "count": 2}]
+    assert by_holder["Carol"] == [
+        {"item_id": "bowls", "name": "Bowls", "days": 0, "event": None, "overdue": False, "count": 2}
+    ]
     assert report["total"] == 3
     assert report["overdue"] == 0
 
 
 def test_what_is_out_skips_a_pool_with_nothing_out():
     state = {"item": {"bowls": {"name": "Bowls", "generic": True, "pool": True, "pool_in": 20, "pool_out": {}}}}
+    assert what_is_out(state, now=0) == {"holders": [], "total": 0, "overdue": 0}
+
+
+def test_what_is_out_skips_a_retired_pool():
+    """A retired pool is written off; its holders no longer show as having it out."""
+    state = {
+        "item": {"bowls": {"name": "Bowls", "generic": True, "pool": True, "retired": True, "pool_out": {"bob": 2}}},
+        "user": {"bob": {"name": "Bob"}},
+    }
     assert what_is_out(state, now=0) == {"holders": [], "total": 0, "overdue": 0}
 
 
@@ -137,3 +160,92 @@ def test_remaining_pool_line_is_not_done_for_a_different_event():
     }
     r = state["reservation"]["r-fall"] | {"id": "r-fall"}
     assert remaining(state, r)["generics"][0]["done"] == 0
+
+
+def test_remaining_generic_line_does_not_count_a_retired_unit():
+    state = {
+        "item": {
+            "tents": {"name": "4-person tent", "generic": True},
+            "t1": {
+                "parent_id": "tents",
+                "number": "1",
+                "status": "out",
+                "retired": True,
+                "movement": {"event": "Fall Camp"},
+            },
+            "t2": {"parent_id": "tents", "number": "2", "status": "out", "movement": {"event": "Fall Camp"}},
+        },
+        "reservation": {
+            "r-fall": {
+                "event": "Fall Camp",
+                "starts": "2026-10-02",
+                "ends": "2026-10-04",
+                "items": [],
+                "generics": [{"item_id": "tents", "quantity": 2}],
+            }
+        },
+    }
+    r = state["reservation"]["r-fall"] | {"id": "r-fall"}
+    assert remaining(state, r)["generics"][0]["done"] == 1
+
+
+# --- rows: a pool is its own kind --------------------------------------------------------
+
+
+def test_rows_gives_a_pool_its_own_kind_and_counts_with_no_units():
+    state = {"item": {"bowls": {"name": "Bowls", "generic": True, "pool": True, "pool_in": 5}}}
+    row = rows(state)[0]
+    assert row["kind"] == "pool"
+    assert row["counts"] == {"owned": 5, "in": 5, "out": []}
+    assert "units" not in row
+
+
+# --- current_code: a tie on bound_at ------------------------------------------------------
+
+
+def test_current_code_breaks_a_tie_on_bound_at_by_the_larger_id():
+    state = {
+        "item": {"stove": {"name": "Camp stove"}},
+        "code": {
+            "AAAAAAAAAA": {"item_id": "stove", "bound_at": 1000},
+            "ZZZZZZZZZZ": {"item_id": "stove", "bound_at": 1000},
+        },
+    }
+    assert current_code(state, "stove") == "ZZZZZZZZZZ"
+
+
+# --- category_blockers: a deleted category still sees what pointed at it -----------------
+
+
+def test_category_blockers_finds_an_item_after_its_category_is_deleted():
+    state = {
+        "item": {"stove": {"name": "Camp stove", "category_ids": ["camping"]}},
+        "category": {"camping": {"name": "Camping", "deleted": True}},
+    }
+    assert [it["name"] for it in category_blockers(state, "camping")] == ["Camp stove"]
+
+
+# --- has_gear_out: an ordinary item, a generic's units, and a pool -----------------------
+
+
+def test_has_gear_out_for_an_ordinary_item():
+    assert has_gear_out({}, {"status": "out"})
+    assert not has_gear_out({}, {"status": "in"})
+
+
+def test_has_gear_out_for_a_pool():
+    it = {"id": "bowls", "generic": True, "pool": True, "pool_out": {"bob": 2}}
+    assert has_gear_out({}, it)
+    assert not has_gear_out({}, {"id": "bowls", "generic": True, "pool": True, "pool_out": {"bob": 0}})
+
+
+def test_has_gear_out_for_a_generic_with_a_unit_out():
+    state = {
+        "item": {
+            "tents": {"name": "4-person tent", "generic": True},
+            "t1": {"parent_id": "tents", "number": "1", "status": "out"},
+        }
+    }
+    assert has_gear_out(state, state["item"]["tents"] | {"id": "tents"})
+    state["item"]["t1"]["status"] = "in"
+    assert not has_gear_out(state, state["item"]["tents"] | {"id": "tents"})

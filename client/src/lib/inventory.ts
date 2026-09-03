@@ -289,11 +289,20 @@ export const numberTaken = (state: State, genericId: string, number: string, exc
  * it is never offered here (FR-INV-34).
  */
 export function recentGenerics(state: State, limit = 4): Item[] {
-  const touched = (g: Item): number =>
-    Math.max(g.modified_at ?? 0, ...unitsOf(state, g.id).map((u) => Math.max(u.added_at ?? 0, u.modified_at ?? 0)), 0);
-  return generics(state)
-    .filter((g) => !g.retired && !g.merged_into && !isPool(g))
-    .sort((a, b) => touched(b) - touched(a) || displayName(state, a).localeCompare(displayName(state, b)))
+  // One pass over every item builds each generic's most-touched unit, instead of a fresh scan
+  // (unitsOf, itself a scan) per generic per comparison: that was O(units × generics × log generics).
+  const unitTouch = new Map<string, number>();
+  for (const it of items(state)) {
+    if (!it.parent_id || it.merged_into) continue;
+    const at = Math.max(it.added_at ?? 0, it.modified_at ?? 0);
+    if (at > (unitTouch.get(it.parent_id) ?? 0)) unitTouch.set(it.parent_id, at);
+  }
+  const list = generics(state).filter((g) => !g.retired && !g.merged_into && !isPool(g));
+  const touched = new Map(list.map((g) => [g.id, Math.max(g.modified_at ?? 0, unitTouch.get(g.id) ?? 0)]));
+  return list
+    .sort(
+      (a, b) => touched.get(b.id)! - touched.get(a.id)! || displayName(state, a).localeCompare(displayName(state, b)),
+    )
     .slice(0, limit);
 }
 

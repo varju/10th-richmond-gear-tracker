@@ -4,7 +4,7 @@
  * only because a person said so, so nothing here is an event; the session is a
  * device setting and the answer is true for the walk.
  */
-import { byName, type Item, item, items } from "./inventory";
+import { byName, isPool, type Item, item, items } from "./inventory";
 import type { State } from "./replay";
 import type { StockCheck } from "./store";
 
@@ -31,11 +31,14 @@ export const seenHere = (state: State, check: StockCheck): Item[] =>
     .filter((it) => atHome(it, check))
     .sort(byName(state));
 
-/** Should be on this shelf, is recorded as in, and has not been scanned. Out gear is not expected here. */
+/**
+ * Should be on this shelf, is recorded as in, and has not been scanned. Out gear is not expected
+ * here. A pool takes no code, so it can never be scanned; it is never "not seen" (FR-INV-34).
+ */
 export function notSeen(state: State, check: StockCheck): Item[] {
   const seen = new Set(check.seen);
   return items(state)
-    .filter((it) => !it.retired && it.status === "in" && atHome(it, check) && !seen.has(it.id))
+    .filter((it) => !it.retired && !isPool(it) && it.status === "in" && atHome(it, check) && !seen.has(it.id))
     .sort(byName(state));
 }
 

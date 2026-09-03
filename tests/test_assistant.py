@@ -396,6 +396,13 @@ def test_check_in_clears_missing(db_path, tools):
     assert entity(db_path, "item", tools["stove"])["missing"] is False
 
 
+def test_a_generic_or_a_pool_cannot_be_marked_missing(tools, pool_id):
+    with pytest.raises(BadRequest, match="one of its units does"):
+        assistant.mark_missing(tools["tents"])
+    with pytest.raises(BadRequest, match="use recount"):
+        assistant.mark_missing(pool_id)
+
+
 def test_unassign_code_releases_it_and_needs_one_bound_first(db_path, tools):
     with pytest.raises(BadRequest):
         assistant.unassign_code(tools["stove"])
@@ -459,6 +466,21 @@ def test_an_item_that_is_out_cannot_be_merged(admin_tools):
     assistant.check_out(admin_tools["t1"])
     with pytest.raises(BadRequest):
         assistant.merge_items(admin_tools["t1"], admin_tools["stove"])
+
+
+def test_an_item_never_merged_refuses_to_unmerge(admin_tools):
+    with pytest.raises(BadRequest, match="not merged"):
+        assistant.unmerge_item(admin_tools["stove"])
+
+
+def test_a_pool_with_stock_out_cannot_be_deleted_or_merged(db_path, admin_tools):
+    with open_db(db_path) as conn:
+        pool = _new(conn, "item", {"name": "Tent pegs", "generic": True, "pool": True, "quantity": 40})
+    assistant.check_out(pool, count=10)
+    with pytest.raises(BadRequest):
+        assistant.delete_item(pool)
+    with pytest.raises(BadRequest):
+        assistant.merge_items(pool, admin_tools["stove"])
 
 
 def test_get_item_shows_the_current_code(db_path, tools):
@@ -986,6 +1008,16 @@ def test_a_pools_page_reports_owned_in_and_out_by_holder(tools, pool_id):
     assert got["out"] == [{"holder": "Alice", "count": 6}]
 
 
+def test_a_pools_history_carries_checkouts_and_recounts(tools, pool_id):
+    assistant.check_out(pool_id, count=10, event="Fall Camp")
+    assistant.recount(pool_id, count=28, reason="shelf count")
+
+    history = assistant.get_item(pool_id)["history"]
+    assert [h["type"] for h in history] == ["recounted", "checked_out"]
+    assert history[0]["count"] == 28 and history[0]["reason"] == "shelf count"
+    assert history[1]["count"] == 10 and history[1]["event"] == "Fall Camp"
+
+
 def test_search_marks_a_pool_row_and_carries_its_counts(tools, pool_id):
     assistant.check_out(pool_id, count=6)
     rows = {r["name"]: r for r in assistant.search_items()["rows"]}
@@ -1018,6 +1050,14 @@ def test_check_out_and_in_a_pool_move_by_count(tools, pool_id):
 
     with pytest.raises(BadRequest):
         assistant.check_in(pool_id)  # nothing left out
+
+
+def test_checking_in_more_of_a_pool_than_you_have_out_is_refused(tools, pool_id):
+    assistant.check_out(pool_id, count=6)
+    with pytest.raises(BadRequest, match="only 6 out"):
+        assistant.check_in(pool_id, count=50)
+    back = assistant.check_in(pool_id, count=6)
+    assert back == {"item_id": pool_id, "count": 6}
 
 
 def test_taking_more_than_are_in_a_pool_warns_and_does_not_block(tools, pool_id):

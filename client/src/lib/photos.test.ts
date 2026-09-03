@@ -90,6 +90,25 @@ test("a refused photo is dropped with a warning; sending it again would get the 
   warn.mockRestore();
 });
 
+test("a retryable refusal (503) stops uploads and keeps the photo, unlike Offline it is still reported", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const server = fakeServer(503);
+  await queuePhoto(store, on(), jpeg());
+  expect(await uploadPhotos(store, createApi({ fetch: server.fetch, token: () => "t" }))).toBe(0);
+  expect((await pendingPhotos(store)).length).toBe(1);
+  expect(warn).toHaveBeenCalledWith(expect.stringMatching(/will retry/));
+  warn.mockRestore();
+});
+
+test("a 413 (too large) is dropped like any other refusal a retry cannot fix", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const server = fakeServer(413);
+  await queuePhoto(store, on(), jpeg());
+  expect(await uploadPhotos(store, createApi({ fetch: server.fetch, token: () => "t" }))).toBe(1);
+  expect(await pendingPhotos(store)).toEqual([]);
+  warn.mockRestore();
+});
+
 test("the server's record of a photo is read from state, and removing it is an event", async () => {
   const added: ServerEvent = {
     id: "01000000000000000000000009",

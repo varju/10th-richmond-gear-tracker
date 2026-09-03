@@ -267,8 +267,8 @@ def _item_brief(state: dict[str, Any], it: dict[str, Any]) -> dict[str, Any]:
 def _row(state: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
     if row["kind"] == "single":
         return {"kind": "single", **_item_brief(state, row["item"])}
-    if views.is_pool(row["item"]):
-        counts = views.pool_counts(row["item"])
+    if row["kind"] == "pool":
+        counts = row["counts"]
         out = {
             "kind": "pool",
             "item_id": row["item"]["id"],
@@ -345,13 +345,14 @@ def _item_reservations(state: dict[str, Any], it: dict[str, Any]) -> list[dict[s
 
 
 def _history(conn: sqlite3.Connection, state: dict[str, Any], item_id: str) -> list[dict[str, Any]]:
-    """The item's last few movements, newest first (FR-INV-09). A merged duplicate's movements come too."""
+    """The item's last few movements, newest first (FR-INV-09). A merged duplicate's movements come
+    too, and, for a pool, its recounts alongside its checked_out/checked_in (FR-INV-36)."""
     ids = views.aliases(state, item_id)
     marks = ",".join("?" * len(ids))
     rows = conn.execute(
         f"""
         SELECT * FROM events
-        WHERE entity_type = 'item' AND entity_id IN ({marks}) AND type IN ('checked_out', 'checked_in')
+        WHERE entity_type = 'item' AND entity_id IN ({marks}) AND type IN ('checked_out', 'checked_in', 'recounted')
         ORDER BY effective_at DESC, device_id DESC, device_seq DESC LIMIT ?
         """,
         (*ids, HISTORY_SHOWN),
@@ -359,15 +360,18 @@ def _history(conn: sqlite3.Connection, state: dict[str, Any], item_id: str) -> l
     out = []
     for row in rows:
         payload = json.loads(row["payload"])
-        out.append(
-            {
-                "type": row["type"],
-                "at": views.iso(row["effective_at"]),
-                "by": views.user_name(state, row["actor_id"]),
-                "holder": views.user_name(state, payload.get("holder_id")) or None,
-                "event": payload.get("event"),
-            }
-        )
+        entry = {
+            "type": row["type"],
+            "at": views.iso(row["effective_at"]),
+            "by": views.user_name(state, row["actor_id"]),
+            "holder": views.user_name(state, payload.get("holder_id")) or None,
+            "event": payload.get("event"),
+        }
+        if "count" in payload:
+            entry["count"] = payload["count"]
+        if "reason" in payload:
+            entry["reason"] = payload["reason"]
+        out.append(entry)
     return out
 
 
@@ -426,7 +430,9 @@ def get_item(item_id: str) -> dict[str, Any]:
                 out["code"] = code_id
         out["open_tickets"] = [_ticket_brief(state, t) for t in views.repairs_for(state, it["id"]) if views.is_open(t)]
         out["reservations"] = _item_reservations(state, it)
-        out["history"] = [] if it.get("generic") else _history(conn, state, it["id"])
+        # A pool keeps its history (its check-outs, check-ins, and recounts); an ordinary generic
+        # never moves, so it has none.
+        out["history"] = [] if it.get("generic") and not views.is_pool(it) else _history(conn, state, it["id"])
         out["notes"] = [
             {"text": note["text"], "by": views.user_name(state, note.get("actor_id")), "at": views.iso(note.get("at"))}
             for note in it.get("notes") or []
@@ -863,6 +869,10 @@ def mark_missing(item_id: str) -> dict[str, Any]:
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)
+        if views.is_pool(it):
+            raise BadRequest("a pool is stock, use recount")
+        if it.get("generic"):
+            raise BadRequest("a generic does not go missing; one of its units does")
         if it.get("missing"):
             return {"item_id": it["id"], "missing": True, "already": True}
         _push(conn, who, [_draft("item", it["id"], "field_changed", {"field": "missing", "value": True, "old": None})])
@@ -885,7 +895,7 @@ def unassign_code(item_id: str) -> dict[str, Any]:
 def delete_item(item_id: str) -> dict[str, Any]:
     """Take a record made in error off every list, for good (FR-INV-32). Admins only.
 
-    Only an item that is in, and a generic only once it has no units. Retire is
+    Only an item with nothing out, and a generic only once it has no units. Retire is
     for gear written off; this is for a duplicate that was never real.
     """
     with _open() as (conn, who):
@@ -894,7 +904,7 @@ def delete_item(item_id: str) -> dict[str, Any]:
         it = _raw_item(state, item_id)
         if it.get("merged_into"):
             raise BadRequest("this item was merged into another")
-        if it.get("status") == "out":
+        if views.has_gear_out(state, it):
             raise BadRequest("return it first")
         if it.get("generic") and views.units_of(state, item_id):
             raise BadRequest("delete its units first")
@@ -906,7 +916,7 @@ def merge_items(duplicate_id: str, survivor_id: str) -> dict[str, Any]:
     """Fold a duplicate record into the item it doubles (FR-INV-13). Admins only.
 
     The duplicate points at the survivor; nothing is rewritten. The duplicate
-    must be in, and neither item retired or already merged.
+    must have nothing out, and neither item retired or already merged.
     """
     with _open() as (conn, who):
         accounts._require_admin(who)
@@ -919,7 +929,7 @@ def merge_items(duplicate_id: str, survivor_id: str) -> dict[str, Any]:
             raise BadRequest("already merged")
         if dup.get("retired") or survivor.get("retired"):
             raise BadRequest("retired items cannot be merged")
-        if dup.get("status") != "in":
+        if views.has_gear_out(state, dup):
             raise BadRequest("return it first")
         payload = {"field": "merged_into", "value": survivor_id, "old": None}
         _push(conn, who, [_draft("item", duplicate_id, "field_changed", payload)])
@@ -932,6 +942,8 @@ def unmerge_item(item_id: str) -> dict[str, Any]:
         accounts._require_admin(who)
         state = _state(conn)
         it = _raw_item(state, item_id)
+        if not it.get("merged_into"):
+            raise BadRequest("this item is not merged")
         drafts = [
             _draft("item", item_id, "field_changed", {"field": field, "value": value, "old": old})
             for field, value, old in _changes(it, {"merged_into": None})
@@ -1059,6 +1071,8 @@ def check_in(item_id: str, note: str | None = None, count: Count | None = None) 
                 if not have:
                     raise BadRequest("you have none of this out")
                 count = have
+            elif count > have:
+                raise BadRequest(f"you have only {have} out")
         else:
             if count is not None:
                 raise BadRequest("count is only for a pool (FR-OUT-22)")

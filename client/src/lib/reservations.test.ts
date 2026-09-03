@@ -110,6 +110,16 @@ test("a generic conflicts when demand across the dates exceeds its units (FR-RES
   ).toHaveLength(1);
 });
 
+test("a draft that only names a unit is still checked against the generic's stock (FR-RES-15)", async () => {
+  const f = await fixture();
+  // Fall Camp reserves all three tents by count.
+  await res.createReservation(store, { ...fall, items: [], generics: [{ item_id: f.tents, quantity: 3 }] });
+
+  // A draft that only names one tent unit, never mentioning generics, must still be caught.
+  const named = res.conflicts(store.state, { ...fall, event: "Cubs", items: [f.t1], generics: [] });
+  expect(named).toEqual([{ id: expect.any(String), event: "Fall Camp", detail: "4 × 4-person tent, we have 3" }]);
+});
+
 test("a pool conflicts against what it owns, not a count of units it does not have (FR-RES-15)", async () => {
   await store.record({
     entity_type: "item",
@@ -181,6 +191,21 @@ test("remaining adds a second check-out under the same event, it does not replac
   r = res.reservation(store.state, id)!;
   expect(res.remaining(store.state, r).generics[0]).toMatchObject({ quantity: 5, done: 4 });
   expect(res.isPacked(res.remaining(store.state, r))).toBe(false);
+});
+
+test("a retired pool cannot be checked out for a reservation (FR-INV-04)", async () => {
+  await store.record({
+    entity_type: "item",
+    entity_id: "bowls",
+    type: "created",
+    actor_id: "alice",
+    payload: { name: "Bowls", generic: true, pool: true, quantity: 10 },
+  });
+  const id = await res.createReservation(store, { ...fall, items: [], generics: [{ item_id: "bowls", quantity: 4 }] });
+  const r = res.reservation(store.state, id)!;
+  await act.retireItem(store, "bowls");
+
+  await expect(res.checkOutPoolLine(store, r, "bowls", 4)).rejects.toThrow("retired items cannot be checked out");
 });
 
 test("nearby names a camp within seven days sharing a line, not one overlapping (FR-RES-19)", async () => {
@@ -412,4 +437,14 @@ test("a reservation naming a merged duplicate packs the survivor (FR-INV-13)", a
   // Another camp naming the duplicate clashes on the survivor.
   const other = { ...fall, items: [f.t1], generics: [] };
   expect(res.conflicts(store.state, other).map((c) => c.detail)).toEqual(["4-person tent #2"]);
+});
+
+test("remaining does not count a retired unit as packed", async () => {
+  const f = await fixture();
+  const id = await res.createReservation(store, { ...fall, items: [], generics: [{ item_id: f.tents, quantity: 2 }] });
+  await mv.checkOut(store, f.t1, { event: fall.event });
+  await mv.checkOut(store, f.t2, { event: fall.event });
+  await act.retireItem(store, f.t2);
+  const r = res.reservation(store.state, id)!;
+  expect(res.remaining(store.state, r).generics[0]).toMatchObject({ quantity: 2, done: 1 });
 });

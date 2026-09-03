@@ -34,6 +34,15 @@ def test_a_refusal_is_not_a_hit():
     assert limit.allow("a", MINUTE)
 
 
+def test_would_allow_checks_without_recording():
+    limit = RateLimit(1, MINUTE)
+    assert limit.would_allow("a", 0) is True
+    assert limit.would_allow("a", 1) is True, "nothing was recorded, so the slot is still open"
+    limit.record("a", 2)
+    assert limit.would_allow("a", 3) is False
+    assert limit.allow("a", 3) is False
+
+
 def test_idle_keys_are_forgotten():
     limit = RateLimit(1, MINUTE)
     limit.allow("a", 0)

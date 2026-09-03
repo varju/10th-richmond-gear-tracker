@@ -86,15 +86,15 @@ def aliases(state: State, item_id: str) -> list[str]:
 def current_code(state: State, item_id: str) -> str | None:
     """The code bound last (highest `bound_at`) that resolves, through merges, to this item.
 
-    A released code (FR-TAG-14) has no `item_id` and is never the answer. Mirrors
-    currentCode in inventory.ts."""
+    A released code (FR-TAG-14) has no `item_id` and is never the answer. Two codes bound in the
+    same millisecond are broken by id, the larger winning. Mirrors currentCode in inventory.ts."""
     best_code, best_at = None, -1
     for code_id, fields in (state.get("code") or {}).items():
         bound_item = fields.get("item_id")
         if bound_item is None or resolve_item(state, bound_item) != item_id:
             continue
         bound_at = fields.get("bound_at") or 0
-        if bound_at > best_at:
+        if bound_at > best_at or (bound_at == best_at and (best_code is None or code_id > best_code)):
             best_code, best_at = code_id, bound_at
     return best_code
 
@@ -169,6 +169,16 @@ def pool_counts(it: Fields) -> Fields:
     return {"owned": owned, "in": pool_in, "out": out}
 
 
+def has_gear_out(state: State, it: Fields) -> bool:
+    """True when this item, in whatever shape it takes, has gear away from the shelf: an ordinary
+    item checked out, a pool with any holder's count above zero, or a generic with a unit out."""
+    if is_pool(it):
+        return any(count > 0 for count in (it.get("pool_out") or {}).values())
+    if it.get("generic"):
+        return any(u.get("status") == "out" for u in units_of(state, it["id"]))
+    return it.get("status") == "out"
+
+
 def search(
     state: State,
     query: str = "",
@@ -209,8 +219,10 @@ def rows(
     status: str | None = None,
     retired: bool = False,
 ) -> list[Fields]:
-    """The list: one row per generic with its counts, single items as rows of their own (FR-INV-25)."""
+    """The list: one row per generic with its counts, single items as rows of their own (FR-INV-25).
+    A pool is its own row kind, with its counts instead of units (FR-INV-36)."""
     singles: list[Fields] = []
+    pools: list[Fields] = []
     by_parent: dict[str, list[Fields]] = {}
     for it in search(state, query, location_id, status, retired):
         parent = it.get("parent_id") if it.get("parent_id") in (state.get("item") or {}) else None
@@ -244,7 +256,14 @@ def rows(
             continue
         if is_pool(generic):
             if pool_wanted(generic):
-                by_parent[generic["id"]] = []
+                pools.append(
+                    {
+                        "kind": "pool",
+                        "item": generic,
+                        "name": display_name(state, generic),
+                        "counts": pool_counts(generic),
+                    }
+                )
         elif location_id is None and status is None:
             # An empty generic is still a row when only the search text is set, so one can be found and given units.
             by_parent[generic["id"]] = []
@@ -264,7 +283,7 @@ def rows(
                 },
             }
         )
-    return sorted([*grouped, *singles], key=lambda row: row["name"])
+    return sorted([*grouped, *singles, *pools], key=lambda row: row["name"])
 
 
 # --- what is out -------------------------------------------------------------------------
@@ -296,9 +315,17 @@ def what_is_out(state: State, now: int) -> dict[str, Any]:
     overdue = 0
     for it in items(state):
         if is_pool(it):
-            for out in pool_counts(it)["out"]:
-                entry = {"item_id": it["id"], "name": display_name(state, it), "count": out["count"]}
-                by_holder.setdefault(out["holder_id"], []).append(entry)
+            if not it.get("retired"):
+                for out in pool_counts(it)["out"]:
+                    entry = {
+                        "item_id": it["id"],
+                        "name": display_name(state, it),
+                        "days": 0,
+                        "event": None,
+                        "overdue": False,
+                        "count": out["count"],
+                    }
+                    by_holder.setdefault(out["holder_id"], []).append(entry)
             continue
         if it.get("status") != "out" or it.get("missing"):
             continue
@@ -376,8 +403,12 @@ def remaining(state: State, r: Fields) -> dict[str, Any]:
             # adds to done, it does not replace it.
             done = (generic.get("pool_events") or {}).get(event, 0)
         else:
-            # Any unit of the generic counts, except one the reservation names: that one is its own line.
-            done = sum(1 for u in units_of(state, line["item_id"]) if u["id"] not in chosen and _ticked(u, event))
+            # Any unretired unit of the generic counts, except one the reservation names: that one is its own line.
+            done = sum(
+                1
+                for u in units_of(state, line["item_id"])
+                if u["id"] not in chosen and not u.get("retired") and _ticked(u, event)
+            )
         generics.append(
             {
                 "item_id": line["item_id"],
@@ -449,6 +480,16 @@ def category_name(state: State, category_id: str | None) -> str:
     return (entity(state, "category", category_id) or {}).get("name") or "(unknown category)"
 
 
+def _raw_category_ids(it: Fields) -> list[str]:
+    """category_ids (even empty) or the legacy category_id, read straight off this record: no
+    parent resolution, no check against live categories. Mirrors rawCategoryIds in inventory.ts."""
+    if "category_ids" in it:
+        return it.get("category_ids") or []
+    if it.get("category_id"):
+        return [it["category_id"]]
+    return []
+
+
 def categories_of(state: State, it: Fields) -> list[str]:
     """A unit reads its generic's categories, so re-filing a generic re-files its units.
 
@@ -457,14 +498,8 @@ def categories_of(state: State, it: Fields) -> list[str]:
     dropped.
     """
     source = (item(state, it["parent_id"]) if it.get("parent_id") else it) or {}
-    if "category_ids" in source:
-        ids = source.get("category_ids") or []
-    elif source.get("category_id"):
-        ids = [source["category_id"]]
-    else:
-        ids = []
     live = {cat["id"] for cat in categories(state)}
-    return [cid for cid in ids if cid in live]
+    return [cid for cid in _raw_category_ids(source) if cid in live]
 
 
 def category_names(state: State, it: Fields) -> str:
@@ -482,9 +517,11 @@ def location_blockers(state: State, location_id: str) -> list[Fields]:
 
 
 def category_blockers(state: State, category_id: str) -> list[Fields]:
-    """Items that stop a category being deleted (FR-SET-05). Mirrors `categoryBlockers` in inventory.ts."""
+    """Items that stop a category being deleted (FR-SET-05). Raw ids, not categories_of: a
+    category already gone from categories(state) must still be able to name what was pointing at
+    it. Mirrors `categoryBlockers` in inventory.ts."""
     return sorted(
-        (it for it in items(state) if category_id in categories_of(state, it)), key=lambda it: display_name(state, it)
+        (it for it in items(state) if category_id in _raw_category_ids(it)), key=lambda it: display_name(state, it)
     )
 
 

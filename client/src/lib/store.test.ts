@@ -1,5 +1,5 @@
 import { IDBFactory } from "fake-indexeddb";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import type { ServerEvent } from "./api";
 import { RETENTION_MS } from "./clock";
 import { openDb } from "./db";
@@ -145,6 +145,59 @@ test("an ordinary rejection is unaffected by the collision handling", async () =
   expect(result).toEqual({ retry: false });
   expect(store.pending).toEqual([]);
   expect(store.state.item?.["tent-1"]?.name).toBe("Tent");
+});
+
+test("setMeta guards a non-finite clock_offset, storing 0 instead", async () => {
+  const store = await open();
+  await store.setMeta({ clock_offset: NaN });
+  expect(store.meta.clock_offset).toBe(0);
+  const reopened = await open();
+  expect(reopened.meta.clock_offset).toBe(0);
+});
+
+test("setMeta treats an undefined clock_offset (a sign-in with no offset to measure) as 0, not a deleted key", async () => {
+  const store = await open();
+  await store.setMeta({ clock_offset: 5_000 });
+  await store.setMeta({ clock_offset: undefined });
+  expect(store.meta.clock_offset).toBe(0);
+  expect("clock_offset" in store.meta).toBe(true);
+});
+
+test("an event of a type this build does not know is skipped, not thrown, and the store still opens", async () => {
+  const store = await open();
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  await store.receive(
+    [
+      fromServer({ seq: 1 }),
+      fromServer({ seq: 2, type: "future_thing", device_seq: 2, payload: { whatever: true } }),
+      fromServer({
+        seq: 3,
+        type: "field_changed",
+        device_seq: 3,
+        payload: { field: "name", value: "Big tent", old: "Tent" },
+      }),
+    ],
+    3,
+  );
+  expect(store.items["tent-1"]?.name).toBe("Big tent");
+  expect(warn).toHaveBeenCalled();
+  warn.mockRestore();
+
+  const reopened = await open();
+  expect(reopened.items["tent-1"]?.name).toBe("Big tent");
+});
+
+test("bootstrap writes the snapshot, cursor, and log_id together", async () => {
+  const store = await open();
+  await store.bootstrap({ item: { "tent-1": { name: "Tent" } } }, 5, "log-one");
+  expect(store.meta.cursor).toBe(5);
+  expect(store.meta.log_id).toBe("log-one");
+  expect(store.items["tent-1"]?.name).toBe("Tent");
+
+  const reopened = await open();
+  expect(reopened.meta.cursor).toBe(5);
+  expect(reopened.meta.log_id).toBe("log-one");
+  expect(reopened.items["tent-1"]?.name).toBe("Tent");
 });
 
 test("bootstrap replaces sent history and keeps unsent work on top", async () => {

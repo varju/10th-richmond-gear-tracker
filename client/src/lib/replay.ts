@@ -100,6 +100,30 @@ export interface Photo {
 
 export class UnknownEventType extends Error {}
 
+/**
+ * Every event type `apply()` handles. A build too old for a type on the log skips events of
+ * that type instead of crashing (store.ts, `recompute` and `trim`); `apply()` still throws on
+ * one of these, kept only so the twin Python replay stays in step.
+ */
+export const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set([
+  "created",
+  "field_changed",
+  "item_added",
+  "item_removed",
+  "quantity_changed",
+  "event_corrected",
+  "note_added",
+  "note_corrected",
+  "note_deleted",
+  "checked_out",
+  "checked_in",
+  "recounted",
+  "photo_added",
+  "photo_removed",
+  "code_bound",
+  "code_released",
+]);
+
 /** (effective_at, device_id, device_seq): the one order every replay uses. */
 export function replayOrder(a: ReplayEvent, b: ReplayEvent): number {
   if (a.effective_at !== b.effective_at) return a.effective_at - b.effective_at;

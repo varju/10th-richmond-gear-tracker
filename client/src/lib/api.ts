@@ -102,7 +102,8 @@ export interface PublicCode {
 
 export interface Timed<T> {
   data: T;
-  offset: number;
+  /** Only a server that stamped its own reply gives us one to measure against (see `request`). */
+  offset?: number;
 }
 
 /** What an import would do, without doing it: rows to add or change, and any errors (FR-SET-11). */
@@ -179,11 +180,17 @@ export function createApi(options: ApiOptions = {}) {
     }
     const receivedAt = now();
 
-    const data = (await response.json()) as T & { server_time: number; error?: string; message?: string };
-    const offset = measureOffset(data.server_time, sentAt, receivedAt);
+    // A body that is not JSON (a proxy's HTML error page, say) is not a reason to blow up the
+    // caller: treat it as empty, and let the status code carry the story.
+    const data = (await response.json().catch(() => ({}))) as Partial<
+      T & { server_time: number; error?: string; message?: string }
+    >;
+    // Only a handler that calls back through our own error paths stamps server_time; an
+    // unhandled 500 or a framework's own 404 does not, so there is nothing to measure against.
+    const offset = Number.isFinite(data.server_time) ? measureOffset(data.server_time!, sentAt, receivedAt) : undefined;
     if (!response.ok)
       throw new ApiError(response.status, data.error ?? "error", data.message ?? response.statusText, offset);
-    return { data, offset };
+    return { data: data as T, offset };
   }
 
   /** Bytes, not JSON: photos go up and come down whole. */

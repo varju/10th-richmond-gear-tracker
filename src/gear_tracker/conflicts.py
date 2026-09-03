@@ -39,10 +39,20 @@ def conflicts(state: State, draft: Draft, exclude_id: str | None = None) -> list
             if item_id in theirs:
                 add(other, views.name_of(state, item_id))
 
-    # Only for generics the draft reserves by count. Named units count once each, however many
-    # reservations name them; naming the same tent twice is the item clash above, not a count one.
+    # For every generic the draft reserves, whether by count or by naming one of its units (FR-RES-15):
+    # a draft that only names a unit must still be capacity-checked, not just one that reserves by
+    # count. Named units count once each, however many reservations name them; naming the same tent
+    # twice is the item clash above, not a count one.
     involved = [draft, *others]
-    for generic_id in dict.fromkeys(line["item_id"] for line in draft.get("generics") or []):
+    draft_generic_ids = dict.fromkeys(
+        [line["item_id"] for line in draft.get("generics") or []]
+        + [
+            parent_id
+            for i in views.named_items(state, draft)
+            if (parent_id := (views.item(state, i) or {}).get("parent_id"))
+        ]
+    )
+    for generic_id in draft_generic_ids:
         generic = views.item(state, generic_id)
         # A pool's stock is what it owns (FR-INV-36), not a count of units: it has none (FR-INV-34).
         owned = (

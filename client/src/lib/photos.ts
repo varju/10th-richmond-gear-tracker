@@ -4,7 +4,7 @@
  * up at the next sync; the server then records photo_added, and the event comes
  * back with the rest of the log. Viewing one always needs a connection.
  */
-import { type Api, Offline, PHOTO_TYPES } from "./api";
+import { type Api, ApiError, Offline, PHOTO_TYPES } from "./api";
 import type { EntityRef } from "./notes";
 import type { Photo, State } from "./replay";
 import type { QueuedPhoto, Store } from "./store";
@@ -75,10 +75,14 @@ export async function pendingPhotos(store: Store, on?: EntityRef): Promise<Queue
   return on ? all.filter((p) => p.entity_type === on.entity_type && p.entity_id === on.entity_id) : all;
 }
 
+/** A refusal a retry cannot fix: the photo itself is the problem, so sending it again would just get the same answer. */
+const PERMANENT_REFUSAL = new Set([400, 404, 413, 415]);
+
 /**
- * Send what is waiting, oldest first. Stops quietly at the first sign of no
- * network; the rest waits for the next sync. A refusal drops the photo, since
- * sending it again would get the same answer, and says why.
+ * Send what is waiting, oldest first. Stops quietly, keeping the rest of the queue, at the first
+ * sign of no network, or of a problem a retry might fix (a 5xx, a stale token, a rate limit): the
+ * bytes here are the only copy of the photo until the server has them, so nothing but a
+ * refusal that will never change its answer is grounds for dropping one.
  */
 export async function uploadPhotos(store: Store, api: Api): Promise<number> {
   let sent = 0;
@@ -88,7 +92,13 @@ export async function uploadPhotos(store: Store, api: Api): Promise<number> {
       await api.uploadPhoto(photo.id, photo.entity_type, photo.entity_id, blob, photo.content_type);
     } catch (error) {
       if (error instanceof Offline) return sent;
-      console.warn(`photo ${photo.id} refused: ${error instanceof Error ? error.message : String(error)}`);
+      if (!(error instanceof ApiError) || !PERMANENT_REFUSAL.has(error.status)) {
+        console.warn(
+          `photo ${photo.id} not sent, will retry: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        return sent;
+      }
+      console.warn(`photo ${photo.id} refused: ${error.message}`);
     }
     await store.dropQueuedPhoto(photo.id);
     sent++;

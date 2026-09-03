@@ -12,6 +12,7 @@ clear. It lives in a server-only table and never reaches a device.
 
 from __future__ import annotations
 
+import re
 import smtplib
 import sqlite3
 import ssl
@@ -88,6 +89,16 @@ def configured(conn: sqlite3.Connection) -> bool:
     return get(conn) is not None
 
 
+def _one_line(text: str) -> str:
+    """Collapse whitespace, including a line break, to a single space.
+
+    A subject is a header and free text is not: a group name with a line
+    break in it would otherwise raise deep inside the email library instead
+    of sending (a way to turn an invite into a failed request).
+    """
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def send(conn: sqlite3.Connection, to: str, subject: str, body: str) -> None:
     """One message, now, on the caller's thread. Raises Conflict if the server will not take it."""
     settings = get(conn)
@@ -96,7 +107,7 @@ def send(conn: sqlite3.Connection, to: str, subject: str, body: str) -> None:
     message = EmailMessage()
     message["From"] = settings["from_address"]
     message["To"] = to
-    message["Subject"] = subject
+    message["Subject"] = _one_line(subject)
     message.set_content(body)
     try:
         _deliver(settings, message)

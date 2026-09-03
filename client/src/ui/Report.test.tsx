@@ -65,7 +65,8 @@ test("out gear is grouped by holder with the event and days out", async () => {
   await mv.checkOut(store, axe);
 
   mount(<Report store={store} />, 3);
-  expect(screen.getByText("10th Richmond · 2025-09-04")).toBeInTheDocument();
+  // T0 + 3 days is UTC midnight of 2025-09-04, still 2025-09-03 evening in Vancouver (NFR-DATA-12).
+  expect(screen.getByText("10th Richmond · 2025-09-03")).toBeInTheDocument();
   expect(screen.getByText("3 items out")).toBeInTheDocument();
 
   expect(screen.getAllByRole("region").map((s) => s.getAttribute("aria-label"))).toEqual(["Alice", "Carol"]);

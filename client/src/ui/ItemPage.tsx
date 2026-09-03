@@ -49,7 +49,7 @@ import { todayIso } from "../lib/reservations";
 import { navigate, useRoute } from "../lib/router";
 import { timeline, type TimelineEntry } from "../lib/timeline";
 import type { Store } from "../lib/store";
-import { isoDate, localMinute } from "../lib/time";
+import { localDate, localMinute } from "../lib/time";
 import { guard, useUnsaved } from "../lib/unsaved";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
@@ -382,9 +382,9 @@ export function ItemPage({ store, id }: Props) {
                 {codes.length > 1 && <span className="muted"> · {codes.length - 1} replaced</span>}
               </dd>
               <dt>Added</dt>
-              <dd>{it.added_at ? isoDate(it.added_at) : "—"}</dd>
+              <dd>{it.added_at ? localDate(it.added_at) : "—"}</dd>
               <dt>Modified</dt>
-              <dd>{it.modified_at ? isoDate(it.modified_at) : "—"}</dd>
+              <dd>{it.modified_at ? localDate(it.modified_at) : "—"}</dd>
             </dl>
           </details>
 
@@ -557,7 +557,7 @@ function Repairs({ store, id }: Props) {
 
 /** "Open · zipper broken · 2026-09-01". */
 export function describeRepair(r: Repair): string {
-  return [stateLabel(r.state), r.description, r.added_at ? isoDate(r.added_at) : ""].filter(Boolean).join(" · ");
+  return [stateLabel(r.state), r.description, r.added_at ? localDate(r.added_at) : ""].filter(Boolean).join(" · ");
 }
 
 /** Any signed-in user, a description, nothing else (FR-REP-01, FR-REP-02). */
@@ -1166,9 +1166,9 @@ function PoolPage({
           <dt>Bought</dt>
           <dd>{boughtLabel(it) || "—"}</dd>
           <dt>Added</dt>
-          <dd>{it.added_at ? isoDate(it.added_at) : "—"}</dd>
+          <dd>{it.added_at ? localDate(it.added_at) : "—"}</dd>
           <dt>Modified</dt>
-          <dd>{it.modified_at ? isoDate(it.modified_at) : "—"}</dd>
+          <dd>{it.modified_at ? localDate(it.modified_at) : "—"}</dd>
         </dl>
       </details>
 
@@ -1194,6 +1194,7 @@ function PoolPage({
 function PoolActions({ store, it, onMoved }: { store: Store; it: Item; onMoved: (message: string) => void }) {
   const [mode, setMode] = useState<"out" | "in" | "recount" | null>(null);
   const [count, setCount] = useState("1");
+  const [holder, setHolder] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1202,12 +1203,28 @@ function PoolActions({ store, it, onMoved }: { store: Store; it: Item; onMoved: 
   const event = store.meta.session_event;
   const counts = poolCounts(it);
   const mine = counts.out.find((o) => o.holder_id === me)?.count ?? 0;
+  // Return needs a holder to pick from only when there is a real choice to make (FR-OUT-23):
+  // several people holding some, or the signed-in person holding none of their own.
+  const needsHolderPick = counts.out.length > 1 || mine === 0;
+  const holderCount = (id: string | null) => counts.out.find((o) => o.holder_id === id)?.count ?? 0;
 
   function begin(next: "out" | "in" | "recount") {
     setMode(next);
     setError(null);
     setReason("");
-    setCount(next === "in" ? String(mine || 1) : next === "recount" ? String(counts.in) : "1");
+    if (next === "in") {
+      const def = mine > 0 ? me ?? null : counts.out[0]?.holder_id ?? me ?? null;
+      setHolder(def);
+      setCount(String(holderCount(def) || 1));
+    } else {
+      setHolder(null);
+      setCount(next === "recount" ? String(counts.in) : "1");
+    }
+  }
+
+  function pickHolder(id: string) {
+    setHolder(id);
+    setCount(String(holderCount(id) || 1));
   }
 
   const n = Number(count.trim());
@@ -1220,7 +1237,7 @@ function PoolActions({ store, it, onMoved }: { store: Store; it: Item; onMoved: 
     setError(null);
     try {
       if (mode === "out") await checkOutPool(store, it.id, { count: n, event });
-      else if (mode === "in") await checkInPool(store, it.id, { count: n });
+      else if (mode === "in") await checkInPool(store, it.id, { count: n, holder_id: holder ?? undefined });
       else await recount(store, it.id, n, reason);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not record it");
@@ -1253,6 +1270,18 @@ function PoolActions({ store, it, onMoved }: { store: Store; it: Item; onMoved: 
           Only {counts.in} in. This takes it into overdraw.
         </p>
       )}
+      {mode === "in" && needsHolderPick && (
+        <label className="tight">
+          <span>Who</span>
+          <select value={holder ?? ""} onChange={(e) => pickHolder(e.target.value)}>
+            {counts.out.map((o) => (
+              <option key={o.holder_id} value={o.holder_id}>
+                {userName(state, o.holder_id)} · {o.count}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {mode && (
         <label className="tight">
           <span>How many</span>
@@ -1260,6 +1289,7 @@ function PoolActions({ store, it, onMoved }: { store: Store; it: Item; onMoved: 
             type="number"
             inputMode="numeric"
             min={mode === "recount" ? 0 : 1}
+            max={mode === "in" ? holderCount(holder) : undefined}
             step={1}
             autoFocus
             value={count}
@@ -1299,7 +1329,7 @@ function PoolActions({ store, it, onMoved }: { store: Store; it: Item; onMoved: 
           <button type="button" className="primary" onClick={() => begin("out")}>
             Check out
           </button>
-          {mine > 0 && (
+          {counts.out.length > 0 && (
             <button type="button" onClick={() => begin("in")}>
               Return
             </button>
@@ -1415,7 +1445,7 @@ function GenericPage({
           <dt>Bought</dt>
           <dd>{boughtLabel(it) || "—"}</dd>
           <dt>Added</dt>
-          <dd>{it.added_at ? isoDate(it.added_at) : "—"}</dd>
+          <dd>{it.added_at ? localDate(it.added_at) : "—"}</dd>
         </dl>
       </details>
 

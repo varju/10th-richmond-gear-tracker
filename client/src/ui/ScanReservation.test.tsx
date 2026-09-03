@@ -69,6 +69,23 @@ test("the session takes the event from the reservation and lists what is left, b
   expect(remaining()).toHaveTextContent("0 of 1 × 4-person tent");
 });
 
+test("changing the event mid-session is not stomped back to the reservation's own (FR-OUT-05)", async () => {
+  renderInShell(<Scan store={store} />);
+  await screen.findByText("Event: Fall Camp");
+  await user.click(screen.getByRole("button", { name: "Change" }));
+  await user.clear(screen.getByLabelText("Event"));
+  await user.type(screen.getByLabelText("Event"), "Custom Talk");
+  await user.click(screen.getByRole("button", { name: "Set" }));
+  expect(await screen.findByText("Event: Custom Talk")).toBeInTheDocument();
+
+  // A scan re-renders the session banner with a fresh `booked` object; the change must survive it.
+  await typeCode("AAAAAAAAAA");
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+  await screen.findByText("Checked out · 4-person tent #1");
+  expect(store.meta.session_event).toBe("Custom Talk");
+  expect(screen.getByText("Event: Custom Talk")).toBeInTheDocument();
+});
+
 test("a scan ticks an item off; an unlisted one is appended with no fuss (FR-RES-07)", async () => {
   renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");

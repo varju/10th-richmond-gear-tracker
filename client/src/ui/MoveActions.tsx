@@ -70,15 +70,27 @@ export function MoveActions({ store, it, showEvent = false, mode = null, onMoved
     setError(null);
     try {
       await act();
-      if (fault?.trim()) await raiseTicket(store, it.id, fault);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not record the move");
-      return;
-    } finally {
       setBusy(false);
+      return;
     }
     setNote(null);
-    setFault(null);
+    // The move already happened; a fault that fails to record is a separate problem and must not
+    // read as the move itself failing, nor risk the move being repeated on a retry. The fault text
+    // stays so the person can try raising it again.
+    if (fault?.trim()) {
+      try {
+        await raiseTicket(store, it.id, fault);
+        setFault(null);
+      } catch (e) {
+        setError(`Moved, but the problem was not recorded: ${e instanceof Error ? e.message : "unknown error"}`);
+        setBusy(false);
+        onMoved(kind);
+        return;
+      }
+    }
+    setBusy(false);
     onMoved(kind);
   }
 

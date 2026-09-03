@@ -71,6 +71,8 @@ location /gear/ {
   proxy_pass http://gear:8000;
   # Photos are uploaded whole. The app refuses anything over 5 MB; the proxy must not refuse first.
   client_max_body_size 6m;
+  # The found-report rate limit keys on this (FR-PUB-04); without it every report looks like it came from nginx.
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 }
 location = /gear {
   return 301 https://$host/gear/;

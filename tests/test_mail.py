@@ -10,7 +10,7 @@ from aiosmtpd.controller import Controller
 from aiosmtpd.smtp import AuthResult, LoginPassword
 from fastapi.testclient import TestClient
 
-from gear_tracker import accounts, mail
+from gear_tracker import accounts, events, mail
 from gear_tracker.app import create_app
 from gear_tracker.db import open_db
 from gear_tracker.errors import BadRequest, Conflict
@@ -104,6 +104,16 @@ def test_a_wrong_password_is_a_bad_request(db, smtp):
     with pytest.raises(BadRequest):
         mail.send(db, "bea@example.org", "Hello", "Hello\n")
     assert smtp.messages == []
+
+
+def test_a_subject_with_a_line_break_is_sent_as_one_line(db, smtp):
+    """A group name is free text; nothing stops someone putting a line break in it (an invite must not 500)."""
+    mail.save(db, settings(smtp))
+    mail.send(db, "bea@example.org", "10th Richmond\r\nBcc: evil@example.org", "Body line\n")
+
+    subject = smtp.only()["Subject"]
+    assert "\r" not in subject and "\n" not in subject
+    assert subject == "10th Richmond Bcc: evil@example.org"
 
 
 def test_nothing_is_sent_until_an_account_is_set_up(db):
@@ -224,6 +234,24 @@ def test_a_broken_mail_account_still_hands_back_the_link(admin_client, smtp):
     assert body["emailed"] is False
     assert "mail_error" in body
     assert body["token"], "the invite still worked; the Admin copies the link"
+
+
+def test_an_invite_sends_even_when_the_group_name_has_a_line_break(admin_client, smtp, db_path):
+    """Before the fix, a subject built from a group name with a line break in it raised, and the invite was a 500."""
+    auth = sign_in(admin_client)
+    set_up_mail(admin_client, auth, smtp)
+    with open_db(db_path) as conn:
+        events.append_server(conn, "alice", "setting", "group", "created", {"name": "10th Richmond\r\nEvil"})
+
+    r = admin_client.post(
+        "/users/invite",
+        json={"name": "Bea", "email": "bea@example.org", "link": "https://example.org/gear/join?t=TOKEN"},
+        headers=auth,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["emailed"] is True
+    subject = smtp.only()["Subject"]
+    assert "\r" not in subject and "\n" not in subject
 
 
 def test_no_mail_account_means_no_mail_and_no_error(admin_client):

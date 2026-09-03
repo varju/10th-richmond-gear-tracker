@@ -9,7 +9,7 @@
 import type { OutgoingEvent, ServerEvent, User } from "./api";
 import { RETENTION_MS } from "./clock";
 import { done, req } from "./db";
-import { type Fields, replay, type ReplayEvent, replayOrder, type State } from "./replay";
+import { type Fields, KNOWN_EVENT_TYPES, replay, type ReplayEvent, replayOrder, type State } from "./replay";
 import { newUlid } from "./ulid";
 
 /** no: waiting to push. yes: the server has it. rejected: the server refused it; kept for the record, not replayed. */
@@ -142,6 +142,11 @@ export class Store {
   }
 
   async setMeta(patch: Partial<Meta>): Promise<void> {
+    // A non-finite offset - including undefined, from a response with no server_time to measure
+    // against (see api.ts, `request`) - is never stored: it would poison every effective_at
+    // computed after it. clock_offset is not optional on Meta, so this also stops `undefined`
+    // from being treated as "delete the key" further down, which would leave it missing instead.
+    if ("clock_offset" in patch && !Number.isFinite(patch.clock_offset)) patch = { ...patch, clock_offset: 0 };
     const tx = this.db.transaction("meta", "readwrite");
     const store = tx.objectStore("meta");
     for (const [key, value] of Object.entries(patch)) {
@@ -261,8 +266,15 @@ export class Store {
     store.put(updated);
   }
 
-  /** Start over from a snapshot (FR-OFF-14). Unsent work survives and is replayed on top. */
-  async bootstrap(snapshot: State, cursor: number): Promise<void> {
+  /**
+   * Start over from a snapshot (FR-OFF-14). Unsent work survives and is replayed on top.
+   *
+   * The snapshot, its cursor, and the log it came from are one fact and are written in one
+   * transaction: split across two, a kill between them could leave a fresh log_id over a stale
+   * snapshot, and the guard that re-bootstraps a cursor with no log_id would never fire. `log_id`
+   * is optional only so a test fixture with no server behind it can skip stating one.
+   */
+  async bootstrap(snapshot: State, cursor: number, log_id?: string): Promise<void> {
     const tx = this.db.transaction(["meta", "events"], "readwrite");
     const events = tx.objectStore("events");
     for (const event of this.events.values()) {
@@ -271,11 +283,14 @@ export class Store {
         this.events.delete(event.id);
       }
     }
-    tx.objectStore("meta").put(snapshot, SNAPSHOT_KEY);
-    tx.objectStore("meta").put(cursor, "cursor");
+    const metaStore = tx.objectStore("meta");
+    metaStore.put(snapshot, SNAPSHOT_KEY);
+    metaStore.put(cursor, "cursor");
+    if (log_id !== undefined) metaStore.put(log_id, "log_id");
     await done(tx);
     this.snapshot = snapshot;
     this.meta.cursor = cursor;
+    if (log_id !== undefined) this.meta.log_id = log_id;
     this.recompute();
   }
 
@@ -301,7 +316,12 @@ export class Store {
    */
   async trim(now: number = this.now()): Promise<number> {
     const cutoff = now - RETENTION_MS;
-    const old = [...this.events.values()].filter((e) => e.seq !== undefined && e.effective_at < cutoff);
+    // An event of a type this build does not know is left alone rather than folded: folding it
+    // would replay it (recompute does the same skip) and then delete the only copy, so a build
+    // that does know the type would never see it.
+    const old = [...this.events.values()].filter(
+      (e) => e.seq !== undefined && e.effective_at < cutoff && KNOWN_EVENT_TYPES.has(e.type),
+    );
     if (old.length === 0) return 0;
     const snapshot = replay(old, this.snapshot);
     const tx = this.db.transaction(["meta", "events"], "readwrite");
@@ -342,7 +362,17 @@ export class Store {
 
   private recompute(): void {
     const live = [...this.events.values()].filter((e) => e.sent !== "rejected");
-    this.state = replay(live, this.snapshot);
+    // A future build may write a type this one does not know (the PWA precaches its shell, so an
+    // old build can pull events from a newer server). Skip those rather than throw: they stay
+    // stored, unapplied, until a build that knows them opens the store (FR-OFF-14).
+    const known: ReplayEvent[] = [];
+    let skipped = 0;
+    for (const event of live) {
+      if (KNOWN_EVENT_TYPES.has(event.type)) known.push(event);
+      else skipped++;
+    }
+    if (skipped > 0) console.warn(`recompute: skipped ${skipped} event(s) of a type this build does not know`);
+    this.state = replay(known, this.snapshot);
     this.notify();
   }
 

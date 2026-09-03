@@ -79,6 +79,45 @@ test("taking more than are in warns, and never blocks (FR-OUT-22)", async () => 
   expect(inv.item(store.state, bowls)?.pool_out).toEqual({ alice: 8 });
 });
 
+test("anyone can return another's, picked from a list when more than one holder has some out (FR-OUT-23)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  await mv.checkOutPool(store, bowls, { count: 6 });
+  await store.setMeta({ user: carol });
+  await mv.checkOutPool(store, bowls, { count: 3 });
+  navigate(`/items/${bowls}`);
+  renderInShell(<ItemPage store={store} id={bowls} />);
+
+  // Carol is signed in and holds some, so she is the default; the list still offers Alice.
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  const who = screen.getByLabelText("Who");
+  expect(who).toHaveValue("carol");
+  expect(screen.getByLabelText("How many")).toHaveValue(3);
+  expect(screen.getByLabelText("How many")).toHaveAttribute("max", "3");
+
+  await user.selectOptions(who, "alice");
+  expect(screen.getByLabelText("How many")).toHaveValue(6);
+  expect(screen.getByLabelText("How many")).toHaveAttribute("max", "6");
+  await user.click(screen.getByRole("button", { name: "Return" }));
+
+  await waitFor(() =>
+    expect(inv.poolCounts(inv.item(store.state, bowls)!).out).toEqual([{ holder_id: "carol", count: 3 }]),
+  );
+});
+
+test("returning more than a holder has out is refused, shown as an error (FR-OUT-23)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 5);
+  await mv.checkOutPool(store, bowls, { count: 3 });
+  navigate(`/items/${bowls}`);
+  renderInShell(<ItemPage store={store} id={bowls} />);
+
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  const count = screen.getByLabelText("How many");
+  await user.clear(count);
+  await user.type(count, "9");
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("only 3 out to alice");
+});
+
 test("a pool page has no unit list, no code, no group, and no make single (FR-INV-34)", async () => {
   const bowls = await act.createPool(store, { name: "Bowls" }, 5);
   navigate(`/items/${bowls}`);

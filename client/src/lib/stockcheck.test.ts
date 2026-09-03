@@ -2,6 +2,7 @@ import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, expect, test } from "vitest";
 import * as act from "./actions";
 import { openDb } from "./db";
+import { item } from "./inventory";
 import * as mv from "./movement";
 import * as sc from "./stockcheck";
 import { Store } from "./store";
@@ -57,4 +58,13 @@ test("a whole location counts every shelf as home", async () => {
   );
   expect(names(sc.notSeen(store.state, check))).toEqual(["Tent 1", "Tent 2"]);
   expect(sc.misplaced(store.state, check)).toEqual([]);
+});
+
+test("a pool is never reported not seen: it takes no code, so it can never be scanned (FR-INV-34)", async () => {
+  const f = await fixture();
+  const bowls = await act.createPool(store, { name: "Bowls", home_location_id: f.cold, sub_location: "shelf 4" }, 20);
+  const check = sc.startCheck(f.cold, "shelf 4", 5_000);
+  expect(names(sc.notSeen(store.state, check))).toEqual(["Tent 1", "Tent 2"]);
+  expect(names(sc.notSeen(store.state, check))).not.toContain("Bowls");
+  expect(item(store.state, bowls)?.status).toBe("in");
 });

@@ -6,6 +6,7 @@ import pytest
 
 from gear_tracker import accounts
 from gear_tracker.accounts import Invite, Redeem, SignIn
+from gear_tracker.db import connect
 from gear_tracker.derived import snapshot
 from gear_tracker.errors import BadRequest, Conflict, Deactivated, Forbidden, NotFound, Unauthorized
 from gear_tracker.events import SERVER_DEVICE, in_replay_order
@@ -119,6 +120,23 @@ def test_a_link_dies_after_a_week(db, admin):
 def test_a_made_up_link_is_refused(db, admin):
     with pytest.raises(Unauthorized):
         join(db, "nope")
+
+
+def test_two_redeems_of_the_same_link_the_second_is_refused(db, db_path, admin):
+    """The check and the spend are one transaction (a concurrent redeem must not both succeed).
+
+    Two connections, so the second reads what the first actually committed
+    rather than sharing Python state with it. Sequential calls are enough to
+    show the guard: the second's UPDATE matches no row once the first has run.
+    """
+    _, token = invite(db, admin)
+    other = connect(db_path)
+    try:
+        join(db, token)
+        with pytest.raises(Unauthorized, match="not valid"):
+            accounts.redeem(other, Redeem(token=token, password="another password", device_id="phone-c"), now=T0)
+    finally:
+        other.close()
 
 
 def test_wrong_password_and_unknown_email_look_the_same(db, admin):
@@ -261,6 +279,26 @@ def test_a_deactivated_admin_does_not_count(db, admin):
     accounts.deactivate(db, admin, user_id, now=T0)
     with pytest.raises(Conflict, match="last Admin"):
         accounts.deactivate(db, admin, admin.user_id, now=T0)
+
+
+def test_the_last_admin_guard_and_the_write_are_one_transaction(db, db_path, admin):
+    """The guard now reads inside the same transaction as the write; ordinary behaviour is unchanged.
+
+    A second connection, so the read that decides "am I the last Admin" is
+    the one made durable by the first connection's commit, not a value
+    already sitting in the calling process.
+    """
+    user_id, _ = invite(db, admin, role="admin")
+    other = connect(db_path)
+    try:
+        accounts.deactivate(other, admin, user_id, now=T0)
+        assert accounts.get_user(db, user_id)["active"] is False
+        with pytest.raises(Conflict, match="last Admin"):
+            accounts.deactivate(other, admin, admin.user_id, now=T0)
+        with pytest.raises(Conflict, match="last Admin"):
+            accounts.set_role(other, admin, admin.user_id, "user", now=T0)
+    finally:
+        other.close()
 
 
 def test_users_cannot_manage_users(db, admin):

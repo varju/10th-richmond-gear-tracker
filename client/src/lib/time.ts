@@ -8,11 +8,6 @@ export function ago(ms: number): string {
   return `${days} ${days === 1 ? "day" : "days"} ago`;
 }
 
-/** 2026-09-01, the way a Quartermaster reads a date. */
-export function isoDate(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
-}
-
 const ZONE = "America/Vancouver";
 
 /** The calendar day an instant fell on where the group is (NFR-DATA-12): "2026-09-01". */

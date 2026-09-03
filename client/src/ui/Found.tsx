@@ -2,7 +2,7 @@ import { type FoundReport, foundReports, resolveFound } from "../lib/found";
 import { displayName, item } from "../lib/inventory";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
-import { isoDate } from "../lib/time";
+import { localDate } from "../lib/time";
 import { useStore } from "../useStore";
 import { Contact } from "./Contact";
 import { Page } from "./Page";
@@ -40,7 +40,7 @@ function ReportBlock({ store, report }: { store: Store; report: FoundReport }) {
           <Contact contact={report.contact} />
         </p>
       )}
-      <p className="muted small">Reported {report.added_at ? isoDate(report.added_at) : "—"}</p>
+      <p className="muted small">Reported {report.added_at ? localDate(report.added_at) : "—"}</p>
       <button type="button" className="minor" onClick={() => resolveFound(store, report.id)}>
         Resolve
       </button>

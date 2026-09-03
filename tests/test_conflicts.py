@@ -48,6 +48,30 @@ def test_a_pool_conflicts_against_what_it_owns_not_a_count_of_units():
     assert too_many == [{"id": "r-fall", "event": "Fall Camp", "detail": "11 × Bowls, we have 10"}]
 
 
+def test_a_draft_naming_only_a_unit_is_still_checked_against_the_generics_stock():
+    # Two tents owned, both reserved by count. A draft naming one unit, with no generics line
+    # of its own, must still be caught (FR-RES-15): the check cannot depend on the draft
+    # reserving the generic by count.
+    state = {
+        "item": {
+            "tents": {"name": "4-person tent", "generic": True},
+            "t1": {"parent_id": "tents", "number": "1", "status": "in", "holder_id": None},
+            "t2": {"parent_id": "tents", "number": "2", "status": "in", "holder_id": None},
+        },
+        "reservation": {
+            "r-fall": {
+                "event": "Fall Camp",
+                "starts": "2026-10-02",
+                "ends": "2026-10-04",
+                "items": [],
+                "generics": [{"item_id": "tents", "quantity": 2}],
+            }
+        },
+    }
+    draft = {"event": "Cubs", "starts": "2026-10-02", "ends": "2026-10-04", "items": ["t1"], "generics": []}
+    assert conflicts(state, draft) == [{"id": "r-fall", "event": "Fall Camp", "detail": "3 × 4-person tent, we have 2"}]
+
+
 def test_nearby_names_a_camp_within_seven_days_sharing_a_line_not_one_overlapping():
     state = _tents_state()
 

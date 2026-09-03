@@ -263,6 +263,15 @@ def test_a_cursor_older_than_retention_means_re_bootstrap(db):
     assert pull(db, ALICE, cursor=2, now=T0 + RETENTION_MS + 1)["events"] == []
 
 
+def test_a_cursor_equal_to_the_last_event_never_needs_retention(db):
+    """A device that has missed nothing should not be told to re-bootstrap just because it has been quiet."""
+    push(db, ALICE, batch(ALICE, own(ALICE)), now=T0)
+
+    page = pull(db, ALICE, cursor=1, now=T0 + RETENTION_MS + 1)
+    assert page["events"] == []
+    assert page["cursor"] == 1
+
+
 def test_a_cursor_from_a_different_log_means_re_bootstrap(db):
     """The server database was replaced, and its new log has grown past the device's cursor."""
     push(db, ALICE, batch(ALICE, own(ALICE)), now=T0)
@@ -364,6 +373,43 @@ def test_settings_take_an_admin(db):
     assert reasons(db, ADMIN, {**change, "id": new_ulid()}) == []
 
 
+def test_locations_take_an_admin(db):
+    made = own(USER, entity_type="location", entity_id="loc-1", type="created", payload={"name": "Shed"})
+    assert reasons(db, USER, made) == ["locations are an Admin's job (FR-SET-05)"]
+    assert reasons(db, ADMIN, {**made, "id": new_ulid()}) == []
+
+
+def test_anyone_may_create_a_category_but_only_an_admin_changes_one(db):
+    made = own(USER, entity_type="category", entity_id="cat-1", type="created", payload={"name": "Tents"})
+    assert reasons(db, USER, made) == []
+
+    renamed = own(
+        USER,
+        entity_type="category",
+        entity_id="cat-1",
+        payload={"field": "name", "value": "Tarps", "old": "Tents"},
+        device_seq=2,
+    )
+    assert reasons(db, USER, renamed) == ["categories are renamed and deleted by an Admin (FR-SET-05)"]
+    assert reasons(db, ADMIN, {**renamed, "id": new_ulid()}) == []
+
+
+def test_items_are_merged_by_an_admin(db):
+    push(
+        db,
+        USER,
+        batch(
+            USER,
+            own(USER, type="created", payload={"name": "Tent"}, device_seq=1),
+            own(USER, entity_id="tent-2", type="created", payload={"name": "Tent"}, device_seq=2),
+        ),
+        now=T0,
+    )
+    merge = own(USER, payload={"field": "merged_into", "value": "tent-2", "old": None}, device_seq=3)
+    assert reasons(db, USER, merge) == ["items are merged by an Admin (FR-INV-13)"]
+    assert reasons(db, ADMIN, {**merge, "id": new_ulid()}) == []
+
+
 def test_devices_bind_codes_but_do_not_make_them(db):
     made = own(ADMIN, entity_type="code", entity_id="ABCDEFGH23", type="created", payload={})
     assert reasons(db, ADMIN, made) == ["codes come from printed sheets"]
@@ -392,6 +438,12 @@ def test_any_signed_in_user_may_release_a_bound_code(db):
 def test_created_may_not_set_system_fields(db):
     made = own(USER, type="created", payload={"name": "Tent", "added_at": 1})
     assert reasons(db, USER, made) == ["payload: added_at is set by the system, not by created"]
+
+
+def test_an_item_created_may_not_carry_item_id(db):
+    """item_id is plain data on a ticket or a found report, but an item has no such field of its own."""
+    made = own(USER, type="created", payload={"name": "Tent", "item_id": "tent-1"})
+    assert reasons(db, USER, made) == ["payload: item_id is set by the system, not by created"]
 
 
 def test_retired_items_cannot_be_checked_out(db):
@@ -457,13 +509,13 @@ def test_a_device_cannot_say_a_photo_was_stored(db):
 def test_merged_items_cannot_be_checked_out(db):
     push(
         db,
-        USER,
+        ADMIN,
         {
             "device_id": "phone-a",
             "client_time": T0,
             "events": [
-                own(USER, type="created", payload={"name": "Tent"}, device_seq=1),
-                own(USER, payload={"field": "merged_into", "value": "tent-2", "old": None}, device_seq=2),
+                own(ADMIN, type="created", payload={"name": "Tent"}, device_seq=1),
+                own(ADMIN, payload={"field": "merged_into", "value": "tent-2", "old": None}, device_seq=2),
             ],
         },
         now=T0,
@@ -537,6 +589,14 @@ def test_a_pool_must_be_generic(db):
     assert reasons(db, USER, ok) == []
     bad = own(USER, entity_id="tent-2", type="created", payload={"name": "Cups", "pool": True, "quantity": 20})
     assert reasons(db, USER, bad) == ["a pool must be generic (FR-INV-34)"]
+
+
+def test_pool_and_quantity_are_set_only_at_creation(db):
+    """Flipping either afterwards would drop outstanding stock or turn a checked-out item into a pool."""
+    push(db, USER, batch(USER, own(USER, type="created", payload={"name": "Tent"})), now=T0)
+    for field, value in (("pool", True), ("quantity", 5)):
+        change = own(USER, payload={"field": field, "value": value, "old": None}, device_seq=2)
+        assert reasons(db, USER, change) == ["pool and quantity are set when the item is created (FR-INV-34)"]
 
 
 def test_a_pool_has_no_units(db):

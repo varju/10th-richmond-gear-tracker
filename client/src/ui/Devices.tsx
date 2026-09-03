@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { type Api, ApiError, type Device, isAssistant, Offline } from "../lib/api";
-import { isoDate } from "../lib/time";
+import { localDate } from "../lib/time";
 
 interface Props {
   userId: string;
@@ -65,7 +65,7 @@ export function DeviceList({ userId, me, myDevice, api, onError, label }: Props)
           return (
             <li key={d.device_id} className="row">
               <span className="small">
-                {kind} · signed in {isoDate(d.created_at)}
+                {kind} · signed in {localDate(d.created_at)}
               </span>
               <button
                 type="button"

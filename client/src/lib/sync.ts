@@ -22,7 +22,7 @@ export async function sync(store: Store, api: Api, now: () => number = Date.now)
         now(),
         pending.map((e) => Store.outgoing(e)),
       );
-      await store.setMeta({ clock_offset: offset });
+      if (offset !== undefined) await store.setMeta({ clock_offset: offset });
       const { retry } = await store.pushed(data.accepted, data.rejected);
       // A sequence collision (two tabs, or old data from before it was fixed) is not a real
       // rejection: the affected events were re-stamped and are ready to go up again, once.
@@ -32,7 +32,7 @@ export async function sync(store: Store, api: Api, now: () => number = Date.now)
           now(),
           store.pending.map((e) => Store.outgoing(e)),
         );
-        await store.setMeta({ clock_offset: retriedOffset });
+        if (retriedOffset !== undefined) await store.setMeta({ clock_offset: retriedOffset });
         await store.pushed(retried.accepted, retried.rejected);
       }
     }
@@ -73,15 +73,17 @@ export async function sync(store: Store, api: Api, now: () => number = Date.now)
 
 async function bootstrap(store: Store, api: Api): Promise<void> {
   const { data, offset } = await api.bootstrap();
-  await store.setMeta({ clock_offset: offset, log_id: data.log_id });
-  await store.bootstrap(data.snapshot, data.cursor);
+  // The snapshot, cursor and log_id all belong together (see Store.bootstrap); the offset is
+  // only a convenience and is set separately, and only when the server gave us one to use.
+  await store.bootstrap(data.snapshot, data.cursor, data.log_id);
+  if (offset !== undefined) await store.setMeta({ clock_offset: offset });
 }
 
 /** The device calls again until it gets an empty page. */
 async function pull(store: Store, api: Api): Promise<void> {
   for (;;) {
     const { data, offset } = await api.pull(store.meta.cursor ?? 0, store.meta.log_id);
-    await store.setMeta({ clock_offset: offset });
+    if (offset !== undefined) await store.setMeta({ clock_offset: offset });
     await store.receive(data.events, data.cursor);
     if (data.events.length === 0) return;
   }

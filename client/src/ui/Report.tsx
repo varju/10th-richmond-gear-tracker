@@ -2,7 +2,7 @@ import { displayName, group } from "../lib/inventory";
 import { type OutItem, whatIsOut } from "../lib/reports";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
-import { isoDate } from "../lib/time";
+import { localDate } from "../lib/time";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { plural } from "./labels";
@@ -28,7 +28,7 @@ export function Report({ store }: { store: Store }) {
 
   return (
     <Page title="What is out" back="/">
-      <p className="muted small">{[groupName, isoDate(now())].filter(Boolean).join(" · ")}</p>
+      <p className="muted small">{[groupName, localDate(now())].filter(Boolean).join(" · ")}</p>
       {report.total === 0 ? (
         <p>Nothing is out.</p>
       ) : (

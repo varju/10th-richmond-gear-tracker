@@ -104,10 +104,18 @@ export function conflicts(state: State, draft: ReservationInput, excludeId?: str
     for (const id of shared) add(other, nameOf(state, id));
   }
 
-  // Only for generics the draft reserves by count. Named units count once each, however many
-  // reservations name them; naming the same tent twice is the item clash above, not a count one.
+  // For every generic the draft reserves, whether by count or by naming one of its units (FR-RES-15):
+  // a draft that only names a unit must still be capacity-checked, not just one that reserves by
+  // count. Named units count once each, however many reservations name them; naming the same tent
+  // twice is the item clash above, not a count one.
   const involved = [draft, ...others];
-  for (const genericId of new Set(draft.generics.map((g) => g.item_id))) {
+  const draftGenericIds = new Set([
+    ...draft.generics.map((g) => g.item_id),
+    ...namedItems(state, draft)
+      .map((id) => state.item?.[id]?.parent_id)
+      .filter((id): id is string => Boolean(id)),
+  ]);
+  for (const genericId of draftGenericIds) {
     const generic = item(state, genericId);
     // A pool's stock is what it owns (FR-INV-36), not a count of units: it has none (FR-INV-34).
     const owned =
@@ -230,8 +238,8 @@ export function remaining(state: State, r: Reservation): Remaining {
       const done = poolEvents[r.event] ?? 0;
       return { generic, quantity: g.quantity, done: Math.min(done, g.quantity) };
     }
-    // Any unit of the generic counts, except one the reservation names: that one is its own line.
-    const done = unitsOf(state, g.item_id).filter((u) => !chosen.has(u.id) && ticked(u, r.event)).length;
+    // Any unretired unit of the generic counts, except one the reservation names: that one is its own line.
+    const done = unitsOf(state, g.item_id).filter((u) => !u.retired && !chosen.has(u.id) && ticked(u, r.event)).length;
     return { generic, quantity: g.quantity, done: Math.min(done, g.quantity) };
   });
 
@@ -387,6 +395,7 @@ export async function linkOut(store: Store, id: string, itemId: string): Promise
  */
 export async function checkOutPoolLine(store: Store, r: Reservation, itemId: string, count: number): Promise<void> {
   if (!(count > 0)) return;
+  if (item(store.state, itemId)?.retired) throw new Error("retired items cannot be checked out");
   await store.record({
     entity_type: "item",
     entity_id: itemId,

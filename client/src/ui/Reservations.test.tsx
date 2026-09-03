@@ -250,3 +250,29 @@ test("a pool line on the page is checked out by count, and ticks off (FR-RES-13)
   // Fully checked off: the count and its button are gone.
   expect(screen.queryByLabelText("How many Bowls to check out")).not.toBeInTheDocument();
 });
+
+test("a retired pool line on the page offers no check-out, only a note (FR-INV-04)", async () => {
+  const bowls = newUlid();
+  await store.record({
+    entity_type: "item",
+    entity_id: bowls,
+    type: "created",
+    actor_id: "alice",
+    payload: { name: "Bowls", generic: true, pool: true, quantity: 10 },
+  });
+  await act.retireItem(store, bowls);
+  const camp = await res.createReservation(store, {
+    event: "Cub camp",
+    starts: "2026-11-01",
+    ends: "2026-11-02",
+    items: [],
+    generics: [{ item_id: bowls, quantity: 4 }],
+  });
+  navigate(`/reservations/${camp}`);
+  renderInShell(<ReservationPage store={store} id={camp} />);
+
+  expect(screen.getByText("4 × Bowls — 0 out")).toBeInTheDocument();
+  expect(screen.queryByLabelText("How many Bowls to check out")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Check out Bowls" })).not.toBeInTheDocument();
+  expect(screen.getByText("Retired")).toBeInTheDocument();
+});

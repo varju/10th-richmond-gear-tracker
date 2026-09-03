@@ -282,6 +282,17 @@ test("sync trims history past the retention window", async () => {
   expect(await store.trim()).toBe(0);
 });
 
+test("a 500 with no server_time (an unhandled error) yields no offset and never NaNs the clock", async () => {
+  server.handle = async () => new Response(JSON.stringify({ detail: "x" }), { status: 500 });
+  expect(await sync(store, api(), () => clock)).toMatchObject({ ok: false, reason: "error" });
+  expect(store.meta.clock_offset).toBe(0);
+});
+
+test("a non-JSON 502 (a proxy's error page) is reported, not thrown past sync", async () => {
+  server.handle = async () => new Response("<html>Bad Gateway</html>", { status: 502 });
+  await expect(sync(store, api(), () => clock)).resolves.toMatchObject({ ok: false, reason: "error" });
+});
+
 test("a photo taken offline goes up at the next sync, and its event comes back (FR-INV-11)", async () => {
   await sync(store, api(), () => clock);
   await store.setMeta({ user: { id: "alice", name: "Alice", role: "user", active: true } });

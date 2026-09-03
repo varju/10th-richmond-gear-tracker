@@ -106,7 +106,7 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             if event.entity_type == "item" and p.get("pool"):
                 entity.setdefault("status", "in")
                 entity.setdefault("holder_id", None)
-                entity["pool_in"] = p.get("quantity", 0)
+                entity["pool_in"] = p.get("quantity") or 0
                 entity["pool_out"] = {}
                 entity["pool_events"] = {}
             if event.entity_type == "repair":
