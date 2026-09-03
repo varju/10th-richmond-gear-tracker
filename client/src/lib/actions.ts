@@ -318,6 +318,57 @@ export async function mergeItem(store: Store, duplicateId: string, survivorId: s
 /** Undo a merge. The pointer goes, and both items stand on their own again. */
 export const unmergeItem = (store: Store, id: string) => changed(store, "item", id, { merged_into: null });
 
+/**
+ * A generic with one unit becomes a single item again (FR-INV-33), the
+ * reverse of makeGeneric (FR-INV-26). The unit keeps its id, code and
+ * history; takes the generic's name, description, categories and purchase
+ * details. Its own home wins when it has one, so a unit already moved off
+ * the generic's default is not moved back; otherwise it takes the generic's
+ * default home (FR-INV-29). Its number and nickname go, the nickname landing
+ * on the end of the description since a single item has no number to carry
+ * it. The generic is then folded into the unit, like a duplicate record
+ * (FR-INV-13): its photos and record stay readable, and nothing else on it
+ * changes.
+ *
+ * Anyone signed in may do it. The unit must be in, the same guard mergeItem
+ * uses, so gear is not reshaped out from under whoever has it.
+ */
+export async function makeSingle(store: Store, genericId: string): Promise<string> {
+  const generic = item(store.state, genericId);
+  if (!generic) throw new Error("no such item");
+  if (!generic.generic) throw new Error("not a generic item");
+  if (generic.merged_into) throw new Error("already merged");
+  const units = unitsOf(store.state, genericId);
+  if (units.length !== 1) throw new Error("needs exactly one unit");
+  const unit = units[0]!;
+  if (unit.status !== "in") throw new Error("return it first");
+
+  const nickname = unit.nickname?.trim();
+  const description = nickname
+    ? [generic.description, nickname].filter(Boolean).join(" · ")
+    : generic.description ?? "";
+
+  await changed(
+    store,
+    "item",
+    unit.id,
+    clean({
+      parent_id: null,
+      number: null,
+      nickname: null,
+      name: generic.name ?? "",
+      description,
+      category_ids: normaliseCategoryIds(store, categoriesOf(store.state, generic)),
+      home_location_id: unit.home_location_id ?? generic.home_location_id ?? null,
+      sub_location: unit.home_location_id ? unit.sub_location ?? "" : generic.sub_location ?? "",
+      purchase_date: unit.purchase_date ?? generic.purchase_date ?? null,
+      price: unit.price ?? generic.price ?? null,
+    }),
+  );
+  await changed(store, "item", genericId, { merged_into: unit.id });
+  return unit.id;
+}
+
 // --- codes -------------------------------------------------------------------------------
 
 /** Put a printed code on an item: at creation, or to replace a lost sticker (FR-TAG-04, FR-TAG-07). */

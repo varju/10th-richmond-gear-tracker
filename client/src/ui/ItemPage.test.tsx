@@ -447,6 +447,50 @@ test("grouping with a generic joins the one already there (FR-INV-30)", async ()
   expect(generics(store.state)).toHaveLength(1);
 });
 
+test("a generic with one unit becomes a single item again, in two taps (FR-INV-33)", async () => {
+  const tents = await act.createGeneric(store, { name: "4-person tent", description: "green" });
+  const unit = await act.addUnit(store, tents);
+  await act.updateUnit(store, unit, { nickname: "patched fly" });
+  navigate(`/items/${tents}`);
+  renderInShell(<ItemPage store={store} id={tents} />);
+
+  await user.click(screen.getByRole("button", { name: "Make this a single item…" }));
+  expect(item(store.state, unit)?.parent_id).toBe(tents);
+  await user.click(screen.getByRole("button", { name: "Really make it a single item?" }));
+
+  await waitFor(() => expect(location.pathname).toBe(`/items/${unit}`));
+  expect(item(store.state, unit)).toMatchObject({
+    name: "4-person tent",
+    description: "green · patched fly",
+    parent_id: null,
+    number: null,
+    nickname: null,
+  });
+  expect(item(store.state, tents)?.merged_into).toBe(unit);
+});
+
+test("making a generic single is offered only with exactly one unit that is in (FR-INV-33)", async () => {
+  const tents = await act.createGeneric(store, { name: "4-person tent" });
+  navigate(`/items/${tents}`);
+  renderInShell(<ItemPage store={store} id={tents} />);
+  const makeSingleBtn = () => screen.queryByRole("button", { name: "Make this a single item…" });
+  expect(makeSingleBtn()).not.toBeInTheDocument();
+
+  const u1 = await act.addUnit(store, tents);
+  await waitFor(() => expect(makeSingleBtn()).toBeInTheDocument());
+
+  // A second unit takes the choice away; there is no longer one to fall back to.
+  const u2 = await act.addUnit(store, tents);
+  await waitFor(() => expect(makeSingleBtn()).not.toBeInTheDocument());
+
+  await act.deleteItem(store, u1);
+  await waitFor(() => expect(makeSingleBtn()).toBeInTheDocument());
+
+  // Out from under someone is not reshaped.
+  await mv.checkOut(store, u2, { event: "Fall Camp" });
+  await waitFor(() => expect(makeSingleBtn()).not.toBeInTheDocument());
+});
+
 test("a group of two needs two different numbers (FR-INV-23, FR-INV-30)", async () => {
   await act.createItem(store, { name: "Tent 2" });
   renderInShell(<ItemPage store={store} id={tent} />);

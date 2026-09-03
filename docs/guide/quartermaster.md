@@ -44,6 +44,12 @@ any column and keeps search and the filters in view.
 Tick "We have several of these" when you save. The name is stored once and the item in your hand becomes #1. Add the
 next one by scanning a fresh code and tapping "Another …".
 
+## Back to a single item
+
+Open the generic's page and tap "Make this a single item…", then confirm. Works only when one unit is left; it takes the
+generic's name, description, categories and purchase details, and its own home stays if it has one. The generic's page
+still opens, showing where it went.
+
 ## Retire an item
 
 Open the item, tap Edit, and tick Retired. It leaves the lists and cannot be checked out; its history stays. Untick it

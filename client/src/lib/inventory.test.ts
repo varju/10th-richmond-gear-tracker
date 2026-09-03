@@ -3,7 +3,7 @@ import { beforeEach, expect, test } from "vitest";
 import * as act from "./actions";
 import { openDb } from "./db";
 import * as inv from "./inventory";
-import { checkOut } from "./movement";
+import { checkIn, checkOut } from "./movement";
 import { Store } from "./store";
 
 let store: Store;
@@ -145,6 +145,79 @@ test("marking an item generic keeps it, under the number given (FR-INV-26)", asy
   expect(inv.displayName(store.state, inv.item(store.state, f.t2)!)).toBe("Tent 2 #B");
   expect(lettered).toBeTruthy();
   await expect(act.makeGeneric(store, f.stove, " ")).rejects.toThrow("a unit needs a number");
+});
+
+test("a generic with one unit becomes a single item again, the reverse of makeGeneric (FR-INV-33)", async () => {
+  const f = await fixture();
+  const category = await act.createCategory(store, "Tents");
+  const tents = await act.createGeneric(store, {
+    name: "4-person tent, Brand X",
+    description: "green, two poles",
+    home_location_id: f.cold,
+    sub_location: "shelf 2",
+    category_ids: [category],
+    purchase_date: "2024-03-01",
+    price: 249.99,
+  });
+  const u1 = await act.createUnit(store, { parent_id: tents, number: "1", nickname: "patched fly" });
+  await act.bindCode(store, "ABCDEFGH23", u1);
+  await checkOut(store, u1, { event: "Fall Camp" });
+  await checkIn(store, u1);
+  const movement = inv.item(store.state, u1)!.movement;
+
+  const unitId = await act.makeSingle(store, tents);
+  expect(unitId).toBe(u1);
+
+  const single = inv.item(store.state, u1)!;
+  expect(single).toMatchObject({
+    name: "4-person tent, Brand X",
+    description: "green, two poles · patched fly",
+    parent_id: null,
+    number: null,
+    nickname: null,
+    home_location_id: f.cold,
+    sub_location: "shelf 2",
+    purchase_date: "2024-03-01",
+    price: 249.99,
+    category_ids: [category],
+    status: "in",
+  });
+  expect(inv.displayName(store.state, single)).toBe("4-person tent, Brand X");
+  // The code and the history stay where they were, same as makeGeneric's forward direction.
+  expect(inv.currentCode(store.state, u1)?.id).toBe("ABCDEFGH23");
+  expect(single.movement).toEqual(movement);
+  // The generic is folded into the unit, like a duplicate record (FR-INV-13).
+  expect(inv.item(store.state, tents)?.merged_into).toBe(u1);
+  expect(inv.rows(store.state, {}).map((r) => r.name)).toEqual(["4-person tent, Brand X", "Stove", "Tent 1", "Tent 2"]);
+});
+
+test("makeSingle keeps the unit's own home over the generic's default (FR-INV-29)", async () => {
+  const f = await fixture();
+  const tents = await act.createGeneric(store, { name: "Tent", home_location_id: f.cold, sub_location: "shelf 1" });
+  const u1 = await act.createUnit(store, {
+    parent_id: tents,
+    number: "1",
+    home_location_id: f.warm,
+    sub_location: "shelf 9",
+  });
+  await act.makeSingle(store, tents);
+  expect(inv.item(store.state, u1)).toMatchObject({ home_location_id: f.warm, sub_location: "shelf 9" });
+});
+
+test("makeSingle needs a generic, unmerged, with exactly one unit that is in (FR-INV-33)", async () => {
+  const f = await withUnits();
+  await expect(act.makeSingle(store, f.t1)).rejects.toThrow("not a generic item");
+  await expect(act.makeSingle(store, f.tents)).rejects.toThrow("needs exactly one unit");
+
+  await act.deleteItem(store, f.u2);
+  await act.deleteItem(store, f.u3);
+  await checkOut(store, f.u1, { event: "Fall Camp" });
+  await expect(act.makeSingle(store, f.tents)).rejects.toThrow("return it first");
+  await checkIn(store, f.u1);
+
+  const unitId = await act.makeSingle(store, f.tents);
+  expect(unitId).toBe(f.u1);
+  await expect(act.makeSingle(store, f.tents)).rejects.toThrow("already merged");
 });
 
 test("grouping two singles makes a generic from the picked item's name (FR-INV-30)", async () => {

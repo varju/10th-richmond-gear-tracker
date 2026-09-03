@@ -5,6 +5,7 @@ import {
   groupWith,
   type ItemInput,
   makeGeneric,
+  makeSingle,
   markMissing,
   mergeItem,
   moveUnit,
@@ -983,8 +984,12 @@ function GenericPage({
 }) {
   const state = store.state;
   const [error, setError] = useState<string | null>(null);
+  const [confirmSingle, setConfirmSingle] = useState(false);
   const units = unitsOf(state, it.id);
   const live = units.filter((u) => !u.retired);
+  // Only when there is exactly one unit to fall back to, and it is not out
+  // from under someone (the same guard mergeItem uses for its duplicate).
+  const canMakeSingle = units.length === 1 && !it.retired && units[0]!.status === "in";
 
   async function add() {
     try {
@@ -992,6 +997,20 @@ function GenericPage({
       navigate(`/items/${id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not add a unit");
+    }
+  }
+
+  async function makeItSingle() {
+    if (!confirmSingle) {
+      setConfirmSingle(true);
+      return;
+    }
+    try {
+      const unitId = await makeSingle(store, it.id);
+      navigate(`/items/${unitId}`, true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not make it a single item");
+      setConfirmSingle(false);
     }
   }
 
@@ -1007,6 +1026,11 @@ function GenericPage({
           <button type="button" onClick={onEdit}>
             Edit
           </button>
+          {canMakeSingle && (
+            <button type="button" className={confirmSingle ? "warn" : ""} onClick={() => void makeItSingle()}>
+              {confirmSingle ? "Really make it a single item?" : "Make this a single item…"}
+            </button>
+          )}
           <DeleteItem store={store} it={it} />
         </>
       }
