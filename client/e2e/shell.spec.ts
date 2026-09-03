@@ -82,6 +82,8 @@ test("a printed code becomes an item", async ({ browser, page, request }) => {
   await page.getByLabel("Search").fill("tent");
   await page.getByRole("button", { name: /Tent 1/ }).click();
   await expect(page.getByText("Cold locker / shelf 4")).toBeVisible();
+  // The code sits in the Details fold, closed until asked for.
+  await page.getByText("Details", { exact: true }).click();
   await expect(page.getByText(code)).toBeVisible();
 
   // The sticker's URL now opens the item.
