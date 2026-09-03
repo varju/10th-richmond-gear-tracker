@@ -26,6 +26,7 @@ client/e2e/
 *.tsbuildinfo
 
 docs/
+!docs/guide/
 tests/
 vectors/
 .DS_Store

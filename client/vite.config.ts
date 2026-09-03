@@ -64,10 +64,17 @@ function guide(): Plugin {
     resolveId: (id) => (id === virtual ? resolved : undefined),
     load(id) {
       if (id !== resolved) return undefined;
-      const sections = GUIDE_FILES.filter((f) => existsSync(join(GUIDE_DIR, f))).map((f) => {
+      const sections = GUIDE_FILES.filter((f) => {
+        const exists = existsSync(join(GUIDE_DIR, f));
+        if (!exists) this.warn(`gear-guide: missing guide section "${f}" in ${GUIDE_DIR}`);
+        return exists;
+      }).map((f) => {
         this.addWatchFile(join(GUIDE_DIR, f));
         return compile(f, readFileSync(join(GUIDE_DIR, f), "utf8"));
       });
+      if (sections.length === 0) {
+        this.error(`gear-guide: no guide sections found in ${GUIDE_DIR}. Expected one of: ${GUIDE_FILES.join(", ")}.`);
+      }
       return `export const sections = ${JSON.stringify(sections)};`;
     },
   };

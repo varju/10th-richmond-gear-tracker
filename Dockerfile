@@ -13,6 +13,8 @@ WORKDIR /client
 COPY client/package.json client/package-lock.json ./
 RUN npm ci
 COPY client/ ./
+# The gear-guide plugin reads this at build time, resolved from the client dir.
+COPY docs/guide/ /docs/guide/
 RUN npm run build
 
 # The server's dependencies, from the lock file, into a venv copied whole below.

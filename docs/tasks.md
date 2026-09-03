@@ -39,12 +39,6 @@ The vertical slice is built. What is left needs a phone.
 From using the app at 10thrichmond.ca/gear. Fixes first, then wording, then the screens. Answers to the open questions
 are folded into each task.
 
-### Fix
-
-- [ ] Help says "No guide was built into this copy" in the deployed app. `.dockerignore` drops `docs/`, so the client
-      stage never sees `docs/guide/`, and the `gear-guide` plugin in `vite.config.ts` skips a missing file without a
-      word. Copy `docs/guide/` into the client stage, and make the build fail when no section is found.
-
 ### Wording
 
 - [ ] Rename **Take out** to **Check out** and **Bring back** to **Return**, everywhere a person reads it: the home
