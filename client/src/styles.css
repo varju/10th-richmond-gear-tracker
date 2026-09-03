@@ -1279,6 +1279,29 @@ h3.section.small {
  * Prose, not controls: docs/guide/*.md turned into HTML by the build. Wide screens
  * hold the line length down so a task can be read in one go.
  */
+/* One row of guides; the open one is underlined in the warn colour, like a selected filter. */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 16px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tabs button {
+  flex: 1;
+  min-height: 44px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.tabs button[aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--warn);
+}
+
 .guide-contents ul,
 .guide ul {
   margin: 0 0 16px;

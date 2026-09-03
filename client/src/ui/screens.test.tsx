@@ -763,16 +763,23 @@ test("Help opened cold goes home on back, not to Settings (NFR-USE-11)", async (
   expect(location.pathname).toBe("/");
 });
 
-test("the guide is the compiled markdown, with contents that reach each task", async () => {
+test("the guide is the compiled markdown, one tab per guide, with contents that reach each task", async () => {
   navigate("/help");
   mount();
-  // One heading per section, in the order the build lists them.
-  const sections = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-  expect(sections.slice(0, 2)).toEqual(["Scouter", "Quartermaster"]);
+  // One tab per section, in the order the build lists them; the first is open.
+  const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
+  expect(tabs.slice(0, 2)).toEqual(["Scouter", "Quartermaster"]);
+  expect(screen.getByRole("tab", { name: "Scouter" })).toHaveAttribute("aria-selected", "true");
   // The first task, and the contents link that jumps to it.
   expect(screen.getAllByRole("heading", { level: 3 })[0]).toHaveTextContent("Check gear out");
   const contents = within(screen.getByRole("navigation", { name: "Scouter contents" }));
   expect(contents.getByRole("link", { name: "Check gear out" })).toHaveAttribute("href", "#check-gear-out");
+
+  // Another tab shows only its guide, and the choice lives in the URL.
+  await userEvent.setup().click(screen.getByRole("tab", { name: "Quartermaster" }));
+  expect(location.search).toBe("?guide=quartermaster");
+  expect(screen.getByRole("tabpanel", { name: "Quartermaster" })).toBeInTheDocument();
+  expect(screen.queryByRole("navigation", { name: "Scouter contents" })).not.toBeInTheDocument();
 });
 
 // --- Back follows the way in ------------------------------------------------

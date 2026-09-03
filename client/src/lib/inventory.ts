@@ -458,7 +458,8 @@ export function subLocations(state: State, locationId?: string): string[] {
   for (const it of items(state)) {
     if (it.sub_location && (!locationId || it.home_location_id === locationId)) seen.add(it.sub_location);
   }
-  return [...seen].sort();
+  // "shelf 2" before "shelf 10": the number in a label counts as a number.
+  return [...seen].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 }
 
 /** Items that stop a location being deleted (FR-SET-05). Retired items count: they can come back. */

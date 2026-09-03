@@ -18,5 +18,5 @@ anyone else the same way the app does. It also needs a connection, so it is no u
 
 ## Revoke it
 
-The assistant sits in your device list beside your own device. Ask an Admin to revoke it and the token stops working at
-once, the same as a lost device.
+The assistant sits in your device list beside your own device. Revoke it there and the token stops working at once, the
+same as a lost device.

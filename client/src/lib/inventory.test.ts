@@ -443,8 +443,10 @@ test("a location in use cannot be deleted, and the error names the items", async
 test("shelf labels are the ones in use, optionally within one location", async () => {
   const f = await fixture();
   await act.updateItem(store, f.stove, { sub_location: "bin 2" });
-  expect(inv.subLocations(store.state)).toEqual(["bin 2", "shelf 4"]);
-  expect(inv.subLocations(store.state, f.cold)).toEqual(["shelf 4"]);
+  await act.updateItem(store, f.t2, { sub_location: "shelf 10" });
+  // Numbers in labels sort as numbers: shelf 4 before shelf 10.
+  expect(inv.subLocations(store.state)).toEqual(["bin 2", "shelf 4", "shelf 10"]);
+  expect(inv.subLocations(store.state, f.cold)).toEqual(["shelf 4", "shelf 10"]);
 });
 
 test("group settings are created once, then changed", async () => {

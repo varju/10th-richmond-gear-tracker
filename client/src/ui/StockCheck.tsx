@@ -65,6 +65,10 @@ function Start({ store }: { store: Store }) {
         </button>
       }
     >
+      <p>
+        A stock check compares one shelf with the records: what is misplaced here, and what should be here but was not
+        seen.
+      </p>
       <p>Where are you standing? Then scan everything on the shelf.</p>
       <label>
         <span>Location</span>

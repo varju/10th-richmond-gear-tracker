@@ -82,5 +82,5 @@ offers. A browser tab loses unsent records after seven days without a visit; an 
 
 ## A lost device
 
-Sign in on the new device and the whole inventory is there. Ask an Admin to revoke the old device. Anything the old
-device never sent is gone.
+Sign in on the new device and the whole inventory is there. Revoke the old one under Settings, Your devices. Anything
+the old device never sent is gone.
