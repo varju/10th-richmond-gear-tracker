@@ -7,7 +7,7 @@
  * parent and a number, and no name of its own: its name is derived, so read it
  * with displayName and never with `it.name`.
  */
-import type { Fields, Movement, Note, State } from "./replay";
+import type { Fields, Movement, Note, PoolOut, State } from "./replay";
 
 export interface Item {
   id: string;
@@ -18,6 +18,17 @@ export interface Item {
   sub_location?: string;
   /** One thing the group owns several of. Takes no code and no movement (FR-INV-21). */
   generic?: boolean;
+  /**
+   * A counted stack, not units (FR-INV-34): always a generic, with no code and no units of its own.
+   * `pool_in` and `pool_out` carry the truth; `quantity` is what `created` was given and is not kept
+   * current. Read both through `poolCounts`.
+   */
+  pool?: boolean;
+  quantity?: number;
+  /** What is on the shelf right now. Set only on a pool (FR-INV-34). */
+  pool_in?: number;
+  /** Holder id to count, for what is checked out of a pool. Holders at zero are absent (FR-INV-34). */
+  pool_out?: PoolOut;
   /** Set on a unit: the generic it belongs to. */
   parent_id?: string | null;
   /** Set on a single item or a generic; a unit reads its generic's (FR-SET-07). */
@@ -147,6 +158,27 @@ export const categoryName = (state: State, id: string | null | undefined): strin
 
 export const isGeneric = (it: Item): boolean => Boolean(it.generic);
 export const isUnit = (it: Item): boolean => Boolean(it.parent_id);
+export const isPool = (it: Item): boolean => Boolean(it.pool);
+
+export interface PoolHolderCount {
+  holder_id: string;
+  count: number;
+}
+
+export interface PoolCounts {
+  owned: number;
+  in: number;
+  out: PoolHolderCount[];
+}
+
+/** Owned, in, and out by holder for a pool (FR-INV-36). `owned` is `in` plus every holder's count. */
+export function poolCounts(it: Item): PoolCounts {
+  const poolIn = it.pool_in ?? 0;
+  const out = Object.entries(it.pool_out ?? {})
+    .filter(([, count]) => count > 0)
+    .map(([holder_id, count]) => ({ holder_id, count }));
+  return { owned: poolIn + out.reduce((sum, o) => sum + o.count, 0), in: poolIn, out };
+}
 
 /** Things that move: single items and units, never a generic. */
 export const movable = (state: State): Item[] => items(state).filter((it) => !it.generic);
@@ -175,7 +207,7 @@ export function byNumber(a: Item, b: Item): number {
   return x.localeCompare(y);
 }
 
-/** The units under a generic, in number order. Retired ones included; callers filter. */
+/** The units under a generic, in number order. Retired ones included; callers filter. Empty for a pool (FR-INV-34): a device may not create a unit under one (server rule). */
 export const unitsOf = (state: State, genericId: string): Item[] =>
   items(state)
     .filter((it) => it.parent_id === genericId && !it.merged_into)

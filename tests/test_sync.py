@@ -511,3 +511,109 @@ def test_a_unit_may_take_the_number_another_phone_used(db):
     assert result["accepted"] == [theirs["id"]]
     assert snapshot(db)["item"]["tarp-a"]["number"] == "2"
     assert snapshot(db)["item"]["tarp-b"]["number"] == "2"
+
+
+# --- pools (FR-INV-34) -----------------------------------------------------------------------
+
+
+def test_a_pool_must_be_generic(db):
+    ok = own(USER, type="created", payload={"name": "Bowls", "generic": True, "pool": True, "quantity": 20})
+    assert reasons(db, USER, ok) == []
+    bad = own(USER, entity_id="tent-2", type="created", payload={"name": "Cups", "pool": True, "quantity": 20})
+    assert reasons(db, USER, bad) == ["a pool must be generic (FR-INV-34)"]
+
+
+def test_a_pool_has_no_units(db):
+    push(
+        db,
+        USER,
+        batch(
+            USER, own(USER, type="created", payload={"name": "Bowls", "generic": True, "pool": True, "quantity": 20})
+        ),
+        now=T0,
+    )
+    unit = own(USER, entity_id="bowl-1", type="created", payload={"parent_id": "tent-1", "number": "1"}, device_seq=2)
+    assert reasons(db, USER, unit) == ["a pool has no units (FR-INV-34)"]
+
+    push(
+        db,
+        USER,
+        batch(USER, own(USER, entity_id="tent-2", type="created", payload={"name": "Stray"}, device_seq=2)),
+        now=T0,
+    )
+    move = own(USER, entity_id="tent-2", payload={"field": "parent_id", "value": "tent-1", "old": None}, device_seq=3)
+    assert reasons(db, USER, move) == ["a pool has no units (FR-INV-34)"]
+
+
+def test_a_pool_moves_by_count(db):
+    """Not blocked by the "generic item does not move" rule that applies to every other generic (FR-INV-21)."""
+    push(
+        db,
+        USER,
+        batch(
+            USER, own(USER, type="created", payload={"name": "Bowls", "generic": True, "pool": True, "quantity": 20})
+        ),
+        now=T0,
+    )
+    no_count = own(USER, type="checked_out", payload={"holder_id": "alice"}, device_seq=2)
+    assert reasons(db, USER, no_count) == ["a pool moves by count"]
+    with_count = own(USER, type="checked_out", payload={"holder_id": "alice", "count": 3}, device_seq=2)
+    assert reasons(db, USER, with_count) == []
+
+
+def test_pool_overdraw_is_accepted_not_blocked(db):
+    """Taking more than are in warns in the UI; the server never refuses it (FR-OUT-22)."""
+    push(
+        db,
+        USER,
+        batch(USER, own(USER, type="created", payload={"name": "Bowls", "generic": True, "pool": True, "quantity": 3})),
+        now=T0,
+    )
+    out = own(USER, type="checked_out", payload={"holder_id": "alice", "count": 10}, device_seq=2)
+    assert reasons(db, USER, out) == []
+
+
+def test_count_is_refused_off_a_pool(db):
+    push(db, USER, batch(USER, own(USER, type="created", payload={"name": "Tent"})), now=T0)
+    out = own(USER, type="checked_out", payload={"holder_id": "alice", "count": 1}, device_seq=2)
+    assert reasons(db, USER, out) == ["count is only for a pool (FR-OUT-22)"]
+
+
+def test_a_pool_takes_no_code(db):
+    push(
+        db,
+        USER,
+        batch(
+            USER, own(USER, type="created", payload={"name": "Bowls", "generic": True, "pool": True, "quantity": 20})
+        ),
+        now=T0,
+    )
+    events.append_server(db, "alice", "code", "ABCDEFGH23", "created", {}, now=T0)
+    bind = own(
+        USER, entity_type="code", entity_id="ABCDEFGH23", type="code_bound", payload={"item_id": "tent-1"}, device_seq=2
+    )
+    assert reasons(db, USER, bind) == ["a pool has no code (FR-INV-34)"]
+
+
+def test_recount_is_only_for_a_pool(db):
+    push(db, USER, batch(USER, own(USER, type="created", payload={"name": "Tent"})), now=T0)
+    bad = own(USER, type="recounted", payload={"count": 5, "reason": "shelf check"}, device_seq=2)
+    assert reasons(db, USER, bad) == ["recount is only for a pool (FR-INV-35)"]
+
+    push(
+        db,
+        USER,
+        batch(
+            USER,
+            own(
+                USER,
+                entity_id="bowls",
+                type="created",
+                payload={"name": "Bowls", "generic": True, "pool": True, "quantity": 20},
+                device_seq=2,
+            ),
+        ),
+        now=T0,
+    )
+    ok = own(USER, entity_id="bowls", type="recounted", payload={"count": 15, "reason": "shelf check"}, device_seq=3)
+    assert reasons(db, USER, ok) == []

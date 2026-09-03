@@ -1,0 +1,64 @@
+{
+  "name": "returning fewer than were taken leaves the rest against the holder (FR-OUT-23)",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": { "name": "Bowls", "generic": true, "pool": true, "quantity": 10 }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": { "holder_id": "bob", "count": 6 }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "checked_in",
+      "actor_id": "bob",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "payload": { "count": 2 }
+    }
+  ],
+  "state": {
+    "item": {
+      "bowls": {
+        "name": "Bowls",
+        "generic": true,
+        "pool": true,
+        "quantity": 10,
+        "added_at": 1000,
+        "modified_at": 1000,
+        "status": "in",
+        "holder_id": null,
+        "pool_in": 6,
+        "pool_out": { "bob": 4 },
+        "movement": {
+          "id": "01000000000000000000000003",
+          "type": "checked_in",
+          "holder_id": "bob",
+          "event": null,
+          "actor_id": "bob",
+          "device_id": "a",
+          "at": 3000,
+          "count": 2
+        }
+      }
+    }
+  }
+}

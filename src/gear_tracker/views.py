@@ -154,6 +154,21 @@ def movable(state: State) -> list[Fields]:
     return [it for it in items(state) if not it.get("generic")]
 
 
+def is_pool(it: Fields) -> bool:
+    """A counted stack, not units (FR-INV-34). Always a generic; never has a code or a movement of its own."""
+    return bool(it.get("pool"))
+
+
+def pool_counts(it: Fields) -> Fields:
+    """Owned, in, and out by holder (FR-INV-36). Mirrors poolCounts in inventory.ts. Holders at zero are absent."""
+    pool_in = it.get("pool_in") or 0
+    out = [
+        {"holder_id": holder_id, "count": count} for holder_id, count in (it.get("pool_out") or {}).items() if count > 0
+    ]
+    owned = pool_in + sum(o["count"] for o in out)
+    return {"owned": owned, "in": pool_in, "out": out}
+
+
 def search(
     state: State,
     query: str = "",
@@ -253,10 +268,20 @@ def is_overdue(state: State, it: Fields, now: int) -> bool:
 
 
 def what_is_out(state: State, now: int) -> dict[str, Any]:
-    """Everyone who has something, by name (FR-RPT-01). Missing gear is not out (FR-INV-19)."""
+    """Everyone who has something, by name (FR-RPT-01). Missing gear is not out (FR-INV-19).
+
+    A pool has no single "out"; it lists once per holder, with its count, and carries no days or
+    event of its own, because a holder's count can be the sum of check-outs at different times
+    under different events (FR-RPT-11).
+    """
     by_holder: dict[str, list[Fields]] = {}
     overdue = 0
     for it in items(state):
+        if is_pool(it):
+            for out in pool_counts(it)["out"]:
+                entry = {"item_id": it["id"], "name": display_name(state, it), "count": out["count"]}
+                by_holder.setdefault(out["holder_id"], []).append(entry)
+            continue
         if it.get("status") != "out" or it.get("missing"):
             continue
         movement = it.get("movement") or {}
@@ -276,7 +301,7 @@ def what_is_out(state: State, now: int) -> dict[str, Any]:
             {
                 "holder_id": holder_id or None,
                 "holder": user_name(state, holder_id) if holder_id else "(no holder)",
-                "items": sorted(entries, key=lambda e: (-e["days"], e["name"])),
+                "items": sorted(entries, key=lambda e: (-e.get("days", 0), e["name"])),
             }
             for holder_id, entries in by_holder.items()
         ),
@@ -422,3 +447,28 @@ def categories_of(state: State, it: Fields) -> list[str]:
 def category_names(state: State, it: Fields) -> str:
     """The item's categories on one line: "Tents, Tarps", or "" for none."""
     return ", ".join(category_name(state, cid) for cid in categories_of(state, it))
+
+
+def location_blockers(state: State, location_id: str) -> list[Fields]:
+    """Items that stop a location being deleted (FR-SET-05). Retired items count: they can come back.
+
+    Mirrors `blockers` in inventory.ts.
+    """
+    found = [it for it in items(state) if it.get("home_location_id") == location_id]
+    return sorted(found, key=lambda it: display_name(state, it))
+
+
+def category_blockers(state: State, category_id: str) -> list[Fields]:
+    """Items that stop a category being deleted (FR-SET-05). Mirrors `categoryBlockers` in inventory.ts."""
+    return sorted(
+        (it for it in items(state) if category_id in categories_of(state, it)), key=lambda it: display_name(state, it)
+    )
+
+
+# --- group setting -------------------------------------------------------------------------
+
+
+def group_name(state: State) -> str:
+    """The group name, or "" before one is set. Matches `group_name` in app.py, from a snapshot instead of a
+    connection."""
+    return (entity(state, "setting", "group") or {}).get("name") or ""

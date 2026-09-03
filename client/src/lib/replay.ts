@@ -11,6 +11,34 @@ export type Fields = Record<string, unknown>;
 /** entity_type -> entity_id -> fields */
 export type State = Record<string, Record<string, Fields>>;
 
+// --- pools (FR-INV-34) -------------------------------------------------------------------
+//
+// A pool is an item with `generic: true` and `pool: true`, `created` with an integer `quantity`
+// (>= 0). It has no code and no units (the server refuses both). Its `status` stays "in" and
+// `holder_id` null forever; the counts below carry the truth. Owned is `pool_in` plus the sum
+// of every count in `pool_out`; it is never stored. Read both through `poolCounts` and
+// `isPool` in inventory.ts, not directly.
+//
+// Derived fields, never set by a device:
+//   pool_in   number                     what is on the shelf right now
+//   pool_out  Record<holder_id, number>  what each holder has; a holder back at zero is removed
+//
+// Events, on the pool's own entity (mirrored in views.py's `pool_counts`, `is_pool`):
+//   created    {quantity}                    pool_in = quantity, pool_out = {}
+//   checked_out {holder_id, count, event?}   pool_out[holder_id] += count; pool_in -= count,
+//                                             clamped at 0 (an overdraw warns, never blocks:
+//                                             FR-OUT-22). No supersedes, no conflict rule: counts
+//                                             from any device just add, whatever the order
+//                                             (FR-OUT-24).
+//   checked_in  {holder_id?, count}          holder defaults to the actor; pool_out[holder] =
+//                                             max(0, pool_out[holder] - count), removed at 0;
+//                                             pool_in += count (FR-OUT-23).
+//   recounted   {count, reason}              pool_in = count. pool_out is untouched (FR-INV-35);
+//                                             anyone signed in may record one.
+//
+// A pool's `movement` is kept up to date like any item's, with `count` added (see `movement`),
+// so the item's History can read "Alice checked out 10" straight off the log.
+
 export interface ReplayEvent {
   id: string;
   entity_type: string;
@@ -45,7 +73,12 @@ export interface Movement {
   actor_id: string;
   device_id: string;
   at: number;
+  /** Set only for a pool (FR-OUT-22, FR-OUT-23): how many this movement carried. */
+  count?: number;
 }
+
+/** A pool's out side: how many one holder has (FR-INV-36). */
+export type PoolOut = Record<string, number>;
 
 /** A file on the server. Never the bytes: those are fetched when online (FR-INV-11). */
 export interface Photo {
@@ -91,6 +124,13 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       if (event.entity_type === "item" && !p.generic) {
         if (!("status" in entity)) entity.status = "in";
         if (!("holder_id" in entity)) entity.holder_id = null;
+      }
+      // A pool is a generic too, but it stays "in" and unheld forever; the counts carry the truth (FR-INV-34).
+      if (event.entity_type === "item" && p.pool) {
+        if (!("status" in entity)) entity.status = "in";
+        if (!("holder_id" in entity)) entity.holder_id = null;
+        entity.pool_in = (p.quantity as number | undefined) ?? 0;
+        entity.pool_out = {};
       }
       if (event.entity_type === "repair") {
         entity.raised_by = event.actor_id;
@@ -152,6 +192,18 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       entity.notes = notes(entity).filter((n) => n.id !== p.note_id);
       break;
     case "checked_out": {
+      if (p.count != null) {
+        // A pool moves by count, not by holder (FR-OUT-22): several people may have some out at once,
+        // counts from any device just add, and there is no conflict rule (FR-OUT-24).
+        const holderId = p.holder_id as string;
+        const count = p.count as number;
+        const poolOut = { ...((entity.pool_out ?? {}) as PoolOut) };
+        poolOut[holderId] = (poolOut[holderId] ?? 0) + count;
+        entity.pool_out = poolOut;
+        entity.pool_in = Math.max(0, ((entity.pool_in as number | undefined) ?? 0) - count);
+        entity.movement = movement(event);
+        break;
+      }
       // Two check-outs from different devices with no check-in between:
       // the machine picks the later one and queues both (FR-OFF-10).
       // Unless the later one says which check-out it replaces: that is a
@@ -174,11 +226,32 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       entity.movement = movement(event);
       break;
     }
-    case "checked_in":
+    case "checked_in": {
+      if (p.count != null) {
+        // The count offered is what the holder has out; returning fewer leaves the rest against
+        // them (FR-OUT-23). The holder defaults to whoever is returning it.
+        const holderId = (p.holder_id as string | undefined) ?? event.actor_id;
+        const count = p.count as number;
+        const poolOut = { ...((entity.pool_out ?? {}) as PoolOut) };
+        const remaining = Math.max(0, (poolOut[holderId] ?? 0) - count);
+        if (remaining) poolOut[holderId] = remaining;
+        else delete poolOut[holderId];
+        entity.pool_out = poolOut;
+        entity.pool_in = ((entity.pool_in as number | undefined) ?? 0) + count;
+        const m = movement(event);
+        m.holder_id = holderId;
+        entity.movement = m;
+        break;
+      }
       entity.status = "in";
       entity.holder_id = null;
       entity.since = event.effective_at;
       entity.movement = movement(event);
+      break;
+    }
+    case "recounted":
+      // How many are in right now; what is already out is untouched (FR-INV-35).
+      entity.pool_in = p.count as number;
       break;
     case "photo_added":
       // The file is on the server; this is what a device knows about it (FR-INV-11).
@@ -219,7 +292,7 @@ function photos(entity: Fields): Photo[] {
 }
 
 function movement(event: ReplayEvent): Movement {
-  return {
+  const m: Movement = {
     id: event.id,
     type: event.type,
     holder_id: event.payload.holder_id ?? null,
@@ -228,4 +301,6 @@ function movement(event: ReplayEvent): Movement {
     device_id: event.device_id,
     at: event.effective_at,
   };
+  if (event.payload.count != null) m.count = event.payload.count as number;
+  return m;
 }

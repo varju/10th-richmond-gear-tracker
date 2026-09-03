@@ -119,11 +119,28 @@ class EventCorrection(Payload):
 
 class CheckOut(Payload):
     """Who has it, for which event (FR-OUT-04). `supersedes` names the check-out this one knowingly replaces:
-    a transfer (FR-OUT-12), not a conflict (FR-OFF-10)."""
+    a transfer (FR-OUT-12), not a conflict (FR-OFF-10). `count` is set only for a pool (FR-OUT-22): it adds to
+    that holder's count instead of moving the whole item."""
 
     holder_id: NonEmpty
     event: str | None = None
     supersedes: Ulid | None = None
+    count: Annotated[int, Field(ge=1)] | None = None
+
+
+class CheckIn(Payload):
+    """A pool's return (FR-OUT-23): `holder_id` defaults to the actor when absent, and `count` says how many.
+    Absent on an ordinary check-in, which needs neither: the current holder and the whole item are implied."""
+
+    holder_id: NonEmpty | None = None
+    count: Annotated[int, Field(ge=1)] | None = None
+
+
+class Recount(Payload):
+    """How many are in right now, and why (FR-INV-35). Anyone may record one; `pool_out` is untouched."""
+
+    count: Annotated[int, Field(ge=0)]
+    reason: NonEmpty
 
 
 class CodeBinding(Payload):
@@ -205,7 +222,15 @@ class FoundReport(Payload):
     contact: str = ""
 
 
+class ItemCreated(Payload):
+    """Only the two fields a pool needs shape checked (FR-INV-34); an item otherwise carries whatever it carries."""
+
+    pool: bool | None = None
+    quantity: Annotated[int, Field(ge=0)] | None = None
+
+
 CREATED_PAYLOADS: dict[str, type[Payload]] = {
+    "item": ItemCreated,
     "repair": RepairTicket,
     "reservation": ReservationDetails,
     "found_report": FoundReport,
@@ -333,7 +358,14 @@ class CheckedOut(_ItemOnly):
 
 class CheckedIn(_ItemOnly):
     type: Literal["checked_in"]
-    payload: dict[str, Any]
+    payload: CheckIn
+
+
+class Recounted(_ItemOnly):
+    """A pool's count, put right, with a reason (FR-INV-35). The sync layer refuses this off a pool (FR-INV-34)."""
+
+    type: Literal["recounted"]
+    payload: Recount
 
 
 class _PhotoBearer(_Incoming):
@@ -393,6 +425,7 @@ IncomingEvent = Annotated[
     | QuantityChanged
     | CheckedOut
     | CheckedIn
+    | Recounted
     | CodeBound
     | CodeReleased
     | PhotoAdded
@@ -415,6 +448,7 @@ EVENT_TYPES = frozenset(
         "quantity_changed",
         "checked_out",
         "checked_in",
+        "recounted",
         "code_bound",
         "code_released",
         "photo_added",

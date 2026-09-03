@@ -110,6 +110,14 @@ def push(conn: sqlite3.Connection, principal: Principal, body: Any, now: int | N
     return {"accepted": accepted, "rejected": rejected, "log_id": log_id(conn), "server_time": now}
 
 
+def _is_pool(conn: sqlite3.Connection, item_id: Any) -> bool:
+    """Whether an id, if it names anything, names a pool (FR-INV-34). A missing or non-item id is not one."""
+    if not isinstance(item_id, str):
+        return False
+    item = derived.get_entity(conn, "item", item_id)
+    return bool(item and item.get("pool"))
+
+
 def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming: dict[str, Any]) -> None:
     """What a device may not do, whatever it says. Field checks happen later, in events.validate."""
     entity_type, kind = incoming.get("entity_type"), incoming.get("type")
@@ -123,17 +131,38 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
         # Deleting takes a record off every list for good (FR-INV-32), so it stays with an Admin.
         if field == "deleted" and principal.role != "admin":
             raise Rejected("items are deleted by an Admin")
+        # A pool has no units (FR-INV-34): moving one under a pool is refused, whether at creation or later.
+        if field == "parent_id" and _is_pool(conn, payload.get("value")):
+            raise Rejected("a pool has no units (FR-INV-34)")
+    if entity_type == "item" and kind == "created":
+        payload = incoming.get("payload")
+        if isinstance(payload, dict):
+            if payload.get("pool") and not payload.get("generic"):
+                raise Rejected("a pool must be generic (FR-INV-34)")
+            if _is_pool(conn, payload.get("parent_id")):
+                raise Rejected("a pool has no units (FR-INV-34)")
     if entity_type == "item" and kind in ("checked_out", "checked_in"):
         item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
         if item.get("deleted"):
             raise Rejected("this item was deleted")
-        if item.get("generic"):
+        is_pool = bool(item.get("pool"))
+        if item.get("generic") and not is_pool:
             raise Rejected("a generic item does not move; its units do (FR-INV-21)")
+        payload = incoming.get("payload")
+        has_count = isinstance(payload, dict) and payload.get("count") is not None
+        if is_pool and not has_count:
+            raise Rejected("a pool moves by count")
+        if not is_pool and has_count:
+            raise Rejected("count is only for a pool (FR-OUT-22)")
         if kind == "checked_out":
             if item.get("retired"):
                 raise Rejected("retired items cannot be checked out (FR-INV-04)")
             if item.get("merged_into"):
                 raise Rejected("this item was merged into another (FR-INV-13)")
+    if entity_type == "item" and kind == "recounted":
+        item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
+        if not item.get("pool"):
+            raise Rejected("recount is only for a pool (FR-INV-35)")
     if entity_type == "found_report" and kind == "created":
         raise Rejected("found reports come from the public page")
     if kind == "photo_added":
@@ -150,6 +179,8 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
             payload = incoming.get("payload")
             named = payload.get("item_id") if isinstance(payload, dict) else None
             target = derived.get_entity(conn, "item", str(named)) or {}
+            if target.get("pool"):
+                raise Rejected("a pool has no code (FR-INV-34)")
             if target.get("generic"):
                 raise Rejected("a generic item takes no code; put it on a unit (FR-INV-21)")
         if kind == "code_released":

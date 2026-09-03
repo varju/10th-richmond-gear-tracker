@@ -95,12 +95,6 @@ Public pages come before the labelling walk, not after it. From the moment stick
 Bowls, plates, cups: a stack we count, not twenty stickers. FR-INV-34 to 36, FR-OUT-22 to 24, FR-RPT-11, FR-MCP-08, and
 the pool clauses in FR-RES-13 and FR-RES-15. Queued behind go-live.
 
-- [ ] Event log. `checked_out` and `checked_in` on a pool carry `count`; a `recounted` event carries `count` and
-      `reason`. Validate in `events.py`. Replay in both languages: out by holder is checkouts minus returns, never below
-      zero; in is the last recount, or the starting quantity, plus returns minus checkouts since; owned is in plus out.
-      Vectors: two devices check out offline and both land; a recount; a return of fewer than were taken; an overdraw.
-- [ ] Server rules. A pool takes no units and no code; binding one or adding a unit is refused with a reason. A count
-      below one is refused.
 - [ ] New item. "We have several of these" offers two kinds: labelled one by one (units, as today) or a stack we count,
       with a quantity. A single item can become a pool the way it becomes a generic (FR-INV-26), keeping its record.
 - [ ] Pool page. Owned, in, and out by holder (FR-INV-36). Check out asks how many, default 1, with the event line

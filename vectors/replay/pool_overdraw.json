@@ -1,0 +1,53 @@
+{
+  "name": "taking more than are in clamps pool_in at zero and never blocks (FR-OUT-22)",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": { "name": "Bowls", "generic": true, "pool": true, "quantity": 3 }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": { "holder_id": "bob", "count": 5 }
+    }
+  ],
+  "state": {
+    "item": {
+      "bowls": {
+        "name": "Bowls",
+        "generic": true,
+        "pool": true,
+        "quantity": 3,
+        "added_at": 1000,
+        "modified_at": 1000,
+        "status": "in",
+        "holder_id": null,
+        "pool_in": 0,
+        "pool_out": { "bob": 5 },
+        "movement": {
+          "id": "01000000000000000000000002",
+          "type": "checked_out",
+          "holder_id": "bob",
+          "event": null,
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 2000,
+          "count": 5
+        }
+      }
+    }
+  }
+}

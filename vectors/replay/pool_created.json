@@ -1,0 +1,39 @@
+{
+  "name": "a pool starts fully in, with no code and no status of its own (FR-INV-34)",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "name": "Bowls",
+        "generic": true,
+        "pool": true,
+        "quantity": 20,
+        "home_location_id": "cold"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "bowls": {
+        "name": "Bowls",
+        "generic": true,
+        "pool": true,
+        "quantity": 20,
+        "home_location_id": "cold",
+        "added_at": 1000,
+        "modified_at": 1000,
+        "status": "in",
+        "holder_id": null,
+        "pool_in": 20,
+        "pool_out": {}
+      }
+    }
+  }
+}

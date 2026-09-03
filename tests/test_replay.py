@@ -380,6 +380,80 @@ def test_correcting_the_event_of_a_movement_that_is_no_longer_current_changes_no
     assert state["movement"]["id"] == back.id
 
 
+# --- pools (FR-INV-34) ---------------------------------------------------------------------
+# The shared vectors under vectors/replay/pool_*.json cover the headline cases; these are the
+# edge cases that are awkward to spell out as fixed-state vectors.
+
+
+def test_a_pool_returning_everything_clears_the_holder():
+    created = ev(
+        entity_id="bowls", device_seq=1, type="created", payload={"generic": True, "pool": True, "quantity": 10}
+    )
+    out = ev(
+        entity_id="bowls",
+        device_seq=2,
+        effective_at=T0 + 1,
+        type="checked_out",
+        payload={"holder_id": "bob", "count": 4},
+    )
+    back = ev(
+        entity_id="bowls",
+        device_seq=3,
+        effective_at=T0 + 2,
+        type="checked_in",
+        payload={"holder_id": "bob", "count": 4},
+    )
+    bowls = replay([created, out, back])["item"]["bowls"]
+    assert bowls["pool_out"] == {}
+    assert bowls["pool_in"] == 10
+
+
+def test_a_pool_return_with_no_holder_defaults_to_whoever_is_returning_it():
+    created = ev(
+        entity_id="bowls", device_seq=1, type="created", payload={"generic": True, "pool": True, "quantity": 10}
+    )
+    out = ev(
+        entity_id="bowls",
+        actor_id="bob",
+        device_seq=2,
+        effective_at=T0 + 1,
+        type="checked_out",
+        payload={"holder_id": "bob", "count": 4},
+    )
+    back = ev(
+        entity_id="bowls", actor_id="bob", device_seq=3, effective_at=T0 + 2, type="checked_in", payload={"count": 4}
+    )
+    bowls = replay([created, out, back])["item"]["bowls"]
+    assert bowls["pool_out"] == {}
+    assert bowls["movement"]["holder_id"] == "bob"
+
+
+def test_a_pool_has_no_conflict_rule():
+    """Counts from different devices just add, whatever the order (FR-OUT-24); nothing is queued."""
+    created = ev(
+        entity_id="bowls", device_seq=1, type="created", payload={"generic": True, "pool": True, "quantity": 10}
+    )
+    a = ev(
+        entity_id="bowls",
+        device_id="a",
+        device_seq=2,
+        effective_at=T0 + 1,
+        type="checked_out",
+        payload={"holder_id": "bob", "count": 3},
+    )
+    b = ev(
+        entity_id="bowls",
+        device_id="b",
+        device_seq=1,
+        effective_at=T0 + 2,
+        type="checked_out",
+        payload={"holder_id": "carol", "count": 5},
+    )
+    bowls = replay([created, a, b])["item"]["bowls"]
+    assert "conflicts" not in bowls
+    assert bowls["pool_out"] == {"bob": 3, "carol": 5}
+
+
 def test_unknown_event_type_is_an_error_not_a_skip():
     """Both replays must fail the same way, or one shows state the other does not."""
     with pytest.raises(UnknownEventType, match="teleported"):

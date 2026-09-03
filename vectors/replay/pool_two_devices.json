@@ -1,0 +1,64 @@
+{
+  "name": "two devices check a pool out offline; the counts add, whatever the order (FR-OUT-24)",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": { "name": "Bowls", "generic": true, "pool": true, "quantity": 10 }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": { "holder_id": "bob", "count": 3, "event": "Fall Camp" }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "checked_out",
+      "actor_id": "carol",
+      "device_id": "b",
+      "device_seq": 1,
+      "effective_at": 1500,
+      "payload": { "holder_id": "carol", "count": 4 }
+    }
+  ],
+  "state": {
+    "item": {
+      "bowls": {
+        "name": "Bowls",
+        "generic": true,
+        "pool": true,
+        "quantity": 10,
+        "added_at": 1000,
+        "modified_at": 1000,
+        "status": "in",
+        "holder_id": null,
+        "pool_in": 3,
+        "pool_out": { "bob": 3, "carol": 4 },
+        "movement": {
+          "id": "01000000000000000000000002",
+          "type": "checked_out",
+          "holder_id": "bob",
+          "event": "Fall Camp",
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 2000,
+          "count": 3
+        }
+      }
+    }
+  }
+}

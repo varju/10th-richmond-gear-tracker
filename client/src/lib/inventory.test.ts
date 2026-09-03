@@ -36,6 +36,21 @@ async function withUnits() {
 
 const names = (filter: inv.Filter) => inv.search(store.state, filter).map((i) => inv.displayName(store.state, i));
 
+test("isPool and poolCounts read a pool's counts, a holder back at zero left out (FR-INV-34, FR-INV-36)", () => {
+  const bowls: inv.Item = {
+    id: "bowls",
+    name: "Bowls",
+    generic: true,
+    pool: true,
+    pool_in: 4,
+    pool_out: { bob: 3, carol: 0 },
+  };
+  expect(inv.isPool(bowls)).toBe(true);
+  expect(inv.poolCounts(bowls)).toEqual({ owned: 7, in: 4, out: [{ holder_id: "bob", count: 3 }] });
+  expect(inv.isPool({ id: "tent-1", name: "Tent" })).toBe(false);
+  expect(inv.poolCounts({ id: "bowls", pool_in: 10 })).toEqual({ owned: 10, in: 10, out: [] });
+});
+
 test("search matches every word against the name, not the home (FR-INV-07)", async () => {
   const f = await fixture();
   expect(names({})).toEqual(["Stove", "Tent 1", "Tent 2"]);

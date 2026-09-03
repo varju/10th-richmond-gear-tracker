@@ -306,3 +306,57 @@ def test_a_photo_goes_on_an_item_or_a_ticket_and_nothing_else():
         validate(incoming(type="photo_added", payload={**photo, "content_type": "image/gif"}))
     with pytest.raises(Rejected, match="photo_id: not a ULID"):
         validate(incoming(type="photo_removed", payload={"photo_id": "nope"}))
+
+
+# --- pools (FR-INV-34) ------------------------------------------------------------------------
+
+
+def test_a_pools_created_payload_is_shape_checked():
+    validate(created("item", {"name": "Bowls", "generic": True, "pool": True, "quantity": 20}))
+    validate(created("item", {"name": "Tent"}))  # an ordinary item: pool and quantity are both absent
+    with pytest.raises(Rejected, match="quantity: Input should be greater than or equal to 0"):
+        validate(created("item", {"name": "Bowls", "generic": True, "pool": True, "quantity": -1}))
+    with pytest.raises(Rejected, match="pool: Input should be a valid boolean"):
+        validate(created("item", {"name": "Bowls", "pool": "yes"}))
+
+
+def test_pool_in_and_pool_out_are_derived_not_set():
+    with pytest.raises(Rejected, match="pool_in is set by the system, not by created"):
+        validate(created("item", {"name": "Bowls", "pool_in": 5}))
+    with pytest.raises(Rejected, match="pool_out is set by the system, not by created"):
+        validate(created("item", {"name": "Bowls", "pool_out": {}}))
+    with pytest.raises(Rejected, match="is derived from movements, not set directly"):
+        validate(incoming(payload={"field": "pool_in", "value": 5, "old": 0}))
+
+
+def test_a_check_out_takes_a_count_for_a_pool():
+    out = incoming(type="checked_out", payload={"holder_id": "bob", "count": 3})
+    validate(out)
+    validate(incoming(type="checked_out", payload={"holder_id": "bob"}))  # count is optional: not every item is a pool
+    with pytest.raises(Rejected, match="count: Input should be greater than or equal to 1"):
+        validate({**out, "payload": {"holder_id": "bob", "count": 0}})
+    with pytest.raises(Rejected, match="count: Input should be a valid integer"):
+        validate({**out, "payload": {"holder_id": "bob", "count": "3"}})
+
+
+def test_a_check_in_carries_an_optional_holder_and_count_for_a_pool():
+    validate(incoming(type="checked_in", payload={}))
+    validate(incoming(type="checked_in", payload={"holder_id": "bob", "count": 2}))
+    with pytest.raises(Rejected, match="count: Input should be greater than or equal to 1"):
+        validate(incoming(type="checked_in", payload={"count": 0}))
+    with pytest.raises(Rejected, match="holder_id: String should have at least 1 character"):
+        validate(incoming(type="checked_in", payload={"holder_id": "", "count": 1}))
+
+
+def test_a_recount_names_a_count_and_a_reason():
+    validate(incoming(type="recounted", payload={"count": 5, "reason": "shelf check"}))
+    with pytest.raises(Rejected, match="count: Input should be greater than or equal to 0"):
+        validate(incoming(type="recounted", payload={"count": -1, "reason": "shelf check"}))
+    with pytest.raises(Rejected, match="reason: String should have at least 1 character"):
+        validate(incoming(type="recounted", payload={"count": 5, "reason": ""}))
+    with pytest.raises(Rejected, match="recounted applies only to items"):
+        validate(
+            incoming(
+                entity_type="reservation", entity_id="res-1", type="recounted", payload={"count": 5, "reason": "x"}
+            )
+        )
