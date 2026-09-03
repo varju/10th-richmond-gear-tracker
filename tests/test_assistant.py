@@ -7,9 +7,13 @@ raw JSON-RPC and once with the SDK's own client.
 
 from __future__ import annotations
 
+import email
+import socket
+
 import anyio
 import httpx2
 import pytest
+from aiosmtpd.controller import Controller
 from fastapi import Request
 from fastapi.testclient import TestClient
 from mcp.client.session import ClientSession
@@ -18,7 +22,7 @@ from mcp.client.streamable_http import streamable_http_client
 from gear_tracker import accounts, assistant, derived, events
 from gear_tracker.app import create_app
 from gear_tracker.db import open_db
-from gear_tracker.errors import ApiError, BadRequest, Conflict, NotFound
+from gear_tracker.errors import ApiError, BadRequest, Conflict, Forbidden, NotFound
 from gear_tracker.sync import Principal
 
 RPC = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json"}
@@ -93,6 +97,32 @@ def entity(db_path, entity_type, entity_id):
 def logged(db_path):
     with open_db(db_path) as conn:
         return [dict(row) for row in conn.execute("SELECT * FROM events ORDER BY seq")]
+
+
+@pytest.fixture
+def admin_id(db_path) -> str:
+    """A real, active Admin, distinct from Alice (a User) in the inventory fixture (FR-USR-03).
+
+    A real session too, on the same device_id the `admin` Principal below uses, so list_devices
+    and revoke_device (FR-USR-14) have a real row to find, the way they would for a token minted
+    through /assistant/connect.
+    """
+    with open_db(db_path) as conn:
+        user_id = accounts.install_admin(conn, "Admin Alex", "alex@example.org", "correct horse battery staple")
+        accounts._open_session(conn, user_id, "mcp-01CCCCCCCCCCCCCCCCCCCCCCCC", events.now_ms())
+        return user_id
+
+
+@pytest.fixture
+def admin(admin_id) -> Principal:
+    return Principal(user_id=admin_id, device_id="mcp-01CCCCCCCCCCCCCCCCCCCCCCCC", role="admin")
+
+
+@pytest.fixture
+def admin_tools(db_path, admin, inventory):
+    """Call the tool functions as an Admin's assistant."""
+    with assistant.acting_as(admin, db_path):
+        yield inventory
 
 
 # --- the token ------------------------------------------------------------------------------
@@ -177,18 +207,17 @@ def test_a_token_gets_a_hundred_and_twenty_calls_a_minute(db_path):
 # --- the tool list --------------------------------------------------------------------------
 
 
-def test_the_tools_are_what_a_user_can_do_and_nothing_an_admin_does(db_path):
+def test_the_tool_list_is_a_user_and_an_admin_together(db_path):
     with TestClient(create_app(db_path, by_header)) as client:
         listed = client.post(
             "/mcp", headers={**RPC, "X-Test-User": ALICE}, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
         ).json()
     names = {tool["name"] for tool in listed["result"]["tools"]}
     assert names == {tool.__name__ for tool in assistant.TOOLS}
-    # Nothing an Admin does is built yet (FR-MCP-10): no users, mail, settings, locations, or
-    # printing codes. unassign_code is a User's job (FR-MCP-09), so it is the one exception.
-    assert not [n for n in names if "user" in n or "mail" in n or "setting" in n]
-    assert not [n for n in names if "code" in n and n != "unassign_code"]
-    assert not [n for n in names if "location" in n and n != "list_locations"]
+    # An Admin's token unlocks an Admin's tools too (FR-MCP-10): the same roster is always
+    # listed, and it is each tool's own call that refuses a User at the time it is used.
+    for admin_only in ("list_users", "get_mail", "get_group", "delete_item", "print_codes", "preview_csv_import"):
+        assert admin_only in names
     assert all(tool.__doc__ for tool in assistant.TOOLS)
 
 
@@ -381,6 +410,55 @@ def test_unassign_code_releases_it_and_needs_one_bound_first(db_path, tools):
 
     with pytest.raises(BadRequest):
         assistant.unassign_code(tools["stove"])
+
+
+def test_deleting_merging_and_unmerging_are_admin_only(tools):
+    with pytest.raises(Forbidden) as exc:
+        assistant.delete_item(tools["stove"])
+    assert exc.value.message == "Admins only"
+    with pytest.raises(Forbidden):
+        assistant.merge_items(tools["t1"], tools["t2"])
+    with pytest.raises(Forbidden):
+        assistant.unmerge_item(tools["t1"])
+
+
+def test_an_admin_deletes_an_item_that_is_in(db_path, admin_tools):
+    deleted = assistant.delete_item(admin_tools["stove"])
+    assert deleted == {"item_id": admin_tools["stove"], "deleted": True}
+    assert entity(db_path, "item", admin_tools["stove"])["deleted"] is True
+    with pytest.raises(NotFound):
+        assistant.get_item(admin_tools["stove"])
+
+
+def test_an_item_that_is_out_cannot_be_deleted(admin_tools):
+    assistant.check_out(admin_tools["stove"])
+    with pytest.raises(BadRequest):
+        assistant.delete_item(admin_tools["stove"])
+
+
+def test_a_generic_with_units_cannot_be_deleted(admin_tools):
+    with pytest.raises(BadRequest):
+        assistant.delete_item(admin_tools["tents"])
+
+
+def test_an_admin_merges_a_duplicate_and_can_undo_it(db_path, admin_tools):
+    merged = assistant.merge_items(admin_tools["t1"], admin_tools["stove"])
+    assert merged == {"duplicate_id": admin_tools["t1"], "survivor_id": admin_tools["stove"]}
+    assert entity(db_path, "item", admin_tools["t1"])["merged_into"] == admin_tools["stove"]
+    assert assistant.get_item(admin_tools["t1"])["item_id"] == admin_tools["stove"]
+
+    with pytest.raises(BadRequest):
+        assistant.merge_items(admin_tools["t1"], admin_tools["stove"])
+
+    unmerged = assistant.unmerge_item(admin_tools["t1"])
+    assert unmerged == {"item_id": admin_tools["t1"], "merged_into": None}
+    assert entity(db_path, "item", admin_tools["t1"])["merged_into"] is None
+
+
+def test_an_item_that_is_out_cannot_be_merged(admin_tools):
+    assistant.check_out(admin_tools["t1"])
+    with pytest.raises(BadRequest):
+        assistant.merge_items(admin_tools["t1"], admin_tools["stove"])
 
 
 def test_get_item_shows_the_current_code(db_path, tools):
@@ -636,3 +714,212 @@ def test_a_quantity_and_a_named_item_are_not_interchangeable(tools):
         assistant.add_to_reservation(made, tools["tents"])
     with pytest.raises(NotFound):
         assistant.remove_from_reservation(made, tools["stove"])
+
+
+# --- admin tools (FR-MCP-10) ------------------------------------------------------------------
+
+
+def test_admin_tools_refuse_a_user_the_same_way_the_app_does(tools):
+    with pytest.raises(Forbidden) as exc:
+        assistant.list_users()
+    assert exc.value.message == "Admins only"
+    with pytest.raises(Forbidden):
+        assistant.get_mail()
+    with pytest.raises(Forbidden):
+        assistant.add_location("Trailer")
+    with pytest.raises(Forbidden):
+        assistant.delete_location(tools["warm"])
+    with pytest.raises(Forbidden):
+        assistant.print_codes()
+    with pytest.raises(Forbidden):
+        assistant.preview_csv_import("id,kind,name\n")
+    with pytest.raises(Forbidden):
+        assistant.apply_csv_import("id,kind,name\n")
+
+    # Group settings are an event the sync layer itself gates for `setting` (sync._check_entity_rules),
+    # so this one is refused with the app's own rejection reason rather than "Admins only".
+    with pytest.raises(BadRequest) as settings_exc:
+        assistant.set_group(assistant.GroupFields(name="10th Richmond"))
+    assert settings_exc.value.message == "settings are changed by an Admin"
+
+
+def test_a_user_can_see_their_own_devices_but_not_anyone_elses(tools):
+    assert assistant.list_devices(ALICE) == {"devices": []}
+    with pytest.raises(Forbidden):
+        assistant.list_devices("01ZZZZZZZZZZZZZZZZZZZZZZZZ")
+
+
+def test_an_admin_invites_promotes_and_deactivates_people(admin_tools, admin_id):
+    invited = assistant.invite_user("Bea", "bea@example.org", "user")
+    assert invited["token"]
+    assert invited["link"] is None  # no site address is set yet (FR-USR-12)
+    assert "site address" in invited["note"]
+    assert invited["emailed"] is False
+
+    listed = {u["email"]: u for u in assistant.list_users()["users"]}
+    assert "bea@example.org" in listed
+    bea_id = listed["bea@example.org"]["user_id"]
+    assert listed["bea@example.org"]["role"] == "user"
+
+    promoted = assistant.set_user_role(bea_id, "admin")
+    assert promoted["user"]["role"] == "admin"
+
+    reset = assistant.reset_link(bea_id)
+    assert reset["token"] and reset["token"] != invited["token"]
+
+    deactivated = assistant.set_user_active(bea_id, False)
+    assert deactivated["user"]["active"] is False
+    reactivated = assistant.set_user_active(bea_id, True)
+    assert reactivated["user"]["active"] is True
+
+    # The last Admin cannot be deactivated or demoted (FR-USR-03): it holds once Bea is a User again.
+    assistant.set_user_role(bea_id, "user")
+    with pytest.raises(Conflict):
+        assistant.set_user_active(admin_id, False)
+    with pytest.raises(Conflict):
+        assistant.set_user_role(admin_id, "user")
+
+
+def test_devices_are_listed_and_revoked_for_self_or_by_an_admin(admin_tools, admin_id):
+    devices = assistant.list_devices(admin_id)["devices"]
+    assert [d["device_id"] for d in devices] == ["mcp-01CCCCCCCCCCCCCCCCCCCCCCCC"]
+
+    # Revoking the token making the call is "sign out instead" (accounts.revoke_device's own rule).
+    with pytest.raises(Conflict):
+        assistant.revoke_device(admin_id, "mcp-01CCCCCCCCCCCCCCCCCCCCCCCC")
+
+
+class _Mailbox:
+    """Every message a local SMTP server accepted, for send_test_mail to be exercised for real."""
+
+    def __init__(self) -> None:
+        self.messages: list[email.message.Message] = []
+
+    async def handle_DATA(self, _server, _session, envelope) -> str:  # noqa: N802 (aiosmtpd's name)
+        self.messages.append(email.message_from_bytes(envelope.content))
+        return "250 OK"
+
+
+def _free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+@pytest.fixture
+def smtp():
+    """A real SMTP server on localhost. Plain, since TLS on localhost tests the certificate store, not us."""
+    box = _Mailbox()
+    controller = Controller(box, hostname="127.0.0.1", port=_free_port(), auth_require_tls=False)
+    controller.start()
+    box.port = controller.port
+    try:
+        yield box
+    finally:
+        controller.stop()
+
+
+def test_an_admin_sets_up_mail_and_sends_a_test(admin_tools, smtp):
+    assert assistant.get_mail() == {"mail": None}
+
+    saved = assistant.set_mail(host="127.0.0.1", from_address="gear@example.org", port=smtp.port, encryption="none")
+    assert saved["mail"]["host"] == "127.0.0.1"
+    assert saved["mail"]["has_password"] is False
+
+    sent = assistant.send_test_mail()
+    assert sent["sent_to"] == "alex@example.org"
+    assert smtp.messages[0]["To"] == "alex@example.org"
+
+
+def test_an_admin_changes_group_settings(admin_tools):
+    assert assistant.get_group() == {"name": "", "code_url": "", "contact": "", "overdue_days": None}
+
+    saved = assistant.set_group(
+        assistant.GroupFields(name="10th Richmond", code_url="https://example.org/gear", contact="qm@example.org")
+    )
+    assert saved == {
+        "name": "10th Richmond",
+        "code_url": "https://example.org/gear",
+        "contact": "qm@example.org",
+        "overdue_days": None,
+    }
+
+    changed = assistant.set_group(assistant.GroupFields(overdue_days=14))
+    assert changed["overdue_days"] == 14
+    assert changed["name"] == "10th Richmond"  # untouched
+
+
+def test_an_invite_link_is_built_from_the_group_site_address_once_it_is_set(admin_tools):
+    assistant.set_group(assistant.GroupFields(code_url="https://example.org/gear"))
+    invited = assistant.invite_user("Bea", "bea@example.org")
+    assert invited["link"] == f"https://example.org/gear/join?token={invited['token']}"
+    assert "note" not in invited
+
+
+def test_an_admin_manages_locations_and_categories(db_path, admin_tools):
+    added = assistant.add_location("Trailer")
+    assert added["name"] == "Trailer"
+    renamed = assistant.rename_location(added["location_id"], "Trailer 2")
+    assert renamed["name"] == "Trailer 2"
+    assert entity(db_path, "location", added["location_id"])["name"] == "Trailer 2"
+
+    added_cat = assistant.add_category("Stoves")
+    renamed_cat = assistant.rename_category(added_cat["category_id"], "Camp stoves")
+    assert renamed_cat["name"] == "Camp stoves"
+
+    with pytest.raises(NotFound):
+        assistant.rename_location("nope", "Somewhere")
+    with pytest.raises(NotFound):
+        assistant.delete_category("nope")
+
+    deleted = assistant.delete_location(added["location_id"])
+    assert deleted == {"location_id": added["location_id"], "deleted": True}
+    assert added["location_id"] not in [loc["location_id"] for loc in assistant.list_locations()["locations"]]
+
+
+def test_deleting_a_location_or_category_still_in_use_is_blocked_and_names_what_uses_it(admin_tools):
+    with pytest.raises(Conflict) as loc_exc:
+        assistant.delete_location(admin_tools["warm"])
+    assert "Camp stove" in loc_exc.value.message
+
+    with pytest.raises(Conflict) as cat_exc:
+        assistant.delete_category(admin_tools["tents_cat"])
+    assert "4-person tent" in cat_exc.value.message
+
+
+def test_print_codes_needs_the_group_set_up_first(admin_tools):
+    with pytest.raises(Conflict):
+        assistant.print_codes()
+
+    assistant.set_group(
+        assistant.GroupFields(name="10th Richmond", code_url="https://example.org/gear", contact="qm@example.org")
+    )
+    made = assistant.print_codes()
+    assert len(made["codes"]) == 32  # one sheet, the default
+    assert made["pdf_base64"]
+
+    with pytest.raises(BadRequest):
+        assistant.print_codes(sheets=11)
+
+
+def test_csv_export_is_open_to_a_user_but_import_is_admin_only(db_path, who, admin, inventory):
+    with assistant.acting_as(who, db_path):
+        exported = assistant.export_csv()["csv"]
+        assert "Camp stove" in exported
+        with pytest.raises(Forbidden):
+            assistant.preview_csv_import("id,kind,name\n,single,New tent\n")
+
+    with assistant.acting_as(admin, db_path):
+        preview = assistant.preview_csv_import("id,kind,name\n,single,New tent\n")
+        assert preview["adds"] == 1
+        applied = assistant.apply_csv_import("id,kind,name\n,single,New tent\n")
+        assert applied["added"] == 1
+        assert "New tent" in assistant.export_csv()["csv"]
+
+
+def test_anyone_adds_a_category_and_a_repeat_name_returns_the_first(tools):
+    first = assistant.add_category("Stoves")
+    again = assistant.add_category(" stoves ")
+    assert again == first
+    with pytest.raises(Forbidden):
+        assistant.rename_category(first["category_id"], "Burners")

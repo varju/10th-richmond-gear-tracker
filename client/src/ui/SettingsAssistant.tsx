@@ -55,8 +55,8 @@ function ConnectAssistant({ api }: { api: Api }) {
     return (
       <>
         <p className="muted small">
-          Ask an assistant about the inventory, and let it book gear for you. It can do what you can do in the app, and
-          nothing an Admin does.
+          Ask an assistant about the inventory, and let it book gear for you. It can do what you can do in the app,
+          Admin work included when you are one.
         </p>
         {error && (
           <p className="error" role="alert">

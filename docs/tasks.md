@@ -36,15 +36,6 @@ The vertical slice is built. What is left needs a phone.
 
 ## M22 — Third round of feedback
 
-### Assistant
-
-- [ ] Admin tools over MCP (FR-MCP-10). Each Admin action the app has gets a tool, refused for a User's token with the
-      same reason the app gives: users (invite, reset link, deactivate, change role), anyone's devices, mail settings
-      and the test message, group settings, locations and categories (add, rename, delete), a sheet of codes, CSV export
-      and import with the preview, delete an item, merge and unmerge duplicates. Reuse the server functions the app's
-      endpoints call; no second code path. The server's MCP instructions and the "Connect an assistant" text in Settings
-      stop saying Admin work is out of reach. Guide section "assistant.md" follows.
-
 ### Reservations
 
 - [ ] Reservation form: one search adds gear. A unit never matches; its generic does. A single item is added as itself.

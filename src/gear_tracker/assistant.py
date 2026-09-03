@@ -1,4 +1,4 @@
-"""Assistant access over MCP: the same inventory, asked for in words (FR-MCP-01 to FR-MCP-06).
+"""Assistant access over MCP: the same inventory, asked for in words (FR-MCP-01 to FR-MCP-10).
 
 One process. The MCP server is mounted at `/mcp` in the same FastAPI app, over
 Streamable HTTP, using the official SDK.
@@ -16,13 +16,21 @@ history reads "this Scouter, via the assistant". There is no second write path.
 **A read is derived state**, through views.py, which is the Python twin of what
 appears on screen.
 
-**Nothing an Admin does is here yet** (FR-MCP-10 is not built): no users, mail,
-settings, locations, categories, or printing codes. Unassigning a code
-(FR-MCP-09) is a User's job, so `unassign_code` is here.
+**An Admin's token unlocks an Admin's work** (FR-MCP-10): users, mail, group
+settings, locations, categories (adding one is anyone's job), printed codes,
+CSV export and import, deleting an item, and merging or unmerging duplicates. Every one of those tools calls
+the same accounts.py, mail.py, codes.py or inventory_csv.py function the app's
+own endpoint calls, so a User's token is refused the same way the app refuses
+a User: `accounts._require_admin` where the app checks it that way, and the
+same server- or client-side rule mirrored in the tool where the app only
+checks it in the browser (locations, categories, merge, unmerge, delete).
+Unassigning a code (FR-MCP-09) is a User's job on any token, so
+`unassign_code` sits with the rest of the User tools below.
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import sqlite3
 from collections.abc import Callable, Iterator
@@ -40,10 +48,10 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.types import Receive, Scope, Send
 
-from gear_tracker import accounts, derived, sync, views
+from gear_tracker import accounts, codes, derived, inventory_csv, labels, mail, sync, views
 from gear_tracker import conflicts as clashes
 from gear_tracker.db import connect
-from gear_tracker.errors import BadRequest, Conflict, NotFound
+from gear_tracker.errors import ApiError, BadRequest, Conflict, NotFound
 from gear_tracker.events import REPAIR_STATES, now_ms
 from gear_tracker.ratelimit import RateLimit
 from gear_tracker.sync import Principal
@@ -60,8 +68,10 @@ HISTORY_SHOWN = 10
 INSTRUCTIONS = """Gear Tracker holds a Scout group's gear: what we own, where it lives, who has it,
 and what needs fixing. Search before you write, and use the ids the read tools
 return. Everything you write is recorded as the signed-in person, through the
-assistant. Users, mail, settings, locations, categories and printed codes are
-an Admin's job in the app, and are not here."""
+assistant. Users, mail, group settings, locations, renaming or deleting
+categories, printed codes, CSV import, deleting an item, and merging duplicates
+are an Admin's job in the app, and are here too when the signed-in person is an Admin; a User's token is
+refused the same way the app refuses a User."""
 
 
 @dataclass(frozen=True)
@@ -176,6 +186,15 @@ def _item(state: dict[str, Any], item_id: str) -> dict[str, Any]:
     # A deleted record is off every list and every screen, so it is not here either (FR-INV-32).
     if it is None or it.get("deleted"):
         raise NotFound(f"no item with id {item_id}")
+    return it
+
+
+def _raw_item(state: dict[str, Any], item_id: str) -> dict[str, Any]:
+    """The record itself, not the survivor a merge points to (FR-INV-13). What deleteItem, mergeItem and
+    unmergeItem read on the device: they act on the id given, not on what it resolves to."""
+    it = views.item(state, item_id)
+    if it is None:
+        raise NotFound("no such item")
     return it
 
 
@@ -798,6 +817,64 @@ def unassign_code(item_id: str) -> dict[str, Any]:
         return {"item_id": it["id"], "code": code_id}
 
 
+def delete_item(item_id: str) -> dict[str, Any]:
+    """Take a record made in error off every list, for good (FR-INV-32). Admins only.
+
+    Only an item that is in, and a generic only once it has no units. Retire is
+    for gear written off; this is for a duplicate that was never real.
+    """
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        state = _state(conn)
+        it = _raw_item(state, item_id)
+        if it.get("merged_into"):
+            raise BadRequest("this item was merged into another")
+        if it.get("status") == "out":
+            raise BadRequest("return it first")
+        if it.get("generic") and views.units_of(state, item_id):
+            raise BadRequest("delete its units first")
+        _push(conn, who, [_draft("item", item_id, "field_changed", {"field": "deleted", "value": True, "old": None})])
+        return {"item_id": item_id, "deleted": True}
+
+
+def merge_items(duplicate_id: str, survivor_id: str) -> dict[str, Any]:
+    """Fold a duplicate record into the item it doubles (FR-INV-13). Admins only.
+
+    The duplicate points at the survivor; nothing is rewritten. The duplicate
+    must be in, and neither item retired or already merged.
+    """
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        state = _state(conn)
+        dup = _raw_item(state, duplicate_id)
+        survivor = _raw_item(state, survivor_id)
+        if duplicate_id == survivor_id:
+            raise BadRequest("an item cannot be merged into itself")
+        if dup.get("merged_into") or survivor.get("merged_into"):
+            raise BadRequest("already merged")
+        if dup.get("retired") or survivor.get("retired"):
+            raise BadRequest("retired items cannot be merged")
+        if dup.get("status") != "in":
+            raise BadRequest("return it first")
+        payload = {"field": "merged_into", "value": survivor_id, "old": None}
+        _push(conn, who, [_draft("item", duplicate_id, "field_changed", payload)])
+        return {"duplicate_id": duplicate_id, "survivor_id": survivor_id}
+
+
+def unmerge_item(item_id: str) -> dict[str, Any]:
+    """Undo a merge (FR-INV-13). The item stands on its own again. Admins only."""
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        state = _state(conn)
+        it = _raw_item(state, item_id)
+        drafts = [
+            _draft("item", item_id, "field_changed", {"field": field, "value": value, "old": old})
+            for field, value, old in _changes(it, {"merged_into": None})
+        ]
+        _push(conn, who, drafts)
+        return {"item_id": item_id, "merged_into": None}
+
+
 # --- repair tools -----------------------------------------------------------------------------------
 
 RepairState = Annotated[str, StringConstraints(pattern="^(" + "|".join(REPAIR_STATES) + ")$")]
@@ -902,6 +979,328 @@ def check_in(item_id: str, note: str | None = None) -> dict[str, Any]:
         return {"item_id": it["id"], "status": "in", "home": views.home_label(state, it)}
 
 
+# --- admin tools (FR-MCP-10) -------------------------------------------------------------------------
+#
+# Everything below is refused for a User's token. Most of it calls accounts._require_admin, the same
+# function the app's own endpoints call, for the same "Admins only" the app gives. Locations, categories,
+# and group settings are events a device could in principle push; the app keeps them to Admins only in
+# the browser (settings are also checked at the sync layer for `setting`, not for `location`/`category`),
+# so the same accounts._require_admin call stands in for that check here too.
+
+
+def _link(
+    conn: sqlite3.Connection, state: dict[str, Any], kind: str, to: str, user_id: str, token: str
+) -> dict[str, Any]:
+    """A one-time link built from the group's site address (FR-USR-12), mailed if mail is set up (FR-USR-15).
+
+    Without a site address there is no page for the link to open, so only the
+    token comes back, with a note saying why.
+    """
+    group = views.entity(state, "setting", "group") or {}
+    code_url = group.get("code_url")
+    link = f"{str(code_url).rstrip('/')}/join?token={token}" if code_url else None
+    result: dict[str, Any] = {"user_id": user_id, "token": token, "link": link, "emailed": False}
+    if link is None:
+        result["note"] = "the group's site address is not set (Settings > Group); only the token is returned"
+    elif mail.configured(conn):
+        subject, body = mail.link_message(kind, views.group_name(state), link)
+        try:
+            mail.send(conn, to, subject, body)
+            result["emailed"] = True
+        except ApiError as exc:
+            result["mail_error"] = exc.message
+    return result
+
+
+def _user_brief(u: dict[str, Any]) -> dict[str, Any]:
+    return {"user_id": u["id"], "name": u.get("name"), "role": u.get("role"), "active": u.get("active")}
+
+
+def list_users() -> dict[str, Any]:
+    """Every account: name, email, role, and whether it is active (FR-USR-04). Admins only."""
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        return {
+            "users": [
+                {**_user_brief(u), "email": u.get("email"), "has_password": u.get("has_password")}
+                for u in accounts.list_users(conn)
+            ]
+        }
+
+
+def invite_user(name: str, email: str, role: accounts.Role = "user") -> dict[str, Any]:
+    """Add a person and hand back a one-time link to set a password (FR-USR-04, FR-USR-12). Admins only."""
+    with _open() as (conn, who):
+        user_id, token = accounts.invite(conn, who, accounts.Invite(name=name, email=email, role=role))
+        return _link(conn, _state(conn), "invite", email, user_id, token)
+
+
+def reset_link(user_id: str) -> dict[str, Any]:
+    """A fresh one-time link to set a new password (FR-USR-12). Admins only."""
+    with _open() as (conn, who):
+        token = accounts.reset_link(conn, who, user_id)
+        return _link(conn, _state(conn), "reset", accounts.email_of(conn, user_id), user_id, token)
+
+
+def set_user_active(user_id: str, active: bool) -> dict[str, Any]:
+    """Deactivate or reactivate an account (FR-USR-04).
+
+    The last Admin cannot be deactivated (FR-USR-03). Admins only.
+    """
+    with _open() as (conn, who):
+        if active:
+            accounts.reactivate(conn, who, user_id)
+        else:
+            accounts.deactivate(conn, who, user_id)
+        return {"user": _user_brief(accounts.get_user(conn, user_id))}
+
+
+def set_user_role(user_id: str, role: accounts.Role) -> dict[str, Any]:
+    """Change a person's role. The last Admin cannot be demoted (FR-USR-03). Admins only."""
+    with _open() as (conn, who):
+        accounts.set_role(conn, who, user_id, role)
+        return {"user": _user_brief(accounts.get_user(conn, user_id))}
+
+
+def list_devices(user_id: str) -> dict[str, Any]:
+    """The devices one account is signed in on (FR-USR-14). Your own always; anyone's if you are an Admin."""
+    with _open() as (conn, who):
+        return {"devices": accounts.list_devices(conn, who, user_id)}
+
+
+def revoke_device(user_id: str, device_id: str) -> dict[str, Any]:
+    """Sign one device out, without touching the rest of the account (FR-USR-14). Your own always; anyone's if
+    you are an Admin."""
+    with _open() as (conn, who):
+        return {"devices": accounts.revoke_device(conn, who, user_id, device_id)}
+
+
+def get_mail() -> dict[str, Any]:
+    """The server's SMTP account, without the password (FR-USR-15). Admins only."""
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        return {"mail": mail.describe(conn)}
+
+
+def set_mail(
+    host: str,
+    from_address: str,
+    port: int = 465,
+    encryption: mail.Encryption = "ssl",
+    username: str = "",
+    password: str = "",
+) -> dict[str, Any]:
+    """Save the SMTP account an Admin fills in (FR-USR-15). A blank password keeps the one stored. Admins only."""
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        settings = mail.MailSettings(
+            host=host, port=port, encryption=encryption, username=username, password=password, from_address=from_address
+        )
+        mail.save(conn, settings)
+        return {"mail": mail.describe(conn)}
+
+
+def send_test_mail() -> dict[str, Any]:
+    """Send a test message to your own address, to find a wrong password before someone else's reset needs it
+    (FR-USR-16). Admins only."""
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        to = accounts.email_of(conn, who.user_id)
+        subject, body = mail.test_message(views.group_name(_state(conn)))
+        mail.send(conn, to, subject, body)
+        return {"sent_to": to}
+
+
+def get_group() -> dict[str, Any]:
+    """The group's name, site address, contact, and how many days out counts as overdue."""
+    with _open() as (conn, _who):
+        group = views.entity(_state(conn), "setting", "group") or {}
+        return {
+            "name": group.get("name") or "",
+            "code_url": group.get("code_url") or "",
+            "contact": group.get("contact") or "",
+            "overdue_days": group.get("overdue_days"),
+        }
+
+
+class GroupFields(BaseModel):
+    """What an assistant may change on the group setting. Only what is given is changed (FR-USR-05)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: NonBlank | None = None
+    code_url: str | None = None
+    contact: str | None = None
+    overdue_days: Annotated[int, Field(ge=1)] | None = None
+
+
+def set_group(fields: GroupFields) -> dict[str, Any]:
+    """Change the group's name, site address, contact, or overdue threshold (FR-USR-15, FR-PUB-01, FR-TAG-02).
+
+    The server refuses anyone but an Admin, the same way it refuses a device
+    that pushes a setting event.
+    """
+    with _open() as (conn, who):
+        state = _state(conn)
+        group = views.entity(state, "setting", "group")
+        patch = fields.model_dump(exclude_unset=True)
+        if not patch:
+            raise BadRequest("say what to change")
+        cleaned = {k: (v.strip() if isinstance(v, str) else v) for k, v in patch.items()}
+        if group is None:
+            _push(conn, who, [_draft("setting", "group", "created", cleaned)])
+        else:
+            drafts = [
+                _draft("setting", "group", "field_changed", {"field": f, "value": v, "old": o})
+                for f, v, o in _changes(group, cleaned)
+            ]
+            _push(conn, who, drafts)
+        return get_group()
+
+
+def add_location(name: str) -> dict[str, Any]:
+    """Add a place gear can call home (FR-SET-02). Admins only."""
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        if not name.strip():
+            raise BadRequest("a location needs a name")
+        location_id = new_ulid()
+        _push(conn, who, [_draft("location", location_id, "created", {"name": name.strip()})])
+        return {"location_id": location_id, "name": name.strip()}
+
+
+def rename_location(location_id: str, name: str) -> dict[str, Any]:
+    """Admins only."""
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        state = _state(conn)
+        loc = views.entity(state, "location", location_id)
+        if loc is None:
+            raise NotFound(f"no location with id {location_id}")
+        if not name.strip():
+            raise BadRequest("a location needs a name")
+        drafts = [
+            _draft("location", location_id, "field_changed", {"field": f, "value": v, "old": o})
+            for f, v, o in _changes(loc, {"name": name.strip()})
+        ]
+        _push(conn, who, drafts)
+        return {"location_id": location_id, "name": name.strip()}
+
+
+def delete_location(location_id: str) -> dict[str, Any]:
+    """Blocked while any item points at it; the error names them (FR-SET-05). Admins only."""
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        state = _state(conn)
+        if views.entity(state, "location", location_id) is None:
+            raise NotFound(f"no location with id {location_id}")
+        using = views.location_blockers(state, location_id)
+        if using:
+            raise Conflict("in use by " + ", ".join(views.display_name(state, it) for it in using))
+        _push(
+            conn,
+            who,
+            [_draft("location", location_id, "field_changed", {"field": "deleted", "value": True, "old": None})],
+        )
+        return {"location_id": location_id, "deleted": True}
+
+
+def add_category(name: str) -> dict[str, Any]:
+    """Define a group of similar gear (FR-SET-07). Anyone signed in, as in the item editor.
+
+    A name already in use, whatever its case, returns that category rather than making a second one.
+    """
+    with _open() as (conn, who):
+        name = name.strip()
+        if not name:
+            raise BadRequest("a category needs a name")
+        for cat in views.categories(_state(conn)):
+            if str(cat.get("name", "")).lower() == name.lower():
+                return {"category_id": cat["id"], "name": cat["name"]}
+        category_id = new_ulid()
+        _push(conn, who, [_draft("category", category_id, "created", {"name": name})])
+        return {"category_id": category_id, "name": name}
+
+
+def rename_category(category_id: str, name: str) -> dict[str, Any]:
+    """Admins only."""
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        state = _state(conn)
+        cat = views.entity(state, "category", category_id)
+        if cat is None:
+            raise NotFound(f"no category with id {category_id}")
+        if not name.strip():
+            raise BadRequest("a category needs a name")
+        drafts = [
+            _draft("category", category_id, "field_changed", {"field": f, "value": v, "old": o})
+            for f, v, o in _changes(cat, {"name": name.strip()})
+        ]
+        _push(conn, who, drafts)
+        return {"category_id": category_id, "name": name.strip()}
+
+
+def delete_category(category_id: str) -> dict[str, Any]:
+    """Blocked while any item points at it; the error names them (FR-SET-05). Admins only."""
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        state = _state(conn)
+        if views.entity(state, "category", category_id) is None:
+            raise NotFound(f"no category with id {category_id}")
+        using = views.category_blockers(state, category_id)
+        if using:
+            raise Conflict("in use by " + ", ".join(views.display_name(state, it) for it in using))
+        _push(
+            conn,
+            who,
+            [_draft("category", category_id, "field_changed", {"field": "deleted", "value": True, "old": None})],
+        )
+        return {"category_id": category_id, "deleted": True}
+
+
+def print_codes(sheets: int = 1) -> dict[str, Any]:
+    """A PDF of fresh unassigned codes, laid out for Avery 6576 (FR-TAG-02). Admins only.
+
+    `sheets` is 1 to 10, 32 codes to a sheet. The group name, site address and
+    contact must be set first (FR-PUB-01): a code is a public page the moment
+    it goes on gear, and one with no way back to the group is no use to a
+    finder. Binding a code to an item still happens by scanning it in the app.
+    """
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        if not 1 <= sheets <= 10:
+            raise BadRequest("sheets must be between 1 and 10")
+        group = views.entity(_state(conn), "setting", "group") or {}
+        if not group.get("name") or not group.get("code_url") or not group.get("contact"):
+            raise Conflict("set the group name, site address and contact in Settings first")
+        made = codes.create_codes(conn, who.user_id, sheets * labels.LABELS_PER_SHEET)
+        pdf = labels.sheet(made, str(group["name"]), str(group["code_url"]))
+        return {"codes": made, "pdf_base64": base64.b64encode(pdf).decode("ascii")}
+
+
+def export_csv() -> dict[str, Any]:
+    """Every live item as a spreadsheet (FR-RPT-03). Any signed-in person, the same as the app."""
+    with _open() as (conn, _who):
+        return {"csv": inventory_csv.export(_state(conn))}
+
+
+def preview_csv_import(text: str) -> dict[str, Any]:
+    """What an import would do, without writing it: rows to add or change, and any errors (FR-SET-11). Admins only."""
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        return inventory_csv.plan(_state(conn), text).summary()
+
+
+def apply_csv_import(text: str) -> dict[str, Any]:
+    """Write a file's adds and changes, as the Admin who ran it (FR-SET-11). Admins only.
+
+    All or nothing: call preview_csv_import first, since one bad row stops the whole file.
+    """
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        return inventory_csv.apply(conn, text, who.user_id)
+
+
 TOOLS = [
     search_items,
     get_item,
@@ -922,13 +1321,40 @@ TOOLS = [
     update_item,
     mark_missing,
     unassign_code,
+    delete_item,
+    merge_items,
+    unmerge_item,
     raise_ticket,
     comment_ticket,
     set_ticket_state,
     check_out,
     check_in,
+    list_users,
+    invite_user,
+    reset_link,
+    set_user_active,
+    set_user_role,
+    list_devices,
+    revoke_device,
+    get_mail,
+    set_mail,
+    send_test_mail,
+    get_group,
+    set_group,
+    add_location,
+    rename_location,
+    delete_location,
+    add_category,
+    rename_category,
+    delete_category,
+    print_codes,
+    export_csv,
+    preview_csv_import,
+    apply_csv_import,
 ]
-"""Everything an assistant can do. What a User can do in the app; nothing an Admin does is built yet (FR-MCP-10)."""
+"""Everything an assistant can do. What a User can do in the app, and what an Admin can do when the token's owner
+is an Admin (FR-MCP-10); a User's token is refused the tools below the movement tools the same way the app refuses
+a User."""
 
 
 # --- the server ---------------------------------------------------------------------------------------
