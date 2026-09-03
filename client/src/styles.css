@@ -595,9 +595,21 @@ button.minor {
   font-weight: 500;
 }
 
-/* The session row sits above the camera; the camera still fills the rest. */
+/* The mode switch and session row sit above the camera; the camera still fills the rest. */
 main:has(> .viewfinder) {
   flex-direction: column;
+}
+
+.mode {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.mode button {
+  flex: 1;
+  width: auto;
 }
 
 .session {
@@ -1127,18 +1139,6 @@ h3.section.small {
 
 .grid tr.unit td:first-child {
   padding-left: 32px;
-}
-
-/* Opens a generic to its units (FR-INV-25). */
-button.disclose {
-  width: 24px;
-  vertical-align: middle;
-  min-height: 44px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ink);
-  font-size: 16px;
 }
 
 /* Search, filters and the two buttons, in one row that is always open. */

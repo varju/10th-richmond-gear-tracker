@@ -4,12 +4,22 @@
  */
 import type { Store } from "./store";
 import { newUlid } from "./ulid";
-import { blockers, displayName, type Item, item, nextNumber, numberOf, numberTaken, unitsOf } from "./inventory";
+import {
+  blockers,
+  categoryBlockers,
+  displayName,
+  type Item,
+  item,
+  nextNumber,
+  numberOf,
+  numberTaken,
+  unitsOf,
+} from "./inventory";
 
 /** What the item form holds. The price is typed as text and stored as a number (FR-INV-12). */
 export type ItemInput = Pick<
   Item,
-  "name" | "description" | "home_location_id" | "sub_location" | "purchase_date" | "supplier"
+  "name" | "description" | "home_location_id" | "sub_location" | "purchase_date" | "supplier" | "category_id"
 > & { price?: number | string | null };
 
 /** What the unit form holds. A unit has no name: its number and nickname make it (FR-INV-23). */
@@ -292,6 +302,19 @@ export async function deleteLocation(store: Store, id: string): Promise<void> {
   const using = blockers(store.state, id);
   if (using.length) throw new InUse(using.map((it) => displayName(store.state, it)));
   await changed(store, "location", id, { deleted: true });
+}
+
+// --- categories ------------------------------------------------------------------
+
+export const createCategory = (store: Store, name: string) => created(store, "category", { name: name.trim() });
+export const renameCategory = (store: Store, id: string, name: string) =>
+  changed(store, "category", id, { name: name.trim() });
+
+/** Blocked while any item points at it; the error names them (FR-SET-05). */
+export async function deleteCategory(store: Store, id: string): Promise<void> {
+  const using = categoryBlockers(store.state, id);
+  if (using.length) throw new InUse(using.map((it) => displayName(store.state, it)));
+  await changed(store, "category", id, { deleted: true });
 }
 
 // --- group ---------------------------------------------------------------------------------

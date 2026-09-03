@@ -32,7 +32,7 @@ they are all events on one log. One replay builds every table the client reads.
 ```
 events
   id            ulid, generated on the device, unique
-  entity_type   item | user | location | code | reservation | repair | found_report | setting
+  entity_type   item | user | location | category | code | reservation | repair | found_report | setting
   entity_id
   type          checked_out | checked_in | note_added | note_corrected | field_changed | ...
   actor_id
@@ -162,6 +162,11 @@ another within half a minute. A record reaches the server within a second of bei
 only when a sync fails, and then a watcher retries with a growing delay until one succeeds or the network returns. Sync
 never blocks the screen (NFR-PERF-06).
 
+Polling every 30 seconds, rather than holding a socket open, is a deliberate choice. A WebSocket or server-sent events
+would need a connection held open through the group's proxy and tunnel, a reconnect path on every phone, and a second
+delivery path to keep honest beside pull. Half a minute is fast enough for two phones in one locker, and it costs one
+request the server already answers.
+
 **A deactivated account still gets one final push accepted** (FR-OFF-06). The records are gear movements and they are
 true regardless of who has since left the group. Accept them, attribute them, then refuse everything else that
 credential asks for. Rejecting the push instead would violate NFR-DATA-01.
@@ -229,9 +234,10 @@ back arrow calls the browser's own back, and falls back to a named path only whe
 from a sticker's URL. The lists hold their search, filters and sort in the query string and replace the entry as they
 change, so a step back restores the view someone left and typing does not fill the back button with keystrokes.
 
-The phone's home screen holds only what someone at a locker came to do: scan, search, and add an item, with alerts above
-them and every other screen in a "More" fold. The full list lives at `/items` instead, because 500 rows pushed Scan off
-the screen and the list is the least of what a locker visit needs (NFR-USE-01, NFR-USE-03).
+The phone's home screen holds only what someone at a locker came to do: take out, bring back, search, and add an item,
+with alerts above them and every other screen in a "More" fold. The two buttons open the scanner in a mode, and a scan
+that disagrees with the mode warns instead of flipping (FR-OUT-06). The full list lives at `/items` instead, because 500
+rows pushed Scan off the screen and the list is the least of what a locker visit needs (NFR-USE-01, NFR-USE-03).
 
 The Python server serves the built client, so one process is the whole deployment. In development Vite serves the client
 and forwards API calls.
@@ -328,6 +334,18 @@ Locations are deleted by setting `deleted`; the row stays so items still pointin
 (FR-SET-05) runs on the device against its own state, which is the only state it has. Two phones offline at once can
 race it: one deletes a location while the other files an item there. The item wins, the location is hidden, and the
 item's home still reads correctly. That is rare enough to accept and cheap to fix by hand.
+
+**Categories** are entities like locations (FR-SET-07): the same create, rename and delete, and the same in-use check
+(FR-SET-05). One `category_id` sits on a single item or on a generic; a unit carries none and reads its generic's, so
+re-filing a generic re-files its units. The phone list groups by category, uncategorised last; the desk table gets a
+sortable column instead, because a table already sorts.
+
+**CSV export and import** (FR-RPT-03, FR-SET-11) are one module, `inventory_csv.py`, reached from Settings and from
+`gear-admin export` and `gear-admin import`. The export is derived state, one row per live item, home and category by
+name so a spreadsheet reads it; code, status and holder are there to read and are ignored on import. The import is the
+same columns back: a row with an id is an edit, a row without one an add, each written as ordinary events by the server
+as the Admin. The whole file is checked before anything is written, so one bad row stops it and the errors name their
+rows.
 
 Shelves are labels on items, not entities (FR-SET-03). The suggestion list is whatever labels are in use.
 
@@ -638,9 +656,11 @@ and the link on the screen. The app sends the server a link with `TOKEN` where t
 to know its own public address (NFR-DEP-09).
 
 A lost or sold phone is revoked on its own (FR-USR-14). An Admin sees the devices a person is signed in on and ends the
-sessions of one; the account, its other phones and its events are untouched. The phone keeps its copy of the inventory
-until it next tries to sync, is refused, and signs itself out. What sits on it until then is behind the phone's own lock
-(NFR-SEC-06). Invite and reset links open `/join` in the app, which sets the password and signs that phone in.
+sessions of one; the account, its other phones and its events are untouched. Anyone sees their own devices in Settings
+and revokes one there the same way (FR-USR-17); an Admin does it for anyone under Users. The phone keeps its copy of the
+inventory until it next tries to sync, is refused, and signs itself out. What sits on it until then is behind the
+phone's own lock (NFR-SEC-06). Invite and reset links open `/join` in the app, which sets the password and signs that
+phone in.
 
 The first Admin is made at the keyboard with `gear-admin create-admin` (FR-USR-13). `gear-admin reset-link` is the way
 back in when every Admin has lost their password; the keyboard is the credential.

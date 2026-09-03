@@ -4,7 +4,7 @@ Check-out and check-in. This is the loop that has to be faster than walking off 
 
 ## S-MOVE-01 Take gear to camp
 
-A Scouter opens the app, names the event once, then scans six items. Each scan shows the item; one tap confirms.
+A Scouter opens Take out, names the event once, then scans six items. Each scan shows the item; one tap confirms.
 
 - The event is typed once and applies to everything scanned after it
 - Each scan shows the item so it can be checked against what is in hand
@@ -15,9 +15,9 @@ Covers: FR-OUT-01, FR-OUT-03, FR-OUT-04, FR-OUT-05, FR-OFF-01
 
 ## S-MOVE-02 Bring gear back
 
-A Scouter unpacking the trailer scans each item. Because the item is out, the scan checks it in and shows where it goes.
+A Scouter unpacking the trailer opens Bring back and scans each item. Each scan checks it in and shows where it goes.
 
-- Scanning an item that is out checks it in
+- In Bring back, a scan checks the item in; one already in says so instead
 - The check-in shows the item's home so it can be put away
 - Items go back in any order, over any number of sessions
 

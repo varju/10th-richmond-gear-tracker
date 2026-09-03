@@ -6,8 +6,9 @@
 # The format, which is all there is to it:
 #
 #   [[locations]]      name
+#   [[categories]]     name
 #   [[items]]          name, description, home, sub_location, purchase_date,
-#                      price, supplier
+#                      price, supplier, category
 #   [[items.units]]    number, nickname, home, sub_location
 #
 # A unit's number is what is written on the gear, not a count (FR-INV-23). It
@@ -16,8 +17,9 @@
 #
 # An item with units is a generic: one name for several of the same thing
 # (FR-INV-21). Its units take their home from it unless they say otherwise.
-# `home` names a location above. Nothing here has a code; codes are printed and
-# stuck on during the labelling walk.
+# `home` names a location above; `category` names a category above and its
+# units take it from the generic too. Nothing here has a code; codes are
+# printed and stuck on during the labelling walk.
 
 [[locations]]
 name = "Cold locker"
@@ -28,6 +30,21 @@ name = "Warm locker"
 [[locations]]
 name = "Garry Point yard"
 
+[[categories]]
+name = "Tents"
+
+[[categories]]
+name = "Stoves and lanterns"
+
+[[categories]]
+name = "Tarps"
+
+[[categories]]
+name = "Cooking gear"
+
+[[categories]]
+name = "Boats and trailers"
+
 # --- gear we own several of -------------------------------------------------
 
 [[items]]
@@ -35,6 +52,7 @@ name = "Tent, 4-person"
 description = "Green dome, two poles, footprint in the bag."
 home = "Cold locker"
 sub_location = "shelf 1"
+category = "Tents"
 
 [[items.units]]
 number = 1
@@ -76,6 +94,7 @@ sub_location = "shelf 3"
 purchase_date = "2022-09-17"
 price = 129.99
 supplier = "Local outfitter"
+category = "Stoves and lanterns"
 
 [[items.units]]
 number = 1
@@ -92,6 +111,7 @@ name = "Tarp, 10 by 12"
 description = "Blue poly, grommets every two feet."
 home = "Cold locker"
 sub_location = "bin 2"
+category = "Tarps"
 
 [[items.units]]
 number = 1
@@ -110,6 +130,7 @@ name = "Dutch oven, 12 inch"
 description = "Cast iron, legged, with a lid lifter."
 home = "Warm locker"
 sub_location = "shelf 4"
+category = "Cooking gear"
 
 [[items.units]]
 number = 1
@@ -124,11 +145,13 @@ nickname = "chipped lid"
 name = "Trailer, 5 by 8"
 description = "Blue, group crest on both sides. Keys hang inside the door."
 home = "Garry Point yard"
+category = "Boats and trailers"
 
 [[items]]
 name = "Canoe, 16 foot"
 description = "Red, three yokes. Paddles and PFDs live in the warm locker."
 home = "Garry Point yard"
+category = "Boats and trailers"
 
 [[items]]
 name = "First aid kit, group"
@@ -143,9 +166,11 @@ home = "Cold locker"
 sub_location = "floor"
 purchase_date = "2021-03-06"
 price = 240.0
+category = "Cooking gear"
 
 [[items]]
 name = "Lantern, propane"
 description = "Two mantles, spares taped inside the case."
 home = "Warm locker"
 sub_location = "shelf 3"
+category = "Stoves and lanterns"

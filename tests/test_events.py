@@ -101,6 +101,11 @@ def test_every_entity_type_is_on_the_log(db):
     assert types == ENTITY_TYPES
 
 
+def test_a_category_is_created_like_a_location():
+    """No shaped payload, and no rule beyond entity_type (FR-SET-07): a device may write one, as with a location."""
+    validate(incoming(entity_type="category", entity_id="cat-1", type="created", payload={"name": "Tents"}))
+
+
 def test_stored_row_round_trips(db):
     e = incoming(payload={"field": "name", "value": "Tent, 4 person", "old": "Tent", "note": None})
     stored = append(db, e, received_at=T0 + 5)

@@ -169,13 +169,7 @@ test("gear out past the group's period is counted as overdue (FR-OUT-14)", async
 test("a reservation in the next few weeks is coming up", async () => {
   await fixture();
   const soon = localDate(T0 + 7 * DAY_MS);
-  await createReservation(store, {
-    event: "Spring camp",
-    starts: soon,
-    ends: soon,
-    items: [],
-    generics: [],
-  });
+  await createReservation(store, { event: "Spring camp", starts: soon, ends: soon, items: [], generics: [] });
   await createReservation(store, {
     event: "Summer camp",
     starts: localDate(T0 + 200 * DAY_MS),
@@ -189,34 +183,61 @@ test("a reservation in the next few weeks is coming up", async () => {
   expect(todayIso(T0)).toBe(localDate(T0));
 });
 
-test("the inventory is a table, sortable, opening a generic to its units", async () => {
+test("the inventory is a table, sortable, its units always shown under their generic", async () => {
   await fixture();
   navigate("/items");
   mount();
   const user = userEvent.setup();
 
-  // The name is the last button in a row; a generic's disclosure is the first.
+  // The name is the only button in a row.
   const names = () =>
     within(screen.getByRole("table"))
       .getAllByRole("row")
       .slice(1)
       .map((r) => within(r).getAllByRole("button").at(-1)!.textContent);
-  expect(names()).toEqual(["3x3 tarp", "Stove", "Tent 1"]);
+  // A generic's units sit under it with no click needed (FR-INV-25).
+  expect(names()).toEqual(["3x3 tarp", "3x3 tarp #1", "3x3 tarp #2", "Stove", "Tent 1"]);
   expect(screen.getByText("2 units · 2 in")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^Units of/ })).not.toBeInTheDocument();
 
   // The same header again turns the sort around.
   await user.click(screen.getByRole("button", { name: /^Name/ }));
-  expect(names()).toEqual(["Tent 1", "Stove", "3x3 tarp"]);
+  expect(names()).toEqual(["Tent 1", "Stove", "3x3 tarp", "3x3 tarp #1", "3x3 tarp #2"]);
   expect(screen.getByRole("columnheader", { name: /Name/ })).toHaveAttribute("aria-sort", "descending");
 
   await user.click(screen.getByRole("button", { name: /^Home/ }));
   expect(screen.getByRole("columnheader", { name: /Home/ })).toHaveAttribute("aria-sort", "ascending");
+});
 
-  // A generic opens to its units (FR-INV-25).
-  await user.click(screen.getByRole("button", { name: "Units of 3x3 tarp" }));
-  expect(names()).toContain("3x3 tarp #1");
-  await user.click(screen.getByRole("button", { name: "Units of 3x3 tarp" }));
-  expect(names()).not.toContain("3x3 tarp #1");
+test("a Category column appears once one exists, and sorts (FR-SET-07)", async () => {
+  const f = await fixture();
+  const camp = await act.createCategory(store, "Camp kitchen");
+  const shelter = await act.createCategory(store, "Shelter");
+  await act.updateItem(store, f.stove, { category_id: camp });
+  await act.updateItem(store, f.tent, { category_id: shelter });
+  navigate("/items");
+  mount();
+  const user = userEvent.setup();
+
+  expect(screen.getByRole("columnheader", { name: /^Category/ })).toBeInTheDocument();
+  const category = (rowName: string) => {
+    const row = within(screen.getByRole("table"))
+      .getAllByRole("row")
+      .find((r) => within(r).queryByRole("button", { name: rowName }));
+    return cells(row!)[1];
+  };
+  expect(category("Stove")).toBe("Camp kitchen");
+  expect(category("Tent 1")).toBe("Shelter");
+  expect(category("3x3 tarp")).toBe("");
+
+  await user.click(screen.getByRole("button", { name: /^Category/ }));
+  const names = () =>
+    within(screen.getByRole("table"))
+      .getAllByRole("row")
+      .slice(1)
+      .map((r) => within(r).getAllByRole("button").at(-1)!.textContent);
+  // Ascending: the uncategorised generic and its units sort first, then by category name.
+  expect(names()).toEqual(["3x3 tarp", "3x3 tarp #1", "3x3 tarp #2", "Stove", "Tent 1"]);
 });
 
 test("the table narrows by search and by filter", async () => {

@@ -1,12 +1,22 @@
 import { useState } from "react";
 import type { Shell } from "../shell";
-import { createLocation, deleteLocation, renameLocation, setGroup } from "../lib/actions";
+import {
+  createCategory,
+  createLocation,
+  deleteCategory,
+  deleteLocation,
+  renameCategory,
+  renameLocation,
+  setGroup,
+} from "../lib/actions";
 import { type Api, ApiError, type AssistantToken, Offline } from "../lib/api";
-import { group, locations } from "../lib/inventory";
+import { categories, group, locations } from "../lib/inventory";
 import { BASE, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useUnsaved } from "../lib/unsaved";
 import { useStore } from "../useStore";
+import { CsvTools } from "./CsvTools";
+import { DeviceList } from "./Devices";
 import { syncLabel } from "./labels";
 import { NameList } from "./NameList";
 import { Page } from "./Page";
@@ -22,6 +32,8 @@ export function Settings({ store, api, shell }: Props) {
   useStore(store);
   const pending = store.pending.length;
   const admin = store.meta.user?.role === "admin";
+  // For the devices section below, kept apart from what other sections show.
+  const [error, setError] = useState<string | null>(null);
 
   async function signOut() {
     await shell.signOut();
@@ -74,8 +86,41 @@ export function Settings({ store, api, shell }: Props) {
             onRename={(id, name) => renameLocation(store, id, name)}
             onDelete={(id) => deleteLocation(store, id)}
           />
+          <h2 className="section">Categories</h2>
+          <p className="muted small">
+            How gear is grouped in the list: tents, stoves, tarps. Optional. Gear with none is listed last.
+          </p>
+          <NameList
+            noun="category"
+            items={categories(store.state)}
+            onAdd={(name) => createCategory(store, name)}
+            onRename={(id, name) => renameCategory(store, id, name)}
+            onDelete={(id) => deleteCategory(store, id)}
+          />
           <h2 className="section">Print a sheet of codes</h2>
           <PrintCodes api={api} onDone={shell.sync} />
+          <h2 className="section">Export and import</h2>
+          <CsvTools api={api} onDone={shell.sync} />
+        </>
+      )}
+      {store.meta.user && (
+        <>
+          <h2 className="section">Your devices</h2>
+          {/* FR-USR-17 */}
+          <p className="muted small">Phones and assistants signed in as you. Revoke one you have lost.</p>
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <DeviceList
+            userId={store.meta.user.id}
+            me
+            myDevice={store.meta.device_id}
+            api={api}
+            onError={setError}
+            label="Your devices"
+          />
         </>
       )}
       <h2 className="section">Assistant</h2>
@@ -86,6 +131,9 @@ export function Settings({ store, api, shell }: Props) {
           Help
         </button>
       </nav>
+      <p className="muted small">
+        <a href="https://github.com/varju/10th-richmond-gear-tracker">Source</a>
+      </p>
     </Page>
   );
 }
@@ -94,12 +142,7 @@ function GroupForm({ store }: { store: Store }) {
   // Drafts sit over the current value, so a bootstrap that lands after the
   // page opens fills the fields, and only typing makes them dirty.
   const current = group(store.state);
-  const [draft, setDraft] = useState<{
-    name?: string;
-    code_url?: string;
-    contact?: string;
-    overdue_days?: string;
-  }>({});
+  const [draft, setDraft] = useState<{ name?: string; code_url?: string; contact?: string; overdue_days?: string }>({});
   const [saved, setSaved] = useState(false);
   const name = draft.name ?? current.name ?? "";
   const codeUrl = draft.code_url ?? current.code_url ?? "";
@@ -120,12 +163,7 @@ function GroupForm({ store }: { store: Store }) {
   async function save() {
     // Blank means never flag (FR-OUT-14).
     const days = Number.parseInt(overdueDays, 10);
-    await setGroup(store, {
-      name,
-      code_url: codeUrl,
-      contact,
-      overdue_days: days > 0 ? days : null,
-    });
+    await setGroup(store, { name, code_url: codeUrl, contact, overdue_days: days > 0 ? days : null });
     setDraft({});
     setSaved(true);
   }
@@ -243,9 +281,7 @@ function ConnectAssistant({ api }: { api: Api }) {
         <br />
         Send it as the header <code>Authorization: Bearer &lt;token&gt;</code>.
       </p>
-      <p className="muted small">
-        It is now in your device list beside your phone. Ask an Admin to revoke it if it is ever lost.
-      </p>
+      <p className="muted small">It is now in your device list above. Revoke it there if it is ever lost.</p>
       <div className="row">
         <button type="button" className="minor primary" onClick={copy}>
           {copied ? "Copied" : "Copy"}

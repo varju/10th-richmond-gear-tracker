@@ -446,3 +446,67 @@ test("deleting needs an Admin, an item that is in, and a generic with no units (
   await store.setMeta({ user: { id: "carol", name: "Carol", role: "user", active: true } });
   await expect(act.deleteItem(store, f.t1)).rejects.toThrow("Admins only");
 });
+
+test("a unit's category is its generic's, not its own (FR-SET-07)", async () => {
+  const f = await withUnits();
+  const tents = await act.createCategory(store, "Tents");
+  await act.updateItem(store, f.tents, { category_id: tents });
+  expect(inv.categoryOf(store.state, inv.item(store.state, f.tents)!)).toBe(tents);
+  expect(inv.categoryOf(store.state, inv.item(store.state, f.u1)!)).toBe(tents);
+  expect(inv.categoryOf(store.state, inv.item(store.state, f.stove)!)).toBeNull();
+});
+
+test("search by category matches units through their generic (FR-SET-07)", async () => {
+  const f = await withUnits();
+  const tents = await act.createCategory(store, "Tents");
+  await act.updateItem(store, f.tents, { category_id: tents });
+  const names = (filter: inv.Filter) => inv.search(store.state, filter).map((i) => inv.displayName(store.state, i));
+  expect(names({ category_id: tents })).toEqual([
+    "4-person tent #1",
+    "4-person tent #2",
+    "4-person tent #7 (patched fly)",
+  ]);
+  expect(names({ category_id: f.cold })).toEqual([]);
+});
+
+test("byCategory groups by category name, uncategorised last, empty groups left out (FR-SET-07)", async () => {
+  const f = await fixture();
+  const camp = await act.createCategory(store, "Camp kitchen");
+  await act.createCategory(store, "Shelter"); // never used: its group should not appear
+  await act.updateItem(store, f.stove, { category_id: camp });
+  const groups = inv
+    .byCategory(store.state, inv.rows(store.state, {}))
+    .map((g) => [g.category?.name ?? null, g.rows.map((r) => r.name)]);
+  expect(groups).toEqual([
+    ["Camp kitchen", ["Stove"]],
+    [null, ["Tent 1", "Tent 2"]],
+  ]);
+});
+
+test("a row whose category was deleted since counts as no category (FR-SET-07)", async () => {
+  const f = await fixture();
+  const camp = await act.createCategory(store, "Camp kitchen");
+  await act.updateItem(store, f.stove, { category_id: camp });
+  // Deleted from another device, while this one still has an item pointing at it.
+  await store.record({
+    entity_type: "category",
+    entity_id: camp,
+    type: "field_changed",
+    actor_id: "alice",
+    payload: { field: "deleted", value: true, old: null },
+  });
+  const groups = inv
+    .byCategory(store.state, inv.rows(store.state, {}))
+    .map((g) => [g.category?.name ?? null, g.rows.map((r) => r.name)]);
+  expect(groups).toEqual([[null, ["Stove", "Tent 1", "Tent 2"]]]);
+});
+
+test("a category in use cannot be deleted, and the error names the items (FR-SET-05)", async () => {
+  const f = await withUnits();
+  const tents = await act.createCategory(store, "Tents");
+  await act.updateItem(store, f.tents, { category_id: tents });
+  await expect(act.deleteCategory(store, tents)).rejects.toThrow("in use by 4-person tent");
+  await act.updateItem(store, f.tents, { category_id: null });
+  await act.deleteCategory(store, tents);
+  expect(inv.categories(store.state)).toEqual([]);
+});

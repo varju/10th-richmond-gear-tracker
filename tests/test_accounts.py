@@ -337,12 +337,35 @@ def test_an_admin_cannot_revoke_the_device_they_are_using(db, admin):
     assert accounts.authenticate(db, session.token) is not None
 
 
-def test_only_admins_see_or_revoke_devices(db, admin):
+def test_users_manage_their_own_devices(db, admin):
     user_id, token = invite(db, admin)
-    bea = accounts.authenticate(db, join(db, token).token)
+    session = join(db, token)
+    bea = accounts.authenticate(db, session.token)
+    accounts.sign_in(db, SignIn(email="bea@example.org", password="battery staple", device_id="phone-b2"), now=T0)
+
+    devices = accounts.list_devices(db, bea, user_id)
+    assert {d["device_id"] for d in devices} == {"phone-b", "phone-b2"}
+
+    remaining = accounts.revoke_device(db, bea, user_id, "phone-b2")
+    assert [d["device_id"] for d in remaining] == ["phone-b"]
+
+    cal_id, cal_token = invite(db, admin, name="Cal", email="cal@example.org")
+    join(db, cal_token, device="phone-c")
     with pytest.raises(Forbidden):
-        accounts.list_devices(db, bea, admin.user_id)
+        accounts.list_devices(db, bea, cal_id)
     with pytest.raises(Forbidden):
-        accounts.revoke_device(db, bea, admin.user_id, "server")
+        accounts.revoke_device(db, bea, cal_id, "phone-c")
+
+    with pytest.raises(Conflict, match="sign out instead"):
+        accounts.revoke_device(db, bea, user_id, "phone-b")
+
+    accounts.deactivate(db, admin, user_id, now=T0)
+    gone = accounts.authenticate(db, session.token)
+    assert gone.active is False
+    with pytest.raises(Deactivated):
+        accounts.list_devices(db, gone, user_id)
+
+
+def test_admin_lists_or_revokes_devices_for_nobody(db, admin):
     with pytest.raises(NotFound):
         accounts.list_devices(db, admin, "nobody")

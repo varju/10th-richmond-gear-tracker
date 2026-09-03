@@ -1,6 +1,6 @@
 import type { RefObject } from "react";
 import type { ItemInput } from "../lib/actions";
-import { locations, subLocations } from "../lib/inventory";
+import { categories, locations, subLocations } from "../lib/inventory";
 import type { Store } from "../lib/store";
 
 interface Props {
@@ -21,6 +21,7 @@ export const EMPTY_ITEM: ItemInput = {
   purchase_date: "",
   price: "",
   supplier: "",
+  category_id: null,
 };
 
 /** The tick that turns one item into a name several things share (FR-INV-21, FR-INV-26). */
@@ -28,7 +29,9 @@ export const SEVERAL = "We have several of these";
 
 /** The fields of an item, for creating and editing. The parent owns the values and the Save button. */
 export function ItemFields({ store, values, onChange, nameRef, generic }: Props) {
+  const state = store.state;
   const set = (patch: Partial<ItemInput>) => onChange({ ...values, ...patch });
+  const cats = categories(state);
 
   return (
     <>
@@ -49,6 +52,19 @@ export function ItemFields({ store, values, onChange, nameRef, generic }: Props)
         onChange={set}
         label={generic ? "Default home" : "Home location"}
       />
+      {cats.length > 0 && (
+        <label>
+          <span>Category</span>
+          <select value={values.category_id ?? ""} onChange={(e) => set({ category_id: e.target.value || null })}>
+            <option value="">None</option>
+            {cats.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label>
         <span>Description</span>
         <textarea value={values.description ?? ""} onChange={(e) => set({ description: e.target.value })} rows={3} />

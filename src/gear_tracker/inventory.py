@@ -5,8 +5,8 @@ wins; this is public, committed, and the database always wins. It loads into a
 database with no items and never again: after that the app is the truth, and a
 changed file waits for the next wipe.
 
-Locations and items only. No codes: those are printed and stuck on gear during
-the labelling walk.
+Locations, categories, and items only. No codes: those are printed and stuck
+on gear during the labelling walk.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ class Unit(Section):
 
 
 class Item(Section):
-    """A single item, or a generic when it has units (FR-INV-21)."""
+    """A single item, or a generic when it has units (FR-INV-21). Units take their generic's category."""
 
     name: NonEmpty
     description: str = ""
@@ -54,6 +54,7 @@ class Item(Section):
     purchase_date: IsoDate | None = None
     price: float | int | None = None
     supplier: str = ""
+    category: str = ""
     units: list[Unit] = []
 
     @model_validator(mode="after")
@@ -68,8 +69,13 @@ class Location(Section):
     name: NonEmpty
 
 
+class Category(Section):
+    name: NonEmpty
+
+
 class Inventory(Section):
     locations: list[Location] = []
+    categories: list[Category] = []
     items: list[Item] = []
 
     @model_validator(mode="after")
@@ -81,6 +87,16 @@ class Inventory(Section):
             for home in [item.home, *(unit.home for unit in item.units)]:
                 if home and home not in names:
                     raise ValueError(f"{item.name}: no location named {home!r}")
+        return self
+
+    @model_validator(mode="after")
+    def _categories_exist(self):
+        names = {category.name for category in self.categories}
+        if len(names) != len(self.categories):
+            raise ValueError("two categories with the same name")
+        for item in self.items:
+            if item.category and item.category not in names:
+                raise ValueError(f"{item.name}: no category named {item.category!r}")
         return self
 
 
@@ -117,6 +133,10 @@ def load(conn: sqlite3.Connection, spec: Inventory, actor_id: str, now: int | No
     homes = {
         location.name: _created(conn, actor_id, "location", {"name": location.name}, now) for location in spec.locations
     }
+    groups = {
+        category.name: _created(conn, actor_id, "category", {"name": category.name}, now)
+        for category in spec.categories
+    }
 
     units = 0
     for item in spec.items:
@@ -129,6 +149,8 @@ def load(conn: sqlite3.Connection, spec: Inventory, actor_id: str, now: int | No
         for field in ("purchase_date", "price", "supplier"):
             if getattr(item, field):
                 fields[field] = getattr(item, field)
+        if item.category:
+            fields["category_id"] = groups[item.category]
         item_id = _created(conn, actor_id, "item", fields, now)
 
         for unit in item.units:
@@ -140,8 +162,10 @@ def load(conn: sqlite3.Connection, spec: Inventory, actor_id: str, now: int | No
             units += 1
 
     generics = sum(1 for item in spec.items if item.units)
+    category_count = len(spec.categories)
     return (
         f"loaded {_count(len(spec.locations), 'location')}, "
+        f"{category_count} {'category' if category_count == 1 else 'categories'}, "
         f"{_count(generics, 'generic')} with {_count(units, 'unit')}, "
         f"{_count(len(spec.items) - generics, 'single item')}"
     )

@@ -1,9 +1,9 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react";
-import { type AccountUser, type Api, ApiError, type Device, isAssistant, Offline } from "../lib/api";
+import { type AccountUser, type Api, ApiError, Offline } from "../lib/api";
 import { BASE } from "../lib/router";
 import type { Store } from "../lib/store";
-import { isoDate } from "../lib/time";
 import { useStore } from "../useStore";
+import { DeviceList } from "./Devices";
 import { Page } from "./Page";
 
 interface Props {
@@ -222,7 +222,6 @@ function UserRow({
   onLink: (passed: Omit<Passed, "name">) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [devices, setDevices] = useState<Device[] | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function act(call: () => Promise<unknown>, then?: () => Promise<void> | void) {
@@ -238,14 +237,8 @@ function UserRow({
     }
   }
 
-  async function loadDevices() {
-    setDevices((await api.devices(user.id)).data.devices);
-  }
-
   function toggle() {
-    const next = !open;
-    setOpen(next);
-    if (next && devices === null) void act(loadDevices);
+    setOpen((o) => !o);
   }
 
   const status = user.active ? (user.has_password ? "" : "Invited") : "Deactivated";
@@ -309,40 +302,15 @@ function UserRow({
             </button>
           </div>
           <h3 className="section small">Devices</h3>
-          {devices === null ? (
-            <p className="muted small">Loading…</p>
-          ) : devices.length === 0 ? (
-            <p className="muted small">Not signed in anywhere.</p>
-          ) : (
-            <ul className="names" aria-label={`Devices of ${user.name}`}>
-              {devices.map((d) => {
-                const mine = me && d.device_id === myDevice;
-                const kind = isAssistant(d.device_id) ? "Assistant" : mine ? "This phone" : "Phone";
-                return (
-                  <li key={d.device_id} className="row">
-                    <span className="small">
-                      {kind} · signed in {isoDate(d.created_at)}
-                    </span>
-                    <button
-                      type="button"
-                      className="minor"
-                      disabled={busy || mine}
-                      title={mine ? "Sign out instead" : ""}
-                      onClick={() =>
-                        act(async () => setDevices((await api.revokeDevice(user.id, d.device_id)).data.devices))
-                      }
-                    >
-                      Revoke
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <p className="muted small">
-            Revoking a phone ends its access the next time it syncs. The person stays; sign them in on a new phone.
-            Revoking an assistant cuts its token off at once.
-          </p>
+          <DeviceList
+            userId={user.id}
+            me={me}
+            myDevice={myDevice}
+            api={api}
+            onError={onError}
+            label={`Devices of ${user.name}`}
+          />
+          <p className="muted small">The person stays; sign them in on a new phone.</p>
         </div>
       )}
     </li>

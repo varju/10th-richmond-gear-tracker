@@ -6,11 +6,12 @@ import io
 
 import pytest
 
-from gear_tracker import accounts
+from gear_tracker import accounts, derived
 from gear_tracker.accounts import Redeem, SignIn
 from gear_tracker.cli import main
 from gear_tracker.db import open_db
 from gear_tracker.errors import Unauthorized
+from gear_tracker.events import append_server
 
 
 def run(monkeypatch, capsys, *args, stdin=""):
@@ -101,3 +102,58 @@ def test_reset_link_for_nobody(tmp_path, monkeypatch, capsys):
     code, _, err = run(monkeypatch, capsys, "--db", str(tmp_path / "g.db"), "reset-link", "--email", "x@example.org")
     assert code == 1
     assert "no account" in err
+
+
+# --- export and import -------------------------------------------------------------------
+
+
+def with_admin(tmp_path, monkeypatch, capsys, name="fresh.db"):
+    db = tmp_path / name
+    code, _, err = run(
+        monkeypatch,
+        capsys,
+        "--db",
+        str(db),
+        "create-admin",
+        "--name",
+        "Alex",
+        "--email",
+        "alex@example.org",
+        "--password-stdin",
+        stdin="correct horse\n",
+    )
+    assert code == 0, err
+    return db
+
+
+def test_export_then_import_dry_run_finds_nothing_to_do(tmp_path, monkeypatch, capsys):
+    db = with_admin(tmp_path, monkeypatch, capsys)
+    out_file = tmp_path / "out.csv"
+
+    code, out, err = run(monkeypatch, capsys, "--db", str(db), "export", "--out", str(out_file))
+    assert code == 0, err
+    assert out.strip() == f"wrote {out_file}"
+    assert out_file.is_file()
+
+    code, out, err = run(monkeypatch, capsys, "--db", str(db), "import", "--file", str(out_file), "--dry-run")
+    assert code == 0, err
+    assert out.strip() == "0 to add, 0 to change, 0 unchanged"
+
+
+def test_editing_the_exported_file_and_importing_it_applies_the_change(tmp_path, monkeypatch, capsys):
+    db = with_admin(tmp_path, monkeypatch, capsys)
+    with open_db(db) as conn:
+        actor = accounts.first_admin(conn)
+        append_server(conn, actor, "item", "tent-1", "created", {"name": "Tent"})
+
+    out_file = tmp_path / "out.csv"
+    run(monkeypatch, capsys, "--db", str(db), "export", "--out", str(out_file))
+    edited = out_file.read_text().replace("tent-1,single,Tent,", "tent-1,single,Family tent,")
+    out_file.write_text(edited)
+
+    code, out, err = run(monkeypatch, capsys, "--db", str(db), "import", "--file", str(out_file))
+    assert code == 0, err
+    assert out.strip().startswith("added 0, changed 1")
+
+    with open_db(db) as conn:
+        assert derived.snapshot(conn)["item"]["tent-1"]["name"] == "Family tent"

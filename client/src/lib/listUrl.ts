@@ -15,6 +15,7 @@ export function readFilter(query: URLSearchParams): Filter {
     sub_location: query.get("sub") || undefined,
     status,
     retired: query.get("retired") === "1" || undefined,
+    category_id: query.get("category") || undefined,
   };
 }
 
@@ -25,6 +26,7 @@ export function filterParams(text: string, filter: Filter): URLSearchParams {
   if (filter.sub_location) params.set("sub", filter.sub_location);
   if (filter.status) params.set("status", filter.status);
   if (filter.retired) params.set("retired", "1");
+  if (filter.category_id) params.set("category", filter.category_id);
   return params;
 }
 

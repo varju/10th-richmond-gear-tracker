@@ -29,7 +29,7 @@ test("the sections stay beside the screen, and home opens on what needs a person
   await expect(sections.getByRole("button", { name: "Help" })).toBeVisible();
 });
 
-test("the inventory is a table that sorts and opens a generic to its units", async ({ page }) => {
+test("the inventory is a table that sorts, with every unit under its generic", async ({ page }) => {
   await signIn(page);
   await page.goto("/items");
   const table = page.getByRole("table");
@@ -38,8 +38,7 @@ test("the inventory is a table that sorts and opens a generic to its units", asy
   await expect(page.getByLabel("Search")).toBeFocused();
 
   await page.getByLabel("Search").fill("tent, 4-person");
-  await expect(page.getByRole("button", { name: "Units of Tent, 4-person" })).toBeVisible();
-  await page.getByRole("button", { name: "Units of Tent, 4-person" }).click();
+  // Units are never folded away (FR-INV-25).
   await expect(table.getByRole("button", { name: "Tent, 4-person #1", exact: true })).toBeVisible();
   // Whole numbers first and in numeric order, then text (FR-INV-23). The demo
   // carries a #10 and a "3b" so this is a real sort, not 1 through 6.

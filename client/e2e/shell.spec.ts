@@ -7,7 +7,7 @@ async function signIn(page: Page) {
   await page.getByLabel("Email").fill("alice@example.org");
   await page.getByLabel("Password").fill("correct horse");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("button", { name: "Scan" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Take out" })).toBeVisible();
 }
 
 test("installs its shell, then starts offline within budget", async ({ page, context }) => {
@@ -24,7 +24,7 @@ test("installs its shell, then starts offline within budget", async ({ page, con
   await context.setOffline(true);
   const started = Date.now();
   await page.reload();
-  await expect(page.getByRole("button", { name: "Scan" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Take out" })).toBeVisible();
   expect(Date.now() - started).toBeLessThan(3_000);
   await page.getByRole("button", { name: "Settings" }).click();
   await expect(page.getByText(/^Offline/)).toBeVisible();
@@ -101,7 +101,7 @@ test("an item can be checked out and in from its page", async ({ page }) => {
   await signIn(page);
   await page.goto("/");
   // Home holds nothing but the alerts until it is asked something.
-  await expect(page.getByText("Scan a code to take gear out or bring it back.")).toBeVisible();
+  await expect(page.getByText("Take out or bring back gear by scanning its code.")).toBeVisible();
   await expect(page.getByRole("listitem")).toHaveCount(0);
 
   // The list is a fold away.

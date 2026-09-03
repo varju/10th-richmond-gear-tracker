@@ -126,7 +126,7 @@ test("the page shows the gear, starts the packing session under its event, and c
 
   await user.click(screen.getByRole("button", { name: "Check out" }));
   expect(store.meta.session_event).toBe("Fall Camp");
-  expect(location.pathname + location.search).toBe(`/scan?reservation=${fall}`);
+  expect(location.pathname + location.search).toBe(`/scan?mode=out&reservation=${fall}`);
 
   await user.click(screen.getByRole("button", { name: "Cancel reservation" }));
   await user.click(screen.getByRole("button", { name: "Really cancel?" }));

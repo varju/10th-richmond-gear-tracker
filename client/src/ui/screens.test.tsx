@@ -219,6 +219,28 @@ test("Add another on its own clears the form", async () => {
   expect(screen.getByLabelText("Home location")).toHaveValue("");
 });
 
+test("a new item remembers the last category picked on this device (FR-SET-07)", async () => {
+  await fixture();
+  navigate("/items/new");
+  const first = mount();
+  expect(screen.queryByLabelText("Category")).not.toBeInTheDocument();
+  first.unmount();
+
+  const camp = await act.createCategory(store, "Camp kitchen");
+  navigate("/items/new");
+  const second = mount();
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Name"), "Stove 2");
+  await user.selectOptions(screen.getByLabelText("Category"), camp);
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(store.meta.last_category_id).toBe(camp));
+  second.unmount();
+
+  navigate("/items/new");
+  mount();
+  expect(screen.getByLabelText("Category")).toHaveValue(camp);
+});
+
 test("ticking several saves the name and the one in hand as #1 (FR-INV-21, S-BOOT-03)", async () => {
   const f = await fixture();
   navigate("/scan");
@@ -324,6 +346,28 @@ test("deleting a location in use is refused and names the items", async () => {
   await waitFor(() => expect(inv.locations(store.state).map((l) => l.name)).toEqual(["Cold locker", "Dry locker"]));
 });
 
+test("an Admin adds a category in Settings and it appears (FR-SET-07)", async () => {
+  await fixture();
+  navigate("/settings");
+  mount();
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("New category"), "Camp kitchen{Enter}");
+  await waitFor(() => expect(inv.categories(store.state).map((c) => c.name)).toEqual(["Camp kitchen"]));
+  expect(screen.getByLabelText("New category")).toHaveValue("");
+});
+
+test("deleting a category in use is refused and names the item (FR-SET-07, FR-SET-05)", async () => {
+  const f = await fixture();
+  const camp = await act.createCategory(store, "Camp kitchen");
+  await act.updateItem(store, f.stove, { category_id: camp });
+  navigate("/settings");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Delete Camp kitchen" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("In use by Stove");
+  expect(inv.categories(store.state)).toHaveLength(1);
+});
+
 test("a group name that arrives after the settings page opens fills the form", async () => {
   navigate("/settings");
   mount();
@@ -388,7 +432,7 @@ test("home is empty until something is asked of it", async () => {
   await fixture();
   mount();
   const user = userEvent.setup();
-  const hint = "Scan a code to take gear out or bring it back. Search by name for gear with no sticker.";
+  const hint = "Take out or bring back gear by scanning its code. Search by name for gear with no sticker.";
   expect(screen.getByText(hint)).toBeInTheDocument();
   expect(screen.queryAllByRole("listitem")).toEqual([]);
   // No count, no sync line, no filters: the list is a fold away at /items.
@@ -429,6 +473,39 @@ test("the phone's /items is the whole list, counted and filtered", async () => {
 
   await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
   expect(location.pathname).toBe("/");
+});
+
+test("the phone list heads its rows by category once one exists, uncategorised last (FR-SET-07)", async () => {
+  const f = await fixture();
+  navigate("/items");
+  mount();
+  expect(screen.queryAllByRole("heading", { level: 2 })).toEqual([]);
+  expect(rows()).toEqual(["StoveWarm locker", "Tent 1Cold locker / shelf 4"]);
+
+  const camp = await act.createCategory(store, "Camp kitchen");
+  await act.updateItem(store, f.stove, { category_id: camp });
+  await waitFor(() =>
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+      "Camp kitchen",
+      "No category",
+    ]),
+  );
+  expect(rows()).toEqual(["StoveWarm locker", "Tent 1Cold locker / shelf 4"]);
+});
+
+test("the Category filter and field appear only once a category exists, and the filter narrows the list (FR-SET-07)", async () => {
+  const f = await fixture();
+  navigate("/items");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByText("Filters"));
+  expect(screen.queryByLabelText("Category")).not.toBeInTheDocument();
+
+  const camp = await act.createCategory(store, "Camp kitchen");
+  await act.updateItem(store, f.stove, { category_id: camp });
+  await waitFor(() => expect(screen.getByLabelText("Category")).toBeInTheDocument());
+  await user.selectOptions(screen.getByLabelText("Category"), camp);
+  expect(rows()).toEqual(["StoveWarm locker"]);
 });
 
 test("a User has no Users link", async () => {
@@ -563,7 +640,7 @@ test("the scanner walk: an unassigned code, a new item, and back to where it sta
   mount();
   const user = userEvent.setup();
 
-  await user.click(screen.getByRole("button", { name: "Scan" }));
+  await user.click(screen.getByRole("button", { name: "Take out" }));
   await user.click(await screen.findByRole("button", { name: "Type a code instead" }));
   await user.type(screen.getByLabelText("Code or URL"), "ABCDEFGH23");
   await user.click(screen.getByRole("button", { name: "Go" }));

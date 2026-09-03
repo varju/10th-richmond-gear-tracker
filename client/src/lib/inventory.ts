@@ -20,6 +20,8 @@ export interface Item {
   generic?: boolean;
   /** Set on a unit: the generic it belongs to. */
   parent_id?: string | null;
+  /** Set on a single item or a generic; a unit reads its generic's (FR-SET-07). */
+  category_id?: string | null;
   /**
    * A unit's number under its parent, unique there. Text: the gear may read
    * "A" or "3b" (FR-INV-23). Events written before that hold a whole number,
@@ -65,6 +67,12 @@ export interface Location {
   deleted?: boolean;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  deleted?: boolean;
+}
+
 export interface Code {
   id: string;
   item_id?: string;
@@ -90,6 +98,11 @@ function withId<T>(table: Record<string, Fields> | undefined): T[] {
 /** Every item worth listing. A deleted one is gone from here, as a deleted location is (FR-INV-32). */
 export const items = (state: State): Item[] => withId<Item>(state.item).filter((it) => !it.deleted);
 export const locations = (state: State): Location[] => withId<Location>(state.location).filter((l) => !l.deleted);
+/** Sorted by name, unlike locations(): every screen that lists categories wants that order. */
+export const categories = (state: State): Category[] =>
+  withId<Category>(state.category)
+    .filter((c) => !c.deleted)
+    .sort((a, b) => a.name.localeCompare(b.name));
 export const codes = (state: State): Code[] => withId<Code>(state.code);
 export const group = (state: State): GroupSetting => (state.setting?.group ?? {}) as GroupSetting;
 
@@ -124,6 +137,8 @@ export const code = (state: State, id: string): Code | undefined =>
   state.code?.[id] ? ({ id, ...state.code[id] } as Code) : undefined;
 export const locationName = (state: State, id: string | null | undefined): string =>
   id ? (state.location?.[id]?.name as string | undefined) ?? "(unknown location)" : "";
+export const categoryName = (state: State, id: string | null | undefined): string =>
+  id ? (state.category?.[id]?.name as string | undefined) ?? "(unknown category)" : "";
 
 // --- generics and units -------------------------------------------------------------------
 
@@ -166,6 +181,10 @@ export const unitsOf = (state: State, genericId: string): Item[] =>
 /** The generic a unit belongs to, if this phone has it. */
 export const parentOf = (state: State, it: Item): Item | undefined =>
   it.parent_id ? item(state, it.parent_id) : undefined;
+
+/** A unit's category is its generic's; anything else carries its own (FR-SET-07). */
+export const categoryOf = (state: State, it: Item): string | null =>
+  isUnit(it) ? parentOf(state, it)?.category_id ?? null : it.category_id ?? null;
 
 /**
  * The name a person reads: "4-person tent, Brand X #3 (patched fly)" for a
@@ -253,6 +272,7 @@ export interface Filter {
   sub_location?: string;
   status?: "in" | "out" | "missing";
   retired?: boolean;
+  category_id?: string;
 }
 
 const terms = (query: string | undefined): string[] => (query ?? "").toLowerCase().split(/\s+/).filter(Boolean);
@@ -277,6 +297,7 @@ export function search(state: State, filter: Filter): Item[] {
     .filter((it) => !filter.location_id || it.home_location_id === filter.location_id)
     .filter((it) => !filter.sub_location || it.sub_location === filter.sub_location)
     .filter((it) => !filter.status || (filter.status === "missing" ? Boolean(it.missing) : it.status === filter.status))
+    .filter((it) => !filter.category_id || categoryOf(state, it) === filter.category_id)
     .filter((it) => matches(state, it, words))
     .sort(byName(state));
 }
@@ -312,7 +333,7 @@ export function rows(state: State, filter: Filter): Row[] {
     if (parent) byParent.set(parent, [...(byParent.get(parent) ?? []), it]);
     else singles.push({ kind: "single", item: it, name: displayName(state, it) });
   }
-  if (!filter.location_id && !filter.sub_location && !filter.status) {
+  if (!filter.location_id && !filter.sub_location && !filter.status && !filter.category_id) {
     const words = terms(filter.query);
     for (const g of generics(state)) {
       if (g.merged_into || Boolean(g.retired) !== Boolean(filter.retired)) continue;
@@ -373,4 +394,38 @@ export function blockers(state: State, locationId: string): Item[] {
   return items(state)
     .filter((it) => it.home_location_id === locationId)
     .sort(byName(state));
+}
+
+/** Items that stop a category being deleted (FR-SET-05). Retired items count: they can come back. */
+export function categoryBlockers(state: State, categoryId: string): Item[] {
+  return items(state)
+    .filter((it) => it.category_id === categoryId)
+    .sort(byName(state));
+}
+
+export interface CategoryGroup {
+  category: Category | null;
+  rows: Row[];
+}
+
+/**
+ * Rows grouped by category, in categories(state) order, with the uncategorised
+ * rows last under a null category (FR-SET-07, FR-INV-08). A category deleted
+ * since a row was filed under it is treated as no category. Empty groups are
+ * left out.
+ */
+export function byCategory(state: State, list: Row[]): CategoryGroup[] {
+  const live = new Set(categories(state).map((c) => c.id));
+  const byId = new Map<string, Row[]>();
+  const uncategorised: Row[] = [];
+  for (const row of list) {
+    const id = categoryOf(state, row.item);
+    if (id && live.has(id)) byId.set(id, [...(byId.get(id) ?? []), row]);
+    else uncategorised.push(row);
+  }
+  const groups: CategoryGroup[] = categories(state)
+    .map((category) => ({ category, rows: byId.get(category.id) ?? [] }))
+    .filter((g) => g.rows.length > 0);
+  if (uncategorised.length > 0) groups.push({ category: null, rows: uncategorised });
+  return groups;
 }

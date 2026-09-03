@@ -19,11 +19,15 @@ name = "Cold locker"
 [[locations]]
 name = "Warm locker"
 
+[[categories]]
+name = "Tarps"
+
 [[items]]
 name = "Tarp, 10 by 12"
 description = "Blue poly."
 home = "Cold locker"
 sub_location = "bin 2"
+category = "Tarps"
 
 [[items.units]]
 number = 1
@@ -75,7 +79,7 @@ def test_loads_locations_and_items(db, tmp_path):
 
     said = inventory.load(db, inventory.read(written(tmp_path, SMALL)), actor)
 
-    assert said == "loaded 2 locations, 1 generic with 2 units, 1 single item"
+    assert said == "loaded 2 locations, 1 category, 1 generic with 2 units, 1 single item"
     assert sorted(fields["name"] for fields in state(db)["location"].values()) == ["Cold locker", "Warm locker"]
     assert len(state(db)["item"]) == 4
 
@@ -87,6 +91,16 @@ def test_a_generic_carries_the_name_and_no_status(db, tmp_path):
     assert tarp["generic"] is True
     assert "status" not in tarp
     assert tarp["description"] == "Blue poly."
+    assert next(iter(state(db)["category"].values()))["name"] == "Tarps"
+    assert tarp["category_id"] == next(iter(state(db)["category"]))
+
+
+def test_a_unit_has_no_category_of_its_own(db, tmp_path):
+    """A unit reads its generic's category (FR-SET-07); re-filing the generic re-files its units."""
+    inventory.load(db, inventory.read(written(tmp_path, SMALL)), admin(db))
+    units = [fields for fields in state(db)["item"].values() if fields.get("parent_id")]
+
+    assert all("category_id" not in unit for unit in units)
 
 
 def test_units_hang_off_their_generic(db, tmp_path):
@@ -161,7 +175,7 @@ def test_the_bundled_file_is_there(db):
 
     said = inventory.load(db, inventory.read("demo"), admin(db))
 
-    assert said == "loaded 3 locations, 4 generics with 17 units, 5 single items"
+    assert said == "loaded 3 locations, 5 categories, 4 generics with 17 units, 5 single items"
     assert named(db, "Tent, 4-person")["generic"] is True
     assert not any(fields.get("generic") and fields.get("status") for fields in state(db)["item"].values())
 
@@ -184,6 +198,15 @@ def test_every_home_in_the_bundled_file_resolves(db):
     homes = {fields.get("home_location_id") for fields in state(db)["item"].values()}
 
     assert homes <= locations
+
+
+def test_the_bundled_file_leaves_the_first_aid_kit_uncategorised(db):
+    """On purpose, so the list shows an uncategorised group (FR-SET-07)."""
+    inventory.load(db, inventory.read("demo"), admin(db))
+
+    kit = named(db, "First aid kit, group")
+
+    assert "category_id" not in kit
 
 
 # --- a file that will not do ------------------------------------------------------
@@ -209,6 +232,17 @@ def test_a_home_that_is_not_a_location(tmp_path):
 def test_two_units_with_the_same_number(tmp_path):
     with pytest.raises(BadRequest, match="two units with the same number"):
         inventory.read(written(tmp_path, SMALL.replace("number = 2\nnickname", "number = 1\nnickname")))
+
+
+def test_a_category_that_is_not_defined(tmp_path):
+    with pytest.raises(BadRequest, match="no category named 'Shed'"):
+        inventory.read(written(tmp_path, SMALL.replace('category = "Tarps"', 'category = "Shed"')))
+
+
+def test_two_categories_with_the_same_name(tmp_path):
+    extra = '[[categories]]\nname = "Tarps"\n\n[[categories]]\nname = "Tarps"'
+    with pytest.raises(BadRequest, match="two categories with the same name"):
+        inventory.read(written(tmp_path, SMALL.replace('[[categories]]\nname = "Tarps"', extra)))
 
 
 def test_an_item_with_no_name(tmp_path):
@@ -244,7 +278,7 @@ def test_the_seed_file_loads_it_once(db, tmp_path):
 
     done = seed.apply(db, seed.read(path))
 
-    assert done[-1] == "loaded 3 locations, 4 generics with 17 units, 5 single items"
+    assert done[-1] == "loaded 3 locations, 5 categories, 4 generics with 17 units, 5 single items"
     assert len(state(db)["item"]) == 26
 
     assert seed.apply(db, seed.read(path)) == []
@@ -256,7 +290,7 @@ def test_the_seed_file_can_name_a_file_of_its_own(db, tmp_path):
 
     done = seed.apply(db, seed.read(seed_file(tmp_path, f'inventory = "{mine}"')))
 
-    assert done[-1] == "loaded 2 locations, 1 generic with 2 units, 1 single item"
+    assert done[-1] == "loaded 2 locations, 1 category, 1 generic with 2 units, 1 single item"
 
 
 def test_no_inventory_key_loads_nothing(db, tmp_path):
@@ -289,7 +323,7 @@ def test_gear_admin_load(tmp_path, monkeypatch, capsys):
     code, out, err = run(monkeypatch, capsys, "--db", str(db_path), "load", "--file", "demo")
 
     assert code == 0, err
-    assert out.strip() == "loaded 3 locations, 4 generics with 17 units, 5 single items"
+    assert out.strip() == "loaded 3 locations, 5 categories, 4 generics with 17 units, 5 single items"
 
     code, _, err = run(monkeypatch, capsys, "--db", str(db_path), "load", "--file", "demo")
     assert code == 1

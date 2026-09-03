@@ -1,5 +1,5 @@
 import type { Filter } from "../lib/inventory";
-import { locations, subLocations } from "../lib/inventory";
+import { categories, locations, subLocations } from "../lib/inventory";
 import type { Store } from "../lib/store";
 
 interface Props {
@@ -19,12 +19,7 @@ export function FilterFields({ store, filter, onChange }: Props) {
           <span>Location</span>
           <select
             value={filter.location_id ?? ""}
-            onChange={(e) =>
-              set({
-                location_id: e.target.value || undefined,
-                sub_location: undefined,
-              })
-            }
+            onChange={(e) => set({ location_id: e.target.value || undefined, sub_location: undefined })}
           >
             <option value="">Any</option>
             {locations(state).map((l) => (
@@ -50,6 +45,22 @@ export function FilterFields({ store, filter, onChange }: Props) {
         </label>
       </div>
       <div className="row">
+        {categories(state).length > 0 && (
+          <label className="tight">
+            <span>Category</span>
+            <select
+              value={filter.category_id ?? ""}
+              onChange={(e) => set({ category_id: e.target.value || undefined })}
+            >
+              <option value="">Any</option>
+              {categories(state).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="tight">
           <span>Status</span>
           <select

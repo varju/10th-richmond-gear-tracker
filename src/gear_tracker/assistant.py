@@ -17,7 +17,7 @@ history reads "this Scouter, via the assistant". There is no second write path.
 the device reads on a phone.
 
 **Nothing an Admin does is here** (FR-MCP-04): no users, mail, settings,
-locations, or codes.
+locations, categories, or codes.
 """
 
 from __future__ import annotations
@@ -59,8 +59,8 @@ HISTORY_SHOWN = 10
 INSTRUCTIONS = """Gear Tracker holds a Scout group's gear: what we own, where it lives, who has it,
 and what needs fixing. Search before you write, and use the ids the read tools
 return. Everything you write is recorded as the signed-in person, through the
-assistant. Users, mail, settings, locations and printed codes are an Admin's
-job in the app, and are not here."""
+assistant. Users, mail, settings, locations, categories and printed codes are
+an Admin's job in the app, and are not here."""
 
 
 @dataclass(frozen=True)
@@ -232,13 +232,16 @@ def _item_brief(state: dict[str, Any], it: dict[str, Any]) -> dict[str, Any]:
     for flag in ("missing", "retired"):
         if it.get(flag):
             brief[flag] = True
+    category = views.category_name(state, views.category_of(state, it))
+    if category:
+        brief["category"] = category
     return brief
 
 
 def _row(state: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
     if row["kind"] == "single":
         return {"kind": "single", **_item_brief(state, row["item"])}
-    return {
+    out = {
         "kind": "generic",
         "item_id": row["item"]["id"],
         "name": row["name"],
@@ -246,6 +249,10 @@ def _row(state: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
         "in": row["counts"]["in"],
         "unit_ids": [u["id"] for u in row["units"]],
     }
+    category = views.category_name(state, views.category_of(state, row["item"]))
+    if category:
+        out["category"] = category
+    return out
 
 
 def _ticket_brief(state: dict[str, Any], ticket: dict[str, Any]) -> dict[str, Any]:
@@ -414,6 +421,27 @@ def list_locations() -> dict[str, Any]:
                     ),
                 }
                 for loc in views.locations(state)
+            ]
+        }
+
+
+def list_categories() -> dict[str, Any]:
+    """How gear is grouped: tents, stoves, tarps. An Admin edits these in the app; here they are for a new item
+    or an edit."""
+    with _open() as (conn, _who):
+        state = _state(conn)
+        return {
+            "categories": [
+                {
+                    "category_id": cat["id"],
+                    "name": cat["name"],
+                    "items": sum(
+                        1
+                        for it in views.items(state)
+                        if not it.get("generic") and views.category_of(state, it) == cat["id"]
+                    ),
+                }
+                for cat in views.categories(state)
             ]
         }
 
@@ -615,11 +643,17 @@ class ItemFields(BaseModel):
     supplier: str | None = None
     nickname: str | None = None
     number: NonBlank | None = None
+    category_id: str | None = None
 
 
 def _home(state: dict[str, Any], location_id: str | None) -> None:
     if location_id and views.entity(state, "location", location_id) is None:
         raise NotFound(f"no location with id {location_id}; call list_locations")
+
+
+def _category(state: dict[str, Any], category_id: str | None) -> None:
+    if category_id and views.entity(state, "category", category_id) is None:
+        raise NotFound(f"no category with id {category_id}; call list_categories")
 
 
 def create_item(
@@ -628,18 +662,21 @@ def create_item(
     sub_location: str | None = None,
     description: str | None = None,
     generic: bool = False,
+    category_id: str | None = None,
 ) -> dict[str, Any]:
     """Add gear to the inventory (FR-INV-01).
 
     `generic` is for something the group owns several of: the name is stored
     once and each one becomes a numbered unit under it (FR-INV-21). Add those
-    with add_unit.
+    with add_unit. `category_id` groups it with similar gear (FR-SET-07); call
+    list_categories for the ids.
     """
     with _open() as (conn, who):
         state = _state(conn)
         if not name.strip():
             raise BadRequest("an item needs a name")
         _home(state, home_location_id)
+        _category(state, category_id)
         payload: dict[str, Any] = {"name": name.strip()}
         if generic:
             payload["generic"] = True
@@ -649,6 +686,8 @@ def create_item(
             payload["sub_location"] = sub_location.strip()
         if description and description.strip():
             payload["description"] = description.strip()
+        if category_id:
+            payload["category_id"] = category_id
         item_id = new_ulid()
         _push(conn, who, [_draft("item", item_id, "created", payload)])
         return {"item_id": item_id, "name": payload["name"], "generic": generic}
@@ -699,6 +738,9 @@ def update_item(item_id: str, fields: ItemFields) -> dict[str, Any]:
         if not patch:
             raise BadRequest("say which fields to change")
         _home(state, patch.get("home_location_id"))
+        _category(state, patch.get("category_id"))
+        if "category_id" in patch and it.get("parent_id"):
+            raise BadRequest("a unit takes its generic's category")
         if "number" in patch and not it.get("parent_id"):
             raise BadRequest("only one of several has a number")
         if "number" in patch:
@@ -839,6 +881,7 @@ TOOLS = [
     get_reservation,
     list_repairs,
     list_locations,
+    list_categories,
     create_reservation,
     update_reservation,
     add_to_reservation,

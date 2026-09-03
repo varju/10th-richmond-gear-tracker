@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from "react"
 import { bindCode, seen } from "../lib/actions";
 import { parseCode } from "../lib/codes";
 import { code as codeOf, codeStatus, displayName, homeLabel, item, nameOf, resolveItem } from "../lib/inventory";
+import { withQuery } from "../lib/listUrl";
 import { checkOut } from "../lib/movement";
 import { addExtra, isPacked, type Remaining, remaining, type Reservation, reservation } from "../lib/reservations";
 import { back, navigate, useRoute } from "../lib/router";
@@ -21,12 +22,17 @@ const FLASH_MS = 2000;
  * and the next scan is taken (FR-OUT-03, FR-OUT-06). An unassigned code goes to
  * /g/<code>. With ?for=<itemId> the code is a replacement sticker for that item
  * and is bound here (FR-TAG-04). With ?reservation=<id> the session is seeded
- * with that reservation's gear (FR-RES-02).
+ * with that reservation's gear (FR-RES-02). ?mode=out or ?mode=in sets which
+ * move is expected; a scan that disagrees warns instead of switching the mode
+ * for you (FR-OUT-12).
  */
 export function Scan({ store }: { store: Store }) {
   useStore(store);
-  const query = useRoute().query;
+  const route = useRoute();
+  const query = route.query;
   const forItem = query.get("for");
+  const modeParam = query.get("mode");
+  const mode = modeParam === "out" || modeParam === "in" ? modeParam : null;
   const booked = reservation(store.state, query.get("reservation") ?? "");
   const video = useRef<HTMLVideoElement>(null);
   const [flash, say] = useFlash(FLASH_MS);
@@ -42,6 +48,13 @@ export function Scan({ store }: { store: Store }) {
     cardOpen.current = id !== null;
     setCardItem(id);
   };
+
+  // Replace, so switching modes does not fill the back button; reservation= is kept as-is.
+  function setMode(next: "out" | "in") {
+    const params = new URLSearchParams(query);
+    params.set("mode", next);
+    navigate(withQuery(route.path, params), true);
+  }
 
   const handle = useCallback(
     async (text: string) => {
@@ -97,7 +110,17 @@ export function Scan({ store }: { store: Store }) {
 
   return (
     <Page
-      title={forItem ? "Scan new code" : booked ? "Pack" : "Scan"}
+      title={
+        forItem
+          ? "Scan new code"
+          : booked
+            ? "Pack"
+            : mode === "out"
+              ? "Take out"
+              : mode === "in"
+                ? "Bring back"
+                : "Scan"
+      }
       back={forItem ? `/items/${forItem}` : booked ? `/reservations/${booked.id}` : "/"}
       actions={
         card ? undefined : (
@@ -129,7 +152,27 @@ export function Scan({ store }: { store: Store }) {
         )
       }
     >
-      {!forItem && <SessionEvent store={store} booked={booked} />}
+      {!forItem && mode !== null && (
+        <div className="mode" role="group" aria-label="Mode">
+          <button
+            type="button"
+            className={mode === "out" ? "primary" : "minor"}
+            aria-pressed={mode === "out"}
+            onClick={() => setMode("out")}
+          >
+            Take out
+          </button>
+          <button
+            type="button"
+            className={mode === "in" ? "primary" : "minor"}
+            aria-pressed={mode === "in"}
+            onClick={() => setMode("in")}
+          >
+            Bring back
+          </button>
+        </div>
+      )}
+      {!forItem && mode !== "in" && <SessionEvent store={store} booked={booked} />}
       <div className="viewfinder">
         <video ref={video} muted playsInline hidden={cameraError !== null} />
         {cameraError ? (
@@ -161,6 +204,7 @@ export function Scan({ store }: { store: Store }) {
             <MoveActions
               store={store}
               it={card}
+              mode={mode}
               onMoved={(kind) => {
                 confirm(`${kind} · ${displayName(store.state, card)}`);
                 showCard(null);

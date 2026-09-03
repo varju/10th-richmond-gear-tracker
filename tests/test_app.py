@@ -8,7 +8,7 @@ import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
 
-from gear_tracker import accounts, derived, events
+from gear_tracker import accounts, derived, events, inventory_csv
 from gear_tracker.app import create_app
 from gear_tracker.db import open_db
 from gear_tracker.sync import Principal
@@ -306,6 +306,22 @@ def test_revoke_one_device_over_http(real):
     assert r.json()["message"] == "sign out instead"
 
 
+def test_a_user_sees_and_manages_their_own_devices_over_http(real):
+    admin = sign_in(real)
+    invited = real.post("/users/invite", json={"name": "Bea", "email": "bea@example.org"}, headers=admin).json()
+    joined = real.post(
+        "/auth/redeem", json={"token": invited["token"], "password": "battery staple", "device_id": "phone-b"}
+    ).json()
+    bea = {"Authorization": f"Bearer {joined['token']}"}
+
+    r = real.get(f"/users/{invited['user_id']}/devices", headers=bea)
+    assert r.status_code == 200
+    assert [d["device_id"] for d in r.json()["devices"]] == ["phone-b"]
+
+    alex_id = real.get("/users", headers=admin).json()["users"][0]["id"]
+    assert real.get(f"/users/{alex_id}/devices", headers=bea).status_code == 403
+
+
 # --- the built client ------------------------------------------------------------------
 
 
@@ -422,6 +438,40 @@ def test_looking_up_a_code(client):
     assert client.get("/codes/ABCDEFGH23").status_code == 401
     assert client.get("/codes/not-a-code", headers=as_alice()).status_code == 400
     assert client.get("/codes/ABCDEFGH23", headers=as_alice()).status_code == 404
+
+
+# --- inventory CSV ------------------------------------------------------------------------
+
+
+def test_export_is_a_csv_for_any_signed_in_active_person(client):
+    client.post("/sync/push", json=push_body(event(type="created", payload={"name": "Tent"})), headers=as_alice())
+
+    r = client.get("/inventory.csv", headers=as_alice())
+
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "text/csv; charset=utf-8"
+    first_line = r.text.removeprefix("﻿").splitlines()[0]
+    assert first_line.split(",") == inventory_csv.COLUMNS
+
+
+def test_import_routes_are_for_admins(client, admin):
+    body = "id,home\r\n"
+    assert client.post("/inventory/import/preview", content=body, headers=as_alice()).status_code == 403
+    assert client.post("/inventory/import", content=body, headers=as_alice()).status_code == 403
+    assert client.post("/inventory/import/preview", content=body, headers=admin).status_code == 200
+    assert client.post("/inventory/import", content=body, headers=admin).status_code == 200
+
+
+def test_an_import_shows_up_in_the_next_bootstrap(client, admin):
+    client.post("/sync/push", json=push_body(event(type="created", payload={"name": "Tent"})), headers=as_alice())
+
+    body = "id,description\r\ntent-1,patched fly\r\n"
+    r = client.post("/inventory/import", content=body, headers=admin)
+    assert r.status_code == 200, r.text
+    assert r.json()["changed"] == 1
+
+    booted = client.get("/sync/bootstrap", headers=as_alice()).json()
+    assert booted["snapshot"]["item"]["tent-1"]["description"] == "patched fly"
 
 
 # --- public -----------------------------------------------------------------------------

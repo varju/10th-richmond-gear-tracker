@@ -105,6 +105,30 @@ export interface Timed<T> {
   offset: number;
 }
 
+/** What an import would do, without doing it: rows to add or change, and any errors (FR-SET-11). */
+export interface ImportPlan {
+  adds: number;
+  changes: number;
+  unchanged: number;
+  new_locations: string[];
+  new_categories: string[];
+  rows: {
+    row: number;
+    action: "add" | "change";
+    name: string;
+    changes: { field: string; old: string; new: string }[];
+  }[];
+  errors: { row: number; message: string }[];
+}
+
+/** What an import wrote: counts, plus any locations or categories it created along the way. */
+export interface ImportResult {
+  added: number;
+  changed: number;
+  created_locations: string[];
+  created_categories: string[];
+}
+
 /** The server answered, and said no. */
 export class ApiError extends Error {
   constructor(
@@ -237,5 +261,12 @@ export function createApi(options: ApiOptions = {}) {
     /** A PDF of fresh unassigned codes (FR-TAG-02). Admins only; the sheet is built on the server. */
     codeSheets: async (sheets: number): Promise<Blob> =>
       (await raw("POST", "/codes/sheets", JSON.stringify({ sheets }), "application/json")).blob(),
+    /** Every live item as a spreadsheet (FR-RPT-03). Any signed-in person. */
+    exportCsv: async (): Promise<Blob> => (await raw("GET", "/inventory.csv")).blob(),
+    /** What an import would do, without doing it (FR-SET-11). Admins only. */
+    previewImport: async (text: string): Promise<ImportPlan> =>
+      (await raw("POST", "/inventory/import/preview", text, "text/csv")).json(),
+    applyImport: async (text: string): Promise<ImportResult> =>
+      (await raw("POST", "/inventory/import", text, "text/csv")).json(),
   };
 }

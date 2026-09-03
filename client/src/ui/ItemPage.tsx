@@ -19,6 +19,8 @@ import { hasOpenConflict } from "../lib/conflicts";
 import { foundFor, resolveFound } from "../lib/found";
 import {
   aliases,
+  categoryName,
+  categoryOf,
   codesFor,
   displayName,
   generics,
@@ -301,6 +303,12 @@ export function ItemPage({ store, id }: Props) {
             <dd>{statusLabel(state, it) + (isOverdue(state, it, now()) ? " · Overdue" : "")}</dd>
             <dt>Home</dt>
             <dd>{homeLabel(state, it) || "—"}</dd>
+            {categoryName(state, categoryOf(state, it)) && (
+              <>
+                <dt>Category</dt>
+                <dd>{categoryName(state, categoryOf(state, it))}</dd>
+              </>
+            )}
             {it.parent_id && (
               <>
                 <dt>One of</dt>
@@ -993,6 +1001,12 @@ function GenericPage({
         <dd>{`${plural(live.length, "unit")} · ${live.filter((u) => u.status === "in" && !u.missing).length} in`}</dd>
         <dt>Default home</dt>
         <dd>{homeLabel(state, it) || "—"}</dd>
+        {categoryName(state, categoryOf(state, it)) && (
+          <>
+            <dt>Category</dt>
+            <dd>{categoryName(state, categoryOf(state, it))}</dd>
+          </>
+        )}
         <dt>Description</dt>
         <dd className="prose">{it.description || "—"}</dd>
         <dt>Bought</dt>

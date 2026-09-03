@@ -103,7 +103,7 @@ async function signIn(page: Page) {
   await page.getByLabel("Email").fill("alice@example.org");
   await page.getByLabel("Password").fill("correct horse");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("button", { name: "Scan" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Take out" })).toBeVisible();
 }
 
 test("a scanned sticker checks its item out and back in", async ({ request }) => {
@@ -123,7 +123,7 @@ test("a scanned sticker checks its item out and back in", async ({ request }) =>
   const page = await context.newPage();
   try {
     await signIn(page);
-    await page.goto("/scan");
+    await page.goto("/scan?mode=out");
 
     // First decode: the wasm loads and the camera starts. Then take the tent.
     const card = page.getByRole("heading", { name: ITEM });
@@ -131,7 +131,8 @@ test("a scanned sticker checks its item out and back in", async ({ request }) =>
     await page.getByRole("button", { name: "Check out" }).click();
     await expect(page.getByRole("status").filter({ hasText: `Checked out · ${ITEM}` })).toBeVisible();
 
-    // The sticker is still in front of the camera; the next read shows it out, and brings it back.
+    // The sticker is still in front of the camera; switch to bringing gear back.
+    await page.getByRole("button", { name: "Bring back" }).click();
     const checkIn = page.getByRole("button", { name: "Check in" });
     await expect(checkIn).toBeVisible({ timeout: 5_000 });
     await expect(page.getByText(/^Out · /)).toBeVisible();

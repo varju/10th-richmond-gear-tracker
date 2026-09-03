@@ -102,6 +102,15 @@ def _require_admin(who: Principal) -> None:
         raise Deactivated("this account has been deactivated")
 
 
+def _require_admin_or_self(who: Principal, user_id: str) -> None:
+    """Devices are the one thing a User manages for themself (FR-USR-17); an Admin does it for anyone (FR-USR-14)."""
+    if who.user_id == user_id:
+        if not who.active:
+            raise Deactivated("this account has been deactivated")
+        return
+    _require_admin(who)
+
+
 def _check_device(device_id: str) -> None:
     if device_id == SERVER_DEVICE:
         raise BadRequest(f"{SERVER_DEVICE!r} is not a device")
@@ -363,8 +372,11 @@ def reactivate(conn: sqlite3.Connection, who: Principal, user_id: str, now: int 
 
 
 def list_devices(conn: sqlite3.Connection, who: Principal, user_id: str) -> list[dict[str, Any]]:
-    """The devices a user is signed in on: one row per device with an open session, latest sign-in first."""
-    _require_admin(who)
+    """The devices a user is signed in on: one row per device with an open session, latest sign-in first.
+
+    A User sees their own (FR-USR-17); an Admin sees anyone's (FR-USR-14).
+    """
+    _require_admin_or_self(who, user_id)
     get_user(conn, user_id)
     rows = conn.execute(
         """
@@ -380,8 +392,11 @@ def list_devices(conn: sqlite3.Connection, who: Principal, user_id: str) -> list
 def revoke_device(
     conn: sqlite3.Connection, who: Principal, user_id: str, device_id: str, now: int | None = None
 ) -> list[dict[str, Any]]:
-    """A lost or sold phone (FR-USR-14). Its sessions end; the account and its history are untouched (FR-OFF-07)."""
-    _require_admin(who)
+    """A lost or sold phone. A User revokes their own (FR-USR-17); an Admin revokes anyone's (FR-USR-14).
+
+    Its sessions end; the account and its history are untouched (FR-OFF-07).
+    """
+    _require_admin_or_self(who, user_id)
     now = now_ms() if now is None else now
     if user_id == who.user_id and device_id == who.device_id:
         raise Conflict("sign out instead")

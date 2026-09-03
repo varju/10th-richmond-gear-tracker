@@ -2,13 +2,13 @@
 
 ## Take gear out
 
-Tap Scan, then Change beside the event and type where the gear is going. Point the camera at a code and tap Check out.
-The event stays set for everything you scan after it.
+Tap Take out, then Change beside the event and type where the gear is going. Point the camera at a code and tap Check
+out. The event stays set for everything you scan after it.
 
 ## Bring gear back
 
-Tap Scan and point at each code. The card says where the item goes; tap Check in and put it there. Any order, any number
-of evenings.
+Tap Bring back and point at each code. The card says where the item goes; tap Check in and put it there. Any order, any
+number of evenings.
 
 ## Pack for a reservation
 
@@ -18,7 +18,7 @@ to pack. Tap Finish, which names anything you did not scan.
 ## Find gear
 
 Type in the Search box at the foot of the home screen. To browse the whole list, open More and tap All items, then use
-Filters to narrow by location, shelf, or in and out. Browse by location walks a locker shelf by shelf.
+Filters to narrow by location, shelf, category, or in and out. Browse by location walks a locker shelf by shelf.
 
 ## Report damage
 
@@ -27,8 +27,8 @@ The item is flagged for whoever takes it next.
 
 ## Take gear someone else has
 
-Scan it. The card names who has it; tap Transfer to me. It never comes back to the locker, and the history keeps both of
-you.
+Scan it in Take out. The card names who has it; tap Transfer to me. It never comes back to the locker, and the history
+keeps both of you.
 
 ## Plan a reservation
 

@@ -64,10 +64,17 @@ or check-in. Missing is for gear that is only lost.
 
 Add photos on an item's page and on a repair ticket. They need a connection, and are never stored on the phone.
 
-## Locations
+## Locations and categories
 
-Add, rename and delete locations in Settings. A location in use will not delete; the message names what is still there.
-Browse by location walks a locker shelf by shelf.
+Add, rename and delete locations and categories in Settings. One in use will not delete; the message names what is still
+there. Browse by location walks a locker shelf by shelf.
+
+## Export and import
+
+In Settings, tap Export to download every item as a CSV. Edit it in a spreadsheet and import it back: a row with an id
+changes that item, a row without one adds one, a blank cell clears a field, and an unknown location or category is
+created. Preview shows what will change before anything is written. The same from the keyboard with `gear-admin export`
+and `gear-admin import`.
 
 ## Print a sheet of codes
 
@@ -93,6 +100,11 @@ on.
 
 Open Users, pick the person, and revoke the device. The account keeps working everywhere else. Anything that phone never
 sent is gone.
+
+## Your devices
+
+Settings lists the phones and assistants signed in as you. Revoke one you have lost. An Admin can do it for anyone under
+Users.
 
 ## Send invites by mail
 

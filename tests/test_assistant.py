@@ -53,8 +53,18 @@ def inventory(db_path, who):
         made = {}
         for key, name in (("warm", "Warm locker"), ("cold", "Cold locker")):
             made[key] = _new(conn, "location", {"name": name})
+        made["tents_cat"] = _new(conn, "category", {"name": "Tents"})
         made["stove"] = _new(conn, "item", {"name": "Camp stove", "home_location_id": made["warm"]})
-        made["tents"] = _new(conn, "item", {"name": "4-person tent", "generic": True, "home_location_id": made["cold"]})
+        made["tents"] = _new(
+            conn,
+            "item",
+            {
+                "name": "4-person tent",
+                "generic": True,
+                "home_location_id": made["cold"],
+                "category_id": made["tents_cat"],
+            },
+        )
         for number in ("1", "2", "3"):
             made[f"t{number}"] = _new(conn, "item", {"parent_id": made["tents"], "number": number})
     return made
@@ -219,6 +229,7 @@ def test_search_groups_units_under_their_generic_and_counts_them(tools):
         "units": 3,
         "in": 3,
         "unit_ids": [tools["t1"], tools["t2"], tools["t3"]],
+        "category": "Tents",
     }
     assert assistant.search_items(query="stove")["count"] == 1
     assert assistant.search_items(query="nothing here")["rows"] == []
@@ -243,6 +254,7 @@ def test_get_item_carries_the_unit_its_generic_its_history_and_its_tickets(tools
     assert unit["generic_id"] == tools["tents"] and unit["number"] == "1"
     assert unit["status"] == "out" and unit["holder"] == "Alice"
     assert unit["event"] == "Fall Camp"
+    assert unit["category"] == "Tents"  # a unit reads its generic's category (FR-SET-07)
     assert [t["description"] for t in unit["open_tickets"]] == ["bent pole"]
     assert [h["type"] for h in unit["history"]] == ["checked_out"]
     assert unit["history"][0]["by"] == "Alice"
@@ -281,6 +293,12 @@ def test_list_locations_counts_what_lives_there(tools):
     found = {loc["name"]: loc for loc in assistant.list_locations()["locations"]}
     assert found["Warm locker"]["items"] == 1
     assert found["Cold locker"]["items"] == 1  # the generic; its units take no home of their own here
+
+
+def test_list_categories_counts_the_units_not_the_generic(tools):
+    found = {cat["name"]: cat for cat in assistant.list_categories()["categories"]}
+    assert found["Tents"]["items"] == 3
+    assert found["Tents"]["category_id"] == tools["tents_cat"]
 
 
 def test_list_repairs_shows_open_ones_with_their_comments(tools):
@@ -368,6 +386,26 @@ def test_creating_an_item_a_generic_and_its_units(db_path, tools):
         assistant.create_item("Axe", home_location_id="nowhere")
     with pytest.raises(BadRequest):
         assistant.create_item("   ")
+
+
+def test_categorising_an_item(db_path, tools):
+    made = assistant.create_item("Axe", home_location_id=tools["warm"], category_id=tools["tents_cat"])
+    assert entity(db_path, "item", made["item_id"])["category_id"] == tools["tents_cat"]
+    assert assistant.get_item(made["item_id"])["category"] == "Tents"
+    rows = {r["name"]: r for r in assistant.search_items()["rows"]}
+    assert rows["Axe"]["category"] == "Tents"
+
+    with pytest.raises(NotFound):
+        assistant.create_item("Saw", category_id="nowhere")
+
+    with pytest.raises(BadRequest):
+        assistant.update_item(tools["t1"], assistant.ItemFields(category_id=tools["tents_cat"]))
+
+    changed = assistant.update_item(tools["tents"], assistant.ItemFields(category_id=None))
+    # None clears the field once, then a second call finds nothing left to change.
+    assert changed["changed"] == ["category_id"]
+    again = assistant.update_item(tools["tents"], assistant.ItemFields(category_id=None))
+    assert again["changed"] == []
 
 
 def test_updating_an_item_records_only_what_differs(db_path, tools):

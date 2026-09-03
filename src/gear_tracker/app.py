@@ -18,12 +18,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import Field, StringConstraints
 
-from gear_tracker import accounts, assistant, codes, derived, events, labels, mail, sync
+from gear_tracker import accounts, assistant, codes, derived, events, inventory_csv, labels, mail, sync
 from gear_tracker.db import connect
 from gear_tracker.errors import ApiError, BadRequest, Conflict, Deactivated, NotFound, TooLarge, TooMany, Unauthorized
 from gear_tracker.events import PHOTO_ENTITIES, PHOTO_TYPES, PUBLIC_ACTOR, Strict, now_ms
 from gear_tracker.ratelimit import RateLimit
-from gear_tracker.sync import Principal
+from gear_tracker.sync import Principal, _require_active
 from gear_tracker.ulid import is_ulid, new_ulid
 
 Authenticator = Callable[[Request, sqlite3.Connection], Principal | None]
@@ -259,7 +259,10 @@ def create_app(
 
     @app.post("/users/{user_id}/devices/{device_id}/revoke")
     def revoke_device(conn: Db, who: Who, user_id: str, device_id: str) -> dict[str, Any]:
-        """One phone, not the person (FR-USR-14)."""
+        """One phone, not the person (FR-USR-14).
+
+        Anyone can do it for their own account; an Admin, for anyone (FR-USR-17).
+        """
         return stamped({"devices": accounts.revoke_device(conn, who, user_id, device_id)})
 
     # --- mail (Admins) --------------------------------------------------------------------
@@ -441,6 +444,38 @@ def create_app(
             now,
         )
         return stamped({})
+
+    # --- inventory CSV -----------------------------------------------------------------
+
+    @app.get("/inventory.csv")
+    def export_inventory(conn: Db, who: Who) -> Response:
+        """A spreadsheet of the whole inventory (FR-RPT-03). Read-only, so any signed-in active person may pull it."""
+        _require_active(who)
+        text = inventory_csv.export(derived.snapshot(conn))
+        return Response(
+            content=text,
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="inventory.csv"'},
+        )
+
+    @app.post("/inventory/import/preview")
+    async def preview_import(conn: Db, who: Who, request: Request) -> dict[str, Any]:
+        """What a file would do, without writing it (FR-SET-11). Admins only."""
+        accounts._require_admin(who)
+        body = await request.body()
+        if not body:
+            raise BadRequest("the file is empty")
+        plan = inventory_csv.plan(derived.snapshot(conn), body.decode("utf-8"))
+        return stamped(plan.summary())
+
+    @app.post("/inventory/import")
+    async def do_import(conn: Db, who: Who, request: Request) -> dict[str, Any]:
+        """Write a file's adds and changes as the Admin who ran it (FR-SET-11)."""
+        accounts._require_admin(who)
+        body = await request.body()
+        if not body:
+            raise BadRequest("the file is empty")
+        return stamped(inventory_csv.apply(conn, body.decode("utf-8"), who.user_id))
 
     if static is not None:
         serve_client(app, Path(static), db)

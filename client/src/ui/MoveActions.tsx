@@ -4,6 +4,7 @@ import { checkIn, checkOut, transfer } from "../lib/movement";
 import { openRepairs, raiseTicket } from "../lib/repairs";
 import type { Store } from "../lib/store";
 import { useUnsaved } from "../lib/unsaved";
+import { userName } from "./labels";
 
 /** How long a "Checked out · Tent 1" strip stays up. */
 export const CONFIRM_MS = 1500;
@@ -28,6 +29,13 @@ interface Props {
   it: Item;
   /** Say which event a check-out records under. The scan screen already shows that at the top. */
   showEvent?: boolean;
+  /**
+   * Which move the session expects. A scan that agrees offers one plain
+   * button, as before; one that disagrees warns and demotes that button to a
+   * secondary one, next to whichever move does agree (FR-OUT-12). Null (the
+   * default) is today's behaviour, used from the item page.
+   */
+  mode?: "out" | "in" | null;
   onMoved: (kind: MoveKind) => void;
   /** Buttons that follow the movement buttons. */
   children?: ReactNode;
@@ -39,7 +47,7 @@ interface Props {
  * ticket for once it has moved (FR-OUT-09). The shell pushes the move as soon
  * as it is recorded (FR-OFF-03).
  */
-export function MoveActions({ store, it, showEvent = false, onMoved, children }: Props) {
+export function MoveActions({ store, it, showEvent = false, mode = null, onMoved, children }: Props) {
   const [note, setNote] = useState<string | null>(null);
   const [fault, setFault] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +61,9 @@ export function MoveActions({ store, it, showEvent = false, onMoved, children }:
   const out = it.status === "out";
   const canTake = !out && !it.retired && !it.merged_into;
   const canTransfer = out && !it.retired && !it.merged_into && it.holder_id !== me;
+  // Out when the session wants it taken out, or wanted back when it is already in: nothing to do but warn.
+  const outDisagrees = mode === "out" && out && !it.retired && !it.merged_into;
+  const inDisagrees = mode === "in" && canTake;
 
   async function run(kind: MoveKind, act: () => Promise<unknown>) {
     setBusy(true);
@@ -94,6 +105,16 @@ export function MoveActions({ store, it, showEvent = false, onMoved, children }:
           {open.length > 1 && ` · ${open.length - 1} more`}
         </p>
       )}
+      {outDisagrees && (
+        <p className="notice" role="note">
+          {it.holder_id === me ? "Already out to you." : `Already out. ${userName(store.state, it.holder_id)} has it.`}
+        </p>
+      )}
+      {inDisagrees && (
+        <p className="notice" role="note">
+          Already in. Nothing to do.
+        </p>
+      )}
       {fault !== null && (
         <textarea
           aria-label="Fault"
@@ -114,7 +135,7 @@ export function MoveActions({ store, it, showEvent = false, onMoved, children }:
           onChange={(e) => setNote(e.target.value)}
         />
       )}
-      {canTake && (
+      {canTake && !inDisagrees && (
         <button
           type="button"
           className="primary"
@@ -124,8 +145,10 @@ export function MoveActions({ store, it, showEvent = false, onMoved, children }:
           Check out
         </button>
       )}
-      {canTake && showEvent && <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>}
-      {out && (
+      {canTake && !inDisagrees && showEvent && (
+        <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>
+      )}
+      {out && !outDisagrees && (
         <button
           type="button"
           className="primary"
@@ -135,15 +158,34 @@ export function MoveActions({ store, it, showEvent = false, onMoved, children }:
           Check in
         </button>
       )}
-      {(canTransfer || ((canTake || out) && !typing)) && (
+      {(canTransfer || outDisagrees || inDisagrees || ((canTake || out) && !typing)) && (
         <div className="row">
           {canTransfer && (
             <button
               type="button"
+              className={outDisagrees ? "primary" : undefined}
               disabled={busy}
               onClick={() => run("Transferred", () => transfer(store, it.id, options))}
             >
               Transfer to me
+            </button>
+          )}
+          {outDisagrees && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => run("Checked in", () => checkIn(store, it.id, options))}
+            >
+              Check in
+            </button>
+          )}
+          {inDisagrees && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => run("Checked out", () => checkOut(store, it.id, options))}
+            >
+              Check out
             </button>
           )}
           {(canTake || out) && !typing && (

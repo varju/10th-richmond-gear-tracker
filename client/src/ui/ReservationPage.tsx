@@ -35,7 +35,7 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
   /** The session takes the event from here; nobody types it again (FR-RES-03). */
   async function checkOut() {
     await store.setMeta({ session_event: r!.event });
-    navigate(`/scan?reservation=${id}`);
+    navigate(`/scan?mode=out&reservation=${id}`);
   }
 
   /**

@@ -364,10 +364,30 @@ def repairs_for(state: State, item_id: str) -> list[Fields]:
     return sorted(found, key=lambda t: (not is_open(t), -(t.get("added_at") or 0), t["id"]))
 
 
-# --- locations --------------------------------------------------------------------------
+# --- locations and categories -------------------------------------------------------------
 
 
 def locations(state: State) -> list[Fields]:
     return sorted(
         (loc for loc in table(state, "location") if not loc.get("deleted")), key=lambda x: x.get("name") or ""
     )
+
+
+def categories(state: State) -> list[Fields]:
+    return sorted(
+        (cat for cat in table(state, "category") if not cat.get("deleted")), key=lambda x: x.get("name") or ""
+    )
+
+
+def category_name(state: State, category_id: str | None) -> str:
+    if not category_id:
+        return ""
+    return (entity(state, "category", category_id) or {}).get("name") or "(unknown category)"
+
+
+def category_of(state: State, it: Fields) -> str | None:
+    """A unit reads its generic's category, so re-filing a generic re-files its units."""
+    if it.get("parent_id"):
+        parent = item(state, it["parent_id"])
+        return (parent or {}).get("category_id")
+    return it.get("category_id")

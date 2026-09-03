@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { addUnit, bindCode, createGeneric, createItem, createUnit, type ItemInput } from "../lib/actions";
-import { displayName, item, nextNumber, numberTaken } from "../lib/inventory";
+import { categories, displayName, item, nextNumber, numberTaken } from "../lib/inventory";
 import { back, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useUnsaved } from "../lib/unsaved";
@@ -14,10 +14,17 @@ interface Props {
   code: string | null;
 }
 
+/** The category a new item starts with: this device's last one, if it still exists (FR-SET-07). */
+function rememberedCategory(store: Store): string | null {
+  const id = store.meta.last_category_id;
+  return id && categories(store.state).some((c) => c.id === id) ? id : null;
+}
+
 export function NewItem({ store, code }: Props) {
-  const [values, setValues] = useState<ItemInput>(EMPTY_ITEM);
+  const initial = { ...EMPTY_ITEM, category_id: rememberedCategory(store) };
+  const [values, setValues] = useState<ItemInput>(initial);
   // What Save last left behind. Anything typed since is a draft; leaving asks first.
-  const [baseline, setBaseline] = useState<ItemInput>(EMPTY_ITEM);
+  const [baseline, setBaseline] = useState<ItemInput>(initial);
   const [several, setSeveral] = useState(false);
   const [again, setAgain] = useState(false);
   const [keep, setKeep] = useState(false);
@@ -32,16 +39,24 @@ export function NewItem({ store, code }: Props) {
   async function create(): Promise<string> {
     setSaving(true);
     try {
+      let id: string;
       if (several) {
         // A name several things share, and the one in hand as its first unit (FR-INV-26, S-BOOT-03).
         const genericId = await createGeneric(store, values);
-        if (!code) return genericId;
-        const unitId = await addUnit(store, genericId);
-        await bindCode(store, code, unitId);
-        return unitId;
+        if (!code) id = genericId;
+        else {
+          const unitId = await addUnit(store, genericId);
+          await bindCode(store, code, unitId);
+          id = unitId;
+        }
+      } else {
+        id = await createItem(store, values);
+        if (code) await bindCode(store, code, id);
       }
-      const id = await createItem(store, values);
-      if (code) await bindCode(store, code, id);
+      // So a run of tents costs no taps: the next new item starts with this one's category.
+      if ((values.category_id ?? undefined) !== store.meta.last_category_id) {
+        await store.setMeta({ last_category_id: values.category_id ?? undefined });
+      }
       return id;
     } finally {
       setSaving(false);
@@ -57,7 +72,7 @@ export function NewItem({ store, code }: Props) {
       else navigate(`/items/${id}`, true);
       return;
     }
-    const next = keep ? values : EMPTY_ITEM;
+    const next = keep ? values : { ...EMPTY_ITEM, category_id: values.category_id ?? null };
     setValues(next);
     setBaseline(next);
     setSeveral(false);

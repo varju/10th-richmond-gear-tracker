@@ -29,7 +29,7 @@ from pydantic import (
 from gear_tracker.replay import DERIVED_FIELDS
 from gear_tracker.ulid import is_ulid, new_ulid
 
-EntityType = Literal["item", "user", "location", "code", "reservation", "repair", "found_report", "setting"]
+EntityType = Literal["item", "user", "location", "category", "code", "reservation", "repair", "found_report", "setting"]
 ENTITY_TYPES = frozenset(get_args(EntityType))
 
 REPAIR_STATES = ("open", "in_progress", "resolved", "wont_fix")
