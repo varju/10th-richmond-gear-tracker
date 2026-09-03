@@ -450,8 +450,8 @@ Open means open or in progress. An item with an open ticket is flagged in the li
 and the flag warns without blocking (FR-REP-05, FR-RES-08). Closed tickets stay on the item (FR-REP-04): the list on the
 item page is read from state, not from the 90 days of history the phone holds.
 
-A fault typed on the scan card is recorded after the movement, as a second event, so a check-in and the ticket it raises
-are one flow (FR-OUT-09). A ticket takes photos the same way an item does (FR-REP-01); see [Photos](#photos).
+A problem typed on the scan card is recorded after the movement, as a second event, so a check-in and the ticket it
+raises are one flow (FR-OUT-09). A ticket takes photos the same way an item does (FR-REP-01); see [Photos](#photos).
 
 The repair report (FR-RPT-02) is the open list followed by a history over a date range, both derived on the phone from
 the tickets it holds. Days are calendar days where the group is. With signal the list is built from every `repair` event

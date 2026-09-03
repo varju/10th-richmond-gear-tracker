@@ -43,7 +43,7 @@ interface Props {
 
 /**
  * The buttons that move an item, chosen by its state (FR-OUT-06, FR-OUT-12),
- * with an optional note on the movement (FR-OUT-13) or a fault to raise a
+ * with an optional note on the movement (FR-OUT-13) or a problem to raise a
  * ticket for once it has moved (FR-OUT-09). The shell pushes the move as soon
  * as it is recorded (FR-OFF-03).
  */
@@ -52,7 +52,7 @@ export function MoveActions({ store, it, showEvent = false, mode = null, onMoved
   const [fault, setFault] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // A typed note or fault only makes sense with a move, so leaving asks but cannot save it.
+  // A typed note or problem only makes sense with a move, so leaving asks but cannot save it.
   useUnsaved((note !== null && note.trim() !== "") || (fault !== null && fault.trim() !== ""));
   const me = store.meta.user?.id;
   const event = store.meta.session_event;
@@ -117,7 +117,7 @@ export function MoveActions({ store, it, showEvent = false, mode = null, onMoved
       )}
       {fault !== null && (
         <textarea
-          aria-label="Fault"
+          aria-label="Problem"
           rows={2}
           autoFocus
           placeholder="e.g. zipper broken on the bag"
@@ -194,7 +194,7 @@ export function MoveActions({ store, it, showEvent = false, mode = null, onMoved
                 Add note
               </button>
               <button type="button" className="minor" onClick={() => setFault("")}>
-                Report a fault
+                Report a problem
               </button>
             </>
           )}

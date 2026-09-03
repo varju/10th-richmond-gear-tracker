@@ -22,8 +22,8 @@ Filters to narrow by location, shelf, category, or in and out. Browse by locatio
 
 ## Report damage
 
-Tap Report a fault on the item's card and say what is wrong. Then tap Check in; the ticket is raised with the movement.
-The item is flagged for whoever takes it next.
+Tap Report a problem on the item's card and say what is wrong. Then tap Check in; the ticket is raised with the
+movement. The item is flagged for whoever takes it next.
 
 ## Take gear someone else has
 

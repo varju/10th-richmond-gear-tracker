@@ -161,7 +161,7 @@ test("an open ticket shows on the card and does not block the move (FR-REP-05)",
   expect(await screen.findByText("Checked out · Tent 1")).toBeInTheDocument();
 });
 
-test("a fault typed at check-in raises a ticket after the move, without leaving the flow (FR-OUT-09)", async () => {
+test("a problem typed at check-in raises a ticket after the move, without leaving the flow (FR-OUT-09)", async () => {
   renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");
   await user.click(screen.getByRole("button", { name: "Check out" }));
@@ -171,10 +171,10 @@ test("a fault typed at check-in raises a ticket after the move, without leaving 
   cleanup();
   renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");
-  await user.click(within(card()).getByRole("button", { name: "Report a fault" }));
-  // One thing typed at a time: the note button goes while the fault is open.
+  await user.click(within(card()).getByRole("button", { name: "Report a problem" }));
+  // One thing typed at a time: the note button goes while the problem is open.
   expect(within(card()).queryByRole("button", { name: "Add note" })).not.toBeInTheDocument();
-  await user.type(screen.getByLabelText("Fault"), "zipper broken on the bag");
+  await user.type(screen.getByLabelText("Problem"), "zipper broken on the bag");
   await user.click(within(card()).getByRole("button", { name: "Check in" }));
   expect(await screen.findByText("Checked in · Tent 1")).toHaveAttribute("role", "status");
   expect(location.pathname).toBe("/scan");

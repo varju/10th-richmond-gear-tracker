@@ -24,9 +24,9 @@ still has it. Add a note first if the story needs one.
 
 ## Work a repair ticket
 
-Open Needs repair for every open ticket. Open one to read the fault, add a comment, or move it to In progress, Resolved
-or Won't fix. Cost, time and parts go in a comment; the date range below the list shows what was raised or changed in a
-period.
+Open Needs repair for every open ticket. Open one to read the problem, add a comment, or move it to In progress,
+Resolved or Won't fix. Cost, time and parts go in a comment; the date range below the list shows what was raised or
+changed in a period.
 
 ## A stock check
 

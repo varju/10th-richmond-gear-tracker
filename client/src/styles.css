@@ -325,6 +325,14 @@ label.tight {
   margin-bottom: 0;
 }
 
+/* Stays at the top of main while the results scroll under it: typing must not move it. */
+label.tight.search {
+  position: sticky;
+  top: 0;
+  background: var(--navy);
+  padding-bottom: 12px;
+}
+
 /* Two controls side by side, each still a full thumb wide. */
 .row {
   display: grid;
@@ -393,19 +401,12 @@ button.item {
   margin: 8px 0 12px 12px;
 }
 
-.filters,
-.more {
+.filters {
   margin-bottom: 12px;
 }
 
-/* The fold sits below the day's work, not in front of it. */
-.more {
-  margin-top: 16px;
-}
-
 /* A fold opens like a link, so it reads like one: muted text was tapped by nobody. */
-.filters summary,
-.more summary {
+.filters summary {
   min-height: 44px;
   display: flex;
   align-items: center;
@@ -419,19 +420,16 @@ button.item {
   list-style: none;
 }
 
-.filters summary::-webkit-details-marker,
-.more summary::-webkit-details-marker {
+.filters summary::-webkit-details-marker {
   display: none;
 }
 
 /* Which way the fold goes. A flex item, so the underline stops at the text. */
-.filters summary::before,
-.more summary::before {
+.filters summary::before {
   content: "▸";
 }
 
-.filters[open] > summary::before,
-.more[open] > summary::before {
+.filters[open] > summary::before {
   content: "▾";
 }
 
@@ -807,6 +805,37 @@ h3.section {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted);
+}
+
+/* History and Changes fold behind their counts, so the facts sit above the log. Reads like the filters fold. */
+.fold summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.fold summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold summary h3.section {
+  margin: 0;
+}
+
+.fold summary::before {
+  content: "▸";
+  color: var(--muted);
+}
+
+.fold[open] > summary::before {
+  content: "▾";
+}
+
+.fold {
+  margin-top: 28px;
 }
 
 /* --- found gear ----------------------------------------------------------------------- */

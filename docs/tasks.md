@@ -64,8 +64,6 @@ last.
       `categoryName`. Check the other id fields while there.
 - [ ] Item page: Edit is full width. Under it, on its own line and minor: "Add QR code" when `codesFor` is empty,
       "Replace QR code" when it is not. Same scan flow either way.
-- [ ] Rename "Report a fault" to "Report a problem" everywhere a person reads it: buttons, guide pages, stories. Not
-      code identifiers.
 - [ ] Several categories per item (FR-SET-07): `category_id` becomes `category_ids`, a list. Touches the filter
       (FR-INV-08), item fields, CSV import and export (FR-SET-11, FR-RPT-03), the audit label, valuation (FR-RPT-06),
       the assistant's `list_categories` and `update_item`, both replays, and `vectors/replay/`. A unit still reads its

@@ -2,7 +2,7 @@
 
 Reporting broken gear and getting it fixed.
 
-## S-REP-01 Report a fault
+## S-REP-01 Report a problem
 
 Any Scouter raises a ticket against an item, with a description and, if they are in signal, a photo.
 
