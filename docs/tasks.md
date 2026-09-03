@@ -43,6 +43,15 @@ The vertical slice is built. What is left needs a phone.
 - [ ] The foot of Settings reads "Source: <hash>", the hash linked to the commit; "Source: dev" with no link in a dev
       build. The Source link itself goes.
 
+### Assistant
+
+- [ ] Admin tools over MCP (FR-MCP-10). Each Admin action the app has gets a tool, refused for a User's token with the
+      same reason the app gives: users (invite, reset link, deactivate, change role), anyone's devices, mail settings
+      and the test message, group settings, locations and categories (add, rename, delete), a sheet of codes, CSV export
+      and import with the preview, delete an item, merge and unmerge duplicates. Reuse the server functions the app's
+      endpoints call; no second code path. The server's MCP instructions and the "Connect an assistant" text in Settings
+      stop saying Admin work is out of reach. Guide section "assistant.md" follows.
+
 ### Codes
 
 - [ ] Unassign an item's code (FR-TAG-14). A `code_released` event on the code; replay in both languages sets the item's
