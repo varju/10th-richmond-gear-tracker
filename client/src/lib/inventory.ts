@@ -300,10 +300,13 @@ export interface Filter {
 
 const terms = (query: string | undefined): string[] => (query ?? "").toLowerCase().split(/\s+/).filter(Boolean);
 
-/** Every word must appear somewhere in the name, the home, or a unit's nickname and number. */
+/**
+ * Every word must appear in the name, or a unit's number and nickname (FR-INV-07).
+ * Not the home: "Home" or a locker's name would pull in everything that lives there.
+ */
 function matches(state: State, it: Item, words: string[]): boolean {
   if (words.length === 0) return true;
-  const hay = `${displayName(state, it)} ${homeLabel(state, it)}`.toLowerCase();
+  const hay = displayName(state, it).toLowerCase();
   return words.every((w) => hay.includes(w));
 }
 

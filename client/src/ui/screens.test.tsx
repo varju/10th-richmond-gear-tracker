@@ -66,7 +66,7 @@ test("the list narrows by query and by location", async () => {
   expect(screen.getByText("2 items")).toBeInTheDocument();
   expect(rows()).toEqual(["StoveWarm locker", "Tent 1Cold locker / shelf 4"]);
 
-  await user.type(screen.getByLabelText("Search"), "shelf");
+  await user.type(screen.getByLabelText("Search"), "tent");
   expect(rows()).toEqual(["Tent 1Cold locker / shelf 4"]);
   expect(screen.getByText("1 item")).toBeInTheDocument();
 
@@ -748,8 +748,8 @@ test("the list keeps its search in the URL, and back brings the list back as it 
   mount();
   const user = userEvent.setup();
 
-  await user.type(screen.getByLabelText("Search"), "shelf");
-  expect(location.pathname + location.search).toBe("/?q=shelf");
+  await user.type(screen.getByLabelText("Search"), "tent");
+  expect(location.pathname + location.search).toBe("/?q=tent");
   expect(rows()).toEqual(["Tent 1Cold locker / shelf 4"]);
 
   await user.click(screen.getByRole("button", { name: /Tent 1/ }));
@@ -757,8 +757,8 @@ test("the list keeps its search in the URL, and back brings the list back as it 
 
   // One step back, whatever was typed to get here.
   await user.click(screen.getByRole("button", { name: "Back" }));
-  expect(location.pathname + location.search).toBe("/?q=shelf");
-  expect(screen.getByLabelText("Search")).toHaveValue("shelf");
+  expect(location.pathname + location.search).toBe("/?q=tent");
+  expect(screen.getByLabelText("Search")).toHaveValue("tent");
 });
 
 test("back from an item returns to the list it was opened from", async () => {

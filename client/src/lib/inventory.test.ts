@@ -36,11 +36,11 @@ async function withUnits() {
 
 const names = (filter: inv.Filter) => inv.search(store.state, filter).map((i) => inv.displayName(store.state, i));
 
-test("search matches every word against the name and the home", async () => {
+test("search matches every word against the name, not the home (FR-INV-07)", async () => {
   const f = await fixture();
   expect(names({})).toEqual(["Stove", "Tent 1", "Tent 2"]);
   expect(names({ query: "tent 2" })).toEqual(["Tent 2"]);
-  expect(names({ query: "shelf" })).toEqual(["Tent 1", "Tent 2"]);
+  expect(names({ query: "shelf" })).toEqual([]);
   expect(names({ location_id: f.warm })).toEqual(["Stove"]);
   expect(names({ sub_location: "shelf 4", status: "in" })).toEqual(["Tent 1", "Tent 2"]);
 });
@@ -231,7 +231,7 @@ test("search over 500 items stays well inside 200 ms", async () => {
     ]),
   );
   const started = performance.now();
-  for (let i = 0; i < 20; i++) inv.search(state, { query: "tent shelf 3" });
+  for (let i = 0; i < 20; i++) inv.search(state, { query: "tent 3" });
   expect((performance.now() - started) / 20).toBeLessThan(200);
 });
 

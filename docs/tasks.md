@@ -41,8 +41,6 @@ are folded into each task.
 
 ### Items
 
-- [ ] Search matches the name only (FR-INV-07), and a unit's number and nickname. The home location no longer matches,
-      so "Home" or a location's name does not pull in everything that lives there.
 - [ ] A generic with one unit can become a single item again, the reverse of FR-INV-26. Anyone signed in may do it, from
       the generic's page. The unit keeps its id, code and history; takes the generic's name, description, categories,
       home and purchase details; drops its number, and its nickname goes onto the end of the description. The generic is

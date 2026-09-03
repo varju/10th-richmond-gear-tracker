@@ -17,8 +17,8 @@ to pack. Tap Finish, which names anything you did not scan.
 
 ## Find gear
 
-Type in the Search box at the foot of the home screen. To browse the whole list, open More and tap All items, then use
-Filters to narrow by location, shelf, category, or in and out.
+Type a name in the Search box at the top of the home screen. To browse the whole list, open the menu and tap All items,
+then use Filters to narrow by location, shelf, category, or in and out.
 
 ## Report damage
 
