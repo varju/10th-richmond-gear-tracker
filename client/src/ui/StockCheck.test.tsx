@@ -43,6 +43,7 @@ const region = (name: string) => screen.getByRole("region", { name });
 const rows = (name: string) =>
   within(region(name))
     .queryAllByRole("button")
+    .filter((b) => b.classList.contains("item"))
     .map((b) => b.textContent);
 
 test("pick where you are, scan, and the lists follow; the walk survives a closed app", async () => {
@@ -86,4 +87,17 @@ test("a scan during the walk clears missing (FR-INV-19)", async () => {
   expect(screen.getByText("Cold locker · 0 in place")).toBeInTheDocument();
   await typeCode("AAAAAAAAAA");
   await waitFor(() => expect(item(store.state, tent1)?.missing).toBe(false));
+});
+
+test("Seen beside a row counts as a sighting, for gear with no code or an awkward sticker", async () => {
+  renderInShell(<StockCheck store={store} />);
+  await user.selectOptions(screen.getByLabelText("Location"), cold);
+  await user.selectOptions(screen.getByLabelText("Shelf"), "shelf 4");
+  await user.click(screen.getByRole("button", { name: "Start" }));
+  expect(rows("Not seen yet")).toEqual(["Tent 1Cold locker / shelf 4"]);
+
+  await user.click(screen.getByRole("button", { name: "Seen: Tent 1" }));
+  expect(await screen.findByText("Seen · Tent 1")).toBeInTheDocument();
+  await waitFor(() => expect(region("Not seen yet")).toHaveTextContent("Everything that belongs here has been seen."));
+  expect(store.meta.stock_check).toMatchObject({ seen: [tent1] });
 });

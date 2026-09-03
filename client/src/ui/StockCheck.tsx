@@ -123,8 +123,13 @@ function Walk({ store, check }: { store: Store; check: Check }) {
     const itemId = codeOf(state, id)?.item_id;
     const it = itemId ? item(state, itemId) : undefined;
     if (!itemId || !it) return say("Not one of our codes");
-    await seen(store, itemId);
-    await store.setMeta({ stock_check: withSeen(store.meta.stock_check ?? check, itemId) });
+    await sighted(it);
+  }
+
+  /** A sighting, by scan or by tap: the item is here, and the walk moves on (FR-INV-19). */
+  async function sighted(it: Item) {
+    await seen(store, it.id);
+    await store.setMeta({ stock_check: withSeen(store.meta.stock_check ?? check, it.id) });
     const home = homeLabel(state, it);
     const label = displayName(state, it);
     say(atHome(it, check) ? `Seen · ${label}` : `Misplaced · ${label} · ${home ? `home ${home}` : "no home"}`);
@@ -174,7 +179,7 @@ function Walk({ store, check }: { store: Store; check: Check }) {
         <p className="muted small">
           {where} · {here.length} in place
         </p>
-        <Lists store={store} misplaced={away} notSeen={left} />
+        <Lists store={store} misplaced={away} notSeen={left} onSeen={(it) => void sighted(it)} />
       </Page>
     );
   }
@@ -230,12 +235,20 @@ function Walk({ store, check }: { store: Store; check: Check }) {
           </p>
         )}
       </div>
-      <Lists store={store} misplaced={away} notSeen={left} />
+      <Lists store={store} misplaced={away} notSeen={left} onSeen={(it) => void sighted(it)} />
     </Page>
   );
 }
 
-function Lists({ store, misplaced, notSeen }: { store: Store; misplaced: Item[]; notSeen: Item[] }) {
+interface ListsProps {
+  store: Store;
+  misplaced: Item[];
+  notSeen: Item[];
+  /** Tapped instead of scanned: no code on it, or the sticker is somewhere awkward. */
+  onSeen: (it: Item) => void;
+}
+
+function Lists({ store, misplaced, notSeen, onSeen }: ListsProps) {
   const state = store.state;
   return (
     <>
@@ -265,10 +278,18 @@ function Lists({ store, misplaced, notSeen }: { store: Store; misplaced: Item[];
         ) : (
           <ul className="items">
             {notSeen.map((it) => (
-              <li key={it.id}>
+              <li key={it.id} className="row">
                 <button className="item" type="button" onClick={() => navigate(`/items/${it.id}`)}>
                   <span className="item-name">{displayName(state, it)}</span>
                   <span className="muted small">{homeLabel(state, it)}</span>
+                </button>
+                <button
+                  className="small"
+                  type="button"
+                  onClick={() => onSeen(it)}
+                  aria-label={`Seen: ${displayName(state, it)}`}
+                >
+                  Seen
                 </button>
               </li>
             ))}
