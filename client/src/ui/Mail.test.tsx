@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test } from "vitest";
 import { createApi } from "../lib/api";
@@ -88,9 +88,10 @@ test("the password is never read back, and a blank one keeps it", async () => {
     from_address: "gear@example.org",
   };
   mount();
+  // The form shows before the saved settings arrive; the placeholder follows them.
   const password = await screen.findByLabelText("Password");
+  await waitFor(() => expect(password).toHaveAttribute("placeholder", "Kept"));
   expect(password).toHaveValue("");
-  expect(password).toHaveAttribute("placeholder", "Kept");
 
   await user.clear(screen.getByLabelText("Port"));
   await user.type(screen.getByLabelText("Port"), "465");
