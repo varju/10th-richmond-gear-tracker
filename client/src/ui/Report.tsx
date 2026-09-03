@@ -1,4 +1,4 @@
-import { displayName, group, homeLabel } from "../lib/inventory";
+import { displayName, group } from "../lib/inventory";
 import { type OutItem, whatIsOut } from "../lib/reports";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -15,9 +15,7 @@ export function daysLabel(days: number): string {
 }
 
 function detail(store: Store, entry: OutItem): string {
-  return [homeLabel(store.state, entry.item), entry.event ?? "", `out ${daysLabel(entry.days)}`]
-    .filter(Boolean)
-    .join(" · ");
+  return [entry.event ?? "", `out ${daysLabel(entry.days)}`].filter(Boolean).join(" · ");
 }
 
 /** The first report: what is out, and who has it (FR-RPT-01). Overdue gear is flagged (FR-OUT-14). */

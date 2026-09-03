@@ -57,7 +57,7 @@ test("nothing out says so", async () => {
   expect(screen.getByText("Nothing is out.")).toBeInTheDocument();
 });
 
-test("out gear is grouped by holder with the event, home and days out", async () => {
+test("out gear is grouped by holder with the event and days out", async () => {
   await setGroup({ name: "10th Richmond" });
   await mv.checkOut(store, tent, { event: "Spring camp" });
   await mv.checkOut(store, stove);
@@ -70,10 +70,7 @@ test("out gear is grouped by holder with the event, home and days out", async ()
 
   expect(screen.getAllByRole("region").map((s) => s.getAttribute("aria-label"))).toEqual(["Alice", "Carol"]);
   // Same day out: alphabetical.
-  expect(rows("Alice").map((b) => b.textContent)).toEqual([
-    "StoveCold locker · out 3 days",
-    "Tent 1Cold locker / shelf 4 · Spring camp · out 3 days",
-  ]);
+  expect(rows("Alice").map((b) => b.textContent)).toEqual(["Stoveout 3 days", "Tent 1Spring camp · out 3 days"]);
   expect(rows("Carol")[0]).toHaveTextContent("Axe");
   expect(rows("Carol")[0]).toHaveTextContent("out 3 days");
   expect(screen.queryByText("Overdue")).not.toBeInTheDocument();

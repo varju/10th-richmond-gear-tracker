@@ -1,7 +1,7 @@
 import { DAY_MS } from "../lib/clock";
 import { openConflicts } from "../lib/conflicts";
 import { foundReports } from "../lib/found";
-import { displayName, homeLabel } from "../lib/inventory";
+import { displayName } from "../lib/inventory";
 import { openTickets } from "../lib/repairs";
 import { whatIsOut } from "../lib/reports";
 import { todayIso, upcoming } from "../lib/reservations";
@@ -93,7 +93,6 @@ export function Desk({ store }: { store: Store }) {
                         {displayName(state, entry.item)}
                       </button>
                       {entry.overdue && <span className="badge overdue">Overdue</span>}
-                      <span className="muted small home">{homeLabel(state, entry.item)}</span>
                     </td>
                     <td>{holder.name}</td>
                     <td>{entry.event ?? ""}</td>

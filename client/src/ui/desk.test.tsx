@@ -143,7 +143,7 @@ test("the desk home opens on what needs a person, then what is out", async () =>
       .getAllByRole("columnheader")
       .map((h) => h.textContent),
   ).toEqual(["Item", "Holder", "Event", "Out"]);
-  expect(cells(rows[1]!)).toEqual(["Tent 1Cold locker / shelf 4", "Alice", "Spring camp", "today"]);
+  expect(cells(rows[1]!)).toEqual(["Tent 1", "Alice", "Spring camp", "today"]);
 });
 
 test("with nothing wrong the desk home says so", async () => {
