@@ -36,12 +36,6 @@ The vertical slice is built. What is left needs a phone.
 
 ## M22 — Third round of feedback
 
-### Navigation
-
-- [ ] Phone header: a small house icon at the left, before the back button, that goes home. Not shown on Home itself.
-      The Home entry leaves the phone menu; the desk sidebar keeps its Home text link. 44 px target,
-      `aria-label="Home"`.
-
 ### Assistant
 
 - [ ] Admin tools over MCP (FR-MCP-10). Each Admin action the app has gets a tool, refused for a User's token with the

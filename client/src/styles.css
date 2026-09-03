@@ -188,7 +188,8 @@ header {
   position: relative;
 }
 
-button.back {
+button.back,
+button.home {
   position: absolute;
   left: 8px;
   top: 50%;
@@ -198,6 +199,15 @@ button.back {
   border: 0;
   font-size: 32px;
   line-height: 1;
+}
+
+/* The house sits at the edge; back, when there is one, follows it. */
+button.home {
+  font-size: 22px;
+}
+
+button.home + button.back {
+  left: 52px;
 }
 
 /* --- scanning and codes ------------------------------------------------------------- */
@@ -1142,6 +1152,7 @@ h3.section.small {
   width: 100%;
   padding: 10px 0;
   border-bottom: 1px solid var(--rule);
+  border-radius: 0;
   text-align: left;
 }
 

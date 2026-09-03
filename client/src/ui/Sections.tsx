@@ -57,9 +57,9 @@ export function Alerts({ store }: { store: Store }) {
 }
 
 /** Everywhere the app goes, no counts: shared by the phone's menu and the desk's sidebar. */
-function menuLinks(state: State, admin: boolean, empty: boolean, stockCheck: boolean): Link[] {
+function menuLinks(state: State, admin: boolean, empty: boolean, stockCheck: boolean, home: boolean): Link[] {
   return [
-    { label: "Home", path: "/" },
+    ...(home ? [{ label: "Home", path: "/" }] : []),
     { label: "All items", path: "/items" },
     { label: "Reports", path: "/reports" },
     { label: "Reservations", path: "/reservations" },
@@ -83,7 +83,8 @@ export function Sections({ store, layout }: Props) {
   const admin = store.meta.user?.role === "admin";
   const sidebar = layout === "sidebar";
   const pending = store.pending.length;
-  const links = menuLinks(state, admin, empty, Boolean(store.meta.stock_check));
+  // The phone header has a house; the sidebar has no header to put one in.
+  const links = menuLinks(state, admin, empty, Boolean(store.meta.stock_check), sidebar);
 
   const signOutRow = (
     <>

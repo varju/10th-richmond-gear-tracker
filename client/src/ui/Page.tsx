@@ -16,9 +16,9 @@ interface Props {
 
 /**
  * Every screen: header, scrolling body, actions at the thumb. The header
- * carries back where there is a step back, the title (which also goes home),
- * and the menu button. The desk keeps the sections in its sidebar instead, so
- * its header has no menu of its own.
+ * carries a house (off Home), back where there is a step back, the title
+ * (which also goes home), and the menu button. The desk keeps the sections in
+ * its sidebar instead, so its header has neither house nor menu.
  */
 export function Page({ title, back, children, actions }: Props) {
   const { store } = useShell();
@@ -33,6 +33,11 @@ export function Page({ title, back, children, actions }: Props) {
   return (
     <>
       <header>
+        {menu && route.path !== "/" && (
+          <button className="home" type="button" onClick={() => navigate("/")} aria-label="Home">
+            ⌂
+          </button>
+        )}
         {back !== undefined && (
           <button className="back" type="button" onClick={() => leaveBack(back)} aria-label="Back">
             ‹

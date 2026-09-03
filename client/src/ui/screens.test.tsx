@@ -498,7 +498,6 @@ test("the menu reaches every section, users included", async () => {
   await user.click(screen.getByRole("button", { name: "Menu" }));
   const sections = within(screen.getByRole("navigation", { name: "Menu" })).getAllByRole("button");
   expect(sections.map((b) => b.textContent)).toEqual([
-    "Home",
     "All items",
     "Reports",
     "Reservations",
@@ -518,19 +517,24 @@ test("the menu reaches every section, users included", async () => {
   expect(location.pathname).toBe("/items");
 });
 
-test("the menu opens from any screen, not only Home, and lists Home first", async () => {
+test("the menu opens from any screen, and a link from it lands with the menu closed", async () => {
   await fixture();
   navigate("/repairs");
   mount();
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Menu" }));
-  const sections = within(screen.getByRole("navigation", { name: "Menu" })).getAllByRole("button");
-  expect(sections[0]!.textContent).toBe("Home");
-
-  await user.click(screen.getByRole("button", { name: "Home" }));
-  expect(location.pathname).toBe("/");
-  // The link landed with the menu closed, not still open over the home screen.
+  await user.click(screen.getByRole("button", { name: "Reports" }));
+  expect(location.pathname).toBe("/reports");
   expect(screen.queryByRole("navigation", { name: "Menu" })).not.toBeInTheDocument();
+});
+
+test("the phone header has a house that goes home, on every screen but Home", async () => {
+  await fixture();
+  navigate("/repairs");
+  mount();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Home" }));
+  expect(location.pathname).toBe("/");
+  expect(screen.queryByRole("button", { name: "Home" })).not.toBeInTheDocument();
 });
 
 test("the title is a link home, on every screen", async () => {
