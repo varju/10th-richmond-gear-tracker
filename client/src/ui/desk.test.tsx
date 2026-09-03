@@ -276,8 +276,8 @@ test("a phone keeps the list at /items, and has no sidebar", async () => {
   await fixture();
   setWidth(PHONE);
   mount();
-  // Home holds the sections in a fold, not a sidebar, and shows no list until asked.
-  expect(screen.getByRole("navigation", { name: "Sections" })).not.toHaveClass("sidebar");
+  // Home holds the sections behind the menu, not a sidebar, and shows no list until asked.
+  expect(screen.queryByRole("navigation", { name: "Sections" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /Tent 1/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
 

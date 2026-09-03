@@ -12,11 +12,11 @@ import { useStore } from "../useStore";
 
 interface Props {
   store: Store;
-  /** "row" is the phone's More fold; "sidebar" is the desk (NFR-USE-10). */
-  layout: "row" | "sidebar";
+  /** "menu" is the phone's full-screen menu; "sidebar" is the desk (NFR-USE-10). */
+  layout: "menu" | "sidebar";
 }
 
-interface Link {
+export interface Link {
   label: string;
   path: string;
 }
@@ -38,6 +38,18 @@ function alertLinks(state: State): Link[] {
   ];
 }
 
+/** The read-mostly lists: what is out, what needs fixing, what is coming up. Shared by the sidebar and the Reports page. */
+export function reportLinks(state: State, today: string): Link[] {
+  const out = outCount(state);
+  const broken = openTickets(state).length;
+  const booked = upcoming(state, today).length;
+  return [
+    { label: `What is out${out > 0 ? ` · ${out}` : ""}`, path: "/out" },
+    { label: `Needs repair${broken > 0 ? ` · ${broken}` : ""}`, path: "/repairs" },
+    { label: `Reservations · ${booked} upcoming`, path: "/reservations" },
+  ];
+}
+
 /** Things wrong, and only when something is wrong. The phone's home puts them above the day's work. */
 export function Alerts({ store }: { store: Store }) {
   useStore(store);
@@ -46,28 +58,44 @@ export function Alerts({ store }: { store: Store }) {
 
 /**
  * Everywhere else the app goes, so nothing is reachable only by knowing it is
- * there. One component, two layouts: a row inside the phone's More fold, a
- * sidebar beside every desk screen.
+ * there. One component, two layouts: the phone's full-screen menu, a sidebar
+ * beside every desk screen.
  */
 export function Sections({ store, layout }: Props) {
   useStore(store);
-  const { now } = useShell();
+  const { now, signOut } = useShell();
   const state = store.state;
-  const out = outCount(state);
-  const broken = openTickets(state).length;
-  const booked = upcoming(state, todayIso(now())).length;
   const empty = items(state).length === 0;
   const admin = store.meta.user?.role === "admin";
   const sidebar = layout === "sidebar";
 
+  if (!sidebar) {
+    const links: Link[] = [
+      { label: "All items", path: "/items" },
+      { label: "Reports", path: "/reports" },
+      ...(empty
+        ? []
+        : [
+            { label: store.meta.stock_check ? "Stock check · in progress" : "Stock check", path: "/stock-check" },
+            { label: "Browse by location", path: "/locations" },
+          ]),
+      ...(admin ? [{ label: "Users", path: "/settings/users" }] : []),
+      { label: "Settings", path: "/settings" },
+      { label: "Help", path: "/help" },
+    ];
+    return (
+      <nav className="links menu" aria-label="Menu">
+        <Links links={links} />
+        <button className="link" type="button" onClick={() => void signOut()}>
+          Sign out
+        </button>
+      </nav>
+    );
+  }
+
   const links: Link[] = [
-    // The phone's home is no longer the list, so the row says where the list went.
-    sidebar
-      ? { label: `Inventory · ${countItems(rows(state, {}))}`, path: "/items" }
-      : { label: "All items", path: "/items" },
-    { label: `What is out${out > 0 ? ` · ${out}` : ""}`, path: "/out" },
-    { label: `Needs repair${broken > 0 ? ` · ${broken}` : ""}`, path: "/repairs" },
-    { label: `Reservations · ${booked} upcoming`, path: "/reservations" },
+    { label: `Inventory · ${countItems(rows(state, {}))}`, path: "/items" },
+    ...reportLinks(state, todayIso(now())),
     ...(empty
       ? []
       : [
@@ -75,16 +103,8 @@ export function Sections({ store, layout }: Props) {
           { label: store.meta.stock_check ? "Stock check · in progress" : "Stock check", path: "/stock-check" },
         ]),
     ...(admin ? [{ label: "Users", path: "/settings/users" }] : []),
-    ...(sidebar ? [{ label: "Settings", path: "/settings" }] : []),
+    { label: "Settings", path: "/settings" },
   ];
-
-  if (!sidebar) {
-    return (
-      <nav className="links" aria-label="Sections">
-        <Links links={links} />
-      </nav>
-    );
-  }
 
   const alerts = alertLinks(state);
   return (

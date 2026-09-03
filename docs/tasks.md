@@ -49,21 +49,6 @@ Public pages come before the labelling walk, not after it. From the moment stick
 Notes from the first week on a phone. Each task stands alone. Categories is the one that changes the schema, so it goes
 last.
 
-- [ ] Home search on the phone: move the search box out of the actions into the top of the body, under the header, with
-      results listed below it. Take out, Bring back and New item stay at the thumb (NFR-USE-03). With the keyboard open,
-      typing must not scroll the box or the results out of view. Test on a phone.
-- [ ] Phone menu: replace the ⚙ corner button and the More fold on Home with one ☰ button opening a list: All items,
-      Reports, Stock check, Browse by location, Users (admin only), Settings, Help, Sign out. The "N items out" link
-      leaves Home. The desk sidebar in `Sections` is unchanged.
-- [ ] Reports page at `/reports`: links to What is out, Needs repair and Reservations, with the counts the sidebar shows
-      today. On the phone these three are reached only through it. The desk sidebar is unchanged.
-- [ ] Item page: History and Changes show the minute (`localMinute`), not the bare date. Added and Modified keep the
-      date.
-- [ ] Item page: History and Changes fold by default, on phone and desk, as `<details>` with the count in the summary.
-- [ ] Item page: Changes names the category. `audit.ts` gets a `category_id` label and `describeValue` resolves it with
-      `categoryName`. Check the other id fields while there.
-- [ ] Item page: Edit is full width. Under it, on its own line and minor: "Add QR code" when `codesFor` is empty,
-      "Replace QR code" when it is not. Same scan flow either way.
 - [ ] Several categories per item (FR-SET-07): `category_id` becomes `category_ids`, a list. Touches the filter
       (FR-INV-08), item fields, CSV import and export (FR-SET-11, FR-RPT-03), the audit label, valuation (FR-RPT-06),
       the assistant's `list_categories` and `update_item`, both replays, and `vectors/replay/`. A unit still reads its

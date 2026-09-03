@@ -14,7 +14,7 @@ import {
   updateItem,
   updateUnit,
 } from "../lib/actions";
-import { changes } from "../lib/audit";
+import { changes, type Change } from "../lib/audit";
 import { hasOpenConflict } from "../lib/conflicts";
 import { foundFor, resolveFound } from "../lib/found";
 import {
@@ -41,9 +41,9 @@ import { type Log, useRecord } from "../lib/record";
 import type { Note, State } from "../lib/replay";
 import { isOverdue } from "../lib/reports";
 import { navigate, useRoute } from "../lib/router";
-import { timeline } from "../lib/timeline";
+import { timeline, type TimelineEntry } from "../lib/timeline";
 import type { Store } from "../lib/store";
-import { isoDate } from "../lib/time";
+import { isoDate, localMinute } from "../lib/time";
 import { guard, useUnsaved } from "../lib/unsaved";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
@@ -183,10 +183,8 @@ export function ItemPage({ store, id }: Props) {
             {survivor ? displayName(state, survivor) : "(unknown item)"}
           </button>
         </p>
-        <h3 className="section">History</h3>
-        <History store={store} id={id} record={record} />
-        <h3 className="section">Changes</h3>
-        <Changes store={store} id={id} record={record} />
+        <HistorySection store={store} id={id} record={record} />
+        <ChangesSection store={store} id={id} record={record} />
       </Page>
     );
   }
@@ -199,7 +197,7 @@ export function ItemPage({ store, id }: Props) {
         it={it}
         onEdit={() => setEditing(true)}
         photos={<Photos store={store} on={onItem} />}
-        changes={<Changes store={store} id={id} record={record} />}
+        changes={<ChangesSection store={store} id={id} record={record} />}
       />
     );
   }
@@ -226,14 +224,12 @@ export function ItemPage({ store, id }: Props) {
             showEvent
             onMoved={(kind) => confirm(`${kind} · ${displayName(state, it)}`)}
           />
-          <div className="row">
-            <button type="button" onClick={() => setEditing(true)}>
-              Edit
-            </button>
-            <button type="button" onClick={() => navigate(`/scan?for=${id}`)}>
-              Replace code
-            </button>
-          </div>
+          <button type="button" onClick={() => setEditing(true)}>
+            Edit
+          </button>
+          <button type="button" className="minor" onClick={() => navigate(`/scan?for=${id}`)}>
+            {current ? "Replace QR code" : "Add QR code"}
+          </button>
           {/* Retiring is rare and lives at the foot of Edit. Missing is not: gear goes astray weekly. */}
           {!it.retired && !it.missing && (
             <button type="button" className={confirmMissing ? "warn" : ""} onClick={missing}>
@@ -365,12 +361,11 @@ export function ItemPage({ store, id }: Props) {
           <h3 className="section">Repairs</h3>
           <Repairs store={store} id={id} />
 
-          <h3 className="section">History</h3>
-          <History store={store} id={id} record={record} />
-          <AddNote store={store} on={onItem} />
+          <HistorySection store={store} id={id} record={record}>
+            <AddNote store={store} on={onItem} />
+          </HistorySection>
 
-          <h3 className="section">Changes</h3>
-          <Changes store={store} id={id} record={record} />
+          <ChangesSection store={store} id={id} record={record} />
         </div>
       </div>
     </Page>
@@ -411,7 +406,7 @@ function DeleteItem({ store, it }: { store: Store; it: Item }) {
 /** "Checked out by Alice for Spring camp · 2026-09-01". */
 export function describeMovement(state: State, e: HistoryEntry): string {
   const who = userName(state, e.actor_id);
-  const when = isoDate(e.at);
+  const when = localMinute(e.at);
   if (e.type === "checked_in") return `Checked in by ${who} · ${when}`;
   const verb = e.supersedes ? "Transferred to" : "Checked out by";
   return e.event ? `${verb} ${who} for ${e.event} · ${when}` : `${verb} ${who} · ${when}`;
@@ -458,7 +453,7 @@ function ReportFault({ store, id }: Props) {
   if (draft === null) {
     return (
       <button type="button" className="minor" onClick={() => setDraft("")}>
-        Report a fault
+        Report a problem
       </button>
     );
   }
@@ -471,7 +466,7 @@ function ReportFault({ store, id }: Props) {
       }}
     >
       <textarea
-        aria-label="Fault"
+        aria-label="Problem"
         autoFocus
         rows={2}
         placeholder="e.g. zipper broken on the bag"
@@ -490,56 +485,78 @@ function ReportFault({ store, id }: Props) {
 
 /**
  * Movements and notes in one list, newest first. A note made on a movement sits
- * under it. `record` is the server's whole answer, or null when this device is
- * on its own; either way the rows are drawn the same (FR-INV-31).
+ * under it. `entries` come from the caller so a folded section computes the
+ * timeline once, for its count and its rows both.
  */
-function History({ store, id, record }: Props & { record: Log | null }) {
-  const entries = timeline(record ?? store, id);
+function History({ store, id, entries }: { store: Store; id: string; entries: TimelineEntry[] }) {
   const on = { entity_type: "item", entity_id: id };
-  return (
-    <>
-      {entries.length === 0 ? (
-        <p className="muted">Nothing yet.</p>
-      ) : (
-        <ol className="history">
-          {entries.map((e) =>
-            e.kind === "movement" ? (
-              <li key={e.id}>
-                <span>{describeMovement(store.state, e.movement)}</span>
-                <NoteList store={store} on={on} notes={e.movement.notes} />
-              </li>
-            ) : (
-              <NoteLine key={e.id} store={store} on={on} note={e.note} />
-            ),
-          )}
-        </ol>
+  return entries.length === 0 ? (
+    <p className="muted">Nothing yet.</p>
+  ) : (
+    <ol className="history">
+      {entries.map((e) =>
+        e.kind === "movement" ? (
+          <li key={e.id}>
+            <span>{describeMovement(store.state, e.movement)}</span>
+            <NoteList store={store} on={on} notes={e.movement.notes} />
+          </li>
+        ) : (
+          <NoteLine key={e.id} store={store} on={on} note={e.note} />
+        ),
       )}
+    </ol>
+  );
+}
+
+/**
+ * History, folded behind its count: closed by default, on a phone and at a
+ * desk alike, so the facts a person came for are not buried under a log
+ * (NFR-USE-10). `record` is the server's whole answer, or null when this
+ * device is on its own; either way the rows are drawn the same (FR-INV-31).
+ */
+function HistorySection({ store, id, record, children }: Props & { record: Log | null; children?: React.ReactNode }) {
+  const entries = timeline(record ?? store, id);
+  return (
+    <details className="fold">
+      <summary>
+        <h3 className="section">History · {entries.length}</h3>
+      </summary>
+      <History store={store} id={id} entries={entries} />
       <Reach record={record} />
-    </>
+      {children}
+    </details>
   );
 }
 
 /** What changed on the record, from what to what, by whom (FR-USR-09). */
-function Changes({ store, id, record }: Props & { record: Log | null }) {
-  const entries = changes(record ?? store, id);
+function Changes({ store, entries }: { store: Store; entries: Change[] }) {
   const state = store.state;
+  return entries.length === 0 ? (
+    <p className="muted">No changes.</p>
+  ) : (
+    <ol className="history">
+      {entries.map((c) => (
+        <li key={c.id}>
+          {c.kind === "created"
+            ? `Created · ${userName(state, c.actor_id)} · ${localMinute(c.at)}`
+            : `${c.label}: ${c.old} → ${c.new} · ${userName(state, c.actor_id)} · ${localMinute(c.at)}`}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** Changes, folded behind its count, for the same reason History is (NFR-USE-10). */
+function ChangesSection({ store, id, record }: Props & { record: Log | null }) {
+  const entries = changes(record ?? store, id);
   return (
-    <>
-      {entries.length === 0 ? (
-        <p className="muted">No changes.</p>
-      ) : (
-        <ol className="history">
-          {entries.map((c) => (
-            <li key={c.id}>
-              {c.kind === "created"
-                ? `Created · ${userName(state, c.actor_id)} · ${isoDate(c.at)}`
-                : `${c.label}: ${c.old} → ${c.new} · ${userName(state, c.actor_id)} · ${isoDate(c.at)}`}
-            </li>
-          ))}
-        </ol>
-      )}
+    <details className="fold">
+      <summary>
+        <h3 className="section">Changes · {entries.length}</h3>
+      </summary>
+      <Changes store={store} entries={entries} />
       <Reach record={record} />
-    </>
+    </details>
   );
 }
 
@@ -1039,7 +1056,6 @@ function GenericPage({
       <h3 className="section">Photos</h3>
       {photos}
 
-      <h3 className="section">Changes</h3>
       {changes}
     </Page>
   );

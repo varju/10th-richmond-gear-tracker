@@ -32,6 +32,7 @@ import { PublicItem } from "./ui/PublicItem";
 import { RepairPage } from "./ui/RepairPage";
 import { Repairs } from "./ui/Repairs";
 import { Report } from "./ui/Report";
+import { Reports } from "./ui/Reports";
 import { ReservationForm } from "./ui/ReservationForm";
 import { ReservationPage } from "./ui/ReservationPage";
 import { Reservations } from "./ui/Reservations";
@@ -216,6 +217,8 @@ function Screen({
       return <Scan store={store} />;
     case "out":
       return <Report store={store} />;
+    case "reports":
+      return <Reports store={store} />;
     case "g":
       if (second) return <CodeLanding store={store} code={second} />;
       break;

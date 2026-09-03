@@ -81,7 +81,8 @@ test("an open ticket badges the row and counts on the home screen (FR-REP-05)", 
   expect(rows()).toEqual(["StoveWarm locker", "Tent 1RepairCold locker / shelf 4"]);
 
   await user.click(screen.getByRole("button", { name: "Back" }));
-  await user.click(screen.getByText("More"));
+  await user.click(screen.getByRole("button", { name: "Menu" }));
+  await user.click(screen.getByRole("button", { name: "Reports" }));
   await user.click(screen.getByRole("button", { name: "Needs repair · 1" }));
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Needs repair");
   // The ticket is in the open list and again in the history below it.
@@ -403,27 +404,28 @@ test("the overdue period is one group setting; blank means never (FR-OUT-14)", a
   await waitFor(() => expect(inv.group(store.state).overdue_days ?? null).toBeNull());
 });
 
-test("the More fold reaches every section, users included", async () => {
+test("the menu reaches every section, users included", async () => {
   await fixture();
   mount();
   const user = userEvent.setup();
-  await user.click(screen.getByText("More"));
-  const sections = within(screen.getByRole("navigation", { name: "Sections" })).getAllByRole("button");
+  await user.click(screen.getByRole("button", { name: "Menu" }));
+  const sections = within(screen.getByRole("navigation", { name: "Menu" })).getAllByRole("button");
   expect(sections.map((b) => b.textContent)).toEqual([
     "All items",
-    "What is out",
-    "Needs repair",
-    "Reservations · 0 upcoming",
-    "Browse by location",
+    "Reports",
     "Stock check",
+    "Browse by location",
     "Users",
+    "Settings",
+    "Help",
+    "Sign out",
   ]);
 
   await user.click(screen.getByRole("button", { name: "Users" }));
   expect(location.pathname).toBe("/settings/users");
 
   reactAct(() => navigate("/"));
-  await user.click(screen.getByText("More"));
+  await user.click(screen.getByRole("button", { name: "Menu" }));
   await user.click(screen.getByRole("button", { name: "All items" }));
   expect(location.pathname).toBe("/items");
 });
@@ -447,19 +449,23 @@ test("home is empty until something is asked of it", async () => {
   expect(screen.getByText(hint)).toBeInTheDocument();
 });
 
-test("home says what is out, and only while something is", async () => {
-  const f = await fixture();
+test("the search box sits in main, and the menu takes over the screen while open", async () => {
+  await fixture();
   mount();
   const user = userEvent.setup();
-  expect(screen.queryByRole("button", { name: /item.? out/ })).not.toBeInTheDocument();
+  expect(within(screen.getByRole("main")).getByLabelText("Search")).toBeInTheDocument();
 
-  await checkOut(store, f.t1, { event: "Spring camp" });
-  await user.click(await screen.findByRole("button", { name: "1 item out" }));
-  expect(location.pathname).toBe("/out");
+  await user.click(screen.getByRole("button", { name: "Menu" }));
+  const menu = within(screen.getByRole("navigation", { name: "Menu" }));
+  expect(menu.getByRole("button", { name: "All items" })).toBeInTheDocument();
+  expect(menu.getByRole("button", { name: "Reports" })).toBeInTheDocument();
+  expect(menu.getByRole("button", { name: "Settings" })).toBeInTheDocument();
+  expect(menu.getByRole("button", { name: "Help" })).toBeInTheDocument();
+  expect(menu.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Take out" })).not.toBeInTheDocument();
 
-  // A search takes the screen over; the count is not what someone is looking at.
-  reactAct(() => navigate("/?q=tent"));
-  expect(screen.queryByRole("button", { name: "1 item out" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Close menu" }));
+  expect(screen.getByRole("button", { name: "Take out" })).toBeInTheDocument();
 });
 
 test("the phone's /items is the whole list, counted and filtered", async () => {
@@ -530,7 +536,8 @@ test("a User has no Users link", async () => {
   await store.setMeta({ user: { id: "u2", name: "Bob", role: "user", active: true } });
   await fixture();
   mount();
-  const sections = within(screen.getByRole("navigation", { name: "Sections" })).getAllByRole("button");
+  await userEvent.setup().click(screen.getByRole("button", { name: "Menu" }));
+  const sections = within(screen.getByRole("navigation", { name: "Menu" })).getAllByRole("button");
   expect(sections.map((b) => b.textContent)).not.toContain("Users");
 });
 
@@ -686,7 +693,7 @@ test("a replacement sticker: back from the item goes home, not through the scann
 
   await user.type(screen.getByLabelText("Search"), "Tent 1");
   await user.click(screen.getByRole("button", { name: /Tent 1/ }));
-  await user.click(screen.getByRole("button", { name: "Replace code" }));
+  await user.click(screen.getByRole("button", { name: "Add QR code" }));
   expect(location.pathname + location.search).toBe(`/scan?for=${f.t1}`);
 
   await user.click(await screen.findByRole("button", { name: "Type a code instead" }));

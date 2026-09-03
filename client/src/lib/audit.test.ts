@@ -31,6 +31,15 @@ test("changes list the record's edits newest first, with names for ids (FR-USR-0
   expect(changes(store, tent).every((c) => c.actor_id === "alice")).toBe(true);
 });
 
+test("a category change names the category (FR-USR-09, FR-SET-07)", async () => {
+  const tents = await act.createCategory(store, "Tents");
+  const tent = await act.createItem(store, { name: "Tent" });
+  await act.updateItem(store, tent, { category_id: tents });
+
+  const rows = changes(store, tent).map((c) => (c.kind === "created" ? c.label : `${c.label}: ${c.old} → ${c.new}`));
+  expect(rows).toEqual(["Category: — → Tents", "Created"]);
+});
+
 test("values read as a person would", async () => {
   const other = await act.createItem(store, { name: "Tent 2" });
   const state = store.state;

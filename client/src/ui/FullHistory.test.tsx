@@ -69,7 +69,11 @@ const unreachable = createApi({
   },
 });
 
-const section = (name: string) => screen.getByRole("heading", { name }).nextElementSibling as HTMLElement;
+// History and Changes fold their heading into a <summary>; its count makes the name inexact.
+const section = (name: string) => {
+  const heading = screen.getByRole("heading", { name: new RegExp(`^${name}(?: ·|$)`) });
+  return (heading.closest("summary") ?? heading).nextElementSibling as HTMLElement;
+};
 
 test("an item's history and changes come from the server, with what this device has not sent", async () => {
   // Recorded here and not yet pushed: it must not vanish when the signal returns.
@@ -88,6 +92,7 @@ test("an item's history and changes come from the server, with what this device 
   renderInShell(<ItemPage store={store} id={tent} />, () => T0, api);
 
   await waitFor(() => expect(screen.getByText(/Winter Camp 2019/)).toBeInTheDocument());
+  fireEvent.click(screen.getByText(/^History/));
   expect(within(section("History")).getAllByRole("listitem")).toHaveLength(3);
   expect(screen.getByText(/for Fall Camp/)).toBeInTheDocument();
   expect(screen.getByText(/Name: Old tent → Tent 1/)).toBeInTheDocument();
@@ -102,6 +107,7 @@ test("with no answer from the server the same rows are drawn from this device, a
   renderInShell(<ItemPage store={store} id={tent} />, () => T0, unreachable);
 
   await waitFor(() => expect(screen.getByText(/for Fall Camp/)).toBeInTheDocument());
+  fireEvent.click(screen.getByText(/^History/));
   expect(within(section("History")).getAllByRole("listitem")).toHaveLength(1);
   expect(screen.getAllByText("Offline: what this device knows, the last 90 days.")).toHaveLength(2);
 });
@@ -116,7 +122,7 @@ test("a device that knows it is offline does not ask", async () => {
   ]);
   renderInShell(<ItemPage store={store} id={tent} />, () => T0, api);
 
-  await screen.findByRole("heading", { name: "History" });
+  await screen.findByRole("heading", { name: /^History/ });
   expect(asked).toEqual([]);
   expect(screen.queryByText(/Winter Camp 2019/)).not.toBeInTheDocument();
   vi.restoreAllMocks();
@@ -129,6 +135,7 @@ test("an event the server already has is not shown twice", async () => {
   renderInShell(<ItemPage store={store} id={tent} />, () => T0, api);
 
   await waitFor(() => expect(screen.getByText(/for Fall Camp/)).toBeInTheDocument());
+  fireEvent.click(screen.getByText(/^History/));
   expect(within(section("History")).getAllByRole("listitem")).toHaveLength(1);
 });
 

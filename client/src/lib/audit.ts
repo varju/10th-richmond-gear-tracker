@@ -5,7 +5,7 @@
  * Read from a `Log`, which is the server's whole record when there is signal
  * and this device's 90 days when there is not (FR-INV-31, NFR-DATA-03).
  */
-import { locationName, nameOf } from "./inventory";
+import { categoryName, locationName, nameOf } from "./inventory";
 import type { Log } from "./record";
 import type { State } from "./replay";
 
@@ -26,6 +26,7 @@ const LABELS: Record<string, string> = {
   name: "Name",
   description: "Description",
   home_location_id: "Home location",
+  category_id: "Category",
   sub_location: "Shelf",
   generic: "Several of these",
   parent_id: "Generic",
@@ -48,6 +49,7 @@ export const fieldLabel = (field: string): string => LABELS[field] ?? field;
 export function describeValue(state: State, field: string, value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
   if (field === "home_location_id") return locationName(state, String(value));
+  if (field === "category_id") return categoryName(state, String(value));
   if (field === "parent_id" || field === "merged_into") return nameOf(state, String(value));
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (field === "price" && typeof value === "number") return `$${value.toFixed(2)}`;

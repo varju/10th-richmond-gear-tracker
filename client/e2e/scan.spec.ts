@@ -144,6 +144,8 @@ test("a scanned sticker checks its item out and back in", async ({ request }) =>
     await page.getByLabel("Search").fill(ITEM);
     await page.getByRole("button", { name: new RegExp(ITEM) }).click();
     await expect(page.getByRole("heading", { name: ITEM })).toBeVisible();
+    // History is folded until asked for.
+    await page.getByText(/^History · /).click();
     const entries = page
       .getByRole("list")
       .filter({ hasText: /^Checked/ })

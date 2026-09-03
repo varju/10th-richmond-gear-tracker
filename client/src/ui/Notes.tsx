@@ -2,7 +2,7 @@ import { type FormEvent, useState } from "react";
 import { addNote, correctNote, deleteNote, type EntityRef } from "../lib/notes";
 import type { Note } from "../lib/replay";
 import type { Store } from "../lib/store";
-import { isoDate } from "../lib/time";
+import { localMinute } from "../lib/time";
 import { useUnsaved } from "../lib/unsaved";
 import { userName } from "./labels";
 
@@ -66,7 +66,7 @@ export function NoteLine({ store, on, note }: { store: Store; on: EntityRef; not
     <li className="note">
       <span className="note-text">{note.text}</span>
       <span className="muted small">
-        {userName(store.state, note.actor_id)} · {isoDate(note.at)}
+        {userName(store.state, note.actor_id)} · {localMinute(note.at)}
       </span>
       <button type="button" className="minor" onClick={() => setDraft(note.text)}>
         Edit

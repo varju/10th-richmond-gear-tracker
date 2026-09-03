@@ -37,8 +37,12 @@ const withDialog = () =>
     </>,
   );
 
-const actions = () => screen.getByRole("button", { name: "Replace code" }).closest(".actions")!;
-const section = (name: string) => screen.getByRole("heading", { name }).nextElementSibling!;
+const actions = () => screen.getByRole("button", { name: "Add QR code" }).closest(".actions")!;
+// History and Changes fold their heading into a <summary>; its count makes the name inexact.
+const section = (name: string) => {
+  const heading = screen.getByRole("heading", { name: new RegExp(`^${name}(?: ·|$)`) });
+  return (heading.closest("summary") ?? heading).nextElementSibling!;
+};
 
 test("Check out from the page records the session event and syncs (FR-OUT-02)", async () => {
   await store.setMeta({ session_event: "Spring camp" });
@@ -97,11 +101,11 @@ test("history lists movements and notes together, newest first (FR-INV-09)", asy
 
   const rows = [...section("History").querySelectorAll(":scope > li")];
   expect(rows.map((r) => r.textContent)).toEqual([
-    "pole repairedAlice · 2025-09-01EditDelete",
-    "Transferred to Alice for Cub camp · 2025-09-01",
-    "Checked out by Carol · 2025-09-01",
-    "Checked in by Alice · 2025-09-01muddyAlice · 2025-09-01EditDelete",
-    "Checked out by Alice for Spring camp · 2025-09-01to a patrolAlice · 2025-09-01EditDelete",
+    "pole repairedAlice · 2025-08-31 17:00EditDelete",
+    "Transferred to Alice for Cub camp · 2025-08-31 17:00",
+    "Checked out by Carol · 2025-08-31 17:00",
+    "Checked in by Alice · 2025-08-31 17:00muddyAlice · 2025-08-31 17:00EditDelete",
+    "Checked out by Alice for Spring camp · 2025-08-31 17:00to a patrolAlice · 2025-08-31 17:00EditDelete",
   ]);
   // No shell api here, so this is what the device knows: said once under History, once under Changes.
   expect(screen.getAllByText("Offline: what this device knows, the last 90 days.")).toHaveLength(2);
@@ -110,6 +114,7 @@ test("history lists movements and notes together, newest first (FR-INV-09)", asy
 test("a note is corrected in place and the correction is appended (FR-OUT-16)", async () => {
   const note = await mv.addNote(store, tent, "handed to a Scout");
   renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByText(/^History/));
   const timeline = section("History") as HTMLElement;
   expect(timeline).toHaveTextContent("handed to a Scout");
 
@@ -128,6 +133,7 @@ test("a note is corrected in place and the correction is appended (FR-OUT-16)", 
 test("a note is deleted after a second tap, and the log keeps it (FR-OUT-21)", async () => {
   const note = await mv.addNote(store, tent, "handed to a Scout");
   renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByText(/^History/));
   await user.click(screen.getByRole("button", { name: "Delete “handed to a Scout”" }));
   expect(screen.getByRole("button", { name: "Really delete “handed to a Scout”?" })).toBeInTheDocument();
 
@@ -138,6 +144,7 @@ test("a note is deleted after a second tap, and the log keeps it (FR-OUT-21)", a
 
 test("an item-level note is added from the page", async () => {
   renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByText(/^History/));
   // The actions area has its own "Add note", for a note on the movement.
   const main = document.querySelector("main") as HTMLElement;
   await user.click(within(main).getByRole("button", { name: "Add note" }));
@@ -153,10 +160,10 @@ test("an item-level note is added from the page", async () => {
 test("a fault reported from the page raises a ticket, which flags the item (FR-REP-01, FR-REP-05)", async () => {
   renderInShell(<ItemPage store={store} id={tent} />);
   expect(screen.queryByRole("note")).not.toBeInTheDocument();
-  // The actions area has its own "Report a fault", for a fault that rides on a move.
+  // The actions area has its own "Report a problem", for one that rides on a move.
   const main = document.querySelector("main") as HTMLElement;
-  await user.click(within(main).getByRole("button", { name: "Report a fault" }));
-  await user.type(screen.getByLabelText("Fault"), "zipper broken");
+  await user.click(within(main).getByRole("button", { name: "Report a problem" }));
+  await user.type(screen.getByLabelText("Problem"), "zipper broken");
   await user.click(screen.getByRole("button", { name: "Save" }));
 
   // Once at the top of the page, once beside the movement buttons (FR-REP-05).
@@ -207,6 +214,14 @@ test("marking an item missing takes two taps and flags it without moving it (FR-
   expect(item(store.state, tent)).toMatchObject({ status: "in", missing: false });
 });
 
+test("the QR button offers to add a code or replace the one it has", async () => {
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(screen.getByRole("button", { name: "Add QR code" })).toBeInTheDocument();
+
+  await act.bindCode(store, "AAAAAAAAAA", tent);
+  expect(await screen.findByRole("button", { name: "Replace QR code" })).toBeInTheDocument();
+});
+
 test("?edit=1 opens the form straight away, and saving drops it from the URL", async () => {
   navigate(`/items/${tent}?edit=1`);
   renderInShell(<ItemPage store={store} id={tent} />);
@@ -243,6 +258,7 @@ test("cancelling an edit with changes asks; Discard drops them", async () => {
 
 test("a half-typed note asks on Back; Save records it", async () => {
   withDialog();
+  await user.click(screen.getByText(/^History/));
   // The first "Add note" is the item's; the move buttons have their own.
   await user.click(screen.getAllByRole("button", { name: "Add note" })[0]!);
   await user.type(screen.getByLabelText("New note"), "pole bent");
@@ -299,7 +315,10 @@ test("the record's changes are listed with old and new values (FR-USR-09)", asyn
   await act.updateItem(store, tent, { name: "Tent 1 (green)" });
   renderInShell(<ItemPage store={store} id={tent} />);
   const rows = [...(section("Changes") as HTMLElement).querySelectorAll("li")].map((li) => li.textContent);
-  expect(rows).toEqual(["Name: Tent 1 → Tent 1 (green) · Alice · 2025-09-01", "Created · Alice · 2025-09-01"]);
+  expect(rows).toEqual([
+    "Name: Tent 1 → Tent 1 (green) · Alice · 2025-08-31 17:00",
+    "Created · Alice · 2025-08-31 17:00",
+  ]);
 });
 
 test("an Admin merges a duplicate into the item it doubles, and lands on the survivor (FR-INV-13)", async () => {

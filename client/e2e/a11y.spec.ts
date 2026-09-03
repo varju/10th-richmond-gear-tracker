@@ -52,6 +52,7 @@ test("the main screens have no WCAG 2.2 AA violations", async ({ page }) => {
 
   for (const [path, heading] of [
     ["/settings", "Settings"],
+    ["/reports", "Reports"],
     ["/reservations", "Reservations"],
     ["/reservations/new", "New reservation"],
     ["/repairs", "Needs repair"],

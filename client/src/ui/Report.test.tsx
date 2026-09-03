@@ -8,9 +8,9 @@ import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { type Shell, ShellContext } from "../shell";
 import { openStore } from "./codeTestKit";
-import { Home } from "./Home";
 import { alice, carol, seedUsers } from "./moveTestKit";
 import { Report } from "./Report";
+import { Reports } from "./Reports";
 
 // What is out, and who has it (FR-RPT-01), with gear out too long flagged (FR-OUT-14, FR-RPT-05).
 const T0 = 1_756_684_800_000;
@@ -111,15 +111,15 @@ test("a row opens the item", async () => {
   expect(location.pathname).toBe(`/items/${tent}`);
 });
 
-test("the home screen always links to the report, and counts what is out", async () => {
-  navigate("/");
-  const first = mount(<Home store={store} />);
+test("the reports page links to what is out, and counts it", async () => {
+  navigate("/reports");
+  const first = mount(<Reports store={store} />);
   expect(screen.getByRole("button", { name: "What is out" })).toBeInTheDocument();
   first.unmount();
 
   await mv.checkOut(store, tent);
   await mv.checkOut(store, axe);
-  mount(<Home store={store} />);
+  mount(<Reports store={store} />);
   await user.click(screen.getByRole("button", { name: "What is out · 2" }));
   expect(location.pathname).toBe("/out");
 });

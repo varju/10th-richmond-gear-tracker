@@ -26,6 +26,7 @@ test("installs its shell, then starts offline within budget", async ({ page, con
   await page.reload();
   await expect(page.getByRole("button", { name: "Take out" })).toBeVisible();
   expect(Date.now() - started).toBeLessThan(3_000);
+  await page.getByRole("button", { name: "Menu" }).click();
   await page.getByRole("button", { name: "Settings" }).click();
   await expect(page.getByText(/^Offline/)).toBeVisible();
 
@@ -45,6 +46,7 @@ test("a wrong password is refused with a reason", async ({ page }) => {
 // The lockers are already there: the server loaded the demo inventory.
 test("a printed code becomes an item", async ({ browser, page, request }) => {
   await signIn(page);
+  await page.getByRole("button", { name: "Menu" }).click();
   await page.getByRole("button", { name: "Settings" }).click();
   await page.getByLabel("Group name").fill("10th Richmond");
   await page.getByLabel("Site address").fill("https://example.org/gear");
@@ -104,8 +106,8 @@ test("an item can be checked out and in from its page", async ({ page }) => {
   await expect(page.getByText("Take out or bring back gear by scanning its code.")).toBeVisible();
   await expect(page.getByRole("listitem")).toHaveCount(0);
 
-  // The list is a fold away.
-  await page.getByText("More").click();
+  // The list is behind the menu.
+  await page.getByRole("button", { name: "Menu" }).click();
   await page.getByRole("button", { name: "All items" }).click();
   await expect(page).toHaveURL(/\/items$/);
   await expect(page.getByText("Filters")).toBeVisible();

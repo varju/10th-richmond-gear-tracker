@@ -77,7 +77,7 @@ test("comments are added and edited through the repair (FR-REP-06)", async () =>
   await user.type(screen.getByLabelText("Note text"), "slider fitted");
   await user.click(screen.getByRole("button", { name: "Save" }));
   expect(await screen.findByText("slider fitted")).toBeInTheDocument();
-  expect(screen.getByText("Alice · 2025-09-01")).toBeInTheDocument();
+  expect(screen.getByText("Alice · 2025-08-31 17:00")).toBeInTheDocument();
   expect(store.pending.at(-1)).toMatchObject({ type: "note_corrected", entity_id: ticket });
 });
 
