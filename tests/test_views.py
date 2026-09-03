@@ -4,7 +4,7 @@ directly; the rest is through tests/test_assistant.py, which calls these through
 
 from __future__ import annotations
 
-from gear_tracker.views import DAY_MS, is_pool, pool_counts, remaining, what_is_out
+from gear_tracker.views import DAY_MS, is_pool, pool_counts, remaining, rows, what_is_out
 
 
 def test_is_pool():
@@ -21,6 +21,30 @@ def test_pool_counts_owned_in_and_out_by_holder():
 
 def test_pool_counts_with_nothing_out():
     assert pool_counts({"pool_in": 10}) == {"owned": 10, "in": 10, "out": []}
+
+
+def test_rows_matches_a_pool_to_a_location_filter():
+    """FR-INV-25. A pool has no units for search() to filter on location; rows() checks its home."""
+    state = {
+        "item": {
+            "bowls": {"name": "Bowls", "generic": True, "pool": True, "pool_in": 3, "home_location_id": "cold"},
+        },
+    }
+    assert [r["name"] for r in rows(state, location_id="cold")] == ["Bowls"]
+    assert rows(state, location_id="warm") == []
+
+
+def test_rows_matches_a_pool_to_a_status_filter():
+    """ "in" means stock on the shelf; "out" means anything checked out; "missing" never matches a pool."""
+    state = {
+        "item": {
+            "bowls": {"name": "Bowls", "generic": True, "pool": True, "pool_in": 3, "pool_out": {"bob": 4}},
+            "cups": {"name": "Cups", "generic": True, "pool": True, "pool_in": 0, "pool_out": {}},
+        }
+    }
+    assert [r["name"] for r in rows(state, status="in")] == ["Bowls"]
+    assert [r["name"] for r in rows(state, status="out")] == ["Bowls"]
+    assert rows(state, status="missing") == []
 
 
 def test_what_is_out_lists_a_pool_once_per_holder():
@@ -61,18 +85,18 @@ def test_what_is_out_skips_a_pool_with_nothing_out():
     assert what_is_out(state, now=0) == {"holders": [], "total": 0, "overdue": 0}
 
 
-def test_remaining_ticks_off_a_pool_line_from_its_latest_check_out_for_the_event():
-    """FR-RES-13. A pool keeps one current movement, not a history: done is what the latest
-    check-out for this reservation's event carried."""
+def test_remaining_reads_a_pool_lines_done_count_from_pool_events():
+    """FR-RES-13. pool_events accumulates at replay, so this covers two check-outs for the
+    same camp, capped at the line's quantity, not the raw total."""
     state = {
         "item": {
             "bowls": {
                 "name": "Bowls",
                 "generic": True,
                 "pool": True,
-                "pool_in": 6,
-                "pool_out": {"alice": 4},
-                "movement": {"type": "checked_out", "event": "Fall Camp", "count": 4},
+                "pool_in": 2,
+                "pool_out": {"alice": 8},
+                "pool_events": {"Fall Camp": 8},
             }
         },
         "reservation": {
@@ -98,7 +122,7 @@ def test_remaining_pool_line_is_not_done_for_a_different_event():
                 "pool": True,
                 "pool_in": 6,
                 "pool_out": {"alice": 4},
-                "movement": {"type": "checked_out", "event": "Other trip", "count": 4},
+                "pool_events": {"Other trip": 4},
             }
         },
         "reservation": {

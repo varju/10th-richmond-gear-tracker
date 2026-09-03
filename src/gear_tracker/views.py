@@ -219,17 +219,35 @@ def rows(
         else:
             singles.append({"kind": "single", "item": it, "name": display_name(state, it)})
 
-    if location_id is None and status is None:
-        # An empty generic is still a row when only the search text is set, so one can be found and given units.
-        words = [w for w in query.lower().split() if w]
-        for generic in items(state):
-            if not generic.get("generic") or generic.get("merged_into"):
-                continue
-            if bool(generic.get("retired")) != retired:
-                continue
-            hay = f"{display_name(state, generic)} {home_label(state, generic)}".lower()
-            if all(w in hay for w in words) and generic["id"] not in by_parent:
+    words = [w for w in query.lower().split() if w]
+
+    def pool_wanted(pool: Fields) -> bool:
+        """A pool has no units for search() to filter, so it is matched here: on its home for a
+        location filter, and on its counts for a status filter ("in" means stock on the shelf,
+        "out" means anything checked out to a holder). "missing" never matches; a pool has no
+        such state."""
+        if location_id is not None and pool.get("home_location_id") != location_id:
+            return False
+        if status == "in":
+            return (pool.get("pool_in") or 0) > 0
+        if status == "out":
+            return any(count > 0 for count in (pool.get("pool_out") or {}).values())
+        return status != "missing"
+
+    for generic in items(state):
+        if not generic.get("generic") or generic.get("merged_into") or generic["id"] in by_parent:
+            continue
+        if bool(generic.get("retired")) != retired:
+            continue
+        hay = f"{display_name(state, generic)} {home_label(state, generic)}".lower()
+        if not all(w in hay for w in words):
+            continue
+        if is_pool(generic):
+            if pool_wanted(generic):
                 by_parent[generic["id"]] = []
+        elif location_id is None and status is None:
+            # An empty generic is still a row when only the search text is set, so one can be found and given units.
+            by_parent[generic["id"]] = []
 
     grouped: list[Fields] = []
     for generic_id, units in by_parent.items():
@@ -354,12 +372,9 @@ def remaining(state: State, r: Fields) -> dict[str, Any]:
     for line in r.get("generics") or []:
         generic = item(state, line["item_id"]) or {"id": line["item_id"], "name": "(unknown item)"}
         if is_pool(generic):
-            # A pool keeps one current movement, not a history (FR-INV-34): done is what the
-            # latest check-out for this event carried, so a second visit for the same camp
-            # replaces it rather than adding to it.
-            movement = generic.get("movement") or {}
-            current = movement.get("type") == "checked_out" and movement.get("event") == event
-            done = (movement.get("count") or 0) if current else 0
+            # pool_events accumulates at replay (FR-RES-13): a second visit for the same camp
+            # adds to done, it does not replace it.
+            done = (generic.get("pool_events") or {}).get(event, 0)
         else:
             # Any unit of the generic counts, except one the reservation names: that one is its own line.
             done = sum(1 for u in units_of(state, line["item_id"]) if u["id"] not in chosen and _ticked(u, event))

@@ -48,6 +48,7 @@
         "holder_id": null,
         "pool_in": 3,
         "pool_out": { "bob": 3, "carol": 4 },
+        "pool_events": { "Fall Camp": 3 },
         "movement": {
           "id": "01000000000000000000000002",
           "type": "checked_out",

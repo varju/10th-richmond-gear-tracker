@@ -48,6 +48,7 @@
         "holder_id": null,
         "pool_in": 5,
         "pool_out": { "bob": 4 },
+        "pool_events": {},
         "movement": {
           "id": "01000000000000000000000002",
           "type": "checked_out",

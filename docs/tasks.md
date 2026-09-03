@@ -57,14 +57,3 @@ fresh from the labelling walk.
 - [ ] Print code sheets and do the labelling walk (S-BOOT-02, S-BOOT-03)
 
 Public pages come before the labelling walk, not after it. From the moment stickers go on gear, a stranger can scan one.
-
-## M21 — Counted pools
-
-Bowls, plates, cups: a stack we count, not twenty stickers. FR-INV-34 to 36, FR-OUT-22 to 24, FR-RPT-11, FR-MCP-08, and
-the pool clauses in FR-RES-13 and FR-RES-15. Queued behind go-live.
-
-- [ ] A reservation's pool line reads "done" from the pool's latest movement, so a second check-out for the same camp
-      replaces the count instead of adding to it. Derive per-event out counts at replay (both languages, a vector) and
-      read the line from that.
-- [ ] `views.rows` (server) only lists a pool through its no-filter fallback, so `search_items` by location or status
-      never returns one. A pool with stock at a location, or with anything out, must match those filters.

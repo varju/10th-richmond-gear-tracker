@@ -162,6 +162,27 @@ test("remaining ticks off a pool line from what its latest check-out for the eve
   });
 });
 
+test("remaining adds a second check-out under the same event, it does not replace the first (FR-RES-13)", async () => {
+  await store.record({
+    entity_type: "item",
+    entity_id: "bowls",
+    type: "created",
+    actor_id: "alice",
+    payload: { name: "Bowls", generic: true, pool: true, quantity: 10 },
+  });
+  const id = await res.createReservation(store, { ...fall, items: [], generics: [{ item_id: "bowls", quantity: 5 }] });
+  let r = res.reservation(store.state, id)!;
+
+  await res.checkOutPoolLine(store, r, "bowls", 2);
+  r = res.reservation(store.state, id)!;
+  expect(res.remaining(store.state, r).generics[0]).toMatchObject({ quantity: 5, done: 2 });
+
+  await res.checkOutPoolLine(store, r, "bowls", 2);
+  r = res.reservation(store.state, id)!;
+  expect(res.remaining(store.state, r).generics[0]).toMatchObject({ quantity: 5, done: 4 });
+  expect(res.isPacked(res.remaining(store.state, r))).toBe(false);
+});
+
 test("nearby names a camp within seven days sharing a line, not one overlapping (FR-RES-19)", async () => {
   const f = await fixture();
   await res.createReservation(store, { ...fall, items: [f.t1], generics: [{ item_id: f.tents, quantity: 1 }] });

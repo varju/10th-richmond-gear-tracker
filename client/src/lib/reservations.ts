@@ -22,7 +22,7 @@ import {
   unitsOf,
 } from "./inventory";
 import { correctEvent } from "./movement";
-import type { Fields, Movement, State } from "./replay";
+import type { Fields, Movement, PoolEvents, State } from "./replay";
 import type { Store } from "./store";
 import { localDate } from "./time";
 import { newUlid } from "./ulid";
@@ -224,11 +224,10 @@ export function remaining(state: State, r: Reservation): Remaining {
   const generics = r.generics.map((g) => {
     const generic = item(state, g.item_id) ?? ({ id: g.item_id, name: "(unknown item)" } as Item);
     if (isPool(generic)) {
-      // A pool keeps one current movement, not a history (FR-INV-34): done is what the latest
-      // check-out for this event carried, so a second visit for the same camp replaces it rather
-      // than adding to it.
-      const m = generic.movement as Movement | undefined;
-      const done = m?.type === "checked_out" && m.event === r.event ? m.count ?? 0 : 0;
+      // pool_events accumulates at replay (FR-RES-13): a second visit for the same camp adds to
+      // done, it does not replace it. Read off the raw entity: Item does not carry it.
+      const poolEvents = (state.item?.[g.item_id]?.pool_events as PoolEvents | undefined) ?? {};
+      const done = poolEvents[r.event] ?? 0;
       return { generic, quantity: g.quantity, done: Math.min(done, g.quantity) };
     }
     // Any unit of the generic counts, except one the reservation names: that one is its own line.
