@@ -162,7 +162,7 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
                     </button>
                   )}
                 </li>
-                {note && <li className="muted small">{nearbyLabel(note)}</li>}
+                {note && <li className="near">{nearbyLabel(note)}</li>}
               </Fragment>
             );
           })}
@@ -184,7 +184,7 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
                     <PoolCheckout store={store} r={r} itemId={g.generic.id} max={g.quantity - g.done} />
                   )}
                 </li>
-                {note && <li className="muted small">{nearbyLabel(note)}</li>}
+                {note && <li className="near">{nearbyLabel(note)}</li>}
               </Fragment>
             );
           })}

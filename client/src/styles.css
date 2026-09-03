@@ -5,6 +5,7 @@
   --rule: rgba(255, 255, 255, 0.4);
   --muted: rgba(255, 255, 255, 0.7);
   --warn: #ffb000;
+  --near: #ffb3b3;
   color-scheme: dark;
 }
 
@@ -339,6 +340,12 @@ textarea {
 
 .small {
   font-size: 16px;
+}
+
+/* A camp close to this one wants the same gear: a hint, not a block (FR-RES-19). */
+.near {
+  color: var(--near);
+  font-size: 14px;
 }
 
 label.tight {

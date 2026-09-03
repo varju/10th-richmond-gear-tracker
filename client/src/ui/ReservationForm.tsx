@@ -148,7 +148,7 @@ export function ReservationForm({ store, id, from }: Props) {
                   Remove
                 </button>
               </li>
-              {note && <li className="muted small">{nearbyLabel(note)}</li>}
+              {note && <li className="near">{nearbyLabel(note)}</li>}
             </Fragment>
           );
         })}
@@ -172,7 +172,7 @@ export function ReservationForm({ store, id, from }: Props) {
                   Remove
                 </button>
               </li>
-              {note && <li className="muted small">{nearbyLabel(note)}</li>}
+              {note && <li className="near">{nearbyLabel(note)}</li>}
             </Fragment>
           );
         })}
