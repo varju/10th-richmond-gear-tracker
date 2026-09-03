@@ -1,8 +1,10 @@
-import { useState } from "react";
-import { displayName, generics, homeLabel, nameOf, search } from "../lib/inventory";
+import { Fragment, useEffect, useState } from "react";
+import { homeLabel, nameOf, rows, type Row } from "../lib/inventory";
 import {
   conflicts,
   createReservation,
+  nearby,
+  nearbyLabel,
   reservation,
   type ReservationInput,
   updateReservation,
@@ -24,6 +26,30 @@ interface Props {
 
 const EMPTY: ReservationInput = { event: "", starts: "", ends: "", items: [], generics: [] };
 
+/**
+ * A quantity, typed in place (FR-RES-13): an integer of 1 or more. Its own text lets a clear and
+ * a fresh digit read as one keystroke, not appended to whatever the model last held.
+ */
+function QuantityField({ value, onChange, label }: { value: number; onChange: (n: number) => void; label: string }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  return (
+    <input
+      type="number"
+      min={1}
+      inputMode="numeric"
+      style={{ width: "4em" }}
+      aria-label={label}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        const n = Number.parseInt(e.target.value, 10);
+        if (Number.isInteger(n) && n >= 1) onChange(n);
+      }}
+    />
+  );
+}
+
 function initial(store: Store, id?: string, from?: string | null): ReservationInput {
   const source = reservation(store.state, id ?? from ?? "");
   if (!source) return EMPTY;
@@ -35,14 +61,17 @@ function initial(store: Store, id?: string, from?: string | null): ReservationIn
     : { ...EMPTY, event, items, generics: lines };
 }
 
-/** Event, dates, and gear by name or so many of a generic (FR-RES-01, FR-RES-13). New, edit and duplicate. */
+/**
+ * Event, dates, and gear from one search box (FR-RES-01, FR-RES-13). A unit never matches; its
+ * generic does, and is added as a quantity line. A single item is added as itself. Units already
+ * on the reservation (scanned on, FR-RES-07) still show, and can be removed here. New, edit and
+ * duplicate.
+ */
 export function ReservationForm({ store, id, from }: Props) {
   useStore(store);
   const [values, setValues] = useState<ReservationInput>(() => initial(store, id, from));
   const [start] = useState(values);
   const [query, setQuery] = useState("");
-  const [genericId, setGenericId] = useState("");
-  const [quantity, setQuantity] = useState("1");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const wide = useWide();
@@ -54,6 +83,7 @@ export function ReservationForm({ store, id, from }: Props) {
   useUnsaved(dirty, { save, canSave: complete });
 
   const back = id ? `/reservations/${id}` : "/reservations";
+  const near = nearby(state, values, id);
 
   async function save(): Promise<boolean> {
     if (!complete) return false;
@@ -78,34 +108,72 @@ export function ReservationForm({ store, id, from }: Props) {
     }
   }
 
-  const results = query.trim() ? search(state, { query }).filter((it) => !values.items.includes(it.id)) : [];
+  const results: Row[] = query.trim()
+    ? rows(state, { query })
+        .filter((row) =>
+          row.kind === "single"
+            ? !values.items.includes(row.item.id)
+            : !values.generics.some((g) => g.item_id === row.item.id),
+        )
+        .slice(0, 8)
+    : [];
 
-  function addGeneric() {
-    const n = Number.parseInt(quantity, 10);
-    if (!genericId || !(n > 0)) return;
-    const rest = values.generics.filter((g) => g.item_id !== genericId);
-    set({ generics: [...rest, { item_id: genericId, quantity: n }] });
-    setGenericId("");
-    setQuantity("1");
+  function addResult(row: Row) {
+    if (row.kind === "single") set({ items: [...values.items, row.item.id] });
+    else set({ generics: [...values.generics, { item_id: row.item.id, quantity: 1 }] });
+    setQuery("");
+  }
+
+  function setQuantity(itemId: string, quantity: number) {
+    set({ generics: values.generics.map((g) => (g.item_id === itemId ? { ...g, quantity } : g)) });
   }
 
   const gearList = (
     <>
-      <h3 className="section">Items</h3>
+      <h3 className="section">Gear</h3>
+      {values.items.length === 0 && values.generics.length === 0 && <p className="muted">Nothing added yet.</p>}
       <ul className="names">
         {values.items.map((itemId) => {
+          const note = near[itemId];
           return (
-            <li key={itemId} className="row">
-              <span className="name">{nameOf(state, itemId)}</span>
-              <button
-                className="small"
-                type="button"
-                onClick={() => set({ items: values.items.filter((x) => x !== itemId) })}
-                aria-label={`Remove ${nameOf(state, itemId)}`}
-              >
-                Remove
-              </button>
-            </li>
+            <Fragment key={itemId}>
+              <li className="row">
+                <span className="name">{nameOf(state, itemId)}</span>
+                <button
+                  className="small"
+                  type="button"
+                  onClick={() => set({ items: values.items.filter((x) => x !== itemId) })}
+                  aria-label={`Remove ${nameOf(state, itemId)}`}
+                >
+                  Remove
+                </button>
+              </li>
+              {note && <li className="muted small">{nearbyLabel(note)}</li>}
+            </Fragment>
+          );
+        })}
+        {values.generics.map((g) => {
+          const note = near[g.item_id];
+          return (
+            <Fragment key={g.item_id}>
+              <li className="row">
+                <span className="name">{nameOf(state, g.item_id)}</span>
+                <QuantityField
+                  value={g.quantity}
+                  onChange={(n) => setQuantity(g.item_id, n)}
+                  label={`How many ${nameOf(state, g.item_id)}`}
+                />
+                <button
+                  className="small"
+                  type="button"
+                  onClick={() => set({ generics: values.generics.filter((x) => x.item_id !== g.item_id) })}
+                  aria-label={`Remove ${nameOf(state, g.item_id)}`}
+                >
+                  Remove
+                </button>
+              </li>
+              {note && <li className="muted small">{nearbyLabel(note)}</li>}
+            </Fragment>
           );
         })}
       </ul>
@@ -115,88 +183,24 @@ export function ReservationForm({ store, id, from }: Props) {
   const addItem = (
     <>
       <input
-        aria-label="Add an item"
-        placeholder="Search items to add"
+        aria-label="Add gear"
+        placeholder="Search gear to add"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         autoComplete="off"
       />
       {results.length > 0 && (
         <ul className="rows">
-          {results.slice(0, 8).map((it) => (
-            <li key={it.id}>
-              <button
-                type="button"
-                className="row"
-                onClick={() => {
-                  set({ items: [...values.items, it.id] });
-                  setQuery("");
-                }}
-              >
-                <span>{displayName(state, it)}</span>
-                <span className="muted">{homeLabel(state, it)}</span>
+          {results.map((row) => (
+            <li key={row.item.id}>
+              <button type="button" className="row" onClick={() => addResult(row)}>
+                <span>{row.name}</span>
+                <span className="muted">{row.kind === "single" ? homeLabel(state, row.item) : "so many"}</span>
               </button>
             </li>
           ))}
         </ul>
       )}
-    </>
-  );
-
-  const quantities = (
-    <>
-      <h3 className="section">So many of one thing</h3>
-      <ul className="names">
-        {values.generics.map((g) => (
-          <li key={g.item_id} className="row">
-            <span className="name">
-              {g.quantity} × {nameOf(state, g.item_id)}
-            </span>
-            <button
-              className="small"
-              type="button"
-              onClick={() => set({ generics: values.generics.filter((x) => x.item_id !== g.item_id) })}
-              aria-label={`Remove ${nameOf(state, g.item_id)}`}
-            >
-              Remove
-            </button>
-          </li>
-        ))}
-      </ul>
-    </>
-  );
-
-  const addQuantity = (
-    <>
-      <div className="row">
-        <label className="tight">
-          <span>Item</span>
-          <select aria-label="Item" value={genericId} onChange={(e) => setGenericId(e.target.value)}>
-            <option value="">Choose</option>
-            {generics(state)
-              .filter((g) => !g.retired)
-              .map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-          </select>
-        </label>
-        <label className="tight">
-          <span>How many</span>
-          <input
-            type="number"
-            min={1}
-            inputMode="numeric"
-            aria-label="How many"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-          />
-        </label>
-        <button className="small" type="button" onClick={addGeneric} disabled={!genericId}>
-          Add
-        </button>
-      </div>
     </>
   );
 
@@ -234,24 +238,16 @@ export function ReservationForm({ store, id, from }: Props) {
         </label>
       </div>
 
-      {/* At a desk the list is beside the ways of adding to it, not above them (NFR-USE-10). */}
+      {/* At a desk the list is beside the way of adding to it, not above it (NFR-USE-10). */}
       {wide ? (
         <div className="two-col">
-          <div>
-            {gearList}
-            {quantities}
-          </div>
-          <div>
-            {addItem}
-            {addQuantity}
-          </div>
+          <div>{gearList}</div>
+          <div>{addItem}</div>
         </div>
       ) : (
         <>
           {gearList}
           {addItem}
-          {quantities}
-          {addQuantity}
         </>
       )}
     </Page>

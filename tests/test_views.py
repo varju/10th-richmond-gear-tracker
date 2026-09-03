@@ -1,10 +1,10 @@
-"""views.py: pure functions over a replayed state. Pools only (FR-INV-34); the rest is
-exercised through tests/test_assistant.py, which calls these through the assistant.
+"""views.py: pure functions over a replayed state. Pools and reservations are exercised here
+directly; the rest is through tests/test_assistant.py, which calls these through the assistant.
 """
 
 from __future__ import annotations
 
-from gear_tracker.views import DAY_MS, is_pool, pool_counts, what_is_out
+from gear_tracker.views import DAY_MS, is_pool, pool_counts, remaining, what_is_out
 
 
 def test_is_pool():
@@ -59,3 +59,57 @@ def test_what_is_out_lists_a_pool_once_per_holder():
 def test_what_is_out_skips_a_pool_with_nothing_out():
     state = {"item": {"bowls": {"name": "Bowls", "generic": True, "pool": True, "pool_in": 20, "pool_out": {}}}}
     assert what_is_out(state, now=0) == {"holders": [], "total": 0, "overdue": 0}
+
+
+def test_remaining_ticks_off_a_pool_line_from_its_latest_check_out_for_the_event():
+    """FR-RES-13. A pool keeps one current movement, not a history: done is what the latest
+    check-out for this reservation's event carried."""
+    state = {
+        "item": {
+            "bowls": {
+                "name": "Bowls",
+                "generic": True,
+                "pool": True,
+                "pool_in": 6,
+                "pool_out": {"alice": 4},
+                "movement": {"type": "checked_out", "event": "Fall Camp", "count": 4},
+            }
+        },
+        "reservation": {
+            "r-fall": {
+                "event": "Fall Camp",
+                "starts": "2026-10-02",
+                "ends": "2026-10-04",
+                "items": [],
+                "generics": [{"item_id": "bowls", "quantity": 4}],
+            }
+        },
+    }
+    r = state["reservation"]["r-fall"] | {"id": "r-fall"}
+    assert remaining(state, r)["generics"] == [{"item_id": "bowls", "name": "Bowls", "quantity": 4, "done": 4}]
+
+
+def test_remaining_pool_line_is_not_done_for_a_different_event():
+    state = {
+        "item": {
+            "bowls": {
+                "name": "Bowls",
+                "generic": True,
+                "pool": True,
+                "pool_in": 6,
+                "pool_out": {"alice": 4},
+                "movement": {"type": "checked_out", "event": "Other trip", "count": 4},
+            }
+        },
+        "reservation": {
+            "r-fall": {
+                "event": "Fall Camp",
+                "starts": "2026-10-02",
+                "ends": "2026-10-04",
+                "items": [],
+                "generics": [{"item_id": "bowls", "quantity": 4}],
+            }
+        },
+    }
+    r = state["reservation"]["r-fall"] | {"id": "r-fall"}
+    assert remaining(state, r)["generics"][0]["done"] == 0

@@ -353,8 +353,16 @@ def remaining(state: State, r: Fields) -> dict[str, Any]:
     generics = []
     for line in r.get("generics") or []:
         generic = item(state, line["item_id"]) or {"id": line["item_id"], "name": "(unknown item)"}
-        # Any unit of the generic counts, except one the reservation names: that one is its own line.
-        done = sum(1 for u in units_of(state, line["item_id"]) if u["id"] not in chosen and _ticked(u, event))
+        if is_pool(generic):
+            # A pool keeps one current movement, not a history (FR-INV-34): done is what the
+            # latest check-out for this event carried, so a second visit for the same camp
+            # replaces it rather than adding to it.
+            movement = generic.get("movement") or {}
+            current = movement.get("type") == "checked_out" and movement.get("event") == event
+            done = (movement.get("count") or 0) if current else 0
+        else:
+            # Any unit of the generic counts, except one the reservation names: that one is its own line.
+            done = sum(1 for u in units_of(state, line["item_id"]) if u["id"] not in chosen and _ticked(u, event))
         generics.append(
             {
                 "item_id": line["item_id"],

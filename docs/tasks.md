@@ -38,17 +38,9 @@ The vertical slice is built. What is left needs a phone.
 
 ### Reservations
 
-- [ ] Reservation form: one search adds gear. A unit never matches; its generic does. A single item is added as itself.
-      A generic (or pool) row carries a quantity the person adjusts in the list, default 1, so the separate "so many of
-      a generic" select and quantity control go. Units already on a reservation (scanned on, FR-RES-07) still show and
-      can be removed.
 - [ ] Item page shows upcoming reservations (FR-INV-37). A "Reserved" block under the status: one line per reservation
       that names the item, or its generic, and has not ended: event, dates, each a link to the reservation. Nothing
       shown when there are none. `get_item` reports the same.
-
-- [ ] Near clashes (FR-RES-19). On the reservation page and in the form, an item or generic line another reservation
-      names within seven days either side carries a muted note: "Also Fall Camp, 2 to 4 Oct". Overlaps stay blocked as
-      today (FR-RES-05); this is the hint before the block. Twin the date window in `reservations.ts` and `views.py`.
 
 ### Item page
 
@@ -78,7 +70,8 @@ the pool clauses in FR-RES-13 and FR-RES-15. Queued behind go-live.
       and a reason (FR-INV-35). Overdraw warns in the notice style repair warnings use.
 - [ ] Lists and reports. The list row shows in and out counts; What is out lists a pool once per holder with its count
       (FR-RPT-11); the item's History shows counts on each line.
-- [ ] Reservations. Reserve a quantity of a pool (FR-RES-13); the clash rule counts against quantity owned (FR-RES-15);
-      checking out from the reservation page takes a count and ticks it off.
+- [ ] A reservation's pool line reads "done" from the pool's latest movement, so a second check-out for the same camp
+      replaces the count instead of adding to it. Derive per-event out counts at replay (both languages, a vector) and
+      read the line from that.
 - [ ] `views.rows` (server) only lists a pool through its no-filter fallback, so `search_items` by location or status
       never returns one. A pool with stock at a location, or with anything out, must match those filters.

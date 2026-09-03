@@ -9,7 +9,18 @@
  * already knows, so two devices packing one camp agree after a sync and a reload
  * loses nothing.
  */
-import { displayName, homeLabel, type Item, item, movable, nameOf, resolveItem, unitsOf } from "./inventory";
+import {
+  displayName,
+  homeLabel,
+  isPool,
+  type Item,
+  item,
+  movable,
+  nameOf,
+  poolCounts,
+  resolveItem,
+  unitsOf,
+} from "./inventory";
 import { correctEvent } from "./movement";
 import type { Fields, Movement, State } from "./replay";
 import type { Store } from "./store";
@@ -33,6 +44,8 @@ export interface Reservation {
   cancelled?: boolean;
   added_at?: number;
   modified_at?: number;
+  /** Who made it, set at replay from the creating event's actor (FR-RES-18). Absent on an old reservation. */
+  created_by?: string;
 }
 
 export type ReservationInput = Pick<Reservation, "event" | "starts" | "ends" | "items" | "generics">;
@@ -95,7 +108,12 @@ export function conflicts(state: State, draft: ReservationInput, excludeId?: str
   // reservations name them; naming the same tent twice is the item clash above, not a count one.
   const involved = [draft, ...others];
   for (const genericId of new Set(draft.generics.map((g) => g.item_id))) {
-    const owned = unitsOf(state, genericId).filter((u) => !u.retired).length;
+    const generic = item(state, genericId);
+    // A pool's stock is what it owns (FR-INV-36), not a count of units: it has none (FR-INV-34).
+    const owned =
+      generic && isPool(generic)
+        ? poolCounts(generic).owned
+        : unitsOf(state, genericId).filter((u) => !u.retired).length;
     const byCount = (r: ReservationInput) =>
       r.generics.filter((g) => g.item_id === genericId).reduce((n, g) => n + g.quantity, 0);
     const byName = (r: ReservationInput) =>
@@ -115,6 +133,56 @@ export function conflicts(state: State, draft: ReservationInput, excludeId?: str
     return { id, event: other.event, detail: details.join(", ") };
   });
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function shiftIso(date: string, days: number): string {
+  return new Date(new Date(`${date}T00:00:00Z`).getTime() + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+/** Seven days either side (FR-RES-19). */
+function nearWindow(r: Pick<Reservation, "starts" | "ends">): { starts: string; ends: string } {
+  return { starts: shiftIso(r.starts, -7), ends: shiftIso(r.ends, 7) };
+}
+
+const shortDates = (r: Pick<Reservation, "starts" | "ends">): string =>
+  r.starts === r.ends ? r.starts : `${r.starts} – ${r.ends}`;
+
+export interface NearbyNote {
+  event: string;
+  detail: string;
+}
+
+/**
+ * A line this draft shares with a camp nearby but not overlapping (FR-RES-19): its dates fall
+ * within seven days either side of the draft's. Keyed by item id and by generic id, whichever
+ * the other reservation names the same way (by unit or by count). Empty for nothing near; a
+ * hint before the block, since an overlap is refused by `conflicts` instead. Twin of `nearby`
+ * in views.py's conflicts.py.
+ */
+export function nearby(state: State, draft: ReservationInput, excludeId?: string): Record<string, NearbyNote[]> {
+  if (!draft.starts || !draft.ends) return {};
+  const window = nearWindow(draft);
+  const others = reservations(state).filter((r) => r.id !== excludeId && !overlaps(r, draft) && overlaps(r, window));
+  const found: Record<string, NearbyNote[]> = {};
+  const add = (id: string, other: Reservation) => {
+    (found[id] ??= []).push({ event: other.event, detail: shortDates(other) });
+  };
+  for (const other of others) {
+    const theirs = new Set(namedItems(state, other));
+    for (const id of draft.items) if (theirs.has(id)) add(id, other);
+    for (const g of draft.generics) {
+      const byCount = other.generics.some((x) => x.item_id === g.item_id);
+      const byName = namedItems(state, other).some((id) => state.item?.[id]?.parent_id === g.item_id);
+      if (byCount || byName) add(g.item_id, other);
+    }
+  }
+  return found;
+}
+
+/** "Also Fall Camp, 2026-10-02 – 2026-10-04". Joins more than one nearby camp with "; ". */
+export const nearbyLabel = (notes: NearbyNote[]): string =>
+  `Also ${notes.map((n) => `${n.event}, ${n.detail}`).join("; ")}`;
 
 export interface GenericProgress {
   generic: Item;
@@ -155,6 +223,14 @@ export function remaining(state: State, r: Reservation): Remaining {
   const chosen = new Set(namedItems(state, r));
   const generics = r.generics.map((g) => {
     const generic = item(state, g.item_id) ?? ({ id: g.item_id, name: "(unknown item)" } as Item);
+    if (isPool(generic)) {
+      // A pool keeps one current movement, not a history (FR-INV-34): done is what the latest
+      // check-out for this event carried, so a second visit for the same camp replaces it rather
+      // than adding to it.
+      const m = generic.movement as Movement | undefined;
+      const done = m?.type === "checked_out" && m.event === r.event ? m.count ?? 0 : 0;
+      return { generic, quantity: g.quantity, done: Math.min(done, g.quantity) };
+    }
     // Any unit of the generic counts, except one the reservation names: that one is its own line.
     const done = unitsOf(state, g.item_id).filter((u) => !chosen.has(u.id) && ticked(u, r.event)).length;
     return { generic, quantity: g.quantity, done: Math.min(done, g.quantity) };
@@ -303,6 +379,22 @@ export async function linkOut(store: Store, id: string, itemId: string): Promise
   if (it.status !== "out" || !movement) throw new Error("it is not out");
   if (movement.event !== r.event) await correctEvent(store, it.id, movement.id, r.event);
   await addExtra(store, id, it.id);
+}
+
+/**
+ * Take `count` off a pool's line for this camp (FR-RES-13, FR-OUT-22). A pool moves by count,
+ * not by holder, so this does not go through movement.ts's checkOut: that refuses a generic
+ * outright (FR-INV-21), and a pool is always one.
+ */
+export async function checkOutPoolLine(store: Store, r: Reservation, itemId: string, count: number): Promise<void> {
+  if (!(count > 0)) return;
+  await store.record({
+    entity_type: "item",
+    entity_id: itemId,
+    type: "checked_out",
+    actor_id: actor(store),
+    payload: { holder_id: actor(store), count, event: r.event },
+  });
 }
 
 export async function cancelReservation(store: Store, id: string): Promise<void> {

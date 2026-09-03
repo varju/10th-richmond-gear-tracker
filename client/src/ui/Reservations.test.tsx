@@ -7,6 +7,7 @@ import * as mv from "../lib/movement";
 import * as res from "../lib/reservations";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
+import { newUlid } from "../lib/ulid";
 import { unsaved } from "../lib/unsaved";
 import { openStore } from "./codeTestKit";
 import { alice, renderInShell, seedUsers } from "./moveTestKit";
@@ -64,42 +65,52 @@ test("the list shows what is ahead, with past camps folded away", async () => {
   expect(location.pathname).toBe(`/reservations/${fall}`);
 });
 
-test("a new reservation is built from a name, dates and gear; an item already booked blocks it (FR-RES-01, FR-RES-05)", async () => {
+test("a new reservation is built from one search; an item already booked blocks it (FR-RES-01, FR-RES-05)", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  const tarp = await act.createItem(store, { name: "Tarp" });
+  await res.addItem(store, fall, stove);
+
   navigate("/reservations/new");
   renderInShell(<ReservationForm store={store} />);
   expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 
   await user.type(screen.getByLabelText("Event"), "Cub camp");
   await fillDates("2026-10-04", "2026-10-05");
-  await user.type(screen.getByLabelText("Add an item"), "tent #1");
-  await user.click(screen.getByRole("button", { name: /4-person tent #1/ }));
-  expect(screen.getByLabelText("Remove 4-person tent #1")).toBeInTheDocument();
+  // A unit never matches by search; searching its number finds nothing here, only single items and generics do.
+  await user.type(screen.getByLabelText("Add gear"), "tent #1");
+  expect(screen.queryByRole("button", { name: /4-person tent #1/ })).not.toBeInTheDocument();
+  await user.clear(screen.getByLabelText("Add gear"));
+  await user.type(screen.getByLabelText("Add gear"), "Stove");
+  await user.click(screen.getByRole("button", { name: /Stove/ }));
+  expect(screen.getByLabelText("Remove Stove")).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Save" }));
-  expect(screen.getByRole("alert")).toHaveTextContent("Already reserved for Fall Camp (4-person tent #1).");
+  expect(screen.getByRole("alert")).toHaveTextContent("Already reserved for Fall Camp (Stove).");
   expect(res.reservations(store.state)).toHaveLength(1);
 
-  // Swap the tent for one that is free, and it saves.
-  await user.click(screen.getByLabelText("Remove 4-person tent #1"));
-  await user.type(screen.getByLabelText("Add an item"), "tent #2");
-  await user.click(screen.getByRole("button", { name: /4-person tent #2/ }));
+  // Swap the stove for gear that is free, and it saves.
+  await user.click(screen.getByLabelText("Remove Stove"));
+  await user.type(screen.getByLabelText("Add gear"), "Tarp");
+  await user.click(screen.getByRole("button", { name: /Tarp/ }));
   await user.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(res.reservations(store.state).find((r) => r.event === "Cub camp")).toBeDefined());
   const made = res.reservations(store.state).find((r) => r.event === "Cub camp")!;
-  expect(made).toMatchObject({ starts: "2026-10-04", ends: "2026-10-05", items: [t2], generics: [] });
+  expect(made).toMatchObject({ starts: "2026-10-04", ends: "2026-10-05", items: [tarp], generics: [] });
   expect(location.pathname).toBe(`/reservations/${made.id}`);
 });
 
-test("a generic is reserved by count, and too many of it names the other camp (FR-RES-13, FR-RES-15)", async () => {
+test("a unit's search surfaces its generic, reserved by count, adjusted in place; too many names the other camp (FR-RES-13, FR-RES-15)", async () => {
   navigate("/reservations/new");
   renderInShell(<ReservationForm store={store} />);
   await user.type(screen.getByLabelText("Event"), "Cub camp");
   await fillDates("2026-10-03", "2026-10-03");
-  await user.selectOptions(screen.getByLabelText("Item"), tents);
-  await user.clear(screen.getByLabelText("How many"));
-  await user.type(screen.getByLabelText("How many"), "2");
-  await user.click(screen.getByRole("button", { name: "Add" }));
-  expect(screen.getByText("2 × 4-person tent")).toBeInTheDocument();
+  await user.type(screen.getByLabelText("Add gear"), "tent");
+  await user.click(screen.getByRole("button", { name: /4-person tent/ }));
+  const quantity = screen.getByLabelText("How many 4-person tent");
+  expect(quantity).toHaveValue(1);
+  await user.clear(quantity);
+  await user.type(quantity, "2");
+  expect(quantity).toHaveValue(2);
 
   // Fall Camp has one tent by name and one by count; we own two.
   await user.click(screen.getByRole("button", { name: "Save" }));
@@ -112,7 +123,7 @@ test("duplicate carries the gear and the name over, not the dates (FR-RES-10)", 
   expect(screen.getByLabelText("Event")).toHaveValue("Fall Camp");
   expect(screen.getByLabelText("Starts")).toHaveValue("");
   expect(screen.getByLabelText("Remove 4-person tent #1")).toBeInTheDocument();
-  expect(screen.getByText("1 × 4-person tent")).toBeInTheDocument();
+  expect(screen.getByLabelText("How many 4-person tent")).toHaveValue(1);
   expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 });
 
@@ -123,6 +134,8 @@ test("the page shows the gear, starts the packing session under its event, and c
   expect(screen.getByRole("button", { name: /4-person tent #1/ })).toHaveTextContent("Cold locker · In");
   expect(screen.getByText("1 × 4-person tent")).toBeInTheDocument();
   expect(screen.queryByRole("note")).not.toBeInTheDocument();
+  // Who made it, and when (FR-RES-18): set at replay from the creating event's actor.
+  expect(screen.getByText(/^Added by Alice/)).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Check out" }));
   expect(store.meta.session_event).toBe("Fall Camp");
@@ -187,4 +200,53 @@ test("gear that is out under nothing is claimed from the page in one tap (FR-RES
   await waitFor(() => expect(res.reservation(store.state, fall)?.items).toEqual([t1, stove]));
   expect(inv.item(store.state, stove)?.movement).toMatchObject({ event: "Fall Camp" });
   expect(store.pending.filter((e) => e.type === "checked_out" || e.type === "checked_in")).toHaveLength(2);
+});
+
+test("a camp within seven days of another sharing gear gets a muted hint, not a block (FR-RES-19)", async () => {
+  await res.createReservation(store, {
+    event: "Winter Prep",
+    starts: "2026-10-08",
+    ends: "2026-10-09",
+    items: [],
+    generics: [{ item_id: tents, quantity: 1 }],
+  });
+  navigate(`/reservations/${fall}`);
+  // Fall Camp ends 2026-10-04; Winter Prep starts four days later: near, but not overlapping.
+  renderInShell(<ReservationPage store={store} id={fall} />);
+  expect(screen.queryByRole("note")).not.toBeInTheDocument();
+  expect(screen.getByText("Also Winter Prep, 2026-10-08 – 2026-10-09")).toBeInTheDocument();
+});
+
+test("a pool line on the page is checked out by count, and ticks off (FR-RES-13)", async () => {
+  const bowls = newUlid();
+  await store.record({
+    entity_type: "item",
+    entity_id: bowls,
+    type: "created",
+    actor_id: "alice",
+    payload: { name: "Bowls", generic: true, pool: true, quantity: 10 },
+  });
+  const camp = await res.createReservation(store, {
+    event: "Cub camp",
+    starts: "2026-11-01",
+    ends: "2026-11-02",
+    items: [],
+    generics: [{ item_id: bowls, quantity: 4 }],
+  });
+  navigate(`/reservations/${camp}`);
+  renderInShell(<ReservationPage store={store} id={camp} />);
+
+  expect(screen.getByText("4 × Bowls — 0 out")).toBeInTheDocument();
+  const count = screen.getByLabelText("How many Bowls to check out");
+  expect(count).toHaveValue(4);
+  await user.click(screen.getByRole("button", { name: "Check out Bowls" }));
+
+  await waitFor(() => expect(screen.getByText("4 × Bowls — 4 out")).toBeInTheDocument());
+  expect(inv.poolCounts(inv.item(store.state, bowls)!)).toMatchObject({
+    owned: 10,
+    in: 6,
+    out: [{ holder_id: "alice", count: 4 }],
+  });
+  // Fully checked off: the count and its button are gone.
+  expect(screen.queryByLabelText("How many Bowls to check out")).not.toBeInTheDocument();
 });

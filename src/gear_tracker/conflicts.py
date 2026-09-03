@@ -10,6 +10,7 @@ Change a rule here, change a vector, and the other side fails until it catches u
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Any
 
 from gear_tracker import views
@@ -42,7 +43,13 @@ def conflicts(state: State, draft: Draft, exclude_id: str | None = None) -> list
     # reservations name them; naming the same tent twice is the item clash above, not a count one.
     involved = [draft, *others]
     for generic_id in dict.fromkeys(line["item_id"] for line in draft.get("generics") or []):
-        owned = sum(1 for unit in views.units_of(state, generic_id) if not unit.get("retired"))
+        generic = views.item(state, generic_id)
+        # A pool's stock is what it owns (FR-INV-36), not a count of units: it has none (FR-INV-34).
+        owned = (
+            views.pool_counts(generic)["owned"]
+            if generic and views.is_pool(generic)
+            else sum(1 for unit in views.units_of(state, generic_id) if not unit.get("retired"))
+        )
 
         def by_count(r: Draft, generic_id: str = generic_id) -> int:
             return sum(line["quantity"] for line in r.get("generics") or [] if line["item_id"] == generic_id)
@@ -70,3 +77,59 @@ def conflicts(state: State, draft: Draft, exclude_id: str | None = None) -> list
 def describe(clashes: list[dict[str, str]]) -> str:
     """The sentence the app shows when it refuses to save (FR-RES-05). The assistant says the same thing."""
     return "Already reserved for " + "; ".join(f"{c['event']} ({c['detail']})" for c in clashes) + "."
+
+
+def _shift(iso: str, days: int) -> str:
+    return (date.fromisoformat(iso) + timedelta(days=days)).isoformat()
+
+
+def _near_window(r: Draft) -> Draft:
+    """Seven days either side (FR-RES-19)."""
+    return {"starts": _shift(r["starts"], -7), "ends": _shift(r["ends"], 7)}
+
+
+def _short_dates(r: Draft) -> str:
+    starts, ends = r.get("starts") or "", r.get("ends") or ""
+    return starts if starts == ends else f"{starts} – {ends}"
+
+
+def nearby(state: State, draft: Draft, exclude_id: str | None = None) -> dict[str, list[dict[str, str]]]:
+    """A line this draft shares with a camp nearby but not overlapping (FR-RES-19): its dates fall
+    within seven days either side of the draft's. Keyed by item id and by generic id, whichever the
+    other reservation names the same way (by unit or by count). Empty for nothing near; a hint
+    before the block, since an overlap is refused by `conflicts` instead. Twin of `nearby` in
+    reservations.ts.
+    """
+    if not draft.get("starts") or not draft.get("ends"):
+        return {}
+    window = _near_window(draft)
+    others = [
+        r
+        for r in views.reservations(state)
+        if r["id"] != exclude_id and not views.overlaps(r, draft) and views.overlaps(r, window)
+    ]
+    found: dict[str, list[dict[str, str]]] = {}
+
+    def add(item_id: str, other: Draft) -> None:
+        found.setdefault(item_id, []).append({"event": other.get("event") or "", "detail": _short_dates(other)})
+
+    for other in others:
+        theirs = set(views.named_items(state, other))
+        for item_id in draft.get("items") or []:
+            if item_id in theirs:
+                add(item_id, other)
+        for line in draft.get("generics") or []:
+            generic_id = line["item_id"]
+            by_count = any(g["item_id"] == generic_id for g in other.get("generics") or [])
+            by_name = any(
+                (views.item(state, i) or {}).get("parent_id") == generic_id for i in views.named_items(state, other)
+            )
+            if by_count or by_name:
+                add(generic_id, other)
+
+    return found
+
+
+def near_label(notes: list[dict[str, str]]) -> str:
+    """'Also Fall Camp, 2026-10-02 – 2026-10-04'. Joins more than one nearby camp with '; '."""
+    return "Also " + "; ".join(f"{n['event']}, {n['detail']}" for n in notes)

@@ -110,6 +110,87 @@ test("a generic conflicts when demand across the dates exceeds its units (FR-RES
   ).toHaveLength(1);
 });
 
+test("a pool conflicts against what it owns, not a count of units it does not have (FR-RES-15)", async () => {
+  await store.record({
+    entity_type: "item",
+    entity_id: "bowls",
+    type: "created",
+    actor_id: "alice",
+    payload: { name: "Bowls", generic: true, pool: true, quantity: 10 },
+  });
+  await res.createReservation(store, { ...fall, items: [], generics: [{ item_id: "bowls", quantity: 6 }] });
+
+  const fits = res.conflicts(store.state, {
+    ...fall,
+    event: "Cubs",
+    items: [],
+    generics: [{ item_id: "bowls", quantity: 4 }],
+  });
+  expect(fits).toEqual([]);
+
+  const tooMany = res.conflicts(store.state, {
+    ...fall,
+    event: "Cubs",
+    items: [],
+    generics: [{ item_id: "bowls", quantity: 5 }],
+  });
+  expect(tooMany).toEqual([{ id: expect.any(String), event: "Fall Camp", detail: "11 × Bowls, we have 10" }]);
+});
+
+test("remaining ticks off a pool line from what its latest check-out for the event carried (FR-RES-13)", async () => {
+  await store.record({
+    entity_type: "item",
+    entity_id: "bowls",
+    type: "created",
+    actor_id: "alice",
+    payload: { name: "Bowls", generic: true, pool: true, quantity: 10 },
+  });
+  const id = await res.createReservation(store, { ...fall, items: [], generics: [{ item_id: "bowls", quantity: 4 }] });
+
+  let r = res.reservation(store.state, id)!;
+  expect(res.remaining(store.state, r).generics[0]).toMatchObject({ quantity: 4, done: 0 });
+  expect(res.isPacked(res.remaining(store.state, r))).toBe(false);
+
+  await res.checkOutPoolLine(store, r, "bowls", 4);
+  r = res.reservation(store.state, id)!;
+  expect(res.remaining(store.state, r).generics[0]).toMatchObject({ quantity: 4, done: 4 });
+  expect(res.isPacked(res.remaining(store.state, r))).toBe(true);
+  expect(inv.poolCounts(inv.item(store.state, "bowls")!)).toMatchObject({
+    owned: 10,
+    in: 6,
+    out: [{ holder_id: "alice", count: 4 }],
+  });
+});
+
+test("nearby names a camp within seven days sharing a line, not one overlapping (FR-RES-19)", async () => {
+  const f = await fixture();
+  await res.createReservation(store, { ...fall, items: [f.t1], generics: [{ item_id: f.tents, quantity: 1 }] });
+
+  // Four days after Fall Camp ends: near, not overlapping.
+  const near = res.nearby(store.state, {
+    event: "Winter Prep",
+    starts: "2026-10-08",
+    ends: "2026-10-09",
+    items: [],
+    generics: [{ item_id: f.tents, quantity: 1 }],
+  });
+  expect(near[f.tents]).toEqual([{ event: "Fall Camp", detail: "2026-10-02 – 2026-10-04" }]);
+
+  // Eight days after Fall Camp ends: outside the window.
+  const far = res.nearby(store.state, {
+    event: "Spring",
+    starts: "2026-10-13",
+    ends: "2026-10-14",
+    items: [],
+    generics: [{ item_id: f.tents, quantity: 1 }],
+  });
+  expect(far).toEqual({});
+
+  // Overlapping is a conflict, not a near clash.
+  const overlap = res.nearby(store.state, { ...fall, event: "Same time", items: [f.t1], generics: [] });
+  expect(overlap).toEqual({});
+});
+
 test("editing a reservation does not conflict with itself", async () => {
   const f = await fixture();
   const id = await res.createReservation(store, {
