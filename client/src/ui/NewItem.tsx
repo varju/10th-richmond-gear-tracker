@@ -14,14 +14,14 @@ interface Props {
   code: string | null;
 }
 
-/** The category a new item starts with: this device's last one, if it still exists (FR-SET-07). */
-function rememberedCategory(store: Store): string | null {
-  const id = store.meta.last_category_id;
-  return id && categories(store.state).some((c) => c.id === id) ? id : null;
+/** The categories a new item starts with: this device's last ones, for those that still exist (FR-SET-07). */
+function rememberedCategories(store: Store): string[] {
+  const live = new Set(categories(store.state).map((c) => c.id));
+  return (store.meta.last_category_ids ?? []).filter((id) => live.has(id));
 }
 
 export function NewItem({ store, code }: Props) {
-  const initial = { ...EMPTY_ITEM, category_id: rememberedCategory(store) };
+  const initial = { ...EMPTY_ITEM, category_ids: rememberedCategories(store) };
   const [values, setValues] = useState<ItemInput>(initial);
   // What Save last left behind. Anything typed since is a draft; leaving asks first.
   const [baseline, setBaseline] = useState<ItemInput>(initial);
@@ -53,10 +53,11 @@ export function NewItem({ store, code }: Props) {
         id = await createItem(store, values);
         if (code) await bindCode(store, code, id);
       }
-      // So a run of tents costs no taps: the next new item starts with this one's category.
-      if ((values.category_id ?? undefined) !== store.meta.last_category_id) {
-        await store.setMeta({ last_category_id: values.category_id ?? undefined });
-      }
+      // So a run of tents costs no taps: the next new item starts with this one's categories.
+      const current = values.category_ids ?? [];
+      const remembered = store.meta.last_category_ids ?? [];
+      const same = current.length === remembered.length && current.every((catId) => remembered.includes(catId));
+      if (!same) await store.setMeta({ last_category_ids: current.length ? current : undefined });
       return id;
     } finally {
       setSaving(false);
@@ -72,7 +73,7 @@ export function NewItem({ store, code }: Props) {
       else navigate(`/items/${id}`, true);
       return;
     }
-    const next = keep ? values : { ...EMPTY_ITEM, category_id: values.category_id ?? null };
+    const next = keep ? values : { ...EMPTY_ITEM, category_ids: values.category_ids ?? [] };
     setValues(next);
     setBaseline(next);
     setSeveral(false);

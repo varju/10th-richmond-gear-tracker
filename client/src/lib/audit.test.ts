@@ -31,21 +31,25 @@ test("changes list the record's edits newest first, with names for ids (FR-USR-0
   expect(changes(store, tent).every((c) => c.actor_id === "alice")).toBe(true);
 });
 
-test("a category change names the category (FR-USR-09, FR-SET-07)", async () => {
+test("a category change names the categories (FR-USR-09, FR-SET-07)", async () => {
   const tents = await act.createCategory(store, "Tents");
+  const shelter = await act.createCategory(store, "Shelter");
   const tent = await act.createItem(store, { name: "Tent" });
-  await act.updateItem(store, tent, { category_id: tents });
+  await act.updateItem(store, tent, { category_ids: [tents, shelter] });
 
   const rows = changes(store, tent).map((c) => (c.kind === "created" ? c.label : `${c.label}: ${c.old} → ${c.new}`));
-  expect(rows).toEqual(["Category: — → Tents", "Created"]);
+  expect(rows).toEqual(["Categories: — → Shelter, Tents", "Created"]);
 });
 
 test("values read as a person would", async () => {
   const other = await act.createItem(store, { name: "Tent 2" });
+  const tents = await act.createCategory(store, "Tents");
   const state = store.state;
   expect(describeValue(state, "name", null)).toBe("—");
   expect(describeValue(state, "retired", false)).toBe("No");
   expect(describeValue(state, "merged_into", other)).toBe("Tent 2");
   expect(describeValue(state, "parent_id", "nope")).toBe("(unknown item)");
   expect(describeValue(state, "sub_location", "shelf 4")).toBe("shelf 4");
+  expect(describeValue(state, "category_ids", [tents])).toBe("Tents");
+  expect(describeValue(state, "category_ids", [])).toBe("—");
 });

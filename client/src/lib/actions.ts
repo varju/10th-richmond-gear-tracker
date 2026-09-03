@@ -6,6 +6,8 @@ import type { Store } from "./store";
 import { newUlid } from "./ulid";
 import {
   blockers,
+  categories,
+  categoriesOf,
   categoryBlockers,
   displayName,
   type Item,
@@ -19,7 +21,7 @@ import {
 /** What the item form holds. The price is typed as text and stored as a number (FR-INV-12). */
 export type ItemInput = Pick<
   Item,
-  "name" | "description" | "home_location_id" | "sub_location" | "purchase_date" | "supplier" | "category_id"
+  "name" | "description" | "home_location_id" | "sub_location" | "purchase_date" | "supplier" | "category_ids"
 > & { price?: number | string | null };
 
 /** What the unit form holds. A unit has no name: its number and nickname make it (FR-INV-23). */
@@ -50,12 +52,28 @@ async function created(store: Store, entity_type: string, payload: Record<string
   return id;
 }
 
-/** One field_changed per field that actually differs, with the old value kept (FR-USR-05). */
-async function changed(store: Store, entity_type: string, id: string, patch: Record<string, unknown>) {
-  const before = store.state[entity_type]?.[id] ?? {};
+/** True when both are arrays holding the same members in the same order. */
+function sameArray(a: unknown, b: unknown): boolean {
+  return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
+/**
+ * One field_changed per field that actually differs, with the old value kept
+ * (FR-USR-05). `oldOverrides` stands in for a field's raw stored value when a
+ * caller needs the old value read a different way, e.g. through a fallback
+ * (FR-SET-07).
+ */
+async function changed(
+  store: Store,
+  entity_type: string,
+  id: string,
+  patch: Record<string, unknown>,
+  oldOverrides: Record<string, unknown> = {},
+) {
+  const before = { ...(store.state[entity_type]?.[id] ?? {}), ...oldOverrides };
   for (const [field, value] of Object.entries(patch)) {
     const old = before[field] ?? null;
-    if ((value ?? null) === old) continue;
+    if (sameArray(value, old) || (value ?? null) === old) continue;
     await store.record({
       entity_type,
       entity_id: id,
@@ -66,15 +84,43 @@ async function changed(store: Store, entity_type: string, id: string, patch: Rec
   }
 }
 
+/** Unique, in categories(state) order, so two devices record the same value for the same set (FR-SET-07). */
+function normaliseCategoryIds(store: Store, ids: string[]): string[] {
+  const chosen = new Set(ids);
+  return categories(store.state)
+    .map((c) => c.id)
+    .filter((id) => chosen.has(id));
+}
+
+/** category_ids, sorted and deduplicated, when the input carries it. Left untouched otherwise. */
+function withCategoryIds<T extends { category_ids?: string[] }>(store: Store, input: T): T {
+  if (input.category_ids === undefined) return input;
+  return { ...input, category_ids: normaliseCategoryIds(store, input.category_ids) };
+}
+
 // --- items -------------------------------------------------------------------------------
 
-export const createItem = (store: Store, input: ItemInput) => created(store, "item", clean(input));
-export const updateItem = (store: Store, id: string, patch: Partial<ItemInput>) =>
-  changed(store, "item", id, clean(patch));
+export const createItem = (store: Store, input: ItemInput) =>
+  created(store, "item", clean(withCategoryIds(store, input)));
+
+/**
+ * The old value for category_ids is read through the fallback (FR-SET-07): an
+ * item that only ever had category_id must not look "changed" by a patch that
+ * leaves its resolved categories the same.
+ */
+export async function updateItem(store: Store, id: string, patch: Partial<ItemInput>): Promise<void> {
+  const prepared = withCategoryIds(store, patch);
+  const overrides: Record<string, unknown> = {};
+  if (prepared.category_ids !== undefined) {
+    const current = item(store.state, id);
+    overrides.category_ids = current ? categoriesOf(store.state, current) : [];
+  }
+  await changed(store, "item", id, clean(prepared), overrides);
+}
 
 /** One thing the group owns several of. No code, no movements; its units carry both (FR-INV-21). */
 export const createGeneric = (store: Store, input: ItemInput) =>
-  created(store, "item", { ...clean(input), generic: true });
+  created(store, "item", { ...clean(withCategoryIds(store, input)), generic: true });
 
 /** One of them, numbered under its generic (FR-INV-22). The number is checked here, on this device. */
 export async function createUnit(store: Store, input: UnitInput): Promise<string> {

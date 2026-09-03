@@ -8,7 +8,7 @@
 #   [[locations]]      name
 #   [[categories]]     name
 #   [[items]]          name, description, home, sub_location, purchase_date,
-#                      price, supplier, category
+#                      price, supplier, category, categories
 #   [[items.units]]    number, nickname, home, sub_location
 #
 # A unit's number is what is written on the gear, not a count (FR-INV-23). It
@@ -17,9 +17,10 @@
 #
 # An item with units is a generic: one name for several of the same thing
 # (FR-INV-21). Its units take their home from it unless they say otherwise.
-# `home` names a location above; `category` names a category above and its
-# units take it from the generic too. Nothing here has a code; codes are
-# printed and stuck on during the labelling walk.
+# `home` names a location above; `category` names one category above, and
+# `categories` names any number more, so an item can sit in several groups
+# (FR-SET-07); its units take them all from the generic too. Nothing here has
+# a code; codes are printed and stuck on during the labelling walk.
 
 [[locations]]
 name = "Cold locker"
@@ -112,6 +113,7 @@ description = "Blue poly, grommets every two feet."
 home = "Cold locker"
 sub_location = "bin 2"
 category = "Tarps"
+categories = ["Cooking gear"]
 
 [[items.units]]
 number = 1

@@ -100,7 +100,7 @@ def _row(state: State, it: dict[str, Any]) -> list[str]:
         (parent or {}).get("name") or "" if is_unit else "",
         (it.get("number") or "") if is_unit else "",
         (it.get("nickname") or "") if is_unit else "",
-        "" if is_unit else views.category_name(state, it.get("category_id")),
+        "" if is_unit else "; ".join(views.category_name(state, cid) for cid in views.categories_of(state, it)),
         views.location_name(state, it.get("home_location_id")),
         it.get("sub_location") or "",
         it.get("description") or "",
@@ -285,7 +285,7 @@ def _plan_change(
             p.errors.append({"row": row_num, "message": "a unit takes its name from its generic"})
             return
         if _cell(vals, idx, "category"):
-            p.errors.append({"row": row_num, "message": "a unit takes its generic's category"})
+            p.errors.append({"row": row_num, "message": "a unit takes its generic's categories"})
             return
     else:
         for col in ("number", "nickname"):
@@ -341,15 +341,7 @@ def _diff_field(
         new = cell or None
         return None if (old or None) == new else _change("nickname", old or "", new or "", old, new)
     if col == "category":
-        return _diff_named(
-            state,
-            it.get("category_id"),
-            cell,
-            existing_categories,
-            p.new_categories,
-            "category_id",
-            views.category_name,
-        )
+        return _diff_categories(state, p, it, cell, existing_categories)
     if col == "home":
         return _diff_named(
             state,
@@ -427,6 +419,21 @@ def _diff_named(
     if cell not in existing and cell not in new_names:
         new_names.append(cell)
     return _change(field_name, old_display, cell, old_id, cell)
+
+
+def _diff_categories(
+    state: State, p: Plan, it: dict[str, Any], cell: str | None, existing_categories: dict[str, str]
+) -> dict[str, Any] | None:
+    """The cell is several names joined with ";"; compared to the item's current names as a set."""
+    old_ids = views.categories_of(state, it)
+    old_names = [views.category_name(state, cid) for cid in old_ids]
+    new_names = sorted({name.strip() for name in (cell or "").split(";") if name.strip()})
+    if set(new_names) == set(old_names):
+        return None
+    for name in new_names:
+        if name not in existing_categories and name not in p.new_categories:
+            p.new_categories.append(name)
+    return _change("category_ids", "; ".join(old_names), "; ".join(new_names), old_ids, new_names)
 
 
 def _change(field_name: str, old_display: Any, new_display: Any, old_raw: Any, new_raw: Any) -> dict[str, Any]:
@@ -524,9 +531,11 @@ def _add_optional(
     else:
         category = _cell(vals, idx, "category")
         if category:
-            if category not in existing_categories and category not in p.new_categories:
-                p.new_categories.append(category)
-            payload["category"] = category
+            names = sorted({name.strip() for name in category.split(";") if name.strip()})
+            for name in names:
+                if name not in existing_categories and name not in p.new_categories:
+                    p.new_categories.append(name)
+            payload["category"] = names
 
     home = _cell(vals, idx, "home")
     if home:
@@ -627,8 +636,8 @@ def apply(conn: sqlite3.Connection, text: str, actor_id: str, now: int | None = 
             value = ch["new_raw"]
             if ch["field"] == "home_location_id" and value is not None:
                 value = locations[value]
-            elif ch["field"] == "category_id" and value is not None:
-                value = categories[value]
+            elif ch["field"] == "category_ids" and value is not None:
+                value = [categories[name] for name in value]
             events.append_server(
                 conn,
                 actor_id,
@@ -652,7 +661,7 @@ def _resolve_payload(payload: dict[str, Any], locations: dict[str, str], categor
     if "home" in resolved:
         resolved["home_location_id"] = locations[resolved.pop("home")]
     if "category" in resolved:
-        resolved["category_id"] = categories[resolved.pop("category")]
+        resolved["category_ids"] = [categories[name] for name in resolved.pop("category")]
     return resolved
 
 

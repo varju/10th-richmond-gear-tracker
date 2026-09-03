@@ -14,12 +14,13 @@ ACTOR = "alice"
 
 
 def seeded(conn) -> dict:
-    """A location, a category, a generic with two units, a single with a code bound to it,
-    one item checked out, one retired, one deleted, and one merged away."""
+    """A location, two categories, a generic with two units, a single in both categories with a
+    code bound to it, one item checked out, one retired, one deleted, and one merged away."""
     events.append_server(conn, ACTOR, "location", "loc-1", "created", {"name": "Cold locker"})
     events.append_server(conn, ACTOR, "category", "cat-1", "created", {"name": "Tarps"})
+    events.append_server(conn, ACTOR, "category", "cat-2", "created", {"name": "Tents"})
     events.append_server(
-        conn, ACTOR, "item", "tarp", "created", {"name": "Tarp, 10x12", "generic": True, "category_id": "cat-1"}
+        conn, ACTOR, "item", "tarp", "created", {"name": "Tarp, 10x12", "generic": True, "category_ids": ["cat-1"]}
     )
     events.append_server(conn, ACTOR, "item", "tarp-1", "created", {"parent_id": "tarp", "number": "1"})
     events.append_server(
@@ -36,7 +37,7 @@ def seeded(conn) -> dict:
             "description": "Blue box trailer.",
             "home_location_id": "loc-1",
             "sub_location": "bin 2",
-            "category_id": "cat-1",
+            "category_ids": ["cat-2", "cat-1"],
             "purchase_date": "2021-03-06",
             "price": 240.0,
             "supplier": "Local outfitter",
@@ -91,6 +92,13 @@ def test_one_row_per_item_and_units_follow_their_generic(db):
     assert by_id["tarp-1"]["category"] == ""
 
     assert by_id["tarp-2"]["nickname"] == "torn corner"
+
+
+def test_export_joins_several_category_names_with_a_semicolon(db):
+    state = seeded(db)
+    by_id = rows_by_id(inventory_csv.export(state))
+
+    assert by_id["trailer"]["category"] == "Tents; Tarps"
 
 
 def test_code_status_and_holder(db):
@@ -211,6 +219,45 @@ def test_a_unit_with_a_non_blank_category_cell_is_an_error(db):
 
     assert len(plan.errors) == 1
     assert plan.errors[0]["row"] == 2
+
+
+def test_importing_two_known_category_names_records_one_change_with_both_ids(db):
+    state = seeded(db)
+    text = make_csv(["id", "category"], [["tarp", "Tarps; Tents"]])
+
+    plan = inventory_csv.plan(state, text)
+
+    assert plan.errors == []
+    assert plan.new_categories == []
+    [change] = plan.changes
+    [cat_change] = change["changes"]
+    assert cat_change["field"] == "category_ids"
+    assert cat_change["old_display"] == "Tarps"
+    assert cat_change["new_display"] == "Tarps; Tents"
+    assert cat_change["old_raw"] == ["cat-1"]
+    assert cat_change["new_raw"] == ["Tarps", "Tents"]
+
+    result = inventory_csv.apply(db, text, ACTOR)
+
+    assert result["changed"] == 1
+    assert sorted(derived.snapshot(db)["item"]["tarp"]["category_ids"]) == ["cat-1", "cat-2"]
+
+
+def test_an_unknown_category_name_in_the_cell_is_created(db):
+    state = seeded(db)
+    text = make_csv(["id", "category"], [["tarp", "Tarps; Boats"]])
+
+    plan = inventory_csv.plan(state, text)
+
+    assert plan.errors == []
+    assert plan.new_categories == ["Boats"]
+
+    result = inventory_csv.apply(db, text, ACTOR)
+
+    assert result["created_categories"] == ["Boats"]
+    after = derived.snapshot(db)
+    boats_id = next(k for k, v in after["category"].items() if v["name"] == "Boats")
+    assert sorted(after["item"]["tarp"]["category_ids"]) == sorted(["cat-1", boats_id])
 
 
 # --- plan: adds --------------------------------------------------------------------------

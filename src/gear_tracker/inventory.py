@@ -55,7 +55,16 @@ class Item(Section):
     price: float | int | None = None
     supplier: str = ""
     category: str = ""
+    categories: list[str] = []
     units: list[Unit] = []
+
+    @property
+    def all_categories(self) -> list[str]:
+        """`categories`, plus `category` if set and not already there (FR-SET-07)."""
+        names = list(self.categories)
+        if self.category and self.category not in names:
+            names.append(self.category)
+        return names
 
     @model_validator(mode="after")
     def _numbered_once(self):
@@ -95,8 +104,9 @@ class Inventory(Section):
         if len(names) != len(self.categories):
             raise ValueError("two categories with the same name")
         for item in self.items:
-            if item.category and item.category not in names:
-                raise ValueError(f"{item.name}: no category named {item.category!r}")
+            for name in item.all_categories:
+                if name not in names:
+                    raise ValueError(f"{item.name}: no category named {name!r}")
         return self
 
 
@@ -149,8 +159,9 @@ def load(conn: sqlite3.Connection, spec: Inventory, actor_id: str, now: int | No
         for field in ("purchase_date", "price", "supplier"):
             if getattr(item, field):
                 fields[field] = getattr(item, field)
-        if item.category:
-            fields["category_id"] = groups[item.category]
+        names = item.all_categories
+        if names:
+            fields["category_ids"] = [groups[name] for name in sorted(names)]
         item_id = _created(conn, actor_id, "item", fields, now)
 
         for unit in item.units:

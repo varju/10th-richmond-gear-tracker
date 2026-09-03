@@ -92,15 +92,15 @@ def test_a_generic_carries_the_name_and_no_status(db, tmp_path):
     assert "status" not in tarp
     assert tarp["description"] == "Blue poly."
     assert next(iter(state(db)["category"].values()))["name"] == "Tarps"
-    assert tarp["category_id"] == next(iter(state(db)["category"]))
+    assert tarp["category_ids"] == [next(iter(state(db)["category"]))]
 
 
 def test_a_unit_has_no_category_of_its_own(db, tmp_path):
-    """A unit reads its generic's category (FR-SET-07); re-filing the generic re-files its units."""
+    """A unit reads its generic's categories (FR-SET-07); re-filing the generic re-files its units."""
     inventory.load(db, inventory.read(written(tmp_path, SMALL)), admin(db))
     units = [fields for fields in state(db)["item"].values() if fields.get("parent_id")]
 
-    assert all("category_id" not in unit for unit in units)
+    assert all("category_ids" not in unit for unit in units)
 
 
 def test_units_hang_off_their_generic(db, tmp_path):
@@ -206,7 +206,17 @@ def test_the_bundled_file_leaves_the_first_aid_kit_uncategorised(db):
 
     kit = named(db, "First aid kit, group")
 
-    assert "category_id" not in kit
+    assert "category_ids" not in kit
+
+
+def test_the_bundled_file_cross_lists_one_item_in_two_categories(db):
+    """The tarp doubles as cooking-gear shelter, so the list shows cross-listing (FR-SET-07)."""
+    inventory.load(db, inventory.read("demo"), admin(db))
+
+    tarp = named(db, "Tarp, 10 by 12")
+    names = {state(db)["category"][cid]["name"] for cid in tarp["category_ids"]}
+
+    assert names == {"Tarps", "Cooking gear"}
 
 
 # --- a file that will not do ------------------------------------------------------

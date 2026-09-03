@@ -38,8 +38,8 @@ export interface Meta {
   last_sync_at?: number;
   /** A stock check in progress (FR-RPT-09). Where the person is, and what they have scanned there. */
   stock_check?: StockCheck;
-  /** The category the last new item took, so a run of tents costs no taps. A device setting, not a record. */
-  last_category_id?: string;
+  /** The categories the last new item took, so a run of tents costs no taps. A device setting, not a record. */
+  last_category_ids?: string[];
 }
 
 export interface StockCheck {

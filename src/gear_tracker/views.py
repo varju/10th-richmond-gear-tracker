@@ -385,9 +385,24 @@ def category_name(state: State, category_id: str | None) -> str:
     return (entity(state, "category", category_id) or {}).get("name") or "(unknown category)"
 
 
-def category_of(state: State, it: Fields) -> str | None:
-    """A unit reads its generic's category, so re-filing a generic re-files its units."""
-    if it.get("parent_id"):
-        parent = item(state, it["parent_id"])
-        return (parent or {}).get("category_id")
-    return it.get("category_id")
+def categories_of(state: State, it: Fields) -> list[str]:
+    """A unit reads its generic's categories, so re-filing a generic re-files its units.
+
+    `category_ids` wins when present, even empty; a bare `category_id` from before September
+    2026 reads as a list of one. Either way, an id that no longer names a live category is
+    dropped.
+    """
+    source = (item(state, it["parent_id"]) if it.get("parent_id") else it) or {}
+    if "category_ids" in source:
+        ids = source.get("category_ids") or []
+    elif source.get("category_id"):
+        ids = [source["category_id"]]
+    else:
+        ids = []
+    live = {cat["id"] for cat in categories(state)}
+    return [cid for cid in ids if cid in live]
+
+
+def category_names(state: State, it: Fields) -> str:
+    """The item's categories on one line: "Tents, Tarps", or "" for none."""
+    return ", ".join(category_name(state, cid) for cid in categories_of(state, it))

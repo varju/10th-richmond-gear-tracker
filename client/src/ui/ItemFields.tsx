@@ -21,7 +21,7 @@ export const EMPTY_ITEM: ItemInput = {
   purchase_date: "",
   price: "",
   supplier: "",
-  category_id: null,
+  category_ids: [],
 };
 
 /** The tick that turns one item into a name several things share (FR-INV-21, FR-INV-26). */
@@ -53,17 +53,24 @@ export function ItemFields({ store, values, onChange, nameRef, generic }: Props)
         label={generic ? "Default home" : "Home location"}
       />
       {cats.length > 0 && (
-        <label>
-          <span>Category</span>
-          <select value={values.category_id ?? ""} onChange={(e) => set({ category_id: e.target.value || null })}>
-            <option value="">None</option>
-            {cats.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <fieldset className="categories">
+          <legend>Categories</legend>
+          {cats.map((c) => {
+            const ids = values.category_ids ?? [];
+            return (
+              <label key={c.id} className="check">
+                <input
+                  type="checkbox"
+                  checked={ids.includes(c.id)}
+                  onChange={(e) =>
+                    set({ category_ids: e.target.checked ? [...ids, c.id] : ids.filter((id) => id !== c.id) })
+                  }
+                />
+                <span>{c.name}</span>
+              </label>
+            );
+          })}
+        </fieldset>
       )}
       <label>
         <span>Description</span>

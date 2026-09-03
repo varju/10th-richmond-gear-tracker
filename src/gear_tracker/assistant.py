@@ -232,9 +232,9 @@ def _item_brief(state: dict[str, Any], it: dict[str, Any]) -> dict[str, Any]:
     for flag in ("missing", "retired"):
         if it.get(flag):
             brief[flag] = True
-    category = views.category_name(state, views.category_of(state, it))
-    if category:
-        brief["category"] = category
+    categories = [views.category_name(state, cid) for cid in views.categories_of(state, it)]
+    if categories:
+        brief["categories"] = categories
     return brief
 
 
@@ -249,9 +249,9 @@ def _row(state: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
         "in": row["counts"]["in"],
         "unit_ids": [u["id"] for u in row["units"]],
     }
-    category = views.category_name(state, views.category_of(state, row["item"]))
-    if category:
-        out["category"] = category
+    categories = [views.category_name(state, cid) for cid in views.categories_of(state, row["item"])]
+    if categories:
+        out["categories"] = categories
     return out
 
 
@@ -438,7 +438,7 @@ def list_categories() -> dict[str, Any]:
                     "items": sum(
                         1
                         for it in views.items(state)
-                        if not it.get("generic") and views.category_of(state, it) == cat["id"]
+                        if not it.get("generic") and cat["id"] in views.categories_of(state, it)
                     ),
                 }
                 for cat in views.categories(state)
@@ -643,7 +643,7 @@ class ItemFields(BaseModel):
     supplier: str | None = None
     nickname: str | None = None
     number: NonBlank | None = None
-    category_id: str | None = None
+    category_ids: list[str] | None = None
 
 
 def _home(state: dict[str, Any], location_id: str | None) -> None:
@@ -656,27 +656,34 @@ def _category(state: dict[str, Any], category_id: str | None) -> None:
         raise NotFound(f"no category with id {category_id}; call list_categories")
 
 
+def _sorted_categories(state: dict[str, Any], category_ids: list[str]) -> list[str]:
+    """Unique, ordered by category name, so two devices record the same set the same way."""
+    unique = list(dict.fromkeys(category_ids))
+    return sorted(unique, key=lambda cid: views.category_name(state, cid))
+
+
 def create_item(
     name: str,
     home_location_id: str | None = None,
     sub_location: str | None = None,
     description: str | None = None,
     generic: bool = False,
-    category_id: str | None = None,
+    category_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Add gear to the inventory (FR-INV-01).
 
     `generic` is for something the group owns several of: the name is stored
     once and each one becomes a numbered unit under it (FR-INV-21). Add those
-    with add_unit. `category_id` groups it with similar gear (FR-SET-07); call
-    list_categories for the ids.
+    with add_unit. `category_ids` puts it in any number of groups of similar
+    gear (FR-SET-07); call list_categories for the ids.
     """
     with _open() as (conn, who):
         state = _state(conn)
         if not name.strip():
             raise BadRequest("an item needs a name")
         _home(state, home_location_id)
-        _category(state, category_id)
+        for category_id in category_ids or []:
+            _category(state, category_id)
         payload: dict[str, Any] = {"name": name.strip()}
         if generic:
             payload["generic"] = True
@@ -686,8 +693,8 @@ def create_item(
             payload["sub_location"] = sub_location.strip()
         if description and description.strip():
             payload["description"] = description.strip()
-        if category_id:
-            payload["category_id"] = category_id
+        if category_ids:
+            payload["category_ids"] = _sorted_categories(state, category_ids)
         item_id = new_ulid()
         _push(conn, who, [_draft("item", item_id, "created", payload)])
         return {"item_id": item_id, "name": payload["name"], "generic": generic}
@@ -738,9 +745,12 @@ def update_item(item_id: str, fields: ItemFields) -> dict[str, Any]:
         if not patch:
             raise BadRequest("say which fields to change")
         _home(state, patch.get("home_location_id"))
-        _category(state, patch.get("category_id"))
-        if "category_id" in patch and it.get("parent_id"):
-            raise BadRequest("a unit takes its generic's category")
+        if "category_ids" in patch:
+            if it.get("parent_id"):
+                raise BadRequest("a unit takes its generic's categories")
+            for category_id in patch["category_ids"] or []:
+                _category(state, category_id)
+            patch["category_ids"] = _sorted_categories(state, patch["category_ids"] or [])
         if "number" in patch and not it.get("parent_id"):
             raise BadRequest("only one of several has a number")
         if "number" in patch:
@@ -750,9 +760,12 @@ def update_item(item_id: str, fields: ItemFields) -> dict[str, Any]:
                 for unit in views.units_of(state, it["parent_id"])
             ):
                 raise Conflict(f"#{patch['number']} is taken")
+        # A list compares by value, not like the fallback `category_id` it may still carry, so
+        # the old side of the diff is the resolved set, not the raw field.
+        before = {**it, "category_ids": views.categories_of(state, it)} if "category_ids" in patch else it
         drafts = [
             _draft("item", it["id"], "field_changed", {"field": field, "value": value, "old": old})
-            for field, value, old in _changes(it, patch)
+            for field, value, old in _changes(before, patch)
         ]
         _push(conn, who, drafts)
         return {"item_id": it["id"], "changed": [d["payload"]["field"] for d in drafts]}

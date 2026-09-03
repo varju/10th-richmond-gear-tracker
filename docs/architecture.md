@@ -361,9 +361,10 @@ race it: one deletes a location while the other files an item there. The item wi
 item's home still reads correctly. That is rare enough to accept and cheap to fix by hand.
 
 **Categories** are entities like locations (FR-SET-07): the same create, rename and delete, and the same in-use check
-(FR-SET-05). One `category_id` sits on a single item or on a generic; a unit carries none and reads its generic's, so
-re-filing a generic re-files its units. The phone list groups by category, uncategorised last; the desk table gets a
-sortable column instead, because a table already sorts.
+(FR-SET-05). Each item carries `category_ids`, a list, on a single item or on a generic; a unit carries none and reads
+its generic's, so re-filing a generic re-files its units. An item from before September 2026 may still carry the old,
+single `category_id`, and readers treat it as a list of one. The phone list groups by category, uncategorised last; the
+desk table gets a sortable column instead, because a table already sorts.
 
 **CSV export and import** (FR-RPT-03, FR-SET-11) are one module, `inventory_csv.py`, reached from Settings and from
 `gear-admin export` and `gear-admin import`. The export is derived state, one row per live item, home and category by

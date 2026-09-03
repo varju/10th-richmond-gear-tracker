@@ -26,7 +26,9 @@ const LABELS: Record<string, string> = {
   name: "Name",
   description: "Description",
   home_location_id: "Home location",
+  // Pre-2026-09 single field; old events still show it.
   category_id: "Category",
+  category_ids: "Categories",
   sub_location: "Shelf",
   generic: "Several of these",
   parent_id: "Generic",
@@ -50,6 +52,10 @@ export function describeValue(state: State, field: string, value: unknown): stri
   if (value === null || value === undefined || value === "") return "—";
   if (field === "home_location_id") return locationName(state, String(value));
   if (field === "category_id") return categoryName(state, String(value));
+  if (field === "category_ids" && Array.isArray(value)) {
+    const names = value.map((id) => categoryName(state, String(id)));
+    return names.length ? names.join(", ") : "—";
+  }
   if (field === "parent_id" || field === "merged_into") return nameOf(state, String(value));
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (field === "price" && typeof value === "number") return `$${value.toFixed(2)}`;

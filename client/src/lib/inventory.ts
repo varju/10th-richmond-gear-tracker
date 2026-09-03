@@ -21,6 +21,8 @@ export interface Item {
   /** Set on a unit: the generic it belongs to. */
   parent_id?: string | null;
   /** Set on a single item or a generic; a unit reads its generic's (FR-SET-07). */
+  category_ids?: string[];
+  /** Pre-2026-09 single category. Still read on old items and old events; never written again (FR-SET-07). */
   category_id?: string | null;
   /**
    * A unit's number under its parent, unique there. Text: the gear may read
@@ -183,9 +185,30 @@ export const unitsOf = (state: State, genericId: string): Item[] =>
 export const parentOf = (state: State, it: Item): Item | undefined =>
   it.parent_id ? item(state, it.parent_id) : undefined;
 
-/** A unit's category is its generic's; anything else carries its own (FR-SET-07). */
-export const categoryOf = (state: State, it: Item): string | null =>
-  isUnit(it) ? parentOf(state, it)?.category_id ?? null : it.category_id ?? null;
+/**
+ * An item's own category ids, before a unit reads its generic's and before
+ * dropping ids of categories that no longer exist. `category_ids` wins when
+ * present, even `[]`; otherwise `category_id` if it is set (FR-SET-07).
+ */
+function rawCategoryIds(it: Item): string[] {
+  if (it.category_ids !== undefined) return it.category_ids;
+  if (it.category_id) return [it.category_id];
+  return [];
+}
+
+/** A unit's categories are its generic's; anything else carries its own (FR-SET-07). Drops unknown or deleted ids. */
+export function categoriesOf(state: State, it: Item): string[] {
+  const source = isUnit(it) ? parentOf(state, it) : it;
+  const ids = source ? rawCategoryIds(source) : [];
+  const live = new Set(categories(state).map((c) => c.id));
+  return ids.filter((id) => live.has(id));
+}
+
+/** The names of categoriesOf, joined for one cell or line. Empty string when there are none. */
+export const categoryNames = (state: State, it: Item): string =>
+  categoriesOf(state, it)
+    .map((id) => categoryName(state, id))
+    .join(", ");
 
 /**
  * The name a person reads: "4-person tent, Brand X #3 (patched fly)" for a
@@ -298,7 +321,7 @@ export function search(state: State, filter: Filter): Item[] {
     .filter((it) => !filter.location_id || it.home_location_id === filter.location_id)
     .filter((it) => !filter.sub_location || it.sub_location === filter.sub_location)
     .filter((it) => !filter.status || (filter.status === "missing" ? Boolean(it.missing) : it.status === filter.status))
-    .filter((it) => !filter.category_id || categoryOf(state, it) === filter.category_id)
+    .filter((it) => !filter.category_id || categoriesOf(state, it).includes(filter.category_id))
     .filter((it) => matches(state, it, words))
     .sort(byName(state));
 }
@@ -397,10 +420,14 @@ export function blockers(state: State, locationId: string): Item[] {
     .sort(byName(state));
 }
 
-/** Items that stop a category being deleted (FR-SET-05). Retired items count: they can come back. */
+/**
+ * Items that stop a category being deleted (FR-SET-05). Retired items count:
+ * they can come back. Raw ids, not categoriesOf: a category already gone from
+ * categories(state) must still be able to name what was pointing at it.
+ */
 export function categoryBlockers(state: State, categoryId: string): Item[] {
   return items(state)
-    .filter((it) => it.category_id === categoryId)
+    .filter((it) => rawCategoryIds(it).includes(categoryId))
     .sort(byName(state));
 }
 
@@ -411,18 +438,18 @@ export interface CategoryGroup {
 
 /**
  * Rows grouped by category, in categories(state) order, with the uncategorised
- * rows last under a null category (FR-SET-07, FR-INV-08). A category deleted
- * since a row was filed under it is treated as no category. Empty groups are
- * left out.
+ * rows last under a null category (FR-SET-07, FR-INV-08). A row with several
+ * categories appears in every one of them: that is the cross-listing the
+ * Quartermaster asked for. A category deleted since a row was filed under it
+ * is treated as no category. Empty groups are left out.
  */
 export function byCategory(state: State, list: Row[]): CategoryGroup[] {
-  const live = new Set(categories(state).map((c) => c.id));
   const byId = new Map<string, Row[]>();
   const uncategorised: Row[] = [];
   for (const row of list) {
-    const id = categoryOf(state, row.item);
-    if (id && live.has(id)) byId.set(id, [...(byId.get(id) ?? []), row]);
-    else uncategorised.push(row);
+    const ids = categoriesOf(state, row.item);
+    if (ids.length === 0) uncategorised.push(row);
+    else for (const id of ids) byId.set(id, [...(byId.get(id) ?? []), row]);
   }
   const groups: CategoryGroup[] = categories(state)
     .map((category) => ({ category, rows: byId.get(category.id) ?? [] }))

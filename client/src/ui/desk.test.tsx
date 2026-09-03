@@ -213,8 +213,8 @@ test("a Category column appears once one exists, and sorts (FR-SET-07)", async (
   const f = await fixture();
   const camp = await act.createCategory(store, "Camp kitchen");
   const shelter = await act.createCategory(store, "Shelter");
-  await act.updateItem(store, f.stove, { category_id: camp });
-  await act.updateItem(store, f.tent, { category_id: shelter });
+  await act.updateItem(store, f.stove, { category_ids: [camp] });
+  await act.updateItem(store, f.tent, { category_ids: [shelter] });
   navigate("/items");
   mount();
   const user = userEvent.setup();

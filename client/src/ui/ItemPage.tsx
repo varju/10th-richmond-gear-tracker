@@ -19,8 +19,8 @@ import { hasOpenConflict } from "../lib/conflicts";
 import { foundFor, resolveFound } from "../lib/found";
 import {
   aliases,
-  categoryName,
-  categoryOf,
+  categoriesOf,
+  categoryNames,
   codesFor,
   displayName,
   generics,
@@ -121,6 +121,7 @@ export function ItemPage({ store, id }: Props) {
           purchase_date: it.purchase_date ?? "",
           price: it.price ?? "",
           supplier: it.supplier ?? "",
+          category_ids: categoriesOf(state, it),
         }}
         onDone={() => {
           setEditing(false);
@@ -299,10 +300,10 @@ export function ItemPage({ store, id }: Props) {
             <dd>{statusLabel(state, it) + (isOverdue(state, it, now()) ? " · Overdue" : "")}</dd>
             <dt>Home</dt>
             <dd>{homeLabel(state, it) || "—"}</dd>
-            {categoryName(state, categoryOf(state, it)) && (
+            {categoriesOf(state, it).length > 0 && (
               <>
-                <dt>Category</dt>
-                <dd>{categoryName(state, categoryOf(state, it))}</dd>
+                <dt>{categoriesOf(state, it).length > 1 ? "Categories" : "Category"}</dt>
+                <dd>{categoryNames(state, it)}</dd>
               </>
             )}
             {it.parent_id && (
@@ -950,9 +951,9 @@ function EditItem({
   );
 }
 
-/** A unit has no name of its own, so an edit must not write one. */
+/** A unit has no name and no categories of its own: both are its generic's (FR-INV-22, FR-SET-07). */
 function withoutName(values: ItemInput): Partial<ItemInput> {
-  const { name, ...rest } = values;
+  const { name, category_ids, ...rest } = values;
   return rest;
 }
 
@@ -1018,10 +1019,10 @@ function GenericPage({
         <dd>{`${plural(live.length, "unit")} · ${live.filter((u) => u.status === "in" && !u.missing).length} in`}</dd>
         <dt>Default home</dt>
         <dd>{homeLabel(state, it) || "—"}</dd>
-        {categoryName(state, categoryOf(state, it)) && (
+        {categoriesOf(state, it).length > 0 && (
           <>
-            <dt>Category</dt>
-            <dd>{categoryName(state, categoryOf(state, it))}</dd>
+            <dt>{categoriesOf(state, it).length > 1 ? "Categories" : "Category"}</dt>
+            <dd>{categoryNames(state, it)}</dd>
           </>
         )}
         <dt>Description</dt>

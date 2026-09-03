@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   categories,
-  categoryName,
-  categoryOf,
+  categoryNames,
   displayName,
   type Filter,
   homeLabel,
@@ -60,7 +59,7 @@ function sortKey(store: Store, row: Row, key: Key): string {
     case "name":
       return row.name;
     case "category":
-      return categoryName(store.state, categoryOf(store.state, row.item));
+      return categoryNames(store.state, row.item);
     case "home":
       return homeLabel(store.state, row.item);
     case "status":
@@ -177,7 +176,7 @@ function ItemRows({ store, row, showCategory }: RowProps) {
             <span className="muted small home">{`${plural(row.counts.total, "unit")} · ${row.counts.in} in`}</span>
           )}
         </td>
-        {showCategory && <td>{categoryName(state, categoryOf(state, row.item))}</td>}
+        {showCategory && <td>{categoryNames(state, row.item)}</td>}
         <td>{homeLabel(state, row.item)}</td>
         <td>{statusOf(store, row)}</td>
         <td>
@@ -196,7 +195,7 @@ function ItemRows({ store, row, showCategory }: RowProps) {
                 {displayName(state, unit)}
               </button>
             </td>
-            {showCategory && <td>{categoryName(state, categoryOf(state, unit))}</td>}
+            {showCategory && <td>{categoryNames(state, unit)}</td>}
             <td>{homeLabel(state, unit)}</td>
             <td>{statusLabel(state, unit)}</td>
             <td>

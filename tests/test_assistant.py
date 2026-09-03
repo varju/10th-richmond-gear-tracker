@@ -62,7 +62,7 @@ def inventory(db_path, who):
                 "name": "4-person tent",
                 "generic": True,
                 "home_location_id": made["cold"],
-                "category_id": made["tents_cat"],
+                "category_ids": [made["tents_cat"]],
             },
         )
         for number in ("1", "2", "3"):
@@ -229,7 +229,7 @@ def test_search_groups_units_under_their_generic_and_counts_them(tools):
         "units": 3,
         "in": 3,
         "unit_ids": [tools["t1"], tools["t2"], tools["t3"]],
-        "category": "Tents",
+        "categories": ["Tents"],
     }
     assert assistant.search_items(query="stove")["count"] == 1
     assert assistant.search_items(query="nothing here")["rows"] == []
@@ -254,7 +254,7 @@ def test_get_item_carries_the_unit_its_generic_its_history_and_its_tickets(tools
     assert unit["generic_id"] == tools["tents"] and unit["number"] == "1"
     assert unit["status"] == "out" and unit["holder"] == "Alice"
     assert unit["event"] == "Fall Camp"
-    assert unit["category"] == "Tents"  # a unit reads its generic's category (FR-SET-07)
+    assert unit["categories"] == ["Tents"]  # a unit reads its generic's categories (FR-SET-07)
     assert [t["description"] for t in unit["open_tickets"]] == ["bent pole"]
     assert [h["type"] for h in unit["history"]] == ["checked_out"]
     assert unit["history"][0]["by"] == "Alice"
@@ -389,23 +389,67 @@ def test_creating_an_item_a_generic_and_its_units(db_path, tools):
 
 
 def test_categorising_an_item(db_path, tools):
-    made = assistant.create_item("Axe", home_location_id=tools["warm"], category_id=tools["tents_cat"])
-    assert entity(db_path, "item", made["item_id"])["category_id"] == tools["tents_cat"]
-    assert assistant.get_item(made["item_id"])["category"] == "Tents"
+    made = assistant.create_item("Axe", home_location_id=tools["warm"], category_ids=[tools["tents_cat"]])
+    assert entity(db_path, "item", made["item_id"])["category_ids"] == [tools["tents_cat"]]
+    assert assistant.get_item(made["item_id"])["categories"] == ["Tents"]
     rows = {r["name"]: r for r in assistant.search_items()["rows"]}
-    assert rows["Axe"]["category"] == "Tents"
+    assert rows["Axe"]["categories"] == ["Tents"]
 
     with pytest.raises(NotFound):
-        assistant.create_item("Saw", category_id="nowhere")
+        assistant.create_item("Saw", category_ids=["nowhere"])
 
     with pytest.raises(BadRequest):
-        assistant.update_item(tools["t1"], assistant.ItemFields(category_id=tools["tents_cat"]))
+        assistant.update_item(tools["t1"], assistant.ItemFields(category_ids=[tools["tents_cat"]]))
 
-    changed = assistant.update_item(tools["tents"], assistant.ItemFields(category_id=None))
+    changed = assistant.update_item(tools["tents"], assistant.ItemFields(category_ids=None))
     # None clears the field once, then a second call finds nothing left to change.
-    assert changed["changed"] == ["category_id"]
-    again = assistant.update_item(tools["tents"], assistant.ItemFields(category_id=None))
+    assert changed["changed"] == ["category_ids"]
+    again = assistant.update_item(tools["tents"], assistant.ItemFields(category_ids=None))
     assert again["changed"] == []
+
+
+def test_an_item_can_be_put_in_several_categories(db_path, tools):
+    with open_db(db_path) as conn:
+        tarps_cat = _new(conn, "category", {"name": "Tarps"})
+
+    made = assistant.create_item("Tarp", category_ids=[tools["tents_cat"], tarps_cat])
+    # Stored by name, Tarps before Tents, whatever order the caller gave.
+    assert entity(db_path, "item", made["item_id"])["category_ids"] == [tarps_cat, tools["tents_cat"]]
+    assert assistant.get_item(made["item_id"])["categories"] == ["Tarps", "Tents"]
+
+
+def test_changing_to_a_new_set_of_categories_records_one_change(db_path, tools):
+    with open_db(db_path) as conn:
+        tarps_cat = _new(conn, "category", {"name": "Tarps"})
+
+    changed = assistant.update_item(tools["tents"], assistant.ItemFields(category_ids=[tools["tents_cat"], tarps_cat]))
+
+    assert changed["changed"] == ["category_ids"]
+    # Sorted by category name, so two devices land on the same stored order.
+    assert entity(db_path, "item", tools["tents"])["category_ids"] == [tarps_cat, tools["tents_cat"]]
+
+
+def test_list_categories_counts_an_item_under_each_of_its_categories(db_path, tools):
+    with open_db(db_path) as conn:
+        tarps_cat = _new(conn, "category", {"name": "Tarps"})
+    assistant.update_item(tools["tents"], assistant.ItemFields(category_ids=[tools["tents_cat"], tarps_cat]))
+
+    found = {cat["name"]: cat for cat in assistant.list_categories()["categories"]}
+    assert found["Tents"]["items"] == 3
+    assert found["Tarps"]["items"] == 3
+
+
+def test_an_old_item_with_only_category_id_falls_back_to_one_category(db_path, tools):
+    """An item from before September 2026 may still carry the single `category_id`."""
+    with open_db(db_path) as conn:
+        old_style = _new(conn, "item", {"name": "Old axe", "category_id": tools["tents_cat"]})
+
+    assert assistant.get_item(old_style)["categories"] == ["Tents"]
+
+    assistant.update_item(old_style, assistant.ItemFields(category_ids=[]))
+
+    # category_ids: [] wins over the old category_id it still carries: no categories.
+    assert "categories" not in assistant.get_item(old_style)
 
 
 def test_updating_an_item_records_only_what_differs(db_path, tools):

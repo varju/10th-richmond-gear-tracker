@@ -43,26 +43,3 @@ fresh from the labelling walk.
 - [ ] Print code sheets and do the labelling walk (S-BOOT-02, S-BOOT-03)
 
 Public pages come before the labelling walk, not after it. From the moment stickers go on gear, a stranger can scan one.
-
-## M10 — First feedback
-
-Notes from the first week on a phone. Each task stands alone. Categories is the one that changes the schema, so it goes
-last.
-
-- [ ] Several categories per item (FR-SET-07): `category_id` becomes `category_ids`, a list. Touches the filter
-      (FR-INV-08), item fields, CSV import and export (FR-SET-11, FR-RPT-03), the audit label, valuation (FR-RPT-06),
-      the assistant's `list_categories` and `update_item`, both replays, and `vectors/replay/`. A unit still reads its
-      generic's.
-
-## Later — Store wrapper
-
-Not scheduled. Design and gate are in [architecture.md](architecture.md#store-wrapper); the requirement is NFR-DEP-11.
-Nothing here starts until M10 feedback shows the home-screen install failing.
-
-- [ ] Capacitor project under `ios/` wrapping the built client, served from the bundle.
-- [ ] Camera inside the wrapper: confirm the WebAssembly scanner meets NFR-USE-01 in the WebView, or feed the Capacitor
-      camera plugin into the same decode loop.
-- [ ] Server keeps sync compatible with the previous store release. Write the rule down and test it.
-- [ ] First submission: review note asking for unlisted distribution, and the unlisted request form filed the same day.
-      If guideline 4.2 blocks it, delete this section and move NFR-DEP-11 to Won't with the reason.
-- [ ] Install link in the Scouter guide beside the home-screen instructions, never replacing them.

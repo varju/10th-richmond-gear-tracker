@@ -231,6 +231,22 @@ test("?edit=1 opens the form straight away, and saving drops it from the URL", a
   expect(location.search).toBe("");
 });
 
+test("ticking two categories on the edit form records both and the page shows them (FR-SET-07)", async () => {
+  const camp = await act.createCategory(store, "Camp kitchen");
+  const cold = await act.createCategory(store, "Cold weather");
+  renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.click(screen.getByLabelText("Camp kitchen"));
+  await user.click(screen.getByLabelText("Cold weather"));
+  await user.click(screen.getByRole("button", { name: "Save" }));
+
+  const categoryEvents = () =>
+    store.pending.filter((e) => e.type === "field_changed" && e.payload.field === "category_ids").map((e) => e.payload);
+  await waitFor(() => expect(categoryEvents()).toEqual([{ field: "category_ids", value: [camp, cold], old: [] }]));
+  expect(await screen.findByText("Categories")).toBeInTheDocument();
+  expect(screen.getByText("Camp kitchen, Cold weather")).toBeInTheDocument();
+});
+
 test("cancelling an edit with changes asks; Save keeps them", async () => {
   withDialog();
   await user.click(screen.getByRole("button", { name: "Edit" }));

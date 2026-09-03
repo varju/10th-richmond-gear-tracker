@@ -220,26 +220,28 @@ test("Add another on its own clears the form", async () => {
   expect(screen.getByLabelText("Home location")).toHaveValue("");
 });
 
-test("a new item remembers the last category picked on this device (FR-SET-07)", async () => {
+test("a new item remembers the last categories picked on this device (FR-SET-07)", async () => {
   await fixture();
   navigate("/items/new");
   const first = mount();
-  expect(screen.queryByLabelText("Category")).not.toBeInTheDocument();
+  expect(screen.queryByText("Categories")).not.toBeInTheDocument();
   first.unmount();
 
-  const camp = await act.createCategory(store, "Camp kitchen");
+  await act.createCategory(store, "Camp kitchen");
+  const cold = await act.createCategory(store, "Cold weather");
   navigate("/items/new");
   const second = mount();
   const user = userEvent.setup();
   await user.type(screen.getByLabelText("Name"), "Stove 2");
-  await user.selectOptions(screen.getByLabelText("Category"), camp);
+  await user.click(screen.getByLabelText("Cold weather"));
   await user.click(screen.getByRole("button", { name: "Save" }));
-  await waitFor(() => expect(store.meta.last_category_id).toBe(camp));
+  await waitFor(() => expect(store.meta.last_category_ids).toEqual([cold]));
   second.unmount();
 
   navigate("/items/new");
   mount();
-  expect(screen.getByLabelText("Category")).toHaveValue(camp);
+  expect(screen.getByLabelText("Cold weather")).toBeChecked();
+  expect(screen.getByLabelText("Camp kitchen")).not.toBeChecked();
 });
 
 test("ticking several saves the name and the one in hand as #1 (FR-INV-21, S-BOOT-03)", async () => {
@@ -360,7 +362,7 @@ test("an Admin adds a category in Settings and it appears (FR-SET-07)", async ()
 test("deleting a category in use is refused and names the item (FR-SET-07, FR-SET-05)", async () => {
   const f = await fixture();
   const camp = await act.createCategory(store, "Camp kitchen");
-  await act.updateItem(store, f.stove, { category_id: camp });
+  await act.updateItem(store, f.stove, { category_ids: [camp] });
   navigate("/settings");
   mount();
   const user = userEvent.setup();
@@ -489,7 +491,7 @@ test("the phone list heads its rows by category once one exists, uncategorised l
   expect(rows()).toEqual(["StoveWarm locker", "Tent 1Cold locker / shelf 4"]);
 
   const camp = await act.createCategory(store, "Camp kitchen");
-  await act.updateItem(store, f.stove, { category_id: camp });
+  await act.updateItem(store, f.stove, { category_ids: [camp] });
   await waitFor(() =>
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
       "Camp kitchen",
@@ -505,7 +507,7 @@ test("the phone list heads its rows by category once one exists, uncategorised l
 test("a category heading folds its rows away (FR-SET-07)", async () => {
   const f = await fixture();
   const camp = await act.createCategory(store, "Camp kitchen");
-  await act.updateItem(store, f.stove, { category_id: camp });
+  await act.updateItem(store, f.stove, { category_ids: [camp] });
   navigate("/items");
   mount();
 
@@ -526,7 +528,7 @@ test("the Category filter and field appear only once a category exists, and the 
   expect(screen.queryByLabelText("Category")).not.toBeInTheDocument();
 
   const camp = await act.createCategory(store, "Camp kitchen");
-  await act.updateItem(store, f.stove, { category_id: camp });
+  await act.updateItem(store, f.stove, { category_ids: [camp] });
   await waitFor(() => expect(screen.getByLabelText("Category")).toBeInTheDocument());
   await user.selectOptions(screen.getByLabelText("Category"), camp);
   expect(rows()).toEqual(["StoveWarm locker"]);
