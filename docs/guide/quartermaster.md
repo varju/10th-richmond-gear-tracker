@@ -47,7 +47,7 @@ any column and keeps search and the filters in view.
 ## Several of the same thing
 
 Tick "We have several of these" when you save. The name is stored once and the item in your hand becomes #1. Add the
-next one by scanning a fresh code and tapping "Another …".
+next one by scanning a fresh code, tapping "Another of…", and picking the name.
 
 ## Back to a single item
 

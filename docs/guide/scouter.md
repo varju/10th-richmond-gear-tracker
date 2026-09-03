@@ -67,8 +67,9 @@ Tick "We have several of these" before you save. The name is stored once, and th
 
 ## Another one the same
 
-Scan the next code and tap "Another Tent #2". It is created, numbered and labelled in that one tap. Tap Number… instead
-when the gear already has a number written on it.
+Scan the next code, tap "Another of…", and tap the name. The ones you labelled last are at the top. It is created with
+the next number, labelled, and you are back at the scanner. Type the number first when the gear already has one written
+on it.
 
 ## Sign in
 

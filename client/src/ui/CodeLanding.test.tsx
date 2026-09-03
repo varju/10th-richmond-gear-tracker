@@ -68,30 +68,14 @@ test("a sticker on a merged duplicate opens the survivor (FR-INV-13)", async () 
   await waitFor(() => expect(location.pathname).toBe(`/items/${tent}`));
 });
 
-test("an unassigned code makes another of a generic we labelled a moment ago (FR-INV-24)", async () => {
+test("an unassigned code offers another of something we have several of (FR-INV-24)", async () => {
   const user = userEvent.setup();
-  const cold = await act.createLocation(store, "Cold locker");
-  const tents = await act.createGeneric(store, { name: "4-person tent", home_location_id: cold });
-  await act.addUnit(store, tents);
+  await act.createGeneric(store, { name: "4-person tent" });
   navigate("/scan");
   navigate("/g/CCCCCCCCCC");
   render(<CodeLanding store={store} code="CCCCCCCCCC" />);
-
-  await user.click(screen.getByRole("button", { name: "Another 4-person tent #2" }));
-  await waitFor(() => expect(location.pathname).toBe("/scan"));
-  const units = inv.unitsOf(store.state, tents);
-  expect(units.map((u) => inv.displayName(store.state, u))).toEqual(["4-person tent #1", "4-person tent #2"]);
-  expect(units[1]).toMatchObject({ home_location_id: cold });
-  expect(inv.currentCode(store.state, units[1]!.id)?.id).toBe("CCCCCCCCCC");
-});
-
-test("a number can be picked instead, on the unit form", async () => {
-  const user = userEvent.setup();
-  const tents = await act.createGeneric(store, { name: "4-person tent" });
-  navigate("/g/CCCCCCCCCC");
-  render(<CodeLanding store={store} code="CCCCCCCCCC" />);
-  await user.click(screen.getByRole("button", { name: "Another 4-person tent, with a number I pick" }));
-  expect(location.pathname + location.search).toBe(`/items/new?parent=${tents}&code=CCCCCCCCCC`);
+  await user.click(screen.getByRole("button", { name: "Another of…" }));
+  expect(location.pathname).toBe("/another/CCCCCCCCCC");
 });
 
 test("the code screen steps aside, so back from what it opens returns to the scanner", async () => {

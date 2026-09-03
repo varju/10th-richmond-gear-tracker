@@ -136,12 +136,12 @@ export async function createUnit(store: Store, input: UnitInput): Promise<string
 }
 
 /** The next unit of a generic, taking its number and its default home (FR-INV-24, FR-INV-29). */
-export function addUnit(store: Store, genericId: string): Promise<string> {
+export function addUnit(store: Store, genericId: string, number?: string): Promise<string> {
   const parent = item(store.state, genericId);
   if (!parent) throw new Error("no such item");
   return createUnit(store, {
     parent_id: genericId,
-    number: nextNumber(store.state, genericId),
+    number: number ?? nextNumber(store.state, genericId),
     home_location_id: parent.home_location_id ?? null,
     sub_location: parent.sub_location ?? "",
   });

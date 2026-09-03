@@ -10,6 +10,7 @@ import { sync, type SyncOutcome } from "./lib/sync";
 import { unsaved } from "./lib/unsaved";
 import { useWide } from "./lib/wide";
 import { Banner } from "./ui/Banner";
+import { AnotherOf } from "./ui/AnotherOf";
 import { Bind } from "./ui/Bind";
 import { CodeLanding } from "./ui/CodeLanding";
 import { Conflicts } from "./ui/Conflicts";
@@ -231,6 +232,9 @@ function Screen({
       break;
     case "bind":
       if (second) return <Bind store={store} code={second} />;
+      break;
+    case "another":
+      if (second) return <AnotherOf store={store} code={second} />;
       break;
     case "found":
       return <Found store={store} />;
