@@ -5,6 +5,7 @@ import {
   groupWith,
   type ItemInput,
   makeGeneric,
+  makePool,
   makeSingle,
   markMissing,
   mergeItem,
@@ -26,6 +27,7 @@ import {
   displayName,
   generics,
   homeLabel,
+  isPool,
   type Item,
   item,
   nameOf,
@@ -33,10 +35,11 @@ import {
   numberOf,
   numberTaken,
   parentOf,
+  poolCounts,
   search,
   unitsOf,
 } from "../lib/inventory";
-import type { HistoryEntry } from "../lib/movement";
+import { checkInPool, checkOutPool, type HistoryEntry, recount } from "../lib/movement";
 import { openRepairs, raiseTicket, type Repair, repairsFor, stateLabel } from "../lib/repairs";
 import { type Log, useRecord } from "../lib/record";
 import type { Note, State } from "../lib/replay";
@@ -190,6 +193,21 @@ export function ItemPage({ store, id }: Props) {
     );
   }
 
+  if (isPool(it)) {
+    // A counted stack: owned, in, and out by holder, moved by count (FR-INV-34, FR-INV-36).
+    return (
+      <PoolPage
+        store={store}
+        id={id}
+        it={it}
+        onEdit={() => setEditing(true)}
+        photos={<Photos store={store} on={onItem} />}
+        record={record}
+        changes={<ChangesSection store={store} id={id} record={record} />}
+      />
+    );
+  }
+
   if (it.generic) {
     // A name several things share: no code, no movements, no missing (FR-INV-21).
     return (
@@ -246,6 +264,9 @@ export function ItemPage({ store, id }: Props) {
             <button type="button" onClick={() => setGrouping(true)}>
               Group with another item…
             </button>
+          )}
+          {!it.generic && !it.parent_id && !it.retired && !current && it.status === "in" && (
+            <MakePool store={store} it={it} />
           )}
           {admin && !it.retired && it.status === "in" && (
             <button type="button" onClick={() => setMerging(true)}>
@@ -412,10 +433,72 @@ function DeleteItem({ store, it }: { store: Store; it: Item }) {
   );
 }
 
+/**
+ * A single item becomes a counted stack (FR-INV-34), the way it becomes a
+ * generic (FR-INV-26). Two taps, like "Make this a single item…": the first
+ * sets how many, the second does it.
+ */
+function MakePool({ store, it }: { store: Store; it: Item }) {
+  const [asked, setAsked] = useState(false);
+  const [quantity, setQuantity] = useState("1");
+  const [error, setError] = useState<string | null>(null);
+  const n = Number(quantity.trim());
+  const valid = Number.isInteger(n) && n >= 1;
+
+  async function convert() {
+    if (!asked) {
+      setAsked(true);
+      return;
+    }
+    try {
+      const poolId = await makePool(store, it.id, n);
+      navigate(`/items/${poolId}`, true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not make it a counted stack");
+      setAsked(false);
+    }
+  }
+
+  return (
+    <>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <label className="tight">
+        <span>How many</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          step={1}
+          value={quantity}
+          onChange={(e) => {
+            setQuantity(e.target.value);
+            setAsked(false);
+          }}
+        />
+      </label>
+      <button type="button" className={asked ? "warn" : ""} disabled={!valid} onClick={() => void convert()}>
+        {asked ? "Really make it a counted stack?" : "Make this a counted stack…"}
+      </button>
+    </>
+  );
+}
+
 /** "Checked out by Alice for Spring camp · 2026-09-01". */
 export function describeMovement(state: State, e: HistoryEntry): string {
   const who = userName(state, e.actor_id);
   const when = localMinute(e.at);
+  // A pool's lines carry a count instead of the whole item (FR-INV-34, FR-INV-35).
+  if (e.type === "recounted") return `Recounted to ${e.count} by ${who}: ${e.reason} · ${when}`;
+  if (e.count != null) {
+    if (e.type === "checked_in") return `Returned ${e.count} by ${who} · ${when}`;
+    return e.event
+      ? `Checked out ${e.count} by ${who} for ${e.event} · ${when}`
+      : `Checked out ${e.count} by ${who} · ${when}`;
+  }
   if (e.type === "checked_in") return `Returned by ${who} · ${when}`;
   const verb = e.supersedes ? "Transferred to" : "Checked out by";
   return e.event ? `${verb} ${who} for ${e.event} · ${when}` : `${verb} ${who} · ${when}`;
@@ -963,6 +1046,239 @@ function EditItem({
 function withoutName(values: ItemInput): Partial<ItemInput> {
   const { name, category_ids, ...rest } = values;
   return rest;
+}
+
+/**
+ * A counted stack (FR-INV-34): owned, in, and out by holder, checked out and
+ * returned by count, recounted with a reason. No code, no units, and neither
+ * "Group with" nor "Make this a single item": a pool is not a name for units.
+ */
+function PoolPage({
+  store,
+  id,
+  it,
+  onEdit,
+  photos,
+  changes,
+  record,
+}: Props & {
+  it: Item;
+  onEdit: () => void;
+  photos: React.ReactNode;
+  changes: React.ReactNode;
+  record: Log | null;
+}) {
+  const state = store.state;
+  const [moved, confirm] = useFlash(CONFIRM_MS);
+  const onItem = { entity_type: "item", entity_id: id };
+  const counts = poolCounts(it);
+  const open = openRepairs(state, id);
+
+  return (
+    <Page
+      title="Item"
+      back="/"
+      actions={
+        <>
+          <PoolActions store={store} it={it} onMoved={confirm} />
+          <button type="button" onClick={onEdit}>
+            Edit
+          </button>
+          <DeleteItem store={store} it={it} />
+        </>
+      }
+    >
+      {moved && (
+        <p className="confirmed" role="status">
+          {moved}
+        </p>
+      )}
+      <h2 className="item-title">
+        {it.name}
+        <span className="badge">Counted stack</span>
+        {it.retired && <span className="badge">Retired</span>}
+      </h2>
+      {open.length > 0 && (
+        <p className="notice" role="note">
+          Needs repair · {open[0]!.description}
+        </p>
+      )}
+      <dl className="facts">
+        <dt>Owned</dt>
+        <dd>{counts.owned}</dd>
+        <dt>In</dt>
+        <dd>{counts.in}</dd>
+        <dt>Out</dt>
+        <dd>
+          {counts.out.length === 0
+            ? "None"
+            : counts.out.map((o) => `${userName(state, o.holder_id)} · ${o.count}`).join(", ")}
+        </dd>
+        <dt>Home</dt>
+        <dd>{homeLabel(state, it) || "—"}</dd>
+        {categoriesOf(state, it).length > 0 && (
+          <>
+            <dt>{categoriesOf(state, it).length > 1 ? "Categories" : "Category"}</dt>
+            <dd>{categoryNames(state, it)}</dd>
+          </>
+        )}
+        <dt>Description</dt>
+        <dd className="prose">{it.description || "—"}</dd>
+      </dl>
+
+      <details className="fold">
+        <summary>
+          <h3 className="section">Details</h3>
+        </summary>
+        <dl className="facts">
+          <dt>Bought</dt>
+          <dd>{boughtLabel(it) || "—"}</dd>
+          <dt>Added</dt>
+          <dd>{it.added_at ? isoDate(it.added_at) : "—"}</dd>
+          <dt>Modified</dt>
+          <dd>{it.modified_at ? isoDate(it.modified_at) : "—"}</dd>
+        </dl>
+      </details>
+
+      <h3 className="section">Repairs</h3>
+      <Repairs store={store} id={id} />
+
+      <h3 className="section">Photos</h3>
+      {photos}
+
+      <HistorySection store={store} id={id} record={record}>
+        <AddNote store={store} on={onItem} />
+      </HistorySection>
+
+      {changes}
+    </Page>
+  );
+}
+
+/**
+ * Check out, return, and recount a pool, by count (FR-OUT-22, FR-OUT-23,
+ * FR-INV-35). Taking more than are in warns, never blocks.
+ */
+function PoolActions({ store, it, onMoved }: { store: Store; it: Item; onMoved: (message: string) => void }) {
+  const [mode, setMode] = useState<"out" | "in" | "recount" | null>(null);
+  const [count, setCount] = useState("1");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const state = store.state;
+  const me = store.meta.user?.id;
+  const event = store.meta.session_event;
+  const counts = poolCounts(it);
+  const mine = counts.out.find((o) => o.holder_id === me)?.count ?? 0;
+
+  function begin(next: "out" | "in" | "recount") {
+    setMode(next);
+    setError(null);
+    setReason("");
+    setCount(next === "in" ? String(mine || 1) : next === "recount" ? String(counts.in) : "1");
+  }
+
+  const n = Number(count.trim());
+  const validCount = Number.isInteger(n) && (mode === "recount" ? n >= 0 : n >= 1);
+  const overdraw = mode === "out" && validCount && n > counts.in;
+
+  async function submit() {
+    if (!mode || !validCount || (mode === "recount" && reason.trim() === "")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (mode === "out") await checkOutPool(store, it.id, { count: n, event });
+      else if (mode === "in") await checkInPool(store, it.id, { count: n });
+      else await recount(store, it.id, n, reason);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not record it");
+      setBusy(false);
+      return;
+    }
+    const label = mode === "out" ? `Checked out ${n}` : mode === "in" ? `Returned ${n}` : `Recounted to ${n}`;
+    setBusy(false);
+    setMode(null);
+    onMoved(`${label} · ${displayName(state, it)}`);
+  }
+
+  if (it.retired) {
+    return (
+      <p className="notice" role="note">
+        Retired. Cannot be checked out.
+      </p>
+    );
+  }
+
+  return (
+    <div className="move-actions">
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {overdraw && (
+        <p className="notice" role="note">
+          Only {counts.in} in. This takes it into overdraw.
+        </p>
+      )}
+      {mode && (
+        <label className="tight">
+          <span>How many</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={mode === "recount" ? 0 : 1}
+            step={1}
+            autoFocus
+            value={count}
+            onChange={(e) => setCount(e.target.value)}
+          />
+        </label>
+      )}
+      {mode === "recount" && (
+        <label>
+          <span>Why</span>
+          <textarea
+            aria-label="Why"
+            rows={2}
+            placeholder="e.g. counted on the shelf"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </label>
+      )}
+      {mode === "out" && <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>}
+      {mode ? (
+        <div className="row">
+          <button
+            type="button"
+            className="primary"
+            disabled={busy || !validCount || (mode === "recount" && reason.trim() === "")}
+            onClick={() => void submit()}
+          >
+            {mode === "out" ? "Check out" : mode === "in" ? "Return" : "Recount"}
+          </button>
+          <button type="button" onClick={() => setMode(null)}>
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <div className="row">
+          <button type="button" className="primary" onClick={() => begin("out")}>
+            Check out
+          </button>
+          {mine > 0 && (
+            <button type="button" onClick={() => begin("in")}>
+              Return
+            </button>
+          )}
+          <button type="button" onClick={() => begin("recount")}>
+            Recount
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**

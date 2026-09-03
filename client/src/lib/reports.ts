@@ -4,15 +4,18 @@
  * functions over state; the device answers this with no network.
  */
 import { DAY_MS } from "./clock";
-import { displayName, group, type Item, items, movable } from "./inventory";
+import { displayName, group, isPool, type Item, items, movable, poolCounts } from "./inventory";
 import type { State } from "./replay";
 
 export interface OutItem {
   item: Item;
-  /** Whole days since the check-out. */
+  /** Whole days since the check-out. Zero for a pool's line: a holder's count can be the sum of
+   * check-outs at different times, so there is no one day to show (FR-RPT-11). */
   days: number;
   event: string | null;
   overdue: boolean;
+  /** Set only for a pool's line (FR-RPT-11): how many this holder has. */
+  count?: number;
 }
 
 export interface Holder {
@@ -42,11 +45,23 @@ export function isOverdue(state: State, it: Item, now: number): boolean {
 const holderName = (state: State, id: string): string =>
   (state.user?.[id]?.name as string | undefined) ?? "(unknown person)";
 
-/** Everyone who has something, by name; each person's gear longest out first. Missing gear is not out (FR-INV-19). */
+/**
+ * Everyone who has something, by name; each person's gear longest out first.
+ * Missing gear is not out (FR-INV-19). A pool has no single "out": it lists
+ * once per holder, with its count, and carries no days or event of its own
+ * (FR-RPT-11).
+ */
 export function whatIsOut(state: State, now: number): OutReport {
   const byHolder = new Map<string, OutItem[]>();
   let overdue = 0;
   for (const it of items(state)) {
+    if (isPool(it)) {
+      for (const out of poolCounts(it).out) {
+        const entry: OutItem = { item: it, days: 0, event: null, overdue: false, count: out.count };
+        byHolder.set(out.holder_id, [...(byHolder.get(out.holder_id) ?? []), entry]);
+      }
+      continue;
+    }
     if (it.status !== "out" || it.missing) continue;
     const entry: OutItem = {
       item: it,

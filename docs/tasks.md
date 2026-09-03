@@ -63,13 +63,6 @@ Public pages come before the labelling walk, not after it. From the moment stick
 Bowls, plates, cups: a stack we count, not twenty stickers. FR-INV-34 to 36, FR-OUT-22 to 24, FR-RPT-11, FR-MCP-08, and
 the pool clauses in FR-RES-13 and FR-RES-15. Queued behind go-live.
 
-- [ ] New item. "We have several of these" offers two kinds: labelled one by one (units, as today) or a stack we count,
-      with a quantity. A single item can become a pool the way it becomes a generic (FR-INV-26), keeping its record.
-- [ ] Pool page. Owned, in, and out by holder (FR-INV-36). Check out asks how many, default 1, with the event line
-      (FR-OUT-22). Return offers what the person has out to confirm or change (FR-OUT-23). Recount asks for the count
-      and a reason (FR-INV-35). Overdraw warns in the notice style repair warnings use.
-- [ ] Lists and reports. The list row shows in and out counts; What is out lists a pool once per holder with its count
-      (FR-RPT-11); the item's History shows counts on each line.
 - [ ] A reservation's pool line reads "done" from the pool's latest movement, so a second check-out for the same camp
       replaces the count instead of adding to it. Derive per-event out counts at replay (both languages, a vector) and
       read the line from that.

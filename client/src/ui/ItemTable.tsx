@@ -175,6 +175,9 @@ function ItemRows({ store, row, showCategory }: RowProps) {
           {row.kind === "generic" && (
             <span className="muted small home">{`${plural(row.counts.total, "unit")} · ${row.counts.in} in`}</span>
           )}
+          {row.kind === "pool" && (
+            <span className="muted small home">{`${row.pool.in} in · ${row.pool.owned - row.pool.in} out`}</span>
+          )}
         </td>
         {showCategory && <td>{categoryNames(state, row.item)}</td>}
         <td>{homeLabel(state, row.item)}</td>

@@ -15,6 +15,7 @@ export function daysLabel(days: number): string {
 }
 
 function detail(store: Store, entry: OutItem): string {
+  if (entry.count != null) return `${entry.count} out`;
   return [entry.event ?? "", `out ${daysLabel(entry.days)}`].filter(Boolean).join(" · ");
 }
 

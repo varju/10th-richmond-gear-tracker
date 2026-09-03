@@ -349,6 +349,36 @@ test("ticking several saves the name and the one in hand as #1 (FR-INV-21, S-BOO
   expect(inv.currentCode(store.state, units[0]!.id)?.id).toBe("ABCDEFGH23");
 });
 
+test("choosing a stack we count saves a pool with a quantity, and takes no code (FR-INV-34)", async () => {
+  await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Name"), "Bowls");
+  await user.click(screen.getByLabelText("We have several of these"));
+  expect(screen.getByLabelText("Labelled one by one")).toBeChecked();
+  await user.click(screen.getByLabelText("A stack we count"));
+  await user.clear(screen.getByLabelText("How many"));
+  await user.type(screen.getByLabelText("How many"), "20");
+  await user.click(screen.getByRole("button", { name: "Save" }));
+
+  await waitFor(() => expect(inv.items(store.state).some((i) => i.name === "Bowls")).toBe(true));
+  const bowls = inv.items(store.state).find((i) => i.name === "Bowls")!;
+  expect(bowls).toMatchObject({ generic: true, pool: true, pool_in: 20 });
+  expect(inv.unitsOf(store.state, bowls.id)).toEqual([]);
+  expect(inv.codesFor(store.state, bowls.id)).toEqual([]);
+});
+
+test("a stack we count is not offered when a code was just scanned; a pool takes no code", async () => {
+  await fixture();
+  navigate("/scan");
+  navigate("/items/new?code=ABCDEFGH23");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByLabelText("We have several of these"));
+  expect(screen.queryByLabelText("A stack we count")).not.toBeInTheDocument();
+});
+
 test("back with a half-typed new item asks; Keep editing stays, Save creates it, Discard drops it", async () => {
   await fixture();
   navigate("/items/new");

@@ -4,7 +4,7 @@
  * syncs afterwards (FR-OFF-03).
  */
 import { seen } from "./actions";
-import { aliases, item, type Item } from "./inventory";
+import { aliases, isPool, item, type Item } from "./inventory";
 import * as notes from "./notes";
 import type { Log } from "./record";
 import { type Movement, type Note, replayOrder } from "./replay";
@@ -67,6 +67,56 @@ export async function checkIn(store: Store, itemId: string, options: MoveOptions
   return movement;
 }
 
+function poolItem(store: Store, itemId: string): Item {
+  const it = item(store.state, itemId);
+  if (!it) throw new Error("no such item");
+  if (!isPool(it)) throw new Error("not a pool");
+  return it;
+}
+
+export interface PoolCheckOutOptions extends MoveOptions {
+  count: number;
+}
+
+export interface PoolCheckInOptions {
+  count: number;
+  note?: string;
+}
+
+/**
+ * Take some of a pool (FR-OUT-22): several people may have some out at once,
+ * against an event like any check-out. Taking more than are in warns, never
+ * blocks; that is for the caller to say, not this.
+ */
+export async function checkOutPool(store: Store, itemId: string, options: PoolCheckOutOptions) {
+  const it = poolItem(store, itemId);
+  if (it.retired) throw new Error("retired items cannot be checked out");
+  if (!Number.isInteger(options.count) || options.count < 1) throw new Error("pick a count of at least 1");
+  return move(
+    store,
+    itemId,
+    "checked_out",
+    { holder_id: actor(store), count: options.count, event: options.event?.trim() || null },
+    options.note,
+  );
+}
+
+/** Return some of a pool (FR-OUT-23): what is left over stays against the holder's name. Anyone can return another's. */
+export async function checkInPool(store: Store, itemId: string, options: PoolCheckInOptions) {
+  poolItem(store, itemId);
+  if (!Number.isInteger(options.count) || options.count < 1) throw new Error("pick a count of at least 1");
+  return move(store, itemId, "checked_in", { count: options.count }, options.note);
+}
+
+/** How many are in right now, with a reason (FR-INV-35). What is already out is untouched; anyone signed in may record one. */
+export async function recount(store: Store, itemId: string, count: number, reason: string) {
+  poolItem(store, itemId);
+  if (!Number.isInteger(count) || count < 0) throw new Error("pick a count of zero or more");
+  const why = reason.trim();
+  if (!why) throw new Error("say why");
+  return move(store, itemId, "recounted", { count, reason: why });
+}
+
 /** Take something someone else has (FR-OUT-12). Names the check-out it replaces, so replay knows it is not a conflict. */
 export async function transfer(store: Store, itemId: string, options: MoveOptions = {}) {
   const it = current(store, itemId);
@@ -115,18 +165,23 @@ export async function correctEvent(store: Store, itemId: string, movementId: str
 
 export interface HistoryEntry {
   id: string;
-  type: "checked_out" | "checked_in";
+  type: "checked_out" | "checked_in" | "recounted";
   actor_id: string;
   holder_id: string | null;
   event: string | null;
   supersedes: string | null;
   at: number;
   notes: Note[];
+  /** Set on a pool's line (FR-INV-34, FR-INV-35): how many this checked-out or checked-in carried, or a recount's new count. */
+  count?: number;
+  /** Set only on a "recounted" line (FR-INV-35): why. */
+  reason?: string | null;
 }
 
 /**
  * The item's movements, newest first, each with its notes (FR-INV-09). A merged
- * duplicate's movements belong to the survivor (FR-INV-13).
+ * duplicate's movements belong to the survivor (FR-INV-13). A pool's recounts
+ * are here too, alongside its checked-out and checked-in lines (FR-INV-35).
  */
 export function history(log: Log, itemId: string): HistoryEntry[] {
   const notes = aliases(log.state, itemId).flatMap((id) => (item(log.state, id)?.notes ?? []) as Note[]);
@@ -141,7 +196,7 @@ export function history(log: Log, itemId: string): HistoryEntry[] {
     }
   }
   return events
-    .filter((e) => e.type === "checked_out" || e.type === "checked_in")
+    .filter((e) => e.type === "checked_out" || e.type === "checked_in" || e.type === "recounted")
     .map((e) => ({
       id: e.id,
       type: e.type as HistoryEntry["type"],
@@ -151,6 +206,8 @@ export function history(log: Log, itemId: string): HistoryEntry[] {
       supersedes: (e.payload.supersedes as string | undefined) ?? null,
       at: e.effective_at,
       notes: notes.filter((n) => n.movement_id === e.id),
+      count: (e.payload.count as number | undefined) ?? undefined,
+      reason: (e.payload.reason as string | undefined) ?? null,
     }))
     .reverse();
 }

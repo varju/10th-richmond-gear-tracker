@@ -104,3 +104,47 @@ test("a merged duplicate's movements join the survivor's history, and it cannot 
   ]);
   await expect(mv.checkOut(store, tent)).rejects.toThrow("merged");
 });
+
+test("a pool moves by count: several people can have some out at once (FR-OUT-22, FR-OUT-24)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  const out = await mv.checkOutPool(store, bowls, { count: 6, event: "Fall Camp" });
+  expect(out.payload).toEqual({ holder_id: "alice", count: 6, event: "Fall Camp" });
+  expect(item(store.state, bowls)).toMatchObject({ pool_in: 14, pool_out: { alice: 6 } });
+
+  await store.setMeta({ user: { id: "carol", name: "Carol", role: "user", active: true } });
+  await mv.checkOutPool(store, bowls, { count: 3 });
+  expect(item(store.state, bowls)).toMatchObject({ pool_in: 11, pool_out: { alice: 6, carol: 3 } });
+
+  await mv.checkInPool(store, bowls, { count: 1 });
+  expect(item(store.state, bowls)).toMatchObject({ pool_in: 12, pool_out: { alice: 6, carol: 2 } });
+
+  // Never blocked; the count still records, clamped at zero (FR-OUT-22).
+  await mv.checkOutPool(store, bowls, { count: 50 });
+  expect(item(store.state, bowls)).toMatchObject({ pool_in: 0, pool_out: { alice: 6, carol: 52 } });
+
+  await expect(mv.checkOutPool(store, tent, { count: 1 })).rejects.toThrow("not a pool");
+  await expect(mv.checkOutPool(store, bowls, { count: 0 })).rejects.toThrow("at least 1");
+});
+
+test("a recount sets what is in right now, with a reason; what is out is untouched (FR-INV-35)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  await mv.checkOutPool(store, bowls, { count: 5 });
+  await mv.recount(store, bowls, 12, "counted on the shelf");
+  expect(item(store.state, bowls)).toMatchObject({ pool_in: 12, pool_out: { alice: 5 } });
+
+  await expect(mv.recount(store, bowls, 12, " ")).rejects.toThrow("say why");
+  await expect(mv.recount(store, bowls, -1, "why")).rejects.toThrow("zero or more");
+  await expect(mv.recount(store, tent, 1, "why")).rejects.toThrow("not a pool");
+});
+
+test("history carries a pool's counts, checked-out, checked-in and recounted lines alike (FR-INV-34, FR-INV-35)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  await mv.checkOutPool(store, bowls, { count: 6, event: "Fall Camp" });
+  await mv.checkInPool(store, bowls, { count: 2 });
+  await mv.recount(store, bowls, 15, "counted on the shelf");
+  expect(mv.history(store, bowls).map((e) => [e.type, e.count, e.reason])).toEqual([
+    ["recounted", 15, "counted on the shelf"],
+    ["checked_in", 2, null],
+    ["checked_out", 6, null],
+  ]);
+});

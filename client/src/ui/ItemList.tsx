@@ -55,12 +55,14 @@ function ItemRow({ store, row }: { store: Store; row: Row }) {
         <span className="muted small">
           {row.kind === "generic"
             ? `${plural(row.counts.total, "unit")} · ${row.counts.in} in`
-            : [
-                homeLabel(state, row.item),
-                row.item.status === "out" && !row.item.missing ? statusLabel(state, row.item) : "",
-              ]
-                .filter(Boolean)
-                .join(" · ")}
+            : row.kind === "pool"
+              ? `${row.pool.in} in · ${row.pool.owned - row.pool.in} out`
+              : [
+                  homeLabel(state, row.item),
+                  row.item.status === "out" && !row.item.missing ? statusLabel(state, row.item) : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
         </span>
       </button>
     </li>

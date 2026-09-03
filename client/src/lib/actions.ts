@@ -122,6 +122,10 @@ export async function updateItem(store: Store, id: string, patch: Partial<ItemIn
 export const createGeneric = (store: Store, input: ItemInput) =>
   created(store, "item", { ...clean(withCategoryIds(store, input)), generic: true });
 
+/** A counted stack, not units (FR-INV-34): always generic, with no code and no units of its own. */
+export const createPool = (store: Store, input: ItemInput, quantity: number) =>
+  created(store, "item", { ...clean(withCategoryIds(store, input)), generic: true, pool: true, quantity });
+
 /** One of them, numbered under its generic (FR-INV-22). The number is checked here, on this device. */
 export async function createUnit(store: Store, input: UnitInput): Promise<string> {
   const parent = item(store.state, input.parent_id);
@@ -165,6 +169,40 @@ export async function makeGeneric(store: Store, id: string, number = "1"): Promi
   });
   await changed(store, "item", id, { parent_id: genericId, number: first, name: null });
   return genericId;
+}
+
+/**
+ * A single item becomes a counted stack (FR-INV-34), the way it becomes a
+ * generic (FR-INV-26). A pool takes no code and no units of its own, so
+ * unlike makeGeneric this item cannot go on being the thing itself: it folds
+ * into a fresh pool entity, the way a duplicate record folds into its
+ * survivor (FR-INV-13). Its code, movements and tickets stay reachable
+ * through the fold; nothing in its history is rewritten. It must be in, the
+ * same guard mergeItem and makeSingle use.
+ */
+export async function makePool(store: Store, id: string, quantity: number): Promise<string> {
+  const it = item(store.state, id);
+  if (!it) throw new Error("no such item");
+  if (it.generic) throw new Error("already several");
+  if (it.parent_id) throw new Error("this is already one of several");
+  if (it.merged_into) throw new Error("already merged");
+  if (it.status !== "in") throw new Error("return it first");
+  if (!Number.isInteger(quantity) || quantity < 1) throw new Error("pick a quantity of at least 1");
+  const poolId = await createPool(
+    store,
+    {
+      name: it.name ?? "",
+      description: it.description ?? "",
+      home_location_id: it.home_location_id ?? null,
+      sub_location: it.sub_location ?? "",
+      purchase_date: it.purchase_date ?? null,
+      price: it.price ?? null,
+      category_ids: categoriesOf(store.state, it),
+    },
+    quantity,
+  );
+  await changed(store, "item", id, { merged_into: poolId });
+  return poolId;
 }
 
 /** A unit's own fields: its number under the parent, and its nickname (FR-INV-23). */

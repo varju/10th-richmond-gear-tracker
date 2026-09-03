@@ -283,13 +283,14 @@ export const numberTaken = (state: State, genericId: string, number: string, exc
 /**
  * Generics worth offering on a scanned code, most recently touched first
  * (FR-INV-24). Touched means the generic itself or any of its units, so the
- * one being labelled stays at the top of the walk.
+ * one being labelled stays at the top of the walk. A pool takes no code, so
+ * it is never offered here (FR-INV-34).
  */
 export function recentGenerics(state: State, limit = 4): Item[] {
   const touched = (g: Item): number =>
     Math.max(g.modified_at ?? 0, ...unitsOf(state, g.id).map((u) => Math.max(u.added_at ?? 0, u.modified_at ?? 0)), 0);
   return generics(state)
-    .filter((g) => !g.retired && !g.merged_into)
+    .filter((g) => !g.retired && !g.merged_into && !isPool(g))
     .sort((a, b) => touched(b) - touched(a) || displayName(state, a).localeCompare(displayName(state, b)))
     .slice(0, limit);
 }
@@ -376,16 +377,27 @@ export interface GenericRow {
   counts: { total: number; in: number };
 }
 
-export type Row = SingleRow | GenericRow;
+export interface PoolRow {
+  kind: "pool";
+  item: Item;
+  name: string;
+  /** Owned, in, and out by holder (FR-INV-36). */
+  pool: PoolCounts;
+}
+
+export type Row = SingleRow | GenericRow | PoolRow;
 
 /**
  * The list: one row per generic with its counts, single items as rows of their
  * own (FR-INV-25). Filters apply to units, and a generic is here when any of
  * its units matched. A generic with nothing under it is still a row when only
- * the search text is set, so an empty one can be found and given units.
+ * the search text is set, so an empty one can be found and given units. A
+ * pool is its own row kind, with its counts instead of units (FR-INV-36): it
+ * has none to hold, and is found the same way an empty generic is.
  */
 export function rows(state: State, filter: Filter): Row[] {
   const singles: Row[] = [];
+  const pools: Row[] = [];
   const byParent = new Map<string, Item[]>();
   for (const it of search(state, filter)) {
     const parent = it.parent_id && state.item?.[it.parent_id] ? it.parent_id : "";
@@ -396,7 +408,9 @@ export function rows(state: State, filter: Filter): Row[] {
     const words = terms(filter.query);
     for (const g of generics(state)) {
       if (g.merged_into || Boolean(g.retired) !== Boolean(filter.retired)) continue;
-      if (matches(state, g, words) && !byParent.has(g.id)) byParent.set(g.id, []);
+      if (!matches(state, g, words)) continue;
+      if (isPool(g)) pools.push({ kind: "pool", item: g, name: displayName(state, g), pool: poolCounts(g) });
+      else if (!byParent.has(g.id)) byParent.set(g.id, []);
     }
   }
   const grouped: Row[] = [...byParent.entries()].map(([id, units]) => {
@@ -410,12 +424,12 @@ export function rows(state: State, filter: Filter): Row[] {
       counts: { total: units.length, in: units.filter((u) => u.status === "in" && !u.missing).length },
     };
   });
-  return [...grouped, ...singles].sort((a, b) => a.name.localeCompare(b.name));
+  return [...grouped, ...singles, ...pools].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** How many things the rows stand for: units and single items, not generics. */
+/** How many things the rows stand for: units and single items, and a pool's owned quantity, not a generic itself. */
 export const countItems = (list: Row[]): number =>
-  list.reduce((n, r) => n + (r.kind === "single" ? 1 : r.units.length), 0);
+  list.reduce((n, r) => n + (r.kind === "single" ? 1 : r.kind === "pool" ? r.pool.owned : r.units.length), 0);
 
 /** The shelf labels in use, for a suggestion list. Labels, not entities (FR-SET-03). */
 export function subLocations(state: State, locationId?: string): string[] {

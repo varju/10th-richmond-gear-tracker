@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { addUnit, bindCode, createGeneric, createItem, createUnit, type ItemInput } from "../lib/actions";
+import { addUnit, bindCode, createGeneric, createItem, createPool, createUnit, type ItemInput } from "../lib/actions";
 import { categories, displayName, item, nextNumber, numberTaken } from "../lib/inventory";
 import { back, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -26,21 +26,30 @@ export function NewItem({ store, code }: Props) {
   // What Save last left behind. Anything typed since is a draft; leaving asks first.
   const [baseline, setBaseline] = useState<ItemInput>(initial);
   const [several, setSeveral] = useState(false);
+  // Labelled one by one (units) or a stack we count (a pool); a pool never has a code (FR-INV-34).
+  const [kind, setKind] = useState<"units" | "pool">("units");
+  const [quantity, setQuantity] = useState("1");
   const [again, setAgain] = useState(false);
   const [keep, setKeep] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, flash] = useFlash(CONFIRM_MS);
   const nameRef = useRef<HTMLInputElement>(null);
   const name = (values.name ?? "").trim();
+  const asPool = several && kind === "pool" && !code;
+  const qty = Number(quantity.trim());
+  const validQuantity = Number.isInteger(qty) && qty >= 1;
   const dirty = several || (Object.keys(values) as (keyof ItemInput)[]).some((k) => values[k] !== baseline[k]);
-  useUnsaved(dirty, { save: () => create().then(() => true), canSave: name !== "" });
+  useUnsaved(dirty, { save: () => create().then(() => true), canSave: name !== "" && (!asPool || validQuantity) });
 
-  /** Returns what the walk should open next: the new generic, or the thing the code went on. */
+  /** Returns what the walk should open next: the new generic or pool, or the thing the code went on. */
   async function create(): Promise<string> {
     setSaving(true);
     try {
       let id: string;
-      if (several) {
+      if (asPool) {
+        // A stack we count, not units (FR-INV-34): it has no code, so nothing to bind.
+        id = await createPool(store, values, qty);
+      } else if (several) {
         // A name several things share, and the one in hand as its first unit (FR-INV-26, S-BOOT-03).
         const genericId = await createGeneric(store, values);
         if (!code) id = genericId;
@@ -77,6 +86,8 @@ export function NewItem({ store, code }: Props) {
     setValues(next);
     setBaseline(next);
     setSeveral(false);
+    setKind("units");
+    setQuantity("1");
     flash(`Saved · ${what}`);
     // The name is the one field that must differ; the cursor lands on it, ready to be typed over.
     nameRef.current?.select();
@@ -87,7 +98,12 @@ export function NewItem({ store, code }: Props) {
       title="New item"
       back={code ? "/scan" : "/"}
       actions={
-        <button className="primary" type="button" onClick={save} disabled={saving || name === ""}>
+        <button
+          className="primary"
+          type="button"
+          onClick={save}
+          disabled={saving || name === "" || (asPool && !validQuantity)}
+        >
           Save
         </button>
       }
@@ -107,12 +123,39 @@ export function NewItem({ store, code }: Props) {
         <input type="checkbox" checked={several} onChange={(e) => setSeveral(e.target.checked)} />
         <span>{SEVERAL}</span>
       </label>
+      {several && !code && (
+        <div className="row">
+          <label className="check">
+            <input type="radio" name="several-kind" checked={kind === "units"} onChange={() => setKind("units")} />
+            <span>Labelled one by one</span>
+          </label>
+          <label className="check">
+            <input type="radio" name="several-kind" checked={kind === "pool"} onChange={() => setKind("pool")} />
+            <span>A stack we count</span>
+          </label>
+        </div>
+      )}
+      {asPool && (
+        <label className="tight">
+          <span>How many</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            step={1}
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+          />
+        </label>
+      )}
       <p className="muted small check-hint">
-        {several
-          ? code
-            ? "Saves the name, and this one as #1. The next scan offers another."
-            : "Saves the name on its own. Units come later, one per code."
-          : "Tick this for gear the group has more than one of, like tents."}
+        {asPool
+          ? "Saves the name and how many, counted rather than labelled. It takes no code."
+          : several
+            ? code
+              ? "Saves the name, and this one as #1. The next scan offers another."
+              : "Saves the name on its own. Units come later, one per code."
+            : "Tick this for gear the group has more than one of, like tents."}
       </p>
       {!code && (
         <>

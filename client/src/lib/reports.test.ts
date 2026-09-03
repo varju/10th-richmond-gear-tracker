@@ -66,3 +66,22 @@ test("missing gear is not out, even with a check-out standing (FR-INV-19)", () =
   expect(report.total).toBe(3);
   expect(report.holders.flatMap((h) => h.items.map((i) => i.item.name))).not.toContain("Axe");
 });
+
+test("a pool lists once per holder, with its count, and carries no days or event of its own (FR-RPT-11)", () => {
+  const withPool: State = {
+    ...state,
+    item: {
+      ...state.item,
+      bowls: { name: "Bowls", generic: true, pool: true, pool_in: 5, pool_out: { alice: 4, bob: 6 } },
+    },
+  };
+  const report = whatIsOut(withPool, T0);
+  expect(report.total).toBe(6);
+  expect(report.overdue).toBe(1);
+  const alice = report.holders.find((h) => h.name === "Alice")!;
+  const bob = report.holders.find((h) => h.name === "Bob")!;
+  expect(alice.items.map((i) => i.item.name)).toEqual(["Stove", "Bowls"]);
+  expect(alice.items[1]).toMatchObject({ count: 4, days: 0, event: null, overdue: false });
+  expect(bob.items.map((i) => i.item.name)).toEqual(["Tent", "Axe", "Bowls"]);
+  expect(bob.items[2]).toMatchObject({ count: 6, days: 0, event: null, overdue: false });
+});

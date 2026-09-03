@@ -4,6 +4,7 @@ import * as act from "./actions";
 import { openDb } from "./db";
 import * as inv from "./inventory";
 import { checkIn, checkOut } from "./movement";
+import * as mv from "./movement";
 import { Store } from "./store";
 
 let store: Store;
@@ -124,6 +125,24 @@ test("the list is one row per generic with counts, single items on their own (FR
   expect(inv.countItems(list)).toBe(6);
 });
 
+test("a pool is its own row, with in and out counts instead of units (FR-INV-36)", async () => {
+  const f = await fixture();
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  await mv.checkOutPool(store, bowls, { count: 6 });
+  const list = inv.rows(store.state, {});
+  expect(list.map((r) => [r.kind, r.name])).toEqual([
+    ["pool", "Bowls"],
+    ["single", "Stove"],
+    ["single", "Tent 1"],
+    ["single", "Tent 2"],
+  ]);
+  const row = list[0] as inv.PoolRow;
+  expect(row.pool).toEqual({ owned: 20, in: 14, out: [{ holder_id: "alice", count: 6 }] });
+  // A pool's own quantity counts as that many things, not one generic row.
+  expect(inv.countItems(list)).toBe(23);
+  expect(f.stove).toBeTruthy();
+});
+
 test("filters apply to units, and show the generics that have any (FR-INV-25)", async () => {
   const f = await withUnits();
   await checkOut(store, f.u1, { event: "Fall Camp" });
@@ -160,6 +179,27 @@ test("marking an item generic keeps it, under the number given (FR-INV-26)", asy
   expect(inv.displayName(store.state, inv.item(store.state, f.t2)!)).toBe("Tent 2 #B");
   expect(lettered).toBeTruthy();
   await expect(act.makeGeneric(store, f.stove, " ")).rejects.toThrow("a unit needs a number");
+});
+
+test("a single item becomes a counted stack, the way it becomes a generic (FR-INV-26, FR-INV-34)", async () => {
+  const f = await fixture();
+  await act.bindCode(store, "ABCDEFGH23", f.stove);
+  await checkOut(store, f.stove, { event: "Fall Camp" });
+  await checkIn(store, f.stove);
+  const poolId = await act.makePool(store, f.stove, 20);
+
+  const pool = inv.item(store.state, poolId)!;
+  expect(pool).toMatchObject({ name: "Stove", generic: true, pool: true, pool_in: 20, pool_out: {} });
+  expect(inv.poolCounts(pool)).toEqual({ owned: 20, in: 20, out: [] });
+  // The original record folds into the pool, like a duplicate: its sticker and history stay reachable.
+  expect(inv.item(store.state, f.stove)?.merged_into).toBe(poolId);
+  expect(inv.currentCode(store.state, poolId)?.id).toBe("ABCDEFGH23");
+  expect(inv.aliases(store.state, poolId)).toContain(f.stove);
+
+  await expect(act.makePool(store, f.t1, 0)).rejects.toThrow("quantity");
+  await checkOut(store, f.t1, { event: "Fall Camp" });
+  await expect(act.makePool(store, f.t1, 1)).rejects.toThrow("return it first");
+  await expect(act.makePool(store, poolId, 1)).rejects.toThrow("already several");
 });
 
 test("a generic with one unit becomes a single item again, the reverse of makeGeneric (FR-INV-33)", async () => {
@@ -301,6 +341,13 @@ test("recent generics come back most recently touched first (FR-INV-24)", async 
   await act.addUnit(store, f.tents);
   expect(inv.recentGenerics(store.state).map((g) => g.name)).toEqual(["4-person tent", "3-person tent"]);
   expect(other).toBeTruthy();
+});
+
+test("recent generics never offer a pool: it takes no code (FR-INV-24, FR-INV-34)", async () => {
+  await act.createPool(store, { name: "Bowls" }, 20);
+  const tents = await act.createGeneric(store, { name: "4-person tent" });
+  expect(inv.recentGenerics(store.state).map((g) => g.name)).toEqual(["4-person tent"]);
+  expect(tents).toBeTruthy();
 });
 
 test("search over 500 items stays well inside 200 ms", async () => {
