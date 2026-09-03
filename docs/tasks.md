@@ -34,19 +34,6 @@ The vertical slice is built. What is left needs a phone.
 
 - [ ] End-to-end test on a real phone with wifi and data turned off
 
-## M20 — Second round of phone feedback
-
-From using the app at 10thrichmond.ca/gear. Fixes first, then wording, then the screens. Answers to the open questions
-are folded into each task.
-
-### Items
-
-- [ ] A generic with one unit can become a single item again, the reverse of FR-INV-26. Anyone signed in may do it, from
-      the generic's page. The unit keeps its id, code and history; takes the generic's name, description, categories,
-      home and purchase details; drops its number, and its nickname goes onto the end of the description. The generic is
-      marked merged into the unit, like a duplicate record (FR-INV-13), so its photos and record stay readable. Add
-      FR-INV-33 (Should) for it, and a replay vector.
-
 ## M9 — Go live
 
 First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is
@@ -60,7 +47,7 @@ Public pages come before the labelling walk, not after it. From the moment stick
 ## M21 — Counted pools
 
 Bowls, plates, cups: a stack we count, not twenty stickers. FR-INV-34 to 36, FR-OUT-22 to 24, FR-RPT-11, FR-MCP-08, and
-the pool clauses in FR-RES-13 and FR-RES-15. Queued behind M20 and go-live.
+the pool clauses in FR-RES-13 and FR-RES-15. Queued behind go-live.
 
 - [ ] Event log. `checked_out` and `checked_in` on a pool carry `count`; a `recounted` event carries `count` and
       `reason`. Validate in `events.py`. Replay in both languages: out by holder is checkouts minus returns, never below
