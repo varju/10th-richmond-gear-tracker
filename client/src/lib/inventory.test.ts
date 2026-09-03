@@ -143,6 +143,19 @@ test("a pool is its own row, with in and out counts instead of units (FR-INV-36)
   expect(f.stove).toBeTruthy();
 });
 
+test("a pool matches a location filter on its home and a status filter on its counts (FR-INV-36)", async () => {
+  const f = await fixture();
+  const bowls = await act.createPool(store, { name: "Bowls", home_location_id: f.cold }, 20);
+  const names = (filter: inv.Filter) => inv.rows(store.state, filter).map((r) => r.name);
+  expect(names({ location_id: f.cold })).toContain("Bowls");
+  expect(names({ status: "in" })).toContain("Bowls");
+  expect(names({ status: "out" })).not.toContain("Bowls");
+  await mv.checkOutPool(store, bowls, { count: 20 });
+  expect(names({ status: "out" })).toContain("Bowls");
+  expect(names({ status: "in" })).not.toContain("Bowls");
+  expect(names({ status: "missing" })).not.toContain("Bowls");
+});
+
 test("filters apply to units, and show the generics that have any (FR-INV-25)", async () => {
   const f = await withUnits();
   await checkOut(store, f.u1, { event: "Fall Camp" });

@@ -7,7 +7,7 @@
  * parent and a number, and no name of its own: its name is derived, so read it
  * with displayName and never with `it.name`.
  */
-import type { Fields, Movement, Note, PoolOut, State } from "./replay";
+import type { Fields, Movement, Note, PoolEvents, PoolOut, State } from "./replay";
 
 export interface Item {
   id: string;
@@ -29,6 +29,8 @@ export interface Item {
   pool_in?: number;
   /** Holder id to count, for what is checked out of a pool. Holders at zero are absent (FR-INV-34). */
   pool_out?: PoolOut;
+  /** Event name to count checked out under it, never reduced by a return. Set only on a pool (FR-RES-13). */
+  pool_events?: PoolEvents;
   /** Set on a unit: the generic it belongs to. */
   parent_id?: string | null;
   /** Set on a single item or a generic; a unit reads its generic's (FR-SET-07). */
@@ -395,6 +397,22 @@ export type Row = SingleRow | GenericRow | PoolRow;
  * pool is its own row kind, with its counts instead of units (FR-INV-36): it
  * has none to hold, and is found the same way an empty generic is.
  */
+/**
+ * A pool has no units for search() to filter, so it is matched here: on its
+ * home and shelf, its categories, and its counts. "in" means stock on the
+ * shelf, "out" means anything checked out to a holder. "missing" never
+ * matches; a pool has no such state. Twin of pool_wanted in views.py.
+ */
+function poolWanted(state: State, pool: Item, filter: Filter): boolean {
+  if (filter.location_id && pool.home_location_id !== filter.location_id) return false;
+  if (filter.sub_location && pool.sub_location !== filter.sub_location) return false;
+  if (filter.category_id && !categoriesOf(state, pool).includes(filter.category_id)) return false;
+  const counts = poolCounts(pool);
+  if (filter.status === "in") return counts.in > 0;
+  if (filter.status === "out") return counts.out.length > 0;
+  return filter.status !== "missing";
+}
+
 export function rows(state: State, filter: Filter): Row[] {
   const singles: Row[] = [];
   const pools: Row[] = [];
@@ -404,13 +422,16 @@ export function rows(state: State, filter: Filter): Row[] {
     if (parent) byParent.set(parent, [...(byParent.get(parent) ?? []), it]);
     else singles.push({ kind: "single", item: it, name: displayName(state, it) });
   }
-  if (!filter.location_id && !filter.sub_location && !filter.status && !filter.category_id) {
-    const words = terms(filter.query);
-    for (const g of generics(state)) {
-      if (g.merged_into || Boolean(g.retired) !== Boolean(filter.retired)) continue;
-      if (!matches(state, g, words)) continue;
-      if (isPool(g)) pools.push({ kind: "pool", item: g, name: displayName(state, g), pool: poolCounts(g) });
-      else if (!byParent.has(g.id)) byParent.set(g.id, []);
+  const words = terms(filter.query);
+  const unfiltered = !filter.location_id && !filter.sub_location && !filter.status && !filter.category_id;
+  for (const g of generics(state)) {
+    if (g.merged_into || Boolean(g.retired) !== Boolean(filter.retired)) continue;
+    if (!matches(state, g, words)) continue;
+    if (isPool(g)) {
+      if (poolWanted(state, g, filter))
+        pools.push({ kind: "pool", item: g, name: displayName(state, g), pool: poolCounts(g) });
+    } else if (unfiltered && !byParent.has(g.id)) {
+      byParent.set(g.id, []);
     }
   }
   const grouped: Row[] = [...byParent.entries()].map(([id, units]) => {
