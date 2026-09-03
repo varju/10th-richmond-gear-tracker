@@ -45,6 +45,13 @@ The vertical slice is built. What is left needs a phone.
       endpoints call; no second code path. The server's MCP instructions and the "Connect an assistant" text in Settings
       stop saying Admin work is out of reach. Guide section "assistant.md" follows.
 
+### Reservations
+
+- [ ] Reservation form: one search adds gear. A unit never matches; its generic does. A single item is added as itself.
+      A generic (or pool) row carries a quantity the person adjusts in the list, default 1, so the separate "so many of
+      a generic" select and quantity control go. Units already on a reservation (scanned on, FR-RES-07) still show and
+      can be removed.
+
 ## M9 — Go live
 
 First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is
