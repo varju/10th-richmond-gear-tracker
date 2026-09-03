@@ -63,6 +63,10 @@ are folded into each task.
 ### Settings
 
 - [ ] Drop the Help link at the foot of Settings; Help is in the menu. Help's back button goes home.
+- [ ] Settings shows the build's git short hash, beside the Source link at the foot. The client build has no `.git`
+      (`.dockerignore` drops it), so `make image` passes it as a build arg (`GIT_SHA`, from
+      `git rev-parse --short     HEAD`) that the Dockerfile hands to `npm run build`, and `vite.config.ts` bakes it in
+      with `define`. A local `npm     run dev` shows "dev" when it is unset. The hash links to the commit on GitHub.
 
 ### Items
 
