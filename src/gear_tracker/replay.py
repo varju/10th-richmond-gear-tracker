@@ -59,6 +59,7 @@ DERIVED_FIELDS = frozenset(
         "bound_at",
         "photos",
         "raised_by",
+        "created_by",
         "pool_in",
         "pool_out",
     }
@@ -104,6 +105,8 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             if event.entity_type == "repair":
                 entity["raised_by"] = event.actor_id
                 entity.setdefault("state", "open")
+            if event.entity_type == "reservation":
+                entity["created_by"] = event.actor_id
         case "field_changed":
             # Modified means the entity's own fields (FR-INV-03). Movements and notes do not count.
             entity[p["field"]] = p["value"]

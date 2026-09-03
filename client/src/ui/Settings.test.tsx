@@ -55,6 +55,26 @@ test("a User has no admin sections, only their own", async () => {
   expect(links.map((b) => b.textContent)).toEqual(["Your devices", "Assistant"]);
 });
 
+test("a refused record shows a count above Your devices, and opens the list", async () => {
+  const event = await store.record({
+    entity_type: "item",
+    entity_id: "tent-1",
+    type: "note_added",
+    actor_id: "alice",
+    payload: { text: "hi" },
+  });
+  await store.pushed([], [{ id: event.id, reason: "not today" }]);
+  mount();
+
+  const links = within(screen.getByRole("navigation", { name: "Settings" })).getAllByRole("button");
+  const names = links.map((b) => b.textContent);
+  expect(names).toContain("1 record the server refused");
+  expect(names.indexOf("1 record the server refused")).toBeLessThan(names.indexOf("Your devices"));
+
+  await userEvent.setup().click(screen.getByRole("button", { name: "1 record the server refused" }));
+  expect(location.pathname).toBe("/settings/refused");
+});
+
 // __GIT_SHA__ is a compile-time constant, baked in by vite.config.ts from the
 // GIT_SHA environment variable. Under vitest that variable is unset, so this
 // is always "dev" here; the linked-commit rendering is covered by

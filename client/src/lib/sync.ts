@@ -23,7 +23,18 @@ export async function sync(store: Store, api: Api, now: () => number = Date.now)
         pending.map((e) => Store.outgoing(e)),
       );
       await store.setMeta({ clock_offset: offset });
-      await store.pushed(data.accepted, data.rejected);
+      const { retry } = await store.pushed(data.accepted, data.rejected);
+      // A sequence collision (two tabs, or old data from before it was fixed) is not a real
+      // rejection: the affected events were re-stamped and are ready to go up again, once.
+      if (retry && store.pending.length > 0) {
+        const { data: retried, offset: retriedOffset } = await api.push(
+          store.meta.device_id,
+          now(),
+          store.pending.map((e) => Store.outgoing(e)),
+        );
+        await store.setMeta({ clock_offset: retriedOffset });
+        await store.pushed(retried.accepted, retried.rejected);
+      }
     }
     // Photos taken offline go up now, before pull brings back the events that name them (FR-INV-11).
     await uploadPhotos(store, api);

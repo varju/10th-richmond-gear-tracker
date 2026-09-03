@@ -19,6 +19,7 @@ class FakeServer {
   deactivated = false;
   down = false;
   pageSize = 2;
+  lastSeq = new Map<string, number>();
 
   handle = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     if (this.down) throw new TypeError("Failed to fetch");
@@ -35,14 +36,18 @@ class FakeServer {
       const accepted: string[] = [];
       const rejected: { id: string; reason: string }[] = [];
       for (const e of body.events) {
+        const last = this.lastSeq.get(e.device_id) ?? 0;
         if (e.payload.text === "reject me") rejected.push({ id: e.id, reason: "not today" });
-        else {
+        else if (e.device_seq <= last) {
+          rejected.push({ id: e.id, reason: `device_seq ${e.device_seq} is not above the last seen, ${last}` });
+        } else {
           this.events.push({
             ...e,
             seq: this.events.length + 1,
             effective_at: e.occurred_at + e.clock_offset,
             received_at: this.serverTime,
           });
+          this.lastSeq.set(e.device_id, e.device_seq);
           accepted.push(e.id);
         }
       }
@@ -152,6 +157,35 @@ test("pending work is pushed first, then comes back with a seq", async () => {
   const notes = store.items["tent-1"]?.notes as { id: string }[];
   expect(notes.map((n) => n.id)).toEqual([mine.id]);
   expect(notes.map((n) => n.id)).not.toContain(bad.id);
+});
+
+test("a device_seq collision (stale data sharing a device id) is re-stamped and pushed again", async () => {
+  await sync(store, api(), () => clock);
+  await store.setMeta({ device_id: "shared-device" });
+  await record();
+  await sync(store, api(), () => clock); // the server now has device_seq 1 for shared-device
+
+  // A second copy of this device's data (leftover from before the fix, or a clone): its own
+  // counter starts fresh, so the number it hands out collides with what the server already saw.
+  const stale = await Store.open(await openDb("stale", new IDBFactory()), () => clock);
+  const staleApi = createApi({ fetch: server.handle, now: () => clock, token: () => stale.meta.token });
+  await stale.setMeta({ token: "t" });
+  await sync(stale, staleApi, () => clock);
+  await stale.setMeta({ device_id: "shared-device" });
+  await stale.record({
+    entity_type: "item",
+    entity_id: "tent-1",
+    type: "note_added",
+    actor_id: "alice",
+    payload: { text: "left behind" },
+  });
+
+  server.calls = [];
+  expect(await sync(stale, staleApi, () => clock)).toEqual({ ok: true });
+  expect(server.calls.filter((c) => c === "POST /sync/push").length).toBe(2);
+  expect(stale.pending).toEqual([]);
+  const notes = stale.items["tent-1"]?.notes as { text: string }[];
+  expect(notes.map((n) => n.text)).toContain("left behind");
 });
 
 test("offline leaves everything pending and says so", async () => {

@@ -1,0 +1,32 @@
+{
+  "name": "a reservation records who created it, from the created event's actor",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "reservation",
+      "entity_id": "res-1",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "event": "Fall Camp",
+        "starts": "2026-10-02",
+        "ends": "2026-10-04"
+      }
+    }
+  ],
+  "state": {
+    "reservation": {
+      "res-1": {
+        "event": "Fall Camp",
+        "starts": "2026-10-02",
+        "ends": "2026-10-04",
+        "added_at": 1000,
+        "modified_at": 1000,
+        "created_by": "alice"
+      }
+    }
+  }
+}

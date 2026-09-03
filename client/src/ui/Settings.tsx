@@ -53,6 +53,11 @@ export function Settings({ store, shell }: Props) {
             </button>
           </>
         )}
+        {store.rejected.length > 0 && (
+          <button className="link" type="button" onClick={() => navigate("/settings/refused")}>
+            {store.rejected.length} record{store.rejected.length === 1 ? "" : "s"} the server refused
+          </button>
+        )}
         <button className="link" type="button" onClick={() => navigate("/settings/devices")}>
           Your devices
         </button>

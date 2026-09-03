@@ -54,6 +54,22 @@ def test_push_accepts_and_rejects_per_event(db):
     assert result["server_time"] == T0
 
 
+def test_a_rejection_is_logged_at_warning_level(db, caplog):
+    bad = own(ALICE, device_seq=1, entity_type="spaceship")
+
+    with caplog.at_level("WARNING"):
+        push(db, ALICE, batch(ALICE, bad), now=T0)
+
+    [record] = caplog.records
+    assert record.levelname == "WARNING"
+    message = record.getMessage()
+    assert bad["id"] in message
+    assert "spaceship" in message
+    assert "tent-1" in message
+    assert ALICE.device_id in message
+    assert "entity_type: Input should be 'item', 'user'" in message
+
+
 def test_a_rejection_does_not_block_the_events_behind_it(db):
     bad = own(ALICE, device_seq=1, type="teleported")
     good = own(ALICE, device_seq=2)

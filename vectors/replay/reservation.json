@@ -94,7 +94,8 @@
         "items": ["tent-1", "tent-2"],
         "generics": [{ "item_id": "tarp", "quantity": 3 }],
         "added_at": 1000,
-        "modified_at": 7000
+        "modified_at": 7000,
+        "created_by": "alice"
       }
     }
   }

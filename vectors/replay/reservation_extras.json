@@ -61,7 +61,8 @@
         "items": ["tent-1", "stove-1", "lantern-1"],
         "generics": [{ "item_id": "tarp", "quantity": 3 }],
         "added_at": 1000,
-        "modified_at": 2000
+        "modified_at": 2000,
+        "created_by": "alice"
       }
     }
   }

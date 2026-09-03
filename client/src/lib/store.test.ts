@@ -68,6 +68,23 @@ test("device_seq survives a restart", async () => {
   expect(again.items["tent-1"]?.name).toBe("Big tent");
 });
 
+test("two tabs of the same device never hand out the same device_seq", async () => {
+  const db = await openDb("test", factory);
+  const tabA = await Store.open(db, () => clock);
+  const tabB = await Store.open(db, () => clock);
+
+  // Recording alternately, as two tabs racing would: each reads the counter fresh, in IndexedDB,
+  // not the stale copy the other tab is holding in memory.
+  const a1 = await tent(tabA, "created", { name: "Tent" });
+  const b1 = await tent(tabB, "note_added", { text: "seen in the yard" });
+  const a2 = await tent(tabA, "field_changed", { field: "name", value: "Big tent", old: "Tent" });
+  const b2 = await tent(tabB, "note_added", { text: "still there" });
+
+  const seqs = [a1.device_seq, b1.device_seq, a2.device_seq, b2.device_seq];
+  expect(new Set(seqs).size).toBe(seqs.length);
+  expect(seqs).toEqual([1, 2, 3, 4]);
+});
+
 test("what goes to the server is exactly what it validates", async () => {
   const store = await open();
   const event = await tent(store, "created", { name: "Tent" });
@@ -97,6 +114,37 @@ test("a push answer settles each event; the unmentioned stay pending", async () 
   expect(store.pending.map((e) => e.id)).toEqual([c.id]);
   expect(store.items["tent-1"]?.name).toBe("Tent");
   expect((store.items["tent-1"]?.notes as unknown[]).length).toBe(1);
+});
+
+test("a device_seq collision is re-stamped, not rejected, and asks for a retry", async () => {
+  const store = await open();
+  const a = await tent(store, "created", { name: "Tent" });
+  const b = await tent(store, "note_added", { text: "torn" });
+
+  const result = await store.pushed(
+    [],
+    [
+      { id: a.id, reason: "device_seq 1 is not above the last seen, 4" },
+      { id: b.id, reason: "device_seq 2 is not above the last seen, 4" },
+    ],
+  );
+
+  expect(result).toEqual({ retry: true });
+  expect(store.pending.map((e) => e.device_seq)).toEqual([5, 6]);
+  expect(store.pending.every((e) => e.sent === "no")).toBe(true);
+  // The stored counter moved on too, so the next fresh record does not collide either.
+  expect((await tent(store, "note_added", { text: "another" })).device_seq).toBe(7);
+});
+
+test("an ordinary rejection is unaffected by the collision handling", async () => {
+  const store = await open();
+  const a = await tent(store, "created", { name: "Tent" });
+  const b = await tent(store, "note_added", { text: "hi" });
+  const result = await store.pushed([a.id], [{ id: b.id, reason: "not today" }]);
+
+  expect(result).toEqual({ retry: false });
+  expect(store.pending).toEqual([]);
+  expect(store.state.item?.["tent-1"]?.name).toBe("Tent");
 });
 
 test("bootstrap replaces sent history and keeps unsent work on top", async () => {

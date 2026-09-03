@@ -42,9 +42,6 @@ The vertical slice is built. What is left needs a phone.
       A generic (or pool) row carries a quantity the person adjusts in the list, default 1, so the separate "so many of
       a generic" select and quantity control go. Units already on a reservation (scanned on, FR-RES-07) still show and
       can be removed.
-- [ ] Reservation shows who created it (FR-RES-18). A derived `created_by` on the reservation, set at replay from the
-      creating event's actor the way `raised_by` is on a repair; in `DERIVED_FIELDS`, both replays, and a vector. The
-      reservation page and `get_reservation` show "Added by <name>, <date and time>".
 - [ ] Item page shows upcoming reservations (FR-INV-37). A "Reserved" block under the status: one line per reservation
       that names the item, or its generic, and has not ended: event, dates, each a link to the reservation. Nothing
       shown when there are none. `get_item` reports the same.
@@ -52,18 +49,6 @@ The vertical slice is built. What is left needs a phone.
 - [ ] Near clashes (FR-RES-19). On the reservation page and in the form, an item or generic line another reservation
       names within seven days either side carries a muted note: "Also Fall Camp, 2 to 4 Oct". Overlaps stay blocked as
       today (FR-RES-05); this is the hint before the block. Twin the date window in `reservations.ts` and `views.py`.
-
-### Sync
-
-- [ ] Bug: a rename was refused with "device_seq 21 is not above the last seen, 21". `Store.record` stamps
-      `meta.device_seq + 1` from the copy in memory, so two tabs of one device each hand out the same number, and the
-      server drops the second. Take the next number inside the IndexedDB write transaction, from the stored value, not
-      memory. When the server still refuses a record for its sequence number, re-stamp the unsent records above the last
-      seen and push again, instead of marking them rejected. Test with two stores open on one database.
-- [ ] A rejected record is invisible. Today the server answers with the reason and the client drops the record from
-      replay with no word, so a refused edit looks like a revert. Server: log each rejection at warning with event id,
-      type, device and reason. Client: Settings shows "N records the server refused" above Your devices, each with its
-      reason and a way to discard it.
 
 ### Item page
 

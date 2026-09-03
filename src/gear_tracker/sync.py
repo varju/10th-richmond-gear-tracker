@@ -6,6 +6,7 @@ device can re-measure its clock offset (NFR-DATA-13).
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -16,6 +17,8 @@ from gear_tracker import derived, events
 from gear_tracker.errors import ApiError, BadRequest, Deactivated, Forbidden, Rebootstrap
 from gear_tracker.events import NonEmpty, Rejected, Strict, now_ms
 from gear_tracker.flags import add_flag
+
+logger = logging.getLogger(__name__)
 
 SyncError = ApiError
 
@@ -107,6 +110,15 @@ def push(conn: sqlite3.Connection, principal: Principal, body: Any, now: int | N
             accepted.append(stored.id)
         except Rejected as exc:
             rejected.append({"id": incoming.get("id"), "reason": exc.reason})
+            logger.warning(
+                "rejected event %s (%s on %s/%s) from device %s: %s",
+                incoming.get("id"),
+                incoming.get("type"),
+                incoming.get("entity_type"),
+                incoming.get("entity_id"),
+                principal.device_id,
+                exc.reason,
+            )
     return {"accepted": accepted, "rejected": rejected, "log_id": log_id(conn), "server_time": now}
 
 

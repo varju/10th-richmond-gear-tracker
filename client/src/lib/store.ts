@@ -70,6 +70,14 @@ export interface Recording {
 
 const SNAPSHOT_KEY = "snapshot";
 
+/** The server's wording for a reused device_seq (events.py, `append`). Pulls out the last one it saw. */
+const SEQ_COLLISION = /^device_seq \d+ is not above the last seen, (\d+)$/;
+
+function seqCollision(reason: string): number | undefined {
+  const match = SEQ_COLLISION.exec(reason);
+  return match ? Number(match[1]) : undefined;
+}
+
 export class Store {
   state: State = {};
   /** Bumped on every change, for useSyncExternalStore. */
@@ -117,6 +125,11 @@ export class Store {
     return [...this.events.values()].filter((e) => e.sent === "no").sort((a, b) => a.device_seq - b.device_seq);
   }
 
+  /** Events the server refused, most recent first (Settings, "records the server refused"). */
+  get rejected(): StoredEvent[] {
+    return [...this.events.values()].filter((e) => e.sent === "rejected").sort((a, b) => b.occurred_at - a.occurred_at);
+  }
+
   get items(): Record<string, Fields> {
     return this.state.item ?? {};
   }
@@ -143,24 +156,33 @@ export class Store {
     this.notify();
   }
 
-  /** Record something that happened here. Stamped with the current clock offset (NFR-DATA-13). */
+  /**
+   * Record something that happened here. Stamped with the current clock offset (NFR-DATA-13).
+   *
+   * The sequence number is read from IndexedDB inside this transaction, not from the in-memory
+   * copy: two tabs on the same device share one database, and reading from memory let them hand
+   * out the same number, which the server then refused as a duplicate (docs/tasks.md, "Sync").
+   */
   async record(input: Recording): Promise<StoredEvent> {
     const occurred_at = this.now();
+    const tx = this.db.transaction(["meta", "events"], "readwrite");
+    const metaStore = tx.objectStore("meta");
+    const stored = (await req(metaStore.get("device_seq"))) as number | undefined;
+    const device_seq = (stored ?? this.meta.device_seq) + 1;
     const event: StoredEvent = {
       ...input,
       id: newUlid(occurred_at),
       device_id: this.meta.device_id,
-      device_seq: this.meta.device_seq + 1,
+      device_seq,
       occurred_at,
       clock_offset: this.meta.clock_offset,
       effective_at: occurred_at + this.meta.clock_offset,
       sent: "no",
     };
-    const tx = this.db.transaction(["meta", "events"], "readwrite");
     tx.objectStore("events").put(event);
-    tx.objectStore("meta").put(event.device_seq, "device_seq");
+    metaStore.put(device_seq, "device_seq");
     await done(tx);
-    this.meta.device_seq = event.device_seq;
+    this.meta.device_seq = device_seq;
     this.events.set(event.id, event);
     this.recompute();
     return event;
@@ -173,13 +195,61 @@ export class Store {
     return { id, entity_type, entity_id, type, actor_id, device_id, device_seq, occurred_at, clock_offset, payload };
   }
 
-  /** The server's answer to a push. Unsent events stay unsent if they were not mentioned. */
-  async pushed(accepted: string[], rejected: { id: string | null; reason: string }[]): Promise<void> {
+  /**
+   * The server's answer to a push. Unsent events stay unsent if they were not mentioned.
+   *
+   * A rejection for reusing a sequence number is not this device's fault (two tabs racing, or
+   * data left over from before that bug was fixed): it is not marked rejected. Instead every
+   * event still unsent is re-stamped with a fresh number and `retry` comes back true, so the
+   * caller can push once more.
+   */
+  async pushed(accepted: string[], rejected: { id: string | null; reason: string }[]): Promise<{ retry: boolean }> {
     const tx = this.db.transaction("events", "readwrite");
     const store = tx.objectStore("events");
+    let lastSeen: number | undefined;
     for (const id of accepted) this.mark(store, id, { sent: "yes" });
-    for (const { id, reason } of rejected) if (id) this.mark(store, id, { sent: "rejected", reason });
+    for (const { id, reason } of rejected) {
+      const seen = seqCollision(reason);
+      if (seen !== undefined) {
+        lastSeen = lastSeen === undefined ? seen : Math.max(lastSeen, seen);
+        continue;
+      }
+      if (id) this.mark(store, id, { sent: "rejected", reason });
+    }
     await done(tx);
+    this.recompute();
+    if (lastSeen === undefined) return { retry: false };
+    await this.restamp(lastSeen);
+    return { retry: true };
+  }
+
+  /** Give every unsent event a fresh device_seq, above both `minimum` and the stored counter. */
+  private async restamp(minimum: number): Promise<void> {
+    const pending = this.pending;
+    if (pending.length === 0) return;
+    const tx = this.db.transaction(["meta", "events"], "readwrite");
+    const metaStore = tx.objectStore("meta");
+    const stored = (await req(metaStore.get("device_seq"))) as number | undefined;
+    let seq = Math.max(minimum, stored ?? 0, this.meta.device_seq);
+    const events = tx.objectStore("events");
+    for (const event of pending) {
+      seq += 1;
+      const updated = { ...event, device_seq: seq };
+      this.events.set(event.id, updated);
+      events.put(updated);
+    }
+    metaStore.put(seq, "device_seq");
+    await done(tx);
+    this.meta.device_seq = seq;
+    this.recompute();
+  }
+
+  /** Remove a record the server refused (Settings, "records the server refused"). */
+  async discard(id: string): Promise<void> {
+    const tx = this.db.transaction("events", "readwrite");
+    tx.objectStore("events").delete(id);
+    await done(tx);
+    this.events.delete(id);
     this.recompute();
   }
 

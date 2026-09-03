@@ -45,6 +45,7 @@ import { SettingsCsv } from "./ui/SettingsCsv";
 import { SettingsDevices } from "./ui/SettingsDevices";
 import { SettingsGroup } from "./ui/SettingsGroup";
 import { SettingsLocations } from "./ui/SettingsLocations";
+import { SettingsRefused } from "./ui/SettingsRefused";
 import { StockCheck } from "./ui/StockCheck";
 import { SignIn } from "./ui/SignIn";
 import { Users } from "./ui/Users";
@@ -255,6 +256,7 @@ function Screen({
       if (second === "codes") return <SettingsCodes store={store} api={api} shell={shell} />;
       if (second === "csv") return <SettingsCsv store={store} api={api} shell={shell} />;
       if (second === "devices") return <SettingsDevices store={store} api={api} />;
+      if (second === "refused") return <SettingsRefused store={store} />;
       if (second === "assistant") return <SettingsAssistant api={api} />;
       return <Settings store={store} shell={shell} />;
     case "join":
