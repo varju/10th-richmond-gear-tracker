@@ -33,7 +33,7 @@ LINK_TTL_MS = 7 * 24 * 3_600_000
 """An invite or reset link that has not been used in a week is dead. Sessions never expire; links do."""
 
 ASSISTANT_PREFIX = "mcp-"
-"""What makes a device_id an assistant's rather than a phone's (FR-MCP-02). The client reads the same prefix."""
+"""What makes a device_id an assistant's, not an ordinary device's (FR-MCP-02). The client reads the same prefix."""
 
 _hasher = PasswordHasher()
 
@@ -296,7 +296,7 @@ def connect_assistant(conn: sqlite3.Connection, who: Principal, now: int | None 
     """A token a signed-in person mints for themselves, with no Admin involved (FR-MCP-01).
 
     It is an ordinary device session (FR-MCP-02), so it is in the device list
-    and revoked like a lost phone. The device_id says which one it is.
+    and revoked like a lost device. The device_id says which one it is.
     """
     if not who.active:
         raise Deactivated("this account has been deactivated")
@@ -392,7 +392,7 @@ def list_devices(conn: sqlite3.Connection, who: Principal, user_id: str) -> list
 def revoke_device(
     conn: sqlite3.Connection, who: Principal, user_id: str, device_id: str, now: int | None = None
 ) -> list[dict[str, Any]]:
-    """A lost or sold phone. A User revokes their own (FR-USR-17); an Admin revokes anyone's (FR-USR-14).
+    """A lost or sold device. A User revokes their own (FR-USR-17); an Admin revokes anyone's (FR-USR-14).
 
     Its sessions end; the account and its history are untouched (FR-OFF-07).
     """

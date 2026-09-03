@@ -107,7 +107,7 @@ export function Settings({ store, api, shell }: Props) {
         <>
           <h2 className="section">Your devices</h2>
           {/* FR-USR-17 */}
-          <p className="muted small">Phones and assistants signed in as you. Revoke one you have lost.</p>
+          <p className="muted small">Devices and assistants signed in as you. Revoke one you have lost.</p>
           {error && (
             <p className="error" role="alert">
               {error}
@@ -218,7 +218,7 @@ function GroupForm({ store }: { store: Store }) {
 /**
  * A token for an MCP client, minted by whoever is signed in (FR-MCP-01). Shown
  * once, like an invite link. It is a device session, so it is listed with the
- * person's phones and revoked the same way (FR-MCP-02).
+ * person's devices and revoked the same way (FR-MCP-02).
  */
 function ConnectAssistant({ api }: { api: Api }) {
   const [made, setMade] = useState<AssistantToken | null>(null);

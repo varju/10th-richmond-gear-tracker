@@ -259,7 +259,7 @@ def create_app(
 
     @app.post("/users/{user_id}/devices/{device_id}/revoke")
     def revoke_device(conn: Db, who: Who, user_id: str, device_id: str) -> dict[str, Any]:
-        """One phone, not the person (FR-USR-14).
+        """One device, not the person (FR-USR-14).
 
         Anyone can do it for their own account; an Admin, for anyone (FR-USR-17).
         """

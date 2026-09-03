@@ -188,10 +188,10 @@ test("an update records one field_changed per changed field, and the gear list o
   });
 });
 
-test("two phones each add a different extra offline and both survive (FR-RES-07)", async () => {
+test("two devices each add a different extra offline and both survive (FR-RES-07)", async () => {
   const f = await fixture();
   const id = await res.createReservation(store, { ...fall, items: [f.t1], generics: [] });
-  // The other phone's event, as it arrives in a sync: recorded there, never seen here.
+  // The other device's event, as it arrives in a sync: recorded there, never seen here.
   const theirs: ServerEvent = {
     id: "01000000000000000000000009",
     entity_type: "reservation",

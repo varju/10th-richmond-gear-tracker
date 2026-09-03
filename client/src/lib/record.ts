@@ -2,9 +2,9 @@
  * The whole record when there is signal; what this device holds when there is
  * not (FR-INV-31).
  *
- * A phone keeps 90 days of events (NFR-DATA-03), which is right for a locker
+ * A device keeps 90 days of events (NFR-DATA-03), which is right for a locker
  * and wrong for "when did we buy this tent". The server keeps everything, so
- * the history screens ask it first and fall back to the phone.
+ * the history screens ask it first and fall back to the device.
  *
  * Both answers are events, so both go through the same `Log` and draw the same
  * rows. Work recorded here and not yet pushed is added to the server's answer,

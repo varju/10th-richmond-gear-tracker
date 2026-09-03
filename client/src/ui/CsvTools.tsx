@@ -4,7 +4,7 @@ import { plural } from "./labels";
 
 interface Props {
   api: Api;
-  /** Called after an import is applied, so the changed items reach this phone. */
+  /** Called after an import is applied, so the changed items reach this device. */
   onDone: () => Promise<unknown>;
 }
 

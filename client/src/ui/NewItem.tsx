@@ -153,7 +153,7 @@ export function NewUnit({ store, parent, code }: Props & { parent: string }) {
   if (!generic?.generic) {
     return (
       <Page title="Not found" back="/">
-        <p>No generic item with that id. It may not have synced to this phone yet.</p>
+        <p>No generic item with that id. It may not have synced to this device yet.</p>
       </Page>
     );
   }

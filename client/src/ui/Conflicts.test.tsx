@@ -13,7 +13,7 @@ import { Home } from "./Home";
 import { ItemPage } from "./ItemPage";
 import { alice, carol, renderInShell, seedUsers } from "./moveTestKit";
 
-// Two phones checked out one tent offline; the Quartermaster settles it (FR-OFF-10).
+// Two devices checked out one tent offline; the Quartermaster settles it (FR-OFF-10).
 let store: Store;
 let tent: string;
 
@@ -57,7 +57,7 @@ function checkout(id: string, device: string, holder: string, at: number, event?
 
 const user = userEvent.setup();
 
-test("both versions are shown in words, with who, what for, when, and which phone", () => {
+test("both versions are shown in words, with who, what for, when, and which device", () => {
   renderInShell(<Conflicts store={store} />);
   const card = screen.getByRole("region", { name: "Tent 1" });
   const versions = [...card.querySelectorAll("ol li")].map((li) => li.textContent);

@@ -13,7 +13,7 @@ const MIN_PASSWORD = 8;
 
 /**
  * Where an invite or reset link lands: /join?token=… (FR-USR-12). Set a password,
- * and this phone is signed in. The link is spent either way.
+ * and this device is signed in. The link is spent either way.
  */
 export function Join({ store, api, onJoined }: Props) {
   const token = useRoute().query.get("token") ?? "";
@@ -50,7 +50,7 @@ export function Join({ store, api, onJoined }: Props) {
       <main>
         {signedIn ? (
           <>
-            <p>This phone is signed in as {signedIn.name}. Sign out in Settings, then open the link again.</p>
+            <p>This device is signed in as {signedIn.name}. Sign out in Settings, then open the link again.</p>
             <button type="button" onClick={() => navigate("/settings")}>
               Settings
             </button>

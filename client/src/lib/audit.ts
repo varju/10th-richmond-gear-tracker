@@ -3,7 +3,7 @@
  * what, by whom. Movements are the History section; this is the rest.
  *
  * Read from a `Log`, which is the server's whole record when there is signal
- * and this phone's 90 days when there is not (FR-INV-31, NFR-DATA-03).
+ * and this device's 90 days when there is not (FR-INV-31, NFR-DATA-03).
  */
 import { locationName, nameOf } from "./inventory";
 import type { Log } from "./record";

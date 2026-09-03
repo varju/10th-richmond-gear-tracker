@@ -50,7 +50,7 @@ function History({ store }: { store: Store }) {
   const { now, api } = useShell();
   const [from, setFrom] = useState(() => localDate(now() - 30 * DAY_MS));
   const [to, setTo] = useState(() => localDate(now()));
-  // Every ticket the server holds, or this phone's copy when there is no signal (FR-INV-31).
+  // Every ticket the server holds, or this device's copy when there is no signal (FR-INV-31).
   const record = useTypeRecord(store, "repair", api);
   const rows = repairHistory(record ?? store.state, from, to);
   return (

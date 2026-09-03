@@ -178,7 +178,7 @@ export const unitsOf = (state: State, genericId: string): Item[] =>
     .filter((it) => it.parent_id === genericId && !it.merged_into)
     .sort(byNumber);
 
-/** The generic a unit belongs to, if this phone has it. */
+/** The generic a unit belongs to, if this device has it. */
 export const parentOf = (state: State, it: Item): Item | undefined =>
   it.parent_id ? item(state, it.parent_id) : undefined;
 

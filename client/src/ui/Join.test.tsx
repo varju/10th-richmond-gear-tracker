@@ -37,7 +37,7 @@ const mount = () => {
   return onJoined;
 };
 
-test("a good link sets the password and signs this phone in", async () => {
+test("a good link sets the password and signs this device in", async () => {
   navigate("/join?token=GOOD");
   const onJoined = mount();
   await user.type(screen.getByLabelText("New password"), "battery staple");

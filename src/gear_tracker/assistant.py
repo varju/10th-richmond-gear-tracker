@@ -6,7 +6,7 @@ Streamable HTTP, using the official SDK.
 **A token is a device.** "Connect an assistant" in Settings opens a session
 whose `device_id` is `mcp-<ulid>`. It authenticates through the same
 `accounts.authenticate` as every other route, it is in the device list, and it
-is revoked like a lost phone (FR-USR-14).
+is revoked like a lost device (FR-USR-14).
 
 **A write is a push.** A tool builds events with that device_id and a
 `device_seq` the server keeps per assistant, then hands them to `sync.push`. So
@@ -14,7 +14,7 @@ the entity rules, validation, attribution and drift checks all apply, and
 history reads "this Scouter, via the assistant". There is no second write path.
 
 **A read is derived state**, through views.py, which is the Python twin of what
-the device reads on a phone.
+appears on screen.
 
 **Nothing an Admin does is here** (FR-MCP-04): no users, mail, settings,
 locations, categories, or codes.
@@ -134,7 +134,7 @@ def _draft(entity_type: str, entity_id: str, type: str, payload: dict[str, Any],
 
 
 def _push(conn: sqlite3.Connection, who: Principal, drafts: list[dict[str, Any]]) -> None:
-    """Events from a tool, through the push a phone uses (FR-MCP-05). A refusal is the tool's error."""
+    """Events from a tool, through the push a device uses (FR-MCP-05). A refusal is the tool's error."""
     if not drafts:
         return
     now = now_ms()
@@ -970,11 +970,11 @@ class Endpoint:
             await _refuse(403, "deactivated", "this account has been deactivated")(scope, receive, send)
             return
         if not who.device_id.startswith(accounts.ASSISTANT_PREFIX):
-            # A phone keeps its own device_seq; the server keeps an assistant's. One
-            # device cannot have both, so a phone's token is refused here.
-            await _refuse(403, "forbidden", "this is a phone's token; connect an assistant in Settings")(
-                scope, receive, send
-            )
+            # A signed-in device keeps its own device_seq; the server keeps an assistant's. One
+            # device cannot have both, so an ordinary device's token is refused here.
+            await _refuse(
+                403, "forbidden", "this is a sign-in token, not an assistant's; connect an assistant in Settings"
+            )(scope, receive, send)
             return
         if not self.limit.allow(who.device_id, now_ms()):
             await _refuse(429, "rate_limited", "too many calls; try again in a minute")(scope, receive, send)

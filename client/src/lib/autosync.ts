@@ -19,7 +19,7 @@ export const RETRY_MS = [5_000, 15_000, 60_000, 300_000];
 export const POLL_MS = 30_000;
 
 /**
- * Nothing tells a phone that someone else scanned something, so a screen left
+ * Nothing tells a device that someone else scanned something, so a screen left
  * open asks. Only while it is on screen and the network is up: a hidden tab
  * syncs when it comes back to the front.
  */

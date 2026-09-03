@@ -3,7 +3,7 @@ import { type Api, ApiError, Offline } from "../lib/api";
 
 interface Props {
   api: Api;
-  /** Called after a sheet is made, so the new codes reach this phone. */
+  /** Called after a sheet is made, so the new codes reach this device. */
   onDone: () => Promise<unknown>;
 }
 

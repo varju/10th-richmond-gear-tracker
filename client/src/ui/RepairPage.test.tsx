@@ -81,7 +81,7 @@ test("comments are added and edited through the repair (FR-REP-06)", async () =>
   expect(store.pending.at(-1)).toMatchObject({ type: "note_corrected", entity_id: ticket });
 });
 
-test("a ticket this phone has not seen says so", () => {
+test("a ticket this device has not seen says so", () => {
   renderInShell(<RepairPage store={store} id="nope" />);
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Not found");
 });

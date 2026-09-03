@@ -72,7 +72,7 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             entity[p["field"]] = p["value"]
             entity["modified_at"] = event.effective_at
         case "item_added":
-            # The gear list is edited one line at a time, so two phones adding an
+            # The gear list is edited one line at a time, so two devices adding an
             # extra offline both land (FR-RES-07). A new list each time: the one
             # `created` put here is the event's own payload.
             items = entity.get("items", [])

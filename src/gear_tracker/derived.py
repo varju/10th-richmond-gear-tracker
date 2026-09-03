@@ -13,7 +13,7 @@ def refresh_entity(conn: sqlite3.Connection, entity_type: str, entity_id: str, s
     """Re-derive one entity from its slice of the log. Runs inside append's transaction.
 
     A whole-entity replay rather than an incremental apply, because the new
-    event is not always the last one in replay order: a phone that syncs on
+    event is not always the last one in replay order: a device that syncs on
     Sunday delivers Friday's events into the middle of the history.
     """
     state = replay(in_replay_order(conn, entity_type, entity_id))

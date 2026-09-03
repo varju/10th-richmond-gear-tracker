@@ -73,7 +73,7 @@ export function ItemPage({ store, id }: Props) {
   const state = store.state;
   const it = item(state, id);
   const admin = store.meta.user?.role === "admin";
-  // The whole record when there is signal, this phone's 90 days when there is
+  // The whole record when there is signal, this device's 90 days when there is
   // not (FR-INV-31). Asked for once here, drawn by both blocks below. A merged
   // duplicate's events belong to the survivor, so its ids come too.
   const record = useRecord(store, "item", aliases(state, id), api);
@@ -85,7 +85,7 @@ export function ItemPage({ store, id }: Props) {
   if (!it) {
     return (
       <Page title="Not found" back="/">
-        <p>No item with that id. It may not have synced to this phone yet.</p>
+        <p>No item with that id. It may not have synced to this device yet.</p>
       </Page>
     );
   }
@@ -490,7 +490,7 @@ function ReportFault({ store, id }: Props) {
 
 /**
  * Movements and notes in one list, newest first. A note made on a movement sits
- * under it. `record` is the server's whole answer, or null when this phone is
+ * under it. `record` is the server's whole answer, or null when this device is
  * on its own; either way the rows are drawn the same (FR-INV-31).
  */
 function History({ store, id, record }: Props & { record: Log | null }) {

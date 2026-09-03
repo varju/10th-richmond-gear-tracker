@@ -22,7 +22,7 @@ export function Conflicts({ store }: { store: Store }) {
         <p>No conflicts.</p>
       ) : (
         <>
-          <p className="muted">Two phones checked out the same item with no check-in between. Say what is true.</p>
+          <p className="muted">Two devices checked out the same item with no check-in between. Say what is true.</p>
           {open.map((c) => (
             <ConflictCard key={c.item.id} store={store} conflict={c} />
           ))}

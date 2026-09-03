@@ -11,7 +11,7 @@ import type { State } from "./replay";
 import { type Conflict, conflicts, type ReservationInput } from "./reservations";
 import { Store } from "./store";
 
-// Two phones, offline, both check out one tent (FR-OFF-10). Replay queues it; this decides when it is settled.
+// Two devices, offline, both check out one tent (FR-OFF-10). Replay queues it; this decides when it is settled.
 let store: Store;
 let clock = 1_000;
 let tent: string;
@@ -82,10 +82,10 @@ test("reviewing keeps the later holder and records one field change, then it is 
   await expect(reviewConflict(store, tent)).rejects.toThrow("no open conflict");
 });
 
-test("a reviewed conflict reopens if the same two phones clash again", async () => {
+test("a reviewed conflict reopens if the same two devices clash again", async () => {
   await store.receive([bob(), carol()], 2);
   await reviewConflict(store, tent);
-  // Both phones check out again without a check-in: the earlier one is carol's, the later is a new one.
+  // Both devices check out again without a check-in: the earlier one is carol's, the later is a new one.
   await store.receive([checkout("01000000000000000000000003", "phone-a", 2, "bob", 7_000)], 3);
   const open = openConflicts(store.state);
   expect(open).toHaveLength(1);

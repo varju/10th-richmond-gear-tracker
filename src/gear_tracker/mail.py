@@ -26,7 +26,7 @@ from gear_tracker.events import NonEmpty, Strict, now_ms
 Encryption = Literal["none", "starttls", "ssl"]
 
 TIMEOUT_S = 20
-"""A phone is waiting on the reply. Better a clear failure than a hung invite."""
+"""A device is waiting on the reply. Better a clear failure than a hung invite."""
 
 Address = Annotated[EmailStr, StringConstraints(max_length=254)]
 

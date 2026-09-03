@@ -1,6 +1,6 @@
 /**
  * A stock check: walk one location, scan what is on the shelf, and see what is
- * misplaced and what is not there (FR-RPT-09). The phone knows where it is
+ * misplaced and what is not there (FR-RPT-09). The device knows where it is
  * only because a person said so, so nothing here is an event; the session is a
  * device setting and the answer is true for the walk.
  */

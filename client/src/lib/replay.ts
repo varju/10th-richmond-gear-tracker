@@ -100,7 +100,7 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       entity.modified_at = event.effective_at;
       break;
     case "item_added": {
-      // The gear list is edited one line at a time, so two phones adding an
+      // The gear list is edited one line at a time, so two devices adding an
       // extra offline both land (FR-RES-07). A new array each time: the one
       // `created` put here is the event's own payload.
       const items = (entity.items ?? []) as string[];

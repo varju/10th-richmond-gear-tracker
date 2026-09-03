@@ -17,5 +17,5 @@ use in the yard.
 
 ## Revoke it
 
-The assistant sits in your device list beside your phone. Ask an Admin to revoke it and the token stops working at once,
-the same as a lost phone.
+The assistant sits in your device list beside your own device. Ask an Admin to revoke it and the token stops working at
+once, the same as a lost device.

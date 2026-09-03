@@ -60,7 +60,7 @@ export const openTickets = (state: State): Repair[] => repairs(state).filter(isO
  * The repair report's history (FR-RPT-02): every ticket raised or changed on a
  * day in [from, to], calendar days where the group is, last change first.
  * Reaches back as far as the state it is given: the server's whole record when
- * there is signal, this phone's copy when there is not (FR-INV-31).
+ * there is signal, this device's copy when there is not (FR-INV-31).
  */
 export function repairHistory(state: State, fromIso: string, toIso: string): Repair[] {
   const within = (ms: number | undefined) => ms !== undefined && localDate(ms) >= fromIso && localDate(ms) <= toIso;

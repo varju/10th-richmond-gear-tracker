@@ -22,7 +22,7 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
   if (!r) {
     return (
       <Page title="Not found" back="/reservations">
-        <p>No reservation with that id. It may not have synced to this phone yet.</p>
+        <p>No reservation with that id. It may not have synced to this device yet.</p>
       </Page>
     );
   }

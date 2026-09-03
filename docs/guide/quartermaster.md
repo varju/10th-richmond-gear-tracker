@@ -18,9 +18,9 @@ and on the computer home screen, while any report is open. Open a report, deal w
 
 ## Two check-outs at once
 
-Two phones with no signal can both check out the same item. Conflicts appears while any is open, on the phone and on the
-computer home screen. Each shows both check-outs; tap "It is back" if it came back, or Keep if the second person still
-has it. Add a note first if the story needs one.
+Two devices with no signal can both check out the same item. Conflicts appears while any is open, on the phone and on
+the computer home screen. Each shows both check-outs; tap "It is back" if it came back, or Keep if the second person
+still has it. Add a note first if the story needs one.
 
 ## Work a repair ticket
 
@@ -62,7 +62,7 @@ or check-in. Missing is for gear that is only lost.
 
 ## Photos
 
-Add photos on an item's page and on a repair ticket. They need a connection, and are never stored on the phone.
+Add photos on an item's page and on a repair ticket. They need a connection, and are never stored on the device.
 
 ## Locations and categories
 
@@ -96,15 +96,15 @@ cannot be demoted or deactivated.
 Open Users, pick the person, and make a reset link. It is one use, mailed if mail is set up, otherwise copied and passed
 on.
 
-## A lost phone
+## A lost device
 
-Open Users, pick the person, and revoke the device. The account keeps working everywhere else. Anything that phone never
-sent is gone.
+Open Users, pick the person, and revoke the device. The account keeps working everywhere else. Anything that device
+never sent is gone.
 
 ## Your devices
 
-Settings lists the phones and assistants signed in as you. Revoke one you have lost. An Admin can do it for anyone under
-Users.
+Settings lists the devices and assistants signed in as you. Revoke one you have lost. An Admin can do it for anyone
+under Users.
 
 ## Send invites by mail
 

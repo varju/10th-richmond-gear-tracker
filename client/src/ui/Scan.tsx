@@ -243,7 +243,7 @@ export function Scan({ store }: { store: Store }) {
 /**
  * What the reservation still needs, always in view (FR-RES-02), by home (FR-RES-06).
  * A row is a check-out for gear with no sticker (FR-OUT-02). Derived from state,
- * so a scan on another phone ticks it here once both have synced.
+ * so a scan on another device ticks it here once both have synced.
  */
 function RemainingList({
   store,

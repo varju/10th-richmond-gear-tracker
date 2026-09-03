@@ -135,8 +135,8 @@ test("the page shows the gear, starts the packing session under its event, and c
   expect(res.reservations(store.state)).toEqual([]);
 });
 
-test("two camps saved on two phones are named against each other on the page (FR-RES-05)", async () => {
-  // Nothing checked this one, as if it came in a sync from another phone.
+test("two camps saved on two devices are named against each other on the page (FR-RES-05)", async () => {
+  // Nothing checked this one, as if it came in a sync from another device.
   await res.createReservation(store, {
     event: "Cub camp",
     starts: "2026-10-04",

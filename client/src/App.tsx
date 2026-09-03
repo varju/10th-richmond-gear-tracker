@@ -91,7 +91,7 @@ export function App({ store, api, now = Date.now }: Props) {
   // And the moment anything is unsent (FR-OFF-03).
   useEffect(() => autoSync(store, runSync), [store, runSync]);
 
-  // A screen that just sits there still hears about another phone's work.
+  // A screen that just sits there still hears about another device's work.
   useEffect(() => pollSync(runSync), [runSync]);
 
   // Asked, not relied on. iOS says no; the unsent count is the warning (NFR-DATA-11).
@@ -143,7 +143,7 @@ export function App({ store, api, now = Date.now }: Props) {
     const [head, second] = route.segments;
     if (head === "g" && second && !signInWanted)
       return <PublicItem api={api} code={second} onSignIn={() => setSignInWanted(true)} />;
-    // An invite or reset link (FR-USR-12). Once redeemed, the phone is signed in and starts at home.
+    // An invite or reset link (FR-USR-12). Once redeemed, the device is signed in and starts at home.
     if (head === "join") return <Join store={store} api={api} onJoined={() => joined()} />;
     return <SignIn store={store} api={api} onSignedIn={runSync} />;
   }

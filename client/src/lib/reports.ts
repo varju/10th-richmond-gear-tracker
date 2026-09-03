@@ -1,7 +1,7 @@
 /**
  * The first report: what is out, and who has it (FR-RPT-01), with gear out
  * longer than the group's period flagged (FR-OUT-14, FR-RPT-05). Pure
- * functions over state; the phone answers this with no network.
+ * functions over state; the device answers this with no network.
  */
 import { DAY_MS } from "./clock";
 import { displayName, group, type Item, items, movable } from "./inventory";

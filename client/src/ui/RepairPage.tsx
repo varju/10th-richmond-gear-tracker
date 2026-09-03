@@ -27,7 +27,7 @@ export function RepairPage({ store, id }: Props) {
   if (!ticket) {
     return (
       <Page title="Not found" back="/repairs">
-        <p>No ticket with that id. It may not have synced to this phone yet.</p>
+        <p>No ticket with that id. It may not have synced to this device yet.</p>
       </Page>
     );
   }
@@ -79,7 +79,7 @@ export function RepairPage({ store, id }: Props) {
   );
 }
 
-/** "Raised by Alice · 2026-09-01". Who is read from the created event when the phone still holds it. */
+/** "Raised by Alice · 2026-09-01". Who is read from the created event when the device still holds it. */
 function raisedByLabel(store: Store, id: string): string {
   const created = store.eventsFor("repair", id).find((e) => e.type === "created");
   const ticket = repair(store.state, id);

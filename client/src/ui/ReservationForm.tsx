@@ -61,7 +61,7 @@ export function ReservationForm({ store, id, from }: Props) {
       setError("It ends before it starts.");
       return false;
     }
-    // Blocked here, on this phone's state (FR-RES-05). Two phones offline can both save; the page names the clash.
+    // Blocked here, on this device's state (FR-RES-05). Two devices offline can both save; the page names the clash.
     const clashes = conflicts(state, values, id);
     if (clashes.length > 0) {
       setError(`Already reserved for ${clashes.map((c) => `${c.event} (${c.detail})`).join("; ")}.`);

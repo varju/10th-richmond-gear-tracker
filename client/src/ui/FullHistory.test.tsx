@@ -12,7 +12,7 @@ import { Repairs } from "./Repairs";
 
 // The whole record when there is signal, this device's 90 days when there is not (FR-INV-31).
 const T0 = 1_756_684_800_000;
-const LONG_AGO = 1_572_652_800_000; // 2019-11-02, well past what a phone keeps.
+const LONG_AGO = 1_572_652_800_000; // 2019-11-02, well past what a device keeps.
 
 let store: Store;
 let tent: string;
@@ -106,7 +106,7 @@ test("with no answer from the server the same rows are drawn from this device, a
   expect(screen.getAllByText("Offline: what this device knows, the last 90 days.")).toHaveLength(2);
 });
 
-test("a phone that knows it is offline does not ask", async () => {
+test("a device that knows it is offline does not ask", async () => {
   vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
   const { api, asked } = serving([
     serverEvent({

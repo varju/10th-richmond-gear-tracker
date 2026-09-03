@@ -283,7 +283,7 @@ class FieldChanged(_Incoming):
         if self.entity_type == "repair" and field == "state" and value not in REPAIR_STATES:
             raise ValueError(f"state must be one of {', '.join(REPAIR_STATES)}")
         if self.entity_type == "reservation" and field in ("items", "generics"):
-            # A whole-list write drops the extra the other phone added (FR-RES-07).
+            # A whole-list write drops the extra the other device added (FR-RES-07).
             raise ValueError("the gear list is edited one line at a time")
         if self.entity_type == "found_report" and (field != "resolved" or not isinstance(value, bool)):
             # The report is the finder's words. A member marks it dealt with, and changes nothing else.

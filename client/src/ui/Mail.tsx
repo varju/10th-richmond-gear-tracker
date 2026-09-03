@@ -21,7 +21,7 @@ const BLANK: Draft = {
 };
 
 function describe(e: unknown): string {
-  if (e instanceof Offline) return "Needs a connection. Mail is set up on the server, not on this phone.";
+  if (e instanceof Offline) return "Needs a connection. Mail is set up on the server, not on this device.";
   if (e instanceof ApiError) return e.message;
   throw e;
 }

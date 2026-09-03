@@ -53,13 +53,13 @@ export interface LinkResult {
   mail_error?: string;
 }
 
-/** A phone or an assistant with an open session (FR-USR-14). `created_at` is its latest sign-in. */
+/** A device or an assistant with an open session (FR-USR-14). `created_at` is its latest sign-in. */
 export interface Device {
   device_id: string;
   created_at: number;
 }
 
-/** What makes a device an assistant rather than a phone (FR-MCP-02). Matches accounts.py. */
+/** What makes a device an assistant rather than an ordinary device (FR-MCP-02). Matches accounts.py. */
 export const ASSISTANT_PREFIX = "mcp-";
 
 export const isAssistant = (deviceId: string): boolean => deviceId.startsWith(ASSISTANT_PREFIX);

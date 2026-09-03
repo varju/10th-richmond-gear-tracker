@@ -37,7 +37,7 @@ quantity of something the group has several of. Duplicate on last year's camp sa
 
 ## No signal
 
-Everything except signing in works with no signal. An amber strip counts records still on your phone; it clears itself
+Everything except signing in works with no signal. An amber strip counts records still on your device; it clears itself
 when you next open the app in signal. Records waiting three days stop the app and ask you to sync.
 
 ## Gear with no sticker
@@ -69,12 +69,12 @@ when the gear already has a number written on it.
 Open the invite link an Admin sends you and choose a password. After that, your email and password. Signing in needs a
 connection; using the app does not.
 
-## Install it on your phone
+## Install it
 
 Do this before you record anything. On iPhone tap Share, then Add to Home Screen; elsewhere tap Install when the app
 offers. A browser tab loses unsent records after seven days without a visit; an installed app does not.
 
-## A lost phone
+## A lost device
 
-Sign in on the new phone and the whole inventory is there. Ask an Admin to revoke the old device. Anything the old phone
-never sent is gone.
+Sign in on the new device and the whole inventory is there. Ask an Admin to revoke the old device. Anything the old
+device never sent is gone.

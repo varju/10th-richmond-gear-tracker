@@ -21,14 +21,14 @@ export const joinUrl = (token: string): string => `${location.origin}${BASE}/joi
 const LINK_TEMPLATE = joinUrl("TOKEN");
 
 function describe(e: unknown): string {
-  if (e instanceof Offline) return "Needs a connection. Users are managed on the server, not on this phone.";
+  if (e instanceof Offline) return "Needs a connection. Users are managed on the server, not on this device.";
   if (e instanceof ApiError) return e.message;
   throw e;
 }
 
 /**
  * Who is in the group, for Admins (FR-USR-04). Invite, change a role, deactivate,
- * hand out a reset link, and cut off one lost phone (FR-USR-14). Everything here
+ * hand out a reset link, and cut off one lost device (FR-USR-14). Everything here
  * is a server call: accounts never reach a device.
  */
 export function Users({ store, api }: Props) {
@@ -310,7 +310,7 @@ function UserRow({
             onError={onError}
             label={`Devices of ${user.name}`}
           />
-          <p className="muted small">The person stays; sign them in on a new phone.</p>
+          <p className="muted small">The person stays; sign them in on a new device.</p>
         </div>
       )}
     </li>

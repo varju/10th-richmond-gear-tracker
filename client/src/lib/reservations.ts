@@ -3,10 +3,10 @@
  *
  * A reservation is an entity on the log: created whole, its event and dates
  * edited by field_changed, cancelled by a field. The gear list is edited one
- * line at a time, never as a whole list, so two phones each adding an extra
+ * line at a time, never as a whole list, so two devices each adding an extra
  * offline both land (FR-RES-07). Packing progress is not recorded anywhere. An
  * item is ticked off when it is out under the reservation's event, which replay
- * already knows, so two phones packing one camp agree after a sync and a reload
+ * already knows, so two devices packing one camp agree after a sync and a reload
  * loses nothing.
  */
 import { displayName, homeLabel, type Item, item, movable, nameOf, resolveItem, unitsOf } from "./inventory";

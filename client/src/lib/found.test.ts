@@ -4,7 +4,7 @@ import type { ServerEvent } from "./api";
 import { foundFor, foundReports, resolveFound } from "./found";
 import type { Store } from "./store";
 
-// Found reports come from the server, never from a phone (FR-PUB-02). A member only resolves them (FR-PUB-03).
+// Found reports come from the server, never from a device (FR-PUB-02). A member only resolves them (FR-PUB-03).
 const T0 = 1_756_684_800_000;
 let store: Store;
 
