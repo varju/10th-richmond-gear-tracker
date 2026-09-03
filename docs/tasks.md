@@ -58,6 +58,30 @@ are folded into each task.
       shelf filters on All items. Drop "Browse by location" from the guide (scouter.md, quartermaster.md) and
       stories/reports.md.
 
+### History and repairs
+
+- [ ] History lists newest first, so a new note lands at the top while Add note sits at the foot. Add note moves to just
+      under the History heading, above the list.
+- [ ] A repair ticket says "Raised by Alice · 2026-09-01 14:32" on every device. Today the name comes from the `created`
+      event, which a phone that started from a snapshot does not hold, so it says "Raised". Replay records the raiser on
+      the ticket (`raised_by`) in both languages, with a vector; the label reads it, and shows the minute like History
+      does. The Repairs list's "raised <date>" matches.
+
+### Settings
+
+- [ ] Drop the Help link at the foot of Settings; Help is in the menu. Help's back button goes home.
+
+### Items
+
+- [ ] The Categories fieldset on the item form starts closed. Its summary names the ticked categories, or says "None".
+- [ ] Search matches the name only (FR-INV-07), and a unit's number and nickname. The home location no longer matches,
+      so "Home" or a location's name does not pull in everything that lives there.
+- [ ] A generic with one unit can become a single item again, the reverse of FR-INV-26. Anyone signed in may do it, from
+      the generic's page. The unit keeps its id, code and history; takes the generic's name, description, categories,
+      home and purchase details; drops its number, and its nickname goes onto the end of the description. The generic is
+      marked merged into the unit, like a duplicate record (FR-INV-13), so its photos and record stay readable. Add
+      FR-INV-33 (Should) for it, and a replay vector.
+
 ## M9 — Go live
 
 First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is
