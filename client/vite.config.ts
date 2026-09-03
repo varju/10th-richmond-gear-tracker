@@ -19,7 +19,7 @@ const GUIDE_DIR = resolve(import.meta.dirname, "../docs/guide");
 // a new section is added by dropping the file in and naming it here.
 const GUIDE_FILES = ["scouter.md", "quartermaster.md", "assistant.md"];
 
-/** "Take gear out" becomes "take-gear-out", which is the anchor a contents link uses. */
+/** "Check gear out" becomes "check-gear-out", which is the anchor a contents link uses. */
 function slug(text: string): string {
   return text
     .toLowerCase()

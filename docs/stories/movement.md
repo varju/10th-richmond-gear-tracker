@@ -13,7 +13,7 @@ A Scouter opens Check out, names the event once, then scans six items. Each scan
 
 Covers: FR-OUT-01, FR-OUT-03, FR-OUT-04, FR-OUT-05, FR-OFF-01
 
-## S-MOVE-02 Bring gear back
+## S-MOVE-02 Return gear
 
 A Scouter unpacking the trailer opens Return and scans each item. Each scan checks it in and shows where it goes.
 

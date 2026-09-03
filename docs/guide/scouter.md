@@ -1,11 +1,11 @@
 # Scouter
 
-## Take gear out
+## Check gear out
 
 Tap Check out, then Change beside the event and type where the gear is going. Point the camera at a code and tap Check
 out. The event stays set for everything you scan after it.
 
-## Bring gear back
+## Return gear
 
 Tap Return and point at each code. The card says where the item goes; tap Return and put it there. Any order, any number
 of evenings.

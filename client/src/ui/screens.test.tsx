@@ -706,9 +706,9 @@ test("the guide is the compiled markdown, with contents that reach each task", a
   const sections = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
   expect(sections.slice(0, 2)).toEqual(["Scouter", "Quartermaster"]);
   // The first task, and the contents link that jumps to it.
-  expect(screen.getAllByRole("heading", { level: 3 })[0]).toHaveTextContent("Take gear out");
+  expect(screen.getAllByRole("heading", { level: 3 })[0]).toHaveTextContent("Check gear out");
   const contents = within(screen.getByRole("navigation", { name: "Scouter contents" }));
-  expect(contents.getByRole("link", { name: "Take gear out" })).toHaveAttribute("href", "#take-gear-out");
+  expect(contents.getByRole("link", { name: "Check gear out" })).toHaveAttribute("href", "#check-gear-out");
 });
 
 // --- Back follows the way in ------------------------------------------------
