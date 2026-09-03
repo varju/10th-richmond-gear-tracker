@@ -56,8 +56,8 @@ test("Settings shows a non-admin their own devices; the one in use cannot be rev
   const list = await screen.findByRole("list", { name: "Your devices" });
   const rows = within(list).getAllByRole("listitem");
   expect(rows.map((r) => r.textContent)).toEqual([
-    expect.stringContaining("This phone"),
-    expect.stringContaining("Phone"),
+    expect.stringContaining("This device"),
+    expect.stringContaining("Device"),
     expect.stringContaining("Assistant"),
   ]);
 

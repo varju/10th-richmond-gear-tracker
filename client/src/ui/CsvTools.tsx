@@ -25,22 +25,32 @@ const ROW_LIMIT = 50;
 export function CsvTools({ api, onDone }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [text, setText] = useState<string | null>(null);
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const lastUrl = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!downloadUrl) return;
-    return () => URL.revokeObjectURL(downloadUrl);
-  }, [downloadUrl]);
+    return () => {
+      if (lastUrl.current) URL.revokeObjectURL(lastUrl.current);
+    };
+  }, []);
 
   async function download() {
     setBusy(true);
     setError(null);
     try {
-      setDownloadUrl(URL.createObjectURL(await api.exportCsv()));
+      const url = URL.createObjectURL(await api.exportCsv());
+      if (lastUrl.current) URL.revokeObjectURL(lastUrl.current);
+      lastUrl.current = url;
+      // A synthetic anchor, clicked and discarded: one tap, and the blob never becomes a link the person has to find.
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "inventory.csv";
+      document.body.append(a);
+      a.click();
+      a.remove();
     } catch (e) {
       setError(describe(e));
     } finally {
@@ -107,13 +117,6 @@ export function CsvTools({ api, onDone }: Props) {
       <button type="button" onClick={download} disabled={busy}>
         Download inventory.csv
       </button>
-      {downloadUrl && (
-        <p>
-          <a download="inventory.csv" href={downloadUrl}>
-            Download inventory.csv
-          </a>
-        </p>
-      )}
       <label>
         <span>Import a CSV</span>
         <input ref={input} type="file" accept=".csv,text/csv" onChange={onFile} />

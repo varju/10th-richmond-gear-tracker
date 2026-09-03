@@ -8,6 +8,8 @@ import { plural, statusLabel } from "./labels";
  * The phone's list of gear: one tappable row each, name and home. The home
  * screen shows it for a search, `/items` shows all of it. Grouped under a
  * category heading once the group has any (FR-SET-07); a flat list otherwise.
+ * Each heading is a fold, so a locker looking for one category can collapse
+ * the rest.
  */
 export function ItemList({ store, list }: { store: Store; list: Row[] }) {
   const state = store.state;
@@ -24,12 +26,16 @@ export function ItemList({ store, list }: { store: Store; list: Row[] }) {
     <>
       {byCategory(state, list).map((g) => (
         <section key={g.category?.id ?? ""} aria-label={g.category?.name ?? "No category"}>
-          <h2 className="section">{g.category?.name ?? "No category"}</h2>
-          <ul className="items">
-            {g.rows.map((row) => (
-              <ItemRow key={row.item.id} store={store} row={row} />
-            ))}
-          </ul>
+          <details className="cat" open>
+            <summary>
+              <h2 className="section">{g.category?.name ?? "No category"}</h2>
+            </summary>
+            <ul className="items">
+              {g.rows.map((row) => (
+                <ItemRow key={row.item.id} store={store} row={row} />
+              ))}
+            </ul>
+          </details>
         </section>
       ))}
     </>

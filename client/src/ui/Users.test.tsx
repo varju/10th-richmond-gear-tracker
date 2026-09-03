@@ -54,7 +54,7 @@ beforeEach(async () => {
 const user = userEvent.setup();
 const mount = () => render(<Users store={store} api={createApi({ fetch: fetchFake, token: () => "t" })} />);
 
-test("lists the group and revokes one phone without touching the person (FR-USR-14)", async () => {
+test("lists the group and revokes one device without touching the person (FR-USR-14)", async () => {
   mount();
   const list = await screen.findByRole("list", { name: "Users" });
   expect(
@@ -73,11 +73,11 @@ test("lists the group and revokes one phone without touching the person (FR-USR-
   expect(calls.filter((c) => c.includes("deactivate"))).toEqual([]);
 });
 
-test("an Admin's own phone cannot be revoked here; sign out instead", async () => {
+test("an Admin's own device cannot be revoked here; sign out instead", async () => {
   mount();
   await user.click(await screen.findByRole("button", { name: /Alice/ }));
   const phones = await screen.findByRole("list", { name: "Devices of Alice" });
-  expect(phones).toHaveTextContent("This phone");
+  expect(phones).toHaveTextContent("This device");
   expect(within(phones).getByRole("button", { name: "Revoke" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Deactivate" })).toBeDisabled();
 });

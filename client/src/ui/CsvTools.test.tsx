@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test } from "vitest";
 import { createApi } from "../lib/api";
@@ -72,13 +72,21 @@ const user = userEvent.setup();
 const mount = () =>
   render(<Settings store={store} api={createApi({ fetch: fetchFake, token: () => "t" })} shell={shell} />);
 
-test("downloading gets the CSV and offers it as a file", async () => {
-  mount();
-  await user.click(screen.getByRole("button", { name: "Download inventory.csv" }));
-  const link = await screen.findByRole("link", { name: "Download inventory.csv" });
-  expect(link).toHaveAttribute("href", "blob:csv");
-  expect(link).toHaveAttribute("download", "inventory.csv");
-  expect(calls.map((c) => c.path)).toContain("/inventory.csv");
+test("downloading saves the file in one click", async () => {
+  const clicks: { href: string; download: string }[] = [];
+  const real = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function () {
+    clicks.push({ href: this.getAttribute("href") ?? "", download: this.download });
+  };
+  try {
+    mount();
+    await user.click(screen.getByRole("button", { name: "Download inventory.csv" }));
+    await waitFor(() => expect(clicks).toEqual([{ href: "blob:csv", download: "inventory.csv" }]));
+    expect(calls.map((c) => c.path)).toContain("/inventory.csv");
+    expect(screen.queryByRole("link", { name: "Download inventory.csv" })).not.toBeInTheDocument();
+  } finally {
+    HTMLAnchorElement.prototype.click = real;
+  }
 });
 
 test("choosing a file previews it, and applying writes it", async () => {

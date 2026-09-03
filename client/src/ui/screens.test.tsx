@@ -491,6 +491,24 @@ test("the phone list heads its rows by category once one exists, uncategorised l
     ]),
   );
   expect(rows()).toEqual(["StoveWarm locker", "Tent 1Cold locker / shelf 4"]);
+  expect(
+    screen.getAllByRole("heading", { level: 2 }).map((h) => (h.closest("details") as HTMLDetailsElement).open),
+  ).toEqual([true, true]);
+});
+
+test("a category heading folds its rows away (FR-SET-07)", async () => {
+  const f = await fixture();
+  const camp = await act.createCategory(store, "Camp kitchen");
+  await act.updateItem(store, f.stove, { category_id: camp });
+  navigate("/items");
+  mount();
+
+  const heading = await screen.findByRole("heading", { name: "Camp kitchen" });
+  const fold = heading.closest("details") as HTMLDetailsElement;
+  expect(fold.open).toBe(true);
+
+  await userEvent.setup().click(heading);
+  expect(fold.open).toBe(false);
 });
 
 test("the Category filter and field appear only once a category exists, and the filter narrows the list (FR-SET-07)", async () => {

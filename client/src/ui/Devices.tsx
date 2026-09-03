@@ -12,7 +12,7 @@ interface Props {
 }
 
 /**
- * One person's signed-in phones and assistants (FR-USR-14): the Users list for
+ * One person's signed-in devices and assistants (FR-USR-14): the Users list for
  * an Admin looking at someone else, and Settings for looking at your own.
  */
 export function DeviceList({ userId, me, myDevice, api, onError, label }: Props) {
@@ -61,7 +61,7 @@ export function DeviceList({ userId, me, myDevice, api, onError, label }: Props)
       <ul className="names" aria-label={label}>
         {devices.map((d) => {
           const mine = me && d.device_id === myDevice;
-          const kind = isAssistant(d.device_id) ? "Assistant" : mine ? "This phone" : "Phone";
+          const kind = isAssistant(d.device_id) ? "Assistant" : mine ? "This device" : "Device";
           return (
             <li key={d.device_id} className="row">
               <span className="small">
@@ -81,7 +81,7 @@ export function DeviceList({ userId, me, myDevice, api, onError, label }: Props)
         })}
       </ul>
       <p className="muted small">
-        Revoking a phone ends its access the next time it syncs. Revoking an assistant cuts its token off at once.
+        Revoking a device ends its access the next time it syncs. Revoking an assistant cuts its token off at once.
       </p>
     </>
   );
