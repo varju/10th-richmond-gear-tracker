@@ -324,6 +324,7 @@ test("a found report shows on the item until someone resolves it (FR-PUB-03)", a
 test("what was paid, when and where shows as one line (FR-INV-12)", async () => {
   await act.updateItem(store, tent, { purchase_date: "2024-03-01", price: "249.99", supplier: "MEC" });
   renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByText("Details"));
   expect(screen.getByText("2024-03-01 · $249.99 · MEC")).toBeInTheDocument();
 });
 

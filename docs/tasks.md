@@ -65,12 +65,6 @@ are folded into each task.
       Your devices, Assistant. Sign out leaves Settings; it lives in the menu, and takes the unsent-records guard with
       it.
 
-### Item page
-
-- [ ] Every button at the foot of the item page has the same size and weight. No `minor` there.
-- [ ] Bought, Code, Added and Modified leave the facts list for a closed **Details** fold, like History and Changes.
-      Both the item page and the generic's page.
-
 ### New item
 
 - [ ] Remove supplier everywhere: the form, `boughtLabel`, the audit labels, `ItemInput`, the server model, the CSV

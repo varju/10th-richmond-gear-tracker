@@ -228,7 +228,7 @@ export function ItemPage({ store, id }: Props) {
           <button type="button" onClick={() => setEditing(true)}>
             Edit
           </button>
-          <button type="button" className="minor" onClick={() => navigate(`/scan?for=${id}`)}>
+          <button type="button" onClick={() => navigate(`/scan?for=${id}`)}>
             {current ? "Replace QR code" : "Add QR code"}
           </button>
           {/* Retiring is rare and lives at the foot of Edit. Missing is not: gear goes astray weekly. */}
@@ -238,17 +238,17 @@ export function ItemPage({ store, id }: Props) {
             </button>
           )}
           {it.parent_id && !it.retired && (
-            <button type="button" className="minor" onClick={() => setMoving(true)}>
+            <button type="button" onClick={() => setMoving(true)}>
               Move to another generic…
             </button>
           )}
           {!it.generic && !it.parent_id && !it.retired && (
-            <button type="button" className="minor" onClick={() => setGrouping(true)}>
+            <button type="button" onClick={() => setGrouping(true)}>
               Group with another item…
             </button>
           )}
           {admin && !it.retired && it.status === "in" && (
-            <button type="button" className="minor" onClick={() => setMerging(true)}>
+            <button type="button" onClick={() => setMerging(true)}>
               This is a duplicate record…
             </button>
           )}
@@ -324,8 +324,6 @@ export function ItemPage({ store, id }: Props) {
             )}
             <dt>Description</dt>
             <dd className="prose">{it.description || "—"}</dd>
-            <dt>Bought</dt>
-            <dd>{boughtLabel(it) || "—"}</dd>
             {mergedFrom.length > 0 && (
               <>
                 <dt>Merged from</dt>
@@ -344,16 +342,26 @@ export function ItemPage({ store, id }: Props) {
                 ))}
               </>
             )}
-            <dt>Code</dt>
-            <dd>
-              {current ? <code>{current.id}</code> : "none"}
-              {codes.length > 1 && <span className="muted"> · {codes.length - 1} replaced</span>}
-            </dd>
-            <dt>Added</dt>
-            <dd>{it.added_at ? isoDate(it.added_at) : "—"}</dd>
-            <dt>Modified</dt>
-            <dd>{it.modified_at ? isoDate(it.modified_at) : "—"}</dd>
           </dl>
+
+          <details className="fold">
+            <summary>
+              <h3 className="section">Details</h3>
+            </summary>
+            <dl className="facts">
+              <dt>Bought</dt>
+              <dd>{boughtLabel(it) || "—"}</dd>
+              <dt>Code</dt>
+              <dd>
+                {current ? <code>{current.id}</code> : "none"}
+                {codes.length > 1 && <span className="muted"> · {codes.length - 1} replaced</span>}
+              </dd>
+              <dt>Added</dt>
+              <dd>{it.added_at ? isoDate(it.added_at) : "—"}</dd>
+              <dt>Modified</dt>
+              <dd>{it.modified_at ? isoDate(it.modified_at) : "—"}</dd>
+            </dl>
+          </details>
 
           <h3 className="section">Photos</h3>
           <Photos store={store} on={onItem} />
@@ -398,7 +406,7 @@ function DeleteItem({ store, it }: { store: Store; it: Item }) {
   }
 
   return (
-    <button type="button" className={asked ? "minor warn" : "minor"} onClick={() => void remove()}>
+    <button type="button" className={asked ? "warn" : ""} onClick={() => void remove()}>
       {asked ? "Really delete? This cannot be undone" : "Delete for good…"}
     </button>
   );
@@ -1027,11 +1035,19 @@ function GenericPage({
         )}
         <dt>Description</dt>
         <dd className="prose">{it.description || "—"}</dd>
-        <dt>Bought</dt>
-        <dd>{boughtLabel(it) || "—"}</dd>
-        <dt>Added</dt>
-        <dd>{it.added_at ? isoDate(it.added_at) : "—"}</dd>
       </dl>
+
+      <details className="fold">
+        <summary>
+          <h3 className="section">Details</h3>
+        </summary>
+        <dl className="facts">
+          <dt>Bought</dt>
+          <dd>{boughtLabel(it) || "—"}</dd>
+          <dt>Added</dt>
+          <dd>{it.added_at ? isoDate(it.added_at) : "—"}</dd>
+        </dl>
+      </details>
 
       <h3 className="section">Units</h3>
       {units.length === 0 ? (
