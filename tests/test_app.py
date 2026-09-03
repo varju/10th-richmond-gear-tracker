@@ -460,6 +460,54 @@ def test_looking_up_a_code(client):
     assert client.get("/codes/ABCDEFGH23", headers=as_alice()).status_code == 404
 
 
+def test_releasing_a_code_makes_it_unassigned_and_reusable(client, db_path):
+    """FR-TAG-14: scanning it again after a release finds it unassigned, and it can go on something else."""
+    with open_db(db_path) as conn:
+        events.append_server(conn, "alice", "code", "ABCDEFGH23", "created", {})
+    client.post(
+        "/sync/push",
+        json=push_body(
+            event(entity_type="item", entity_id="item-1", type="created", payload={"name": "Tent"}),
+            event(entity_type="item", entity_id="item-2", type="created", payload={"name": "Tarp"}, device_seq=2),
+            event(
+                entity_type="code",
+                entity_id="ABCDEFGH23",
+                type="code_bound",
+                payload={"item_id": "item-1"},
+                device_seq=3,
+            ),
+        ),
+        headers=as_alice(),
+    )
+    assert client.get("/codes/ABCDEFGH23", headers=as_alice()).json()["item_id"] == "item-1"
+
+    released = client.post(
+        "/sync/push",
+        json=push_body(
+            event(entity_type="code", entity_id="ABCDEFGH23", type="code_released", payload={}, device_seq=4)
+        ),
+        headers=as_alice(),
+    )
+    assert released.json()["accepted"], released.json()
+    assert client.get("/codes/ABCDEFGH23", headers=as_alice()).json()["item_id"] is None
+
+    rebound = client.post(
+        "/sync/push",
+        json=push_body(
+            event(
+                entity_type="code",
+                entity_id="ABCDEFGH23",
+                type="code_bound",
+                payload={"item_id": "item-2"},
+                device_seq=5,
+            )
+        ),
+        headers=as_alice(),
+    )
+    assert rebound.json()["accepted"], rebound.json()
+    assert client.get("/codes/ABCDEFGH23", headers=as_alice()).json()["item_id"] == "item-2"
+
+
 # --- inventory CSV ------------------------------------------------------------------------
 
 
@@ -552,6 +600,19 @@ def test_a_printed_but_unbound_code_still_says_whose_it_is(public):
     body = public.get("/public/codes/BBBBBBBBBB").json()
     assert body["item"] is None
     assert body["group"]["name"] == "10th Richmond"
+
+
+def test_a_released_code_reads_as_unbound_on_the_public_page(public):
+    """FR-TAG-14: once the sticker is off the gear, a stranger who scans it sees no item."""
+    public.post(
+        "/sync/push",
+        json=push_body(
+            event(entity_type="code", entity_id="AAAAAAAAAA", type="code_released", payload={}, device_seq=3)
+        ),
+        headers=as_alice(),
+    )
+    body = public.get("/public/codes/AAAAAAAAAA").json()
+    assert body["item"] is None
 
 
 def test_the_public_route_refuses_a_code_that_is_not_ours(public):

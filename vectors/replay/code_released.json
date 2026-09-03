@@ -1,0 +1,72 @@
+{
+  "name": "releasing a code clears its item; the item shows no code again (FR-TAG-14)",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "code",
+      "entity_id": "CCCCCCCCCC",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "type": "created",
+      "payload": {}
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-2",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "type": "created",
+      "payload": {
+        "name": "Tent"
+      }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "code",
+      "entity_id": "CCCCCCCCCC",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "type": "code_bound",
+      "payload": {
+        "item_id": "tent-2"
+      }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "code",
+      "entity_id": "CCCCCCCCCC",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 4000,
+      "type": "code_released",
+      "payload": {}
+    }
+  ],
+  "state": {
+    "code": {
+      "CCCCCCCCCC": {
+        "added_at": 1000,
+        "modified_at": 1000,
+        "item_id": null,
+        "bound_at": 3000
+      }
+    },
+    "item": {
+      "tent-2": {
+        "name": "Tent",
+        "added_at": 2000,
+        "modified_at": 2000,
+        "status": "in",
+        "holder_id": null
+      }
+    }
+  }
+}

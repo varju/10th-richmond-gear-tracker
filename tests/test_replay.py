@@ -82,6 +82,65 @@ def test_code_bound_records_the_item_and_when():
     assert state["code"]["ABCDEFGH23"] == {"item_id": "tent-1", "bound_at": T0, "added_at": T0, "modified_at": T0}
 
 
+def test_code_released_clears_the_item_but_keeps_bound_at():
+    bound = ev(
+        entity_type="code",
+        entity_id="ABCDEFGH23",
+        device_seq=2,
+        effective_at=T0 + 1,
+        type="code_bound",
+        payload={"item_id": "tent-1"},
+    )
+    released = ev(
+        entity_type="code",
+        entity_id="ABCDEFGH23",
+        device_seq=3,
+        effective_at=T0 + 2,
+        type="code_released",
+        payload={},
+    )
+    state = replay([ev(entity_type="code", entity_id="ABCDEFGH23", type="created", payload={}), bound, released])
+    assert state["code"]["ABCDEFGH23"] == {
+        "item_id": None,
+        "bound_at": T0 + 1,
+        "added_at": T0,
+        "modified_at": T0,
+    }
+
+
+def test_a_released_code_binds_again_onto_a_new_item():
+    events = [
+        ev(entity_type="code", entity_id="ABCDEFGH23", device_seq=1, type="created", payload={}),
+        ev(
+            entity_type="code",
+            entity_id="ABCDEFGH23",
+            device_seq=2,
+            effective_at=T0 + 1,
+            type="code_bound",
+            payload={"item_id": "tent-1"},
+        ),
+        ev(
+            entity_type="code",
+            entity_id="ABCDEFGH23",
+            device_seq=3,
+            effective_at=T0 + 2,
+            type="code_released",
+            payload={},
+        ),
+        ev(
+            entity_type="code",
+            entity_id="ABCDEFGH23",
+            device_seq=4,
+            effective_at=T0 + 3,
+            type="code_bound",
+            payload={"item_id": "tent-2"},
+        ),
+    ]
+    state = replay(events)
+    assert state["code"]["ABCDEFGH23"]["item_id"] == "tent-2"
+    assert state["code"]["ABCDEFGH23"]["bound_at"] == T0 + 3
+
+
 def test_replay_order_beats_input_order():
     events = [
         ev(device_seq=1, effective_at=T0 + 1, payload={"field": "name", "value": "first"}),

@@ -1,0 +1,105 @@
+{
+  "name": "a released code binds again, onto a different item, and resolves to the new one",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "code",
+      "entity_id": "DDDDDDDDDD",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "type": "created",
+      "payload": {}
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-3",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "type": "created",
+      "payload": {
+        "name": "Tent"
+      }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "shed-1",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 2500,
+      "type": "created",
+      "payload": {
+        "name": "Shed"
+      }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "code",
+      "entity_id": "DDDDDDDDDD",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 3000,
+      "type": "code_bound",
+      "payload": {
+        "item_id": "tent-3"
+      }
+    },
+    {
+      "id": "01000000000000000000000005",
+      "entity_type": "code",
+      "entity_id": "DDDDDDDDDD",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 5,
+      "effective_at": 4000,
+      "type": "code_released",
+      "payload": {}
+    },
+    {
+      "id": "01000000000000000000000006",
+      "entity_type": "code",
+      "entity_id": "DDDDDDDDDD",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 6,
+      "effective_at": 5000,
+      "type": "code_bound",
+      "payload": {
+        "item_id": "shed-1"
+      }
+    }
+  ],
+  "state": {
+    "code": {
+      "DDDDDDDDDD": {
+        "added_at": 1000,
+        "modified_at": 1000,
+        "item_id": "shed-1",
+        "bound_at": 5000
+      }
+    },
+    "item": {
+      "tent-3": {
+        "name": "Tent",
+        "added_at": 2000,
+        "modified_at": 2000,
+        "status": "in",
+        "holder_id": null
+      },
+      "shed-1": {
+        "name": "Shed",
+        "added_at": 2500,
+        "modified_at": 2500,
+        "status": "in",
+        "holder_id": null
+      }
+    }
+  }
+}

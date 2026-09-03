@@ -184,8 +184,10 @@ def test_the_tools_are_what_a_user_can_do_and_nothing_an_admin_does(db_path):
         ).json()
     names = {tool["name"] for tool in listed["result"]["tools"]}
     assert names == {tool.__name__ for tool in assistant.TOOLS}
-    # FR-MCP-04: no users, mail, settings, locations, or codes.
-    assert not [n for n in names if "user" in n or "mail" in n or "code" in n or "setting" in n]
+    # Nothing an Admin does is built yet (FR-MCP-10): no users, mail, settings, locations, or
+    # printing codes. unassign_code is a User's job (FR-MCP-09), so it is the one exception.
+    assert not [n for n in names if "user" in n or "mail" in n or "setting" in n]
+    assert not [n for n in names if "code" in n and n != "unassign_code"]
     assert not [n for n in names if "location" in n and n != "list_locations"]
     assert all(tool.__doc__ for tool in assistant.TOOLS)
 
@@ -363,6 +365,30 @@ def test_check_in_clears_missing(db_path, tools):
     assistant.check_out(tools["stove"])
     assistant.check_in(tools["stove"])
     assert entity(db_path, "item", tools["stove"])["missing"] is False
+
+
+def test_unassign_code_releases_it_and_needs_one_bound_first(db_path, tools):
+    with pytest.raises(BadRequest):
+        assistant.unassign_code(tools["stove"])
+
+    with open_db(db_path) as conn:
+        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "created", {})
+        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "code_bound", {"item_id": tools["stove"]})
+
+    released = assistant.unassign_code(tools["stove"])
+    assert released == {"item_id": tools["stove"], "code": "ABCDEFGH23"}
+    assert entity(db_path, "code", "ABCDEFGH23")["item_id"] is None
+
+    with pytest.raises(BadRequest):
+        assistant.unassign_code(tools["stove"])
+
+
+def test_get_item_shows_the_current_code(db_path, tools):
+    with open_db(db_path) as conn:
+        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "created", {})
+        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "code_bound", {"item_id": tools["stove"]})
+    assert assistant.get_item(tools["stove"])["code"] == "ABCDEFGH23"
+    assert "code" not in assistant.get_item(tools["t1"])
 
 
 def test_creating_an_item_a_generic_and_its_units(db_path, tools):

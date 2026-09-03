@@ -367,6 +367,20 @@ class CodeBound(_Incoming):
         return self
 
 
+class CodeReleased(_Incoming):
+    """A code comes off an item, on purpose (FR-TAG-14). Unlike a replaced code (FR-TAG-05), the code goes
+    back to unassigned: scanning it again offers a new item or a bind (FR-TAG-07)."""
+
+    type: Literal["code_released"]
+    payload: dict[str, Any]
+
+    @model_validator(mode="after")
+    def _codes_only(self):
+        if self.entity_type != "code":
+            raise ValueError("code_released applies only to codes")
+        return self
+
+
 IncomingEvent = Annotated[
     Created
     | FieldChanged
@@ -380,6 +394,7 @@ IncomingEvent = Annotated[
     | CheckedOut
     | CheckedIn
     | CodeBound
+    | CodeReleased
     | PhotoAdded
     | PhotoRemoved,
     Field(discriminator="type"),
@@ -401,6 +416,7 @@ EVENT_TYPES = frozenset(
         "checked_out",
         "checked_in",
         "code_bound",
+        "code_released",
         "photo_added",
         "photo_removed",
     }

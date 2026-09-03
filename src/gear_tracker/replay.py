@@ -158,6 +158,10 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             # one is a question about the item's other codes, answered by whoever asks.
             entity["item_id"] = p["item_id"]
             entity["bound_at"] = event.effective_at
+        case "code_released":
+            # Deliberate, unlike a replace (FR-TAG-05): the code goes back to
+            # unassigned, so scanning it offers a new item or a bind (FR-TAG-07).
+            entity["item_id"] = None
         case other:
             raise UnknownEventType(other)
 

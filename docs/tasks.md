@@ -45,13 +45,6 @@ The vertical slice is built. What is left needs a phone.
       endpoints call; no second code path. The server's MCP instructions and the "Connect an assistant" text in Settings
       stop saying Admin work is out of reach. Guide section "assistant.md" follows.
 
-### Codes
-
-- [ ] Unassign an item's code (FR-TAG-14). A `code_released` event on the code; replay in both languages sets the item's
-      current code to none and the code back to unassigned, so scanning it offers a new item or a bind (FR-TAG-07), with
-      a vector. The server validates it like `code_bound`. An assistant tool `unassign_code` (FR-MCP-09) does it; the
-      app's item page needs no button for now.
-
 ## M9 — Go live
 
 First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is

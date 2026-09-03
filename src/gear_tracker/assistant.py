@@ -16,8 +16,9 @@ history reads "this Scouter, via the assistant". There is no second write path.
 **A read is derived state**, through views.py, which is the Python twin of what
 appears on screen.
 
-**Nothing an Admin does is here** (FR-MCP-04): no users, mail, settings,
-locations, categories, or codes.
+**Nothing an Admin does is here yet** (FR-MCP-10 is not built): no users, mail,
+settings, locations, categories, or printing codes. Unassigning a code
+(FR-MCP-09) is a User's job, so `unassign_code` is here.
 """
 
 from __future__ import annotations
@@ -347,6 +348,9 @@ def get_item(item_id: str) -> dict[str, Any]:
         if it.get("parent_id"):
             out["generic_id"] = it["parent_id"]
             out["number"] = it.get("number")
+        code_id = views.current_code(state, it["id"])
+        if code_id:
+            out["code"] = code_id
         out["open_tickets"] = [_ticket_brief(state, t) for t in views.repairs_for(state, it["id"]) if views.is_open(t)]
         out["reservations"] = [
             _reservation_brief(r) for r in views.reservations(state) if it["id"] in views.named_items(state, r)
@@ -781,6 +785,19 @@ def mark_missing(item_id: str) -> dict[str, Any]:
         return {"item_id": it["id"], "missing": True}
 
 
+def unassign_code(item_id: str) -> dict[str, Any]:
+    """Take an item's code off it, on purpose (FR-TAG-14). Only for a sticker already off the gear:
+    the code goes back to unassigned, so scanning it again offers a new item or a bind (FR-TAG-07)."""
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, item_id)
+        code_id = views.current_code(state, it["id"])
+        if code_id is None:
+            raise BadRequest("this item has no code to unassign")
+        _push(conn, who, [_draft("code", code_id, "code_released", {})])
+        return {"item_id": it["id"], "code": code_id}
+
+
 # --- repair tools -----------------------------------------------------------------------------------
 
 RepairState = Annotated[str, StringConstraints(pattern="^(" + "|".join(REPAIR_STATES) + ")$")]
@@ -904,13 +921,14 @@ TOOLS = [
     add_unit,
     update_item,
     mark_missing,
+    unassign_code,
     raise_ticket,
     comment_ticket,
     set_ticket_state,
     check_out,
     check_in,
 ]
-"""Everything an assistant can do. What a User can do in the app, and nothing an Admin does (FR-MCP-04)."""
+"""Everything an assistant can do. What a User can do in the app; nothing an Admin does is built yet (FR-MCP-10)."""
 
 
 # --- the server ---------------------------------------------------------------------------------------

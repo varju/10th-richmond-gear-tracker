@@ -83,6 +83,22 @@ def aliases(state: State, item_id: str) -> list[str]:
     return found
 
 
+def current_code(state: State, item_id: str) -> str | None:
+    """The code bound last (highest `bound_at`) that resolves, through merges, to this item.
+
+    A released code (FR-TAG-14) has no `item_id` and is never the answer. Mirrors
+    currentCode in inventory.ts."""
+    best_code, best_at = None, -1
+    for code_id, fields in (state.get("code") or {}).items():
+        bound_item = fields.get("item_id")
+        if bound_item is None or resolve_item(state, bound_item) != item_id:
+            continue
+        bound_at = fields.get("bound_at") or 0
+        if bound_at > best_at:
+            best_code, best_at = code_id, bound_at
+    return best_code
+
+
 def number_key(it: Fields) -> tuple[int, int, str]:
     """Unit numbers as people read them: whole numbers first and in numeric order,
     so 2 comes before 10, then everything else as text. The twin of byNumber in inventory.ts."""

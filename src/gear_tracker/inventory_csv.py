@@ -115,16 +115,7 @@ def _row(state: State, it: dict[str, Any]) -> list[str]:
 
 
 def _code_for(state: State, item_id: str) -> str | None:
-    """The code bound last (highest `bound_at`) that resolves, through merges, to this item."""
-    best_code, best_at = None, -1
-    for code_id, fields in (state.get("code") or {}).items():
-        bound_item = fields.get("item_id")
-        if bound_item is None or views.resolve_item(state, bound_item) != item_id:
-            continue
-        bound_at = fields.get("bound_at") or 0
-        if bound_at > best_at:
-            best_code, best_at = code_id, bound_at
-    return best_code
+    return views.current_code(state, item_id)
 
 
 # --- plan -----------------------------------------------------------------------------

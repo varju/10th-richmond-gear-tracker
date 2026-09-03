@@ -328,6 +328,25 @@ test("the item's current code is the latest binding; older ones still resolve", 
   expect(inv.code(store.state, "ABCDEFGH23")?.item_id).toBe(f.t1);
 });
 
+test("a released code goes back to unassigned, and can be bound to something else (FR-TAG-14)", async () => {
+  const f = await fixture();
+  await act.bindCode(store, "ABCDEFGH23", f.t1);
+  await store.record({
+    entity_type: "code",
+    entity_id: "ABCDEFGH23",
+    type: "code_released",
+    actor_id: "alice",
+    payload: {},
+  });
+  expect(inv.codeStatus(store.state, "ABCDEFGH23")).toBe("unassigned");
+  expect(inv.codesFor(store.state, f.t1)).toEqual([]);
+  expect(inv.currentCode(store.state, f.t1)).toBeUndefined();
+
+  await act.bindCode(store, "ABCDEFGH23", f.t2);
+  expect(inv.codeStatus(store.state, "ABCDEFGH23")).toBe("assigned");
+  expect(inv.currentCode(store.state, f.t2)?.id).toBe("ABCDEFGH23");
+});
+
 test("updates record only what changed, with the old value", async () => {
   const f = await fixture();
   const before = store.pending.length;

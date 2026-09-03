@@ -383,6 +383,10 @@ on the item, so an item's current code is a question answered by reading its cod
 rest are replaced and still resolve (FR-TAG-05). The server refuses a second binding of the same code at push time; the
 two-phones-offline race leaves the loser's item without a code and a rejection explaining why.
 
+A device may also release a bound code, deliberately, with a `code_released` event that clears `item_id` (FR-TAG-14).
+Unlike a replace, this is not superseded by a new sticker: the code goes back to unassigned and may be bound to a
+different item later. The server refuses to release a code that is not on anything.
+
 Scanning lands on `/g/<code>`, the same path a sticker's URL has, so a camera app and the in-app scanner take one route.
 Assigned or replaced: open the item. Unassigned: create or bind. Unknown: say so, and suggest a sync, because a freshly
 printed sheet is unknown to a phone that has not pulled since.
@@ -559,6 +563,10 @@ Code identifiers must not be guessable (NFR-SEC-04), so they are random, not seq
 
 An item has one current code and any number of replaced ones. A sticker that turns up in a field two years later
 resolves correctly.
+
+A fourth move, releasing, takes an assigned or replaced code deliberately back to unassigned (FR-TAG-14): the sticker is
+off the gear, and the printed code is free to go on something else. Unlike a replace, nothing else takes its place on
+the item.
 
 **Keep the URL short.** Length costs physical module size, which is what survives a scuffed sticker in a dim locker. In
 a 0.95in printed box including the quiet zone, at error correction M:

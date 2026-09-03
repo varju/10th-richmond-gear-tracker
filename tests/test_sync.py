@@ -361,6 +361,18 @@ def test_devices_bind_codes_but_do_not_make_them(db):
     assert reasons(db, ADMIN, {**again, "device_seq": 3}) == ["this code is already on an item"]
 
 
+def test_any_signed_in_user_may_release_a_bound_code(db):
+    unmade = own(USER, entity_type="code", entity_id="ZZZZZZZZZZ", type="code_released", payload={})
+    assert reasons(db, USER, unmade) == ["not one of our codes"]
+
+    events.append_server(db, "alice", "code", "ABCDEFGH23", "created", {}, now=T0)
+    release = own(USER, entity_type="code", entity_id="ABCDEFGH23", type="code_released", payload={}, device_seq=2)
+    assert reasons(db, USER, release) == ["this code is not on anything"]
+
+    events.append_server(db, "alice", "code", "ABCDEFGH23", "code_bound", {"item_id": "tent-1"}, now=T0)
+    assert reasons(db, USER, {**release, "device_seq": 3}) == []
+
+
 def test_created_may_not_set_system_fields(db):
     made = own(USER, type="created", payload={"name": "Tent", "added_at": 1})
     assert reasons(db, USER, made) == ["payload: added_at is set by the system, not by created"]

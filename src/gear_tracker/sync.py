@@ -152,6 +152,12 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
             target = derived.get_entity(conn, "item", str(named)) or {}
             if target.get("generic"):
                 raise Rejected("a generic item takes no code; put it on a unit (FR-INV-21)")
+        if kind == "code_released":
+            code = derived.get_entity(conn, "code", str(incoming.get("entity_id")))
+            if code is None:
+                raise Rejected("not one of our codes")
+            if code.get("item_id") is None:
+                raise Rejected("this code is not on anything")
 
 
 def _check_drift(conn: sqlite3.Connection, event: events.Event, measured_offset: int, now: int) -> None:

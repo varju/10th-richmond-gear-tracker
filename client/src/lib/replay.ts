@@ -200,6 +200,11 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       entity.item_id = p.item_id;
       entity.bound_at = event.effective_at;
       break;
+    case "code_released":
+      // Deliberate, unlike a replace (FR-TAG-05): the code goes back to
+      // unassigned, so scanning it offers a new item or a bind (FR-TAG-07).
+      entity.item_id = null;
+      break;
     default:
       throw new UnknownEventType(event.type);
   }

@@ -76,7 +76,8 @@ export interface Category {
 
 export interface Code {
   id: string;
-  item_id?: string;
+  /** Absent: never bound. Null: bound once, then released (FR-TAG-14). Either way, the code is unassigned. */
+  item_id?: string | null;
   bound_at?: number;
 }
 
@@ -269,7 +270,7 @@ export type CodeStatus = "unassigned" | "assigned" | "replaced" | "unknown";
  * A code on a merged duplicate counts as the survivor's, so the old sticker still finds the item. */
 export function codesFor(state: State, itemId: string): Code[] {
   return codes(state)
-    .filter((c) => c.item_id !== undefined && resolveItem(state, c.item_id) === itemId)
+    .filter((c) => c.item_id != null && resolveItem(state, c.item_id) === itemId)
     .sort((a, b) => (b.bound_at ?? 0) - (a.bound_at ?? 0) || (a.id < b.id ? 1 : -1));
 }
 

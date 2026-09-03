@@ -1,7 +1,9 @@
 """Printed codes: drawing them, recording them, and looking one up.
 
 A code is an entity on the log. `created` means it was printed; `code_bound`
-(from a device) puts it on an item. See docs/architecture.md, "Codes and labels".
+(from a device) puts it on an item; `code_released` takes it off again, on
+purpose, and back to unassigned (FR-TAG-14). See docs/architecture.md, "Codes
+and labels".
 """
 
 from __future__ import annotations
