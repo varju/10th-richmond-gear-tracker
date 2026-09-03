@@ -34,6 +34,22 @@ The vertical slice is built. What is left needs a phone.
 
 - [ ] End-to-end test on a real phone with wifi and data turned off
 
+## M22 — Third round of feedback
+
+### Settings
+
+- [ ] Every `nav.links` list reads like the menu: left-aligned, full width, one row per line, ruled. Settings, Users and
+      Mail have them. The rule added for `.menu` moves up to `.links`.
+- [ ] The foot of Settings reads "Source: <hash>", the hash linked to the commit; "Source: dev" with no link in a dev
+      build. The Source link itself goes.
+
+### Codes
+
+- [ ] Clear an item's code (FR-TAG-13). A `code_released` event on the code; replay in both languages sets the item's
+      current code to none and keeps the code resolving to the item (FR-TAG-05), with a vector. The server validates it
+      like `code_bound`. An assistant tool `clear_code` (FR-MCP-09) does it; the app's item page needs no button for
+      now.
+
 ## M9 — Go live
 
 First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is

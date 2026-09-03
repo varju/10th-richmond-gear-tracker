@@ -66,21 +66,22 @@ Priorities are Must, Should, Could, Won't.
 Codes are code-first, not item-first. We print sheets of unassigned codes, stick them on gear, and bind each one to an
 item by scanning it. A code is never generated for a specific item.
 
-| ID        | Priority | Requirement                                                                                                                                                            |
-| --------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FR-TAG-01 | Must     | Every tracked asset has a unique ID in a QR code. The item's identity is permanent; its current code is not (FR-TAG-04).                                               |
-| FR-TAG-02 | Must     | Generate a PDF sheet of new **unassigned** codes, laid out for Avery 6576 (1.75" x 1.25"). One hardcoded layout; not configurable.                                     |
-| FR-TAG-03 | Must     | Labels carry the QR code and the group name. Nothing else.                                                                                                             |
-| FR-TAG-04 | Must     | Assign a new code to an item whose sticker was lost or damaged, by binding an unassigned code to it. The item keeps its identity and history.                          |
-| FR-TAG-05 | Must     | Replaced codes still resolve to their item, and are never reused. A sticker found later must not point at the wrong gear.                                              |
-| FR-TAG-06 | Must     | Scanning an **assigned** code opens its item.                                                                                                                          |
-| FR-TAG-07 | Must     | Scanning an **unassigned** code offers two choices: create a new item, or bind the code to an existing item.                                                           |
-| FR-TAG-13 | Must     | A code's QR contains a full URL on a domain the group owns, not the server's address. Stickers are printed once and must survive the server moving house (NFR-DEP-09). |
-| FR-TAG-08 | Won't    | Withdrawn: print a label for one item. All codes come from pre-printed sheets (FR-TAG-02).                                                                             |
-| FR-TAG-09 | Won't    | Withdrawn: merged into FR-TAG-03. Labels carry nothing but the QR code and the group name.                                                                             |
-| FR-TAG-10 | Won't    | Reprint a label using the same ID. Cheaper to take a code off a pre-printed sheet and rebind it (FR-TAG-04).                                                           |
-| FR-TAG-11 | Won't    | Withdrawn: merged into FR-TAG-02. Every printed code starts unassigned, so this is no longer a separate feature.                                                       |
-| FR-TAG-12 | Won't    | Withdrawn: merged into FR-TAG-07.                                                                                                                                      |
+| ID        | Priority | Requirement                                                                                                                                                             |
+| --------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-TAG-01 | Must     | Every tracked asset has a unique ID in a QR code. The item's identity is permanent; its current code is not (FR-TAG-04).                                                |
+| FR-TAG-02 | Must     | Generate a PDF sheet of new **unassigned** codes, laid out for Avery 6576 (1.75" x 1.25"). One hardcoded layout; not configurable.                                      |
+| FR-TAG-03 | Must     | Labels carry the QR code and the group name. Nothing else.                                                                                                              |
+| FR-TAG-04 | Must     | Assign a new code to an item whose sticker was lost or damaged, by binding an unassigned code to it. The item keeps its identity and history.                           |
+| FR-TAG-05 | Must     | Replaced codes still resolve to their item, and are never reused. A sticker found later must not point at the wrong gear.                                               |
+| FR-TAG-06 | Must     | Scanning an **assigned** code opens its item.                                                                                                                           |
+| FR-TAG-07 | Must     | Scanning an **unassigned** code offers two choices: create a new item, or bind the code to an existing item.                                                            |
+| FR-TAG-13 | Should   | Clear an item's code without binding a new one. The item shows no code until one is bound; the cleared code still resolves to the item and is never reused (FR-TAG-05). |
+| FR-TAG-13 | Must     | A code's QR contains a full URL on a domain the group owns, not the server's address. Stickers are printed once and must survive the server moving house (NFR-DEP-09).  |
+| FR-TAG-08 | Won't    | Withdrawn: print a label for one item. All codes come from pre-printed sheets (FR-TAG-02).                                                                              |
+| FR-TAG-09 | Won't    | Withdrawn: merged into FR-TAG-03. Labels carry nothing but the QR code and the group name.                                                                              |
+| FR-TAG-10 | Won't    | Reprint a label using the same ID. Cheaper to take a code off a pre-printed sheet and rebind it (FR-TAG-04).                                                            |
+| FR-TAG-11 | Won't    | Withdrawn: merged into FR-TAG-02. Every printed code starts unassigned, so this is no longer a separate feature.                                                        |
+| FR-TAG-12 | Won't    | Withdrawn: merged into FR-TAG-07.                                                                                                                                       |
 
 ## 4. Check-out and check-in (OUT)
 
@@ -237,4 +238,5 @@ escape eviction (NFR-DEP-06), and pending work is visible enough that nobody wal
 | FR-MCP-05 | Should   | Every write is an ordinary event, attributed to the user and to the assistant's device. History shows it like any other.                                                                                                                                         |
 | FR-MCP-06 | Should   | A reservation saved through MCP reports the same clashes the app does (FR-RES-05, FR-RES-15).                                                                                                                                                                    |
 | FR-MCP-08 | Should   | `check_out` and `check_in` take a count for a pool (FR-OUT-22, FR-OUT-23), and `get_item` reports owned, in, and out by holder (FR-INV-36).                                                                                                                      |
+| FR-MCP-09 | Should   | A tool clears an item's code (FR-TAG-13).                                                                                                                                                                                                                        |
 | FR-MCP-07 | Could    | OAuth for assistant clients that refuse a plain bearer token.                                                                                                                                                                                                    |
