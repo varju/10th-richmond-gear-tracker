@@ -640,7 +640,6 @@ class ItemFields(BaseModel):
     sub_location: str | None = None
     purchase_date: IsoDate | None = None
     price: Annotated[float, Field(ge=0)] | None = None
-    supplier: str | None = None
     nickname: str | None = None
     number: NonBlank | None = None
     category_ids: list[str] | None = None

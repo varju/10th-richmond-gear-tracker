@@ -53,7 +53,6 @@ class Item(Section):
     sub_location: str = ""
     purchase_date: IsoDate | None = None
     price: float | int | None = None
-    supplier: str = ""
     category: str = ""
     categories: list[str] = []
     units: list[Unit] = []
@@ -156,7 +155,7 @@ def load(conn: sqlite3.Connection, spec: Inventory, actor_id: str, now: int | No
         if item.description:
             fields["description"] = item.description
         _where(fields, homes, item.home, item.sub_location)
-        for field in ("purchase_date", "price", "supplier"):
+        for field in ("purchase_date", "price"):
             if getattr(item, field):
                 fields[field] = getattr(item, field)
         names = item.all_categories

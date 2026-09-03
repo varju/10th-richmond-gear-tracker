@@ -453,9 +453,9 @@ def test_an_old_item_with_only_category_id_falls_back_to_one_category(db_path, t
 
 
 def test_updating_an_item_records_only_what_differs(db_path, tools):
-    changed = assistant.update_item(tools["stove"], assistant.ItemFields(supplier="Camp Shop", price=89.5))
-    assert set(changed["changed"]) == {"supplier", "price"}
-    again = assistant.update_item(tools["stove"], assistant.ItemFields(supplier="Camp Shop"))
+    changed = assistant.update_item(tools["stove"], assistant.ItemFields(description="Two burner", price=89.5))
+    assert set(changed["changed"]) == {"description", "price"}
+    again = assistant.update_item(tools["stove"], assistant.ItemFields(description="Two burner"))
     assert again["changed"] == []
 
     assistant.update_item(tools["t2"], assistant.ItemFields(nickname="patched fly"))

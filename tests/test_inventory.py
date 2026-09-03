@@ -42,7 +42,6 @@ name = "Trailer, 5 by 8"
 home = "Cold locker"
 purchase_date = "2021-03-06"
 price = 240.0
-supplier = "Local outfitter"
 """
 
 
@@ -139,7 +138,7 @@ def test_a_single_item_keeps_its_paperwork(db, tmp_path):
     trailer = named(db, "Trailer, 5 by 8")
 
     assert trailer["status"] == "in"
-    assert (trailer["purchase_date"], trailer["price"], trailer["supplier"]) == ("2021-03-06", 240.0, "Local outfitter")
+    assert (trailer["purchase_date"], trailer["price"]) == ("2021-03-06", 240.0)
 
 
 def test_it_is_the_admins_own_event(db, tmp_path):

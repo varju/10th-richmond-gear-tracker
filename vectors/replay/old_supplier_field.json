@@ -1,0 +1,45 @@
+{
+  "name": "an old item created with supplier, and a later field_changed to supplier, replay without error (FR-INV-12)",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "axe-1",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "name": "Axe",
+        "supplier": "Local outfitter"
+      }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "axe-1",
+      "type": "field_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": {
+        "field": "supplier",
+        "value": "New outfitter"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "axe-1": {
+        "name": "Axe",
+        "supplier": "New outfitter",
+        "added_at": 1000,
+        "modified_at": 2000,
+        "status": "in",
+        "holder_id": null
+      }
+    }
+  }
+}

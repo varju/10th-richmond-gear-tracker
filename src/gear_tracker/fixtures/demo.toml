@@ -8,7 +8,7 @@
 #   [[locations]]      name
 #   [[categories]]     name
 #   [[items]]          name, description, home, sub_location, purchase_date,
-#                      price, supplier, category, categories
+#                      price, category, categories
 #   [[items.units]]    number, nickname, home, sub_location
 #
 # A unit's number is what is written on the gear, not a count (FR-INV-23). It
@@ -94,7 +94,6 @@ home = "Warm locker"
 sub_location = "shelf 3"
 purchase_date = "2022-09-17"
 price = 129.99
-supplier = "Local outfitter"
 category = "Stoves and lanterns"
 
 [[items.units]]

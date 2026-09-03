@@ -191,11 +191,11 @@ def test_apply_creates_the_location_and_writes_the_field_change(db):
 
 def test_a_blank_cell_clears_a_field(db):
     seeded(db)
-    text = make_csv(["id", "supplier"], [["trailer", ""]])
+    text = make_csv(["id", "description"], [["trailer", ""]])
 
     inventory_csv.apply(db, text, ACTOR)
 
-    assert derived.snapshot(db)["item"]["trailer"]["supplier"] is None
+    assert derived.snapshot(db)["item"]["trailer"]["description"] is None
 
 
 def test_an_absent_column_leaves_the_field_alone(db):
@@ -207,7 +207,6 @@ def test_an_absent_column_leaves_the_field_alone(db):
     trailer = derived.snapshot(db)["item"]["trailer"]
     assert trailer["description"] == "Very blue indeed"
     assert trailer["home_location_id"] == "loc-1"
-    assert trailer["supplier"] == "Local outfitter"
     assert trailer["price"] == 240.0
 
 
@@ -308,6 +307,18 @@ def test_unknown_column_is_an_error_on_row_one(db):
     assert plan.errors == [{"row": 1, "message": "unknown column 'bogus'"}]
     assert plan.adds == []
     assert plan.changes == []
+
+
+def test_a_supplier_column_from_an_old_export_does_not_error(db):
+    """`supplier` was dropped (FR-INV-12); an export made before that still imports."""
+    state = seeded(db)
+    text = make_csv(["id", "supplier"], [["trailer", "New Outfitter"]])
+
+    plan = inventory_csv.plan(state, text)
+
+    assert plan.errors == []
+    assert plan.changes == []
+    assert plan.unchanged == 1
 
 
 # --- apply: all or nothing ----------------------------------------------------------------

@@ -32,7 +32,6 @@ COLUMNS = [
     "description",
     "purchase_date",
     "price",
-    "supplier",
     "retired",
     "code",
     "status",
@@ -49,9 +48,11 @@ EDITABLE = (
     "description",
     "purchase_date",
     "price",
-    "supplier",
     "retired",
 )
+
+IGNORED_COLUMNS = frozenset({"supplier"})
+"""Accepted on import but no longer read or written (FR-INV-12). An old export may still have it."""
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -106,7 +107,6 @@ def _row(state: State, it: dict[str, Any]) -> list[str]:
         it.get("description") or "",
         it.get("purchase_date") or "",
         "" if price is None else str(price),
-        it.get("supplier") or "",
         "yes" if it.get("retired") else "",
         _code_for(state, it["id"]) or "",
         status,
@@ -179,7 +179,7 @@ def plan(state: State, text: str) -> Plan:
         return p
 
     cols = [c.strip().lower() for c in rows[0]]
-    unknown = next((c for c in cols if c not in COLUMNS), None)
+    unknown = next((c for c in cols if c not in COLUMNS and c not in IGNORED_COLUMNS), None)
     if unknown is not None:
         p.errors.append({"row": 1, "message": f"unknown column {unknown!r}"})
         return p
@@ -384,10 +384,6 @@ def _diff_field(
         if old is not None and float(old) == value:
             return None
         return _change("price", old_display, str(value), old, value)
-    if col == "supplier":
-        old = it.get("supplier")
-        new = cell or None
-        return None if (old or None) == new else _change("supplier", old or "", new or "", old, new)
     if col == "retired":
         old = bool(it.get("retired"))
         if cell == "":
@@ -569,10 +565,6 @@ def _add_optional(
             p.errors.append({"row": row_num, "message": "price must not be negative"})
             return False
         payload["price"] = value
-
-    supplier = _cell(vals, idx, "supplier")
-    if supplier:
-        payload["supplier"] = supplier
 
     retired = _cell(vals, idx, "retired")
     if retired:
