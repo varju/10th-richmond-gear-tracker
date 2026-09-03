@@ -34,6 +34,8 @@ export function ItemFields({ store, values, onChange, nameRef, generic }: Props)
   const cats = categories(state);
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const tickedIds = values.category_ids ?? [];
+  const tickedNames = cats.filter((c) => tickedIds.includes(c.id)).map((c) => c.name);
 
   /** Ticks an existing category of the same name (case-insensitive) rather than making a second one. */
   async function addCategory() {
@@ -66,59 +68,61 @@ export function ItemFields({ store, values, onChange, nameRef, generic }: Props)
         onChange={set}
         label={generic ? "Default home" : "Home location"}
       />
-      <fieldset className="categories">
-        <legend>Categories</legend>
-        {cats.map((c) => {
-          const ids = values.category_ids ?? [];
-          return (
-            <label key={c.id} className="check">
+      <details className="fold categories-fold">
+        <summary>Categories · {tickedNames.length > 0 ? tickedNames.join(", ") : "None"}</summary>
+        <fieldset className="categories" aria-label="Categories">
+          {cats.map((c) => {
+            const ids = values.category_ids ?? [];
+            return (
+              <label key={c.id} className="check">
+                <input
+                  type="checkbox"
+                  checked={ids.includes(c.id)}
+                  onChange={(e) =>
+                    set({ category_ids: e.target.checked ? [...ids, c.id] : ids.filter((id) => id !== c.id) })
+                  }
+                />
+                <span>{c.name}</span>
+              </label>
+            );
+          })}
+          {addingCategory ? (
+            <div className="row">
               <input
-                type="checkbox"
-                checked={ids.includes(c.id)}
-                onChange={(e) =>
-                  set({ category_ids: e.target.checked ? [...ids, c.id] : ids.filter((id) => id !== c.id) })
-                }
+                aria-label="New category"
+                placeholder="New category"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void addCategory())}
+                autoComplete="off"
+                autoFocus
               />
-              <span>{c.name}</span>
-            </label>
-          );
-        })}
-        {addingCategory ? (
-          <div className="row">
-            <input
-              aria-label="New category"
-              placeholder="New category"
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void addCategory())}
-              autoComplete="off"
-              autoFocus
-            />
-            <button
-              className="small"
-              type="button"
-              onClick={() => void addCategory()}
-              disabled={!newCategoryName.trim()}
-            >
-              Add
+              <button
+                className="small"
+                type="button"
+                onClick={() => void addCategory()}
+                disabled={!newCategoryName.trim()}
+              >
+                Add
+              </button>
+              <button
+                className="small"
+                type="button"
+                onClick={() => {
+                  setAddingCategory(false);
+                  setNewCategoryName("");
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button className="small" type="button" onClick={() => setAddingCategory(true)}>
+              New category…
             </button>
-            <button
-              className="small"
-              type="button"
-              onClick={() => {
-                setAddingCategory(false);
-                setNewCategoryName("");
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <button className="small" type="button" onClick={() => setAddingCategory(true)}>
-            New category…
-          </button>
-        )}
-      </fieldset>
+          )}
+        </fieldset>
+      </details>
       <label>
         <span>Description</span>
         <textarea value={values.description ?? ""} onChange={(e) => set({ description: e.target.value })} rows={3} />

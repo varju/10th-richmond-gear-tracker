@@ -41,7 +41,6 @@ are folded into each task.
 
 ### Items
 
-- [ ] The Categories fieldset on the item form starts closed. Its summary names the ticked categories, or says "None".
 - [ ] Search matches the name only (FR-INV-07), and a unit's number and nickname. The home location no longer matches,
       so "Home" or a location's name does not pull in everything that lives there.
 - [ ] A generic with one unit can become a single item again, the reverse of FR-INV-26. Anyone signed in may do it, from

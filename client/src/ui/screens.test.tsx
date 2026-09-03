@@ -55,6 +55,9 @@ const mount = (fetchFn: typeof fetch = offline, base = "") =>
 
 const rows = () => screen.getAllByRole("listitem").map((li) => within(li).getByRole("button").textContent);
 
+// Categories starts folded; open it before ticking a box or reaching New category.
+const openCategories = (user: ReturnType<typeof userEvent.setup>) => user.click(screen.getByText(/^Categories ·/));
+
 test("the list narrows by query and by location", async () => {
   const f = await fixture();
   navigate("/items");
@@ -239,6 +242,8 @@ test("a new item remembers the last categories picked on this device (FR-SET-07)
   await fixture();
   navigate("/items/new");
   const first = mount();
+  const user = userEvent.setup();
+  await openCategories(user);
   const noCats = within(screen.getByRole("group", { name: "Categories" }));
   expect(noCats.queryAllByRole("checkbox")).toHaveLength(0);
   expect(noCats.getByRole("button", { name: "New category…" })).toBeInTheDocument();
@@ -248,7 +253,7 @@ test("a new item remembers the last categories picked on this device (FR-SET-07)
   const cold = await act.createCategory(store, "Cold weather");
   navigate("/items/new");
   const second = mount();
-  const user = userEvent.setup();
+  await openCategories(user);
   await user.type(screen.getByLabelText("Name"), "Stove 2");
   await user.click(screen.getByLabelText("Cold weather"));
   await user.click(screen.getByRole("button", { name: "Save" }));
@@ -257,8 +262,30 @@ test("a new item remembers the last categories picked on this device (FR-SET-07)
 
   navigate("/items/new");
   mount();
+  await openCategories(user);
   expect(screen.getByLabelText("Cold weather")).toBeChecked();
   expect(screen.getByLabelText("Camp kitchen")).not.toBeChecked();
+});
+
+test("the Categories fold names what's ticked, in the list's order, or reads None", async () => {
+  await act.createCategory(store, "Tents");
+  await act.createCategory(store, "Camp stoves");
+  await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  expect(screen.getByText("Categories · None")).toBeInTheDocument();
+
+  await openCategories(user);
+  await user.click(screen.getByLabelText("Tents"));
+  expect(screen.getByText("Categories · Tents")).toBeInTheDocument();
+
+  // Camp stoves sorts before Tents, so it leads the summary despite being ticked second.
+  await user.click(screen.getByLabelText("Camp stoves"));
+  expect(screen.getByText("Categories · Camp stoves, Tents")).toBeInTheDocument();
+
+  await user.click(screen.getByLabelText("Tents"));
+  expect(screen.getByText("Categories · Camp stoves")).toBeInTheDocument();
 });
 
 test("New category adds one, unnamed items included, and ticks it on the item", async () => {
@@ -266,6 +293,7 @@ test("New category adds one, unnamed items included, and ticks it on the item", 
   navigate("/items/new");
   mount();
   const user = userEvent.setup();
+  await openCategories(user);
   await user.click(screen.getByRole("button", { name: "New category…" }));
   await user.type(screen.getByLabelText("New category"), "Camp kitchen");
   await user.click(screen.getByRole("button", { name: "Add" }));
@@ -280,6 +308,7 @@ test("New category with a name already in use ticks the existing one instead of 
   navigate("/items/new");
   mount();
   const user = userEvent.setup();
+  await openCategories(user);
   await user.click(screen.getByRole("button", { name: "New category…" }));
   await user.type(screen.getByLabelText("New category"), "camp KITCHEN");
   await user.click(screen.getByRole("button", { name: "Add" }));
@@ -293,6 +322,7 @@ test("New category rejects a blank name", async () => {
   navigate("/items/new");
   mount();
   const user = userEvent.setup();
+  await openCategories(user);
   await user.click(screen.getByRole("button", { name: "New category…" }));
   expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
   await user.click(screen.getByRole("button", { name: "Cancel" }));

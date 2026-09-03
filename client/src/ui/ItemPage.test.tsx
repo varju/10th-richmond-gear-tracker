@@ -242,6 +242,7 @@ test("ticking two categories on the edit form records both and the page shows th
   const cold = await act.createCategory(store, "Cold weather");
   renderInShell(<ItemPage store={store} id={tent} />);
   await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.click(screen.getByText(/^Categories ·/));
   await user.click(screen.getByLabelText("Camp kitchen"));
   await user.click(screen.getByLabelText("Cold weather"));
   await user.click(screen.getByRole("button", { name: "Save" }));
