@@ -20,6 +20,8 @@ export function Join({ store, api, onJoined }: Props) {
   const [password, setPassword] = useState("");
   const [again, setAgain] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // A link that already worked once (FR-USR-12): which kind decides what the person can do next.
+  const [spent, setSpent] = useState<"invite" | "reset" | null>(null);
   const [busy, setBusy] = useState(false);
   const signedIn = store.meta.user;
 
@@ -29,12 +31,15 @@ export function Join({ store, api, onJoined }: Props) {
     if (password !== again) return setError("The two passwords differ.");
     setBusy(true);
     setError(null);
+    setSpent(null);
     try {
       const { data, offset } = await api.redeem(token, password, store.meta.device_id);
       await store.setMeta({ token: data.token, user: data.user, clock_offset: offset });
       onJoined();
     } catch (e) {
       if (e instanceof Offline) setError("No connection. Joining needs one.");
+      else if (e instanceof ApiError && e.code === "invite_used") setSpent("invite");
+      else if (e instanceof ApiError && e.code === "reset_used") setSpent("reset");
       else if (e instanceof ApiError) setError(e.message);
       else throw e;
     } finally {
@@ -57,6 +62,15 @@ export function Join({ store, api, onJoined }: Props) {
           </>
         ) : !token ? (
           <p>This link is missing its token. Ask an Admin for a new one.</p>
+        ) : spent === "invite" ? (
+          <>
+            <p>You already have an account. Sign in instead.</p>
+            <button type="button" onClick={() => navigate("/", true)}>
+              Sign in
+            </button>
+          </>
+        ) : spent === "reset" ? (
+          <p role="alert">This reset link has already been used. Ask an Admin for a new one.</p>
         ) : (
           <>
             <p>Choose a password for your account.</p>
@@ -89,7 +103,7 @@ export function Join({ store, api, onJoined }: Props) {
           </>
         )}
       </main>
-      {!signedIn && token && (
+      {!signedIn && token && !spent && (
         <div className="actions">
           <button className="primary" type="submit" disabled={busy}>
             Set password and sign in

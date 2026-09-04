@@ -8,7 +8,16 @@ from gear_tracker import accounts
 from gear_tracker.accounts import Invite, Redeem, SignIn
 from gear_tracker.db import connect
 from gear_tracker.derived import snapshot
-from gear_tracker.errors import BadRequest, Conflict, Deactivated, Forbidden, NotFound, Unauthorized
+from gear_tracker.errors import (
+    BadRequest,
+    Conflict,
+    Deactivated,
+    Forbidden,
+    InviteUsed,
+    NotFound,
+    ResetUsed,
+    Unauthorized,
+)
 from gear_tracker.events import SERVER_DEVICE, in_replay_order
 from gear_tracker.sync import Principal, pull, push
 from tests.factories import T0, incoming
@@ -104,11 +113,23 @@ def test_email_is_not_on_the_log(db, admin):
     assert "email" not in " ".join(str(e.payload) for e in in_replay_order(db))
 
 
-def test_a_link_works_once(db, admin):
+def test_a_spent_invite_says_the_account_already_exists(db, admin):
+    """A second click on the same invite is not the same failure as a broken link: the person
+    already has an account, so the Join page can point them at Sign in instead (FR-USR-12).
+    """
     _, token = invite(db, admin)
     join(db, token)
-    with pytest.raises(Unauthorized, match="not valid"):
+    with pytest.raises(InviteUsed, match="already have an account"):
         join(db, token)
+
+
+def test_a_spent_reset_link_says_to_ask_an_admin(db, admin):
+    """There is no self-service retry for a reset, so the message says who to ask."""
+    user_id, _ = invite(db, admin)
+    token = accounts.reset_link(db, admin, user_id, now=T0)
+    join(db, token, password="new password")
+    with pytest.raises(ResetUsed, match="ask an Admin"):
+        join(db, token, password="another password")
 
 
 def test_a_link_dies_after_a_week(db, admin):
@@ -118,8 +139,10 @@ def test_a_link_dies_after_a_week(db, admin):
 
 
 def test_a_made_up_link_is_refused(db, admin):
-    with pytest.raises(Unauthorized):
+    """Unknown and expired links give the same answer, so neither leaks whether a token ever existed."""
+    with pytest.raises(Unauthorized, match="not valid") as unknown:
         join(db, "nope")
+    assert unknown.value.code == "unauthorized"
 
 
 def test_two_redeems_of_the_same_link_the_second_is_refused(db, db_path, admin):
@@ -133,7 +156,7 @@ def test_two_redeems_of_the_same_link_the_second_is_refused(db, db_path, admin):
     other = connect(db_path)
     try:
         join(db, token)
-        with pytest.raises(Unauthorized, match="not valid"):
+        with pytest.raises(InviteUsed, match="already have an account"):
             accounts.redeem(other, Redeem(token=token, password="another password", device_id="phone-c"), now=T0)
     finally:
         other.close()

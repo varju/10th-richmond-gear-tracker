@@ -19,6 +19,13 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
   if (path !== "/auth/redeem") return json({ error: "not_found", message: path }, 404);
   const body = JSON.parse(String(init?.body)) as { token: string; password: string; device_id: string };
   bodies.push(body);
+  if (body.token === "USED_INVITE")
+    return json({ error: "invite_used", message: "you already have an account; sign in instead" }, 401);
+  if (body.token === "USED_RESET")
+    return json(
+      { error: "reset_used", message: "this reset link has already been used; ask an Admin for a new one" },
+      401,
+    );
   if (body.token !== "GOOD") return json({ error: "unauthorized", message: "this link is not valid" }, 401);
   return json({ token: "session", user: { id: "bea", name: "Bea", role: "user", active: true } });
 };
@@ -72,6 +79,30 @@ test("a spent or made-up link shows the server's reason", async () => {
   await user.click(screen.getByRole("button", { name: "Set password and sign in" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("this link is not valid");
   expect(store.meta.token).toBeUndefined();
+});
+
+test("a spent invite says the account exists, and offers sign in", async () => {
+  navigate("/join?token=USED_INVITE");
+  mount();
+  await user.type(screen.getByLabelText("New password"), "battery staple");
+  await user.type(screen.getByLabelText("Again"), "battery staple");
+  await user.click(screen.getByRole("button", { name: "Set password and sign in" }));
+
+  expect(await screen.findByText(/already have an account/)).toBeInTheDocument();
+  expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  expect(location.pathname).toBe("/");
+});
+
+test("a spent reset link says to ask an Admin, with no form left to retry", async () => {
+  navigate("/join?token=USED_RESET");
+  mount();
+  await user.type(screen.getByLabelText("New password"), "battery staple");
+  await user.type(screen.getByLabelText("Again"), "battery staple");
+  await user.click(screen.getByRole("button", { name: "Set password and sign in" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Ask an Admin for a new one");
+  expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
 });
 
 test("signed in already, it says to sign out first", async () => {

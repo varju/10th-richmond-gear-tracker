@@ -20,7 +20,17 @@ from argon2.exceptions import VerifyMismatchError
 from pydantic import EmailStr, StringConstraints
 
 from gear_tracker import derived, events
-from gear_tracker.errors import BadRequest, Conflict, Deactivated, Forbidden, NotFound, Unauthorized
+from gear_tracker.errors import (
+    ApiError,
+    BadRequest,
+    Conflict,
+    Deactivated,
+    Forbidden,
+    InviteUsed,
+    NotFound,
+    ResetUsed,
+    Unauthorized,
+)
 from gear_tracker.events import SERVER_DEVICE, NonEmpty, Strict, now_ms
 from gear_tracker.sync import Principal
 from gear_tracker.ulid import new_ulid
@@ -258,6 +268,17 @@ def sign_in(conn: sqlite3.Connection, body: SignIn, now: int | None = None) -> S
     return _open_session(conn, row["user_id"], body.device_id, now)
 
 
+def _already_used(kind: str) -> ApiError:
+    """A link that worked once already. The reason differs by kind, so the Join page can act on it:
+    an invite means the account exists (offer sign in); a reset has no self-service retry
+    (an Admin must issue another). Either way the link itself is not the problem, so this is
+    distinct from an expired or unknown link, which says nothing about why (FR-USR-12).
+    """
+    if kind == "invite":
+        return InviteUsed("you already have an account; sign in instead")
+    return ResetUsed("this reset link has already been used; ask an Admin for a new one")
+
+
 def redeem(conn: sqlite3.Connection, body: Redeem, now: int | None = None) -> Session:
     """Use an invite or reset link: set the password, open a session. The link is spent either way.
 
@@ -269,13 +290,16 @@ def redeem(conn: sqlite3.Connection, body: Redeem, now: int | None = None) -> Se
     conn.execute("BEGIN IMMEDIATE")
     try:
         link = conn.execute("SELECT * FROM links WHERE token_hash = ?", (token_hash,)).fetchone()
-        if link is None or link["used_at"] is not None or link["created_at"] + LINK_TTL_MS < now:
+        if link is None or link["created_at"] + LINK_TTL_MS < now:
             raise Unauthorized("this link is not valid")
+        if link["used_at"] is not None:
+            raise _already_used(link["kind"])
         if not get_user(conn, link["user_id"])["active"]:
             raise Deactivated("this account has been deactivated")
         spent = conn.execute("UPDATE links SET used_at = ? WHERE token_hash = ? AND used_at IS NULL", (now, token_hash))
         if spent.rowcount == 0:
-            raise Unauthorized("this link is not valid")
+            # Lost the race: another redeem of the same token committed first.
+            raise _already_used(link["kind"])
         conn.execute(
             "UPDATE accounts SET password_hash = ? WHERE user_id = ?", (_hasher.hash(body.password), link["user_id"])
         )

@@ -59,8 +59,6 @@ the row in the same commit.
 - [ ] Install prompt on Android: the note says "Safari" and offers only Not now when `beforeinstallprompt` has not
       fired. Name the browser the person is in. When the event has not fired, show that browser's own steps (Chrome:
       menu, Add to Home screen), not nothing.
-- [ ] A used invite or reset link says "this link is not valid". A spent invite should say the account exists and offer
-      Sign in; a spent reset should say the same and offer a new reset. Only an expired or unknown link is "not valid".
 - [ ] Users: an Admin can change a user's name and email (extend FR-USR-04). Both changes go in the audit log with old
       and new values (FR-USR-05). Email stays unique. The user's open sessions are kept.
 

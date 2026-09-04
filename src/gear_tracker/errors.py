@@ -22,6 +22,18 @@ class Unauthorized(ApiError):
     code = "unauthorized"
 
 
+class InviteUsed(Unauthorized):
+    """An invite link that already worked. The account exists; sign in instead of joining again."""
+
+    code = "invite_used"
+
+
+class ResetUsed(Unauthorized):
+    """A reset link that already worked. There is no self-service retry; an Admin issues a new one."""
+
+    code = "reset_used"
+
+
 class Forbidden(ApiError):
     status = 403
     code = "forbidden"
