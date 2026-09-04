@@ -57,10 +57,6 @@ the row in the same commit.
       button. Whoever opens it gives a name, email, and password and gets an active User account. Admins see the new
       account in Users. Amend FR-USR-13 to "no sign-up except through a link an Admin issued"; new FR-USR row.
       Per-person one-time links (FR-USR-12) stay for email.
-- [ ] Notifications by email: each user ticks categories on their own settings page. Categories: a found report, a new
-      repair ticket, a user joined (through the join link or a one-time invite). Sent through the Admin's SMTP account
-      (FR-USR-15); nothing is sent when none is set. One mail per event, no digest. New FR row; NFR-SEC-05 is unchanged
-      because the preference is a setting, not a field about the person.
 - [ ] Calendar feeds: an Admin pastes ICS feed URLs (about four) into Settings. The server refreshes them hourly and
       keeps the upcoming events. Devices receive the event names and dates in sync, so the reservation form and the
       session event field suggest them offline. Feed URLs carry a private token and stay on the server, as the mail

@@ -58,6 +58,9 @@ export function Settings({ store, shell }: Props) {
         <button className="link" type="button" onClick={() => navigate("/settings/devices")}>
           Your devices
         </button>
+        <button className="link" type="button" onClick={() => navigate("/settings/notifications")}>
+          Notifications
+        </button>
         <button className="link" type="button" onClick={() => navigate("/settings/assistant")}>
           AI assistant
         </button>

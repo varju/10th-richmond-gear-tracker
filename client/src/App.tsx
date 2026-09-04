@@ -26,6 +26,7 @@ import { Join } from "./ui/Join";
 import { LeaveDialog } from "./ui/LeaveDialog";
 import { Mail } from "./ui/Mail";
 import { NewItem, NewUnit } from "./ui/NewItem";
+import { Notifications } from "./ui/Notifications";
 import { Page } from "./ui/Page";
 import { PendingInterrupt } from "./ui/PendingInterrupt";
 import { PublicItem } from "./ui/PublicItem";
@@ -276,6 +277,7 @@ function Screen({
       if (second === "codes") return <SettingsCodes store={store} api={api} shell={shell} />;
       if (second === "csv") return <SettingsCsv store={store} api={api} shell={shell} />;
       if (second === "devices") return <SettingsDevices store={store} api={api} />;
+      if (second === "notifications") return <Notifications store={store} api={api} />;
       if (second === "refused") return <SettingsRefused store={store} />;
       if (second === "assistant") return <SettingsAssistant api={api} />;
       return <Settings store={store} shell={shell} />;

@@ -86,3 +86,8 @@ offers. A browser tab loses unsent records after seven days without a visit; an 
 
 Sign in on the new device and the whole inventory is there. Revoke the old one under Settings, Your devices. Anything
 the old device never sent is gone.
+
+## Email alerts
+
+Open Notifications in Settings and tick what you want to hear about: gear reported found, a new repair ticket, someone
+joining. Each box saves itself. Nothing arrives if the group has not set up mail.

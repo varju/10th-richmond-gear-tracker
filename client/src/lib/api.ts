@@ -46,6 +46,18 @@ export interface MailSettings {
   has_password: boolean;
 }
 
+/** Email a person chooses to get, one flag per event kind. Nothing is sent unless mail is set up too. */
+export interface NotificationCategories {
+  found: boolean;
+  repair: boolean;
+  joined: boolean;
+}
+
+export interface NotificationSettings {
+  categories: NotificationCategories;
+  mail_configured: boolean;
+}
+
 /** What the server did with a one-time link. `emailed` is false when no account is set up. */
 export interface LinkResult {
   token: string;
@@ -265,6 +277,10 @@ export function createApi(options: ApiOptions = {}) {
     devices: (userId: string) => request<{ devices: Device[] }>("GET", `/users/${userId}/devices`),
     revokeDevice: (userId: string, deviceId: string) =>
       request<{ devices: Device[] }>("POST", `/users/${userId}/devices/${deviceId}/revoke`),
+    /** What the signed-in person hears about by email, and whether mail is set up to send it. */
+    notifications: () => request<NotificationSettings>("GET", "/me/notifications"),
+    saveNotifications: (categories: NotificationCategories) =>
+      request<NotificationSettings>("PUT", "/me/notifications", categories),
     mail: () => request<{ mail: MailSettings | null }>("GET", "/mail"),
     saveMail: (settings: Omit<MailSettings, "has_password"> & { password: string }) =>
       request<{ mail: MailSettings }>("PUT", "/mail", settings),
