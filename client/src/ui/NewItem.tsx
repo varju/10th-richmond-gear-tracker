@@ -85,9 +85,11 @@ export function NewItem({ store, code }: Props) {
     const next = keep ? values : { ...EMPTY_ITEM, category_ids: values.category_ids ?? [] };
     setValues(next);
     setBaseline(next);
-    setSeveral(false);
-    setKind("units");
-    setQuantity("1");
+    if (!keep) {
+      setSeveral(false);
+      setKind("units");
+      setQuantity("1");
+    }
     flash(`Saved · ${what}`);
     // The name is the one field that must differ; the cursor lands on it, ready to be typed over.
     nameRef.current?.select();

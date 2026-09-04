@@ -208,6 +208,26 @@ test("Add another keeps the form up; the template checkbox carries the values ov
   ).toEqual([f.cold, f.cold]);
 });
 
+test("Copy values above also carries over We have several of these and its pool fields", async () => {
+  await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Name"), "Poles");
+  await user.click(screen.getByLabelText("We have several of these"));
+  await user.click(screen.getByLabelText("A stack we count"));
+  await user.clear(screen.getByLabelText("How many"));
+  await user.type(screen.getByLabelText("How many"), "12");
+  await user.click(screen.getByLabelText("Add another after saving"));
+  await user.click(screen.getByLabelText("Copy values above"));
+  await user.click(screen.getByRole("button", { name: "Save" }));
+
+  expect(await screen.findByText("Saved · Poles")).toBeInTheDocument();
+  expect(screen.getByLabelText("We have several of these")).toBeChecked();
+  expect(screen.getByLabelText("A stack we count")).toBeChecked();
+  expect(screen.getByLabelText("How many")).toHaveValue(12);
+});
+
 test("unticking Add another hides and resets the Copy values checkbox", async () => {
   await fixture();
   navigate("/items/new");
