@@ -324,6 +324,85 @@ def test_the_last_admin_guard_and_the_write_are_one_transaction(db, db_path, adm
         other.close()
 
 
+# --- editing name and email --------------------------------------------------------------------
+
+
+def test_a_rename_is_an_event_with_old_and_new(db, admin):
+    user_id, _ = invite(db, admin)
+    accounts.edit_user(db, admin, user_id, accounts.UserEdit(name="Beatrice"), now=T0 + 1)
+
+    change = [e for e in in_replay_order(db) if e.entity_id == user_id][-1]
+    assert change.type == "field_changed"
+    assert change.payload == {"field": "name", "value": "Beatrice", "old": "Bea"}
+    assert change.actor_id == admin.user_id
+    assert accounts.get_user(db, user_id)["name"] == "Beatrice"
+
+
+def test_an_email_change_is_not_on_the_log(db, admin):
+    """Email is a credential, like at an invite: it is fixed in `accounts`, never as an event (see
+    accounts.py's docstring, and test_email_is_not_on_the_log for the invite side of the same rule).
+    """
+    user_id, _ = invite(db, admin)
+    before = db.execute("SELECT count(*) FROM events").fetchone()[0]
+
+    accounts.edit_user(db, admin, user_id, accounts.UserEdit(email="beatrice@example.org"), now=T0 + 1)
+
+    assert db.execute("SELECT count(*) FROM events").fetchone()[0] == before
+    assert "email" not in " ".join(str(e.payload) for e in in_replay_order(db))
+    assert accounts.email_of(db, user_id) == "beatrice@example.org"
+
+
+def test_an_email_change_is_stored_lowercase(db, admin):
+    user_id, _ = invite(db, admin)
+    accounts.edit_user(db, admin, user_id, accounts.UserEdit(email="Beatrice@Example.ORG"), now=T0)
+    assert accounts.email_of(db, user_id) == "beatrice@example.org"
+
+
+def test_an_email_clash_is_a_conflict(db, admin):
+    user_id, _ = invite(db, admin)
+    with pytest.raises(Conflict, match="email"):
+        accounts.edit_user(db, admin, user_id, accounts.UserEdit(email="Alex@Example.org"), now=T0)
+    assert accounts.email_of(db, user_id) == "bea@example.org"
+
+
+def test_a_no_op_email_change_writes_nothing(db, admin):
+    user_id, _ = invite(db, admin)
+    before = db.execute("SELECT count(*) FROM events").fetchone()[0]
+    accounts.edit_user(db, admin, user_id, accounts.UserEdit(email="BEA@example.org"), now=T0)
+    assert db.execute("SELECT count(*) FROM events").fetchone()[0] == before
+    assert accounts.email_of(db, user_id) == "bea@example.org"
+
+
+def test_edit_user_needs_at_least_one_field(db, admin):
+    user_id, _ = invite(db, admin)
+    with pytest.raises(BadRequest, match="say what to change"):
+        accounts.edit_user(db, admin, user_id, accounts.UserEdit(), now=T0)
+
+
+def test_an_email_change_keeps_open_sessions(db, admin):
+    user_id, token = invite(db, admin)
+    session = join(db, token)
+
+    accounts.edit_user(db, admin, user_id, accounts.UserEdit(email="beatrice@example.org"), now=T0)
+
+    assert accounts.authenticate(db, session.token) is not None
+    accounts.sign_in(db, SignIn(email="beatrice@example.org", password="battery staple", device_id="p"), now=T0)
+
+
+def test_editing_an_unknown_user(db, admin):
+    with pytest.raises(NotFound):
+        accounts.edit_user(db, admin, "01000000000000000000000000", accounts.UserEdit(name="X"), now=T0)
+    with pytest.raises(NotFound):
+        accounts.edit_user(db, admin, "01000000000000000000000000", accounts.UserEdit(email="x@example.org"), now=T0)
+
+
+def test_users_cannot_edit_users(db, admin):
+    user_id, _ = invite(db, admin)
+    bea = Principal(user_id=user_id, device_id="phone-b", role="user")
+    with pytest.raises(Forbidden):
+        accounts.edit_user(db, bea, admin.user_id, accounts.UserEdit(name="Not Alex"))
+
+
 def test_users_cannot_manage_users(db, admin):
     user_id, _ = invite(db, admin)
     bea = Principal(user_id=user_id, device_id="phone-b", role="user")

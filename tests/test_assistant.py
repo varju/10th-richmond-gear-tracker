@@ -313,6 +313,16 @@ def test_set_user_active_refuses_one_for_active():
         _arg_model("set_user_active").model_validate({"user_id": "x", "active": 1})
 
 
+def test_update_user_refuses_an_unknown_field():
+    with pytest.raises(pydantic.ValidationError):
+        _arg_model("update_user").model_validate({"user_id": "x", "fields": {"name": "Bea", "role": "admin"}})
+
+
+def test_update_user_refuses_a_bad_email():
+    with pytest.raises(pydantic.ValidationError):
+        _arg_model("update_user").model_validate({"user_id": "x", "fields": {"email": "not-an-email"}})
+
+
 def test_recount_refuses_a_float_count():
     with pytest.raises(pydantic.ValidationError):
         _arg_model("recount").model_validate({"item_id": "x", "count": 2.0, "reason": "shelf check"})
@@ -876,6 +886,8 @@ def test_admin_tools_refuse_a_user_the_same_way_the_app_does(tools):
     with pytest.raises(Forbidden):
         assistant.get_mail()
     with pytest.raises(Forbidden):
+        assistant.update_user(ALICE, accounts.UserEdit(name="Not Alice"))
+    with pytest.raises(Forbidden):
         assistant.add_location("Trailer")
     with pytest.raises(Forbidden):
         assistant.delete_location(tools["warm"])
@@ -928,6 +940,21 @@ def test_an_admin_invites_promotes_and_deactivates_people(admin_tools, admin_id)
         assistant.set_user_active(admin_id, False)
     with pytest.raises(Conflict):
         assistant.set_user_role(admin_id, "user")
+
+
+def test_an_admin_fixes_a_name_and_an_email(admin_tools, admin_id):
+    assistant.invite_user("Bea", "bea@example.org", "user")
+    listed = {u["email"]: u for u in assistant.list_users()["users"]}
+    bea_id = listed["bea@example.org"]["user_id"]
+
+    fixed = assistant.update_user(bea_id, accounts.UserEdit(name="Beatrice", email="beatrice@example.org"))
+    assert fixed["user"]["name"] == "Beatrice"
+    assert fixed["user"]["email"] == "beatrice@example.org"
+
+    with pytest.raises(Conflict, match="email"):
+        assistant.update_user(bea_id, accounts.UserEdit(email="alex@example.org"))
+    with pytest.raises(BadRequest, match="say what to change"):
+        assistant.update_user(bea_id, accounts.UserEdit())
 
 
 def test_devices_are_listed_and_revoked_for_self_or_by_an_admin(admin_tools, admin_id):

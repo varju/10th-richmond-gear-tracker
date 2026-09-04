@@ -103,6 +103,10 @@ invite; if not, copy the link and send it however you normally talk. The link is
 Open Users and pick the person. Change their role, or deactivate them to end access; their history stays. The last Admin
 cannot be demoted or deactivated.
 
+## Fix a name or a misspelled email
+
+Open Users, pick the person, and edit their name or email. A renamed person sees their new name once they next sign in.
+
 ## A forgotten password
 
 Open Users, pick the person, and make a reset link. It is one use, mailed if mail is set up, otherwise copied and passed

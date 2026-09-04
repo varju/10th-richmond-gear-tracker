@@ -51,9 +51,6 @@ the row in the same commit.
 
 ### Fixes
 
-- [ ] Users: an Admin can change a user's name and email (extend FR-USR-04). Both changes go in the audit log with old
-      and new values (FR-USR-05). Email stays unique. The user's open sessions are kept.
-
 ### Features
 
 - [ ] Pack from home: under Check out, list reservations that start within seven days; one tap opens Pack. The Pack list

@@ -15,10 +15,11 @@ let devices: { device_id: string; created_at: number }[];
 let emailed: boolean;
 let sent: Record<string, unknown>;
 
-const users = [
+const freshUsers = () => [
   { id: "alice", name: "Alice", role: "admin", active: true, email: "alice@example.org", has_password: true },
   { id: "bea", name: "Bea", role: "user", active: true, email: "bea@example.org", has_password: false },
 ];
+let users: ReturnType<typeof freshUsers>;
 
 const fetchFake = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
   if (down) throw new TypeError("Failed to fetch");
@@ -35,6 +36,13 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
     return json({ devices });
   }
   if (path === "/users/bea/deactivate") return json({ user: { ...users[1], active: false } });
+  if (path === "/users/bea/edit") {
+    if (sent.email === "alice@example.org") {
+      return json({ error: "conflict", message: "an account with that email already exists" }, 409);
+    }
+    users[1] = { ...users[1]!, name: String(sent.name), email: String(sent.email) };
+    return json({ user: users[1] });
+  }
   if (path === "/users/alice/devices") return json({ devices: [{ device_id: store.meta.device_id, created_at: T0 }] });
   return json({ error: "not_found", message: path }, 404);
 };
@@ -44,6 +52,7 @@ beforeEach(async () => {
   down = false;
   emailed = false;
   sent = {};
+  users = freshUsers();
   devices = [
     { device_id: "phone-lost", created_at: T0 },
     { device_id: "phone-kept", created_at: T0 - 86_400_000 },
@@ -115,6 +124,40 @@ test("when the server has a mail account, it says the invite was emailed (FR-USR
   expect(status).toHaveTextContent(`${location.origin}/join?token=INVITE-TOKEN`);
   // The server fills TOKEN in, so it never needs to know its own public address.
   expect(sent.link).toBe(`${location.origin}/join?token=TOKEN`);
+});
+
+test("an Admin fixes a name and an email (FR-USR-04)", async () => {
+  mount();
+  const list = await screen.findByRole("list", { name: "Users" });
+  await user.click(within(list).getByRole("button", { name: /Bea/ }));
+  await user.click(screen.getByRole("button", { name: "Edit name or email" }));
+
+  await user.clear(screen.getByLabelText("Name"));
+  await user.type(screen.getByLabelText("Name"), "Beatrice");
+  await user.clear(screen.getByLabelText("Email"));
+  await user.type(screen.getByLabelText("Email"), "beatrice@example.org");
+  await user.click(screen.getByRole("button", { name: "Save" }));
+
+  expect(calls).toContain("POST /users/bea/edit");
+  expect(sent).toEqual({ name: "Beatrice", email: "beatrice@example.org" });
+  await screen.findByText("beatrice@example.org · Invited");
+  expect(within(list).getAllByRole("listitem")[1]).toHaveTextContent("Beatricebeatrice@example.org · Invited");
+});
+
+test("a clashing email is shown inline, the same way other errors are (FR-USR-04)", async () => {
+  mount();
+  const list = await screen.findByRole("list", { name: "Users" });
+  await user.click(within(list).getByRole("button", { name: /Bea/ }));
+  await user.click(screen.getByRole("button", { name: "Edit name or email" }));
+
+  await user.clear(screen.getByLabelText("Email"));
+  await user.type(screen.getByLabelText("Email"), "alice@example.org");
+  await user.click(screen.getByRole("button", { name: "Save" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("an account with that email already exists");
+  // The form is still open, and Bea's row is unchanged.
+  expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+  expect(within(list).getAllByRole("listitem")[1]).toHaveTextContent("Beabea@example.org · Invited");
 });
 
 test("offline, the screen says it needs a connection", async () => {

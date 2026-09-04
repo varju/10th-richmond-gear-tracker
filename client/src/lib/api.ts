@@ -256,6 +256,8 @@ export function createApi(options: ApiOptions = {}) {
     /** `link` is this app's join page with TOKEN standing in for the token; the server fills it in. */
     invite: (name: string, email: string, role: string, link: string) =>
       request<LinkResult & { user_id: string }>("POST", "/users/invite", { name, email, role, link }),
+    editUser: (userId: string, fields: { name?: string; email?: string }) =>
+      request<{ user: User }>("POST", `/users/${userId}/edit`, fields),
     setRole: (userId: string, role: string) => request<{ user: User }>("POST", `/users/${userId}/role`, { role }),
     deactivate: (userId: string) => request<{ user: User }>("POST", `/users/${userId}/deactivate`),
     reactivate: (userId: string) => request<{ user: User }>("POST", `/users/${userId}/reactivate`),

@@ -257,6 +257,37 @@ def test_invite_redeem_and_manage(real):
     assert r.json()["message"] == "this is the last Admin"
 
 
+def test_edit_user_over_http(real):
+    admin = sign_in(real)
+    invited = real.post("/users/invite", json={"name": "Bea", "email": "bea@example.org"}, headers=admin).json()
+    user_id = invited["user_id"]
+    bea_token = real.post(
+        "/auth/redeem", json={"token": invited["token"], "password": "battery staple", "device_id": "phone-b"}
+    ).json()["token"]
+    bea = {"Authorization": f"Bearer {bea_token}"}
+
+    edit_body = {"name": "Beatrice", "email": "beatrice@example.org"}
+    edited = real.post(f"/users/{user_id}/edit", json=edit_body, headers=admin)
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["user"]["name"] == "Beatrice"
+
+    listed = next(u for u in real.get("/users", headers=admin).json()["users"] if u["id"] == user_id)
+    assert listed["name"] == "Beatrice"
+    assert listed["email"] == "beatrice@example.org"
+
+    # A changed email does not sign the account out.
+    assert real.get("/sync/bootstrap", headers=bea).status_code == 200
+
+    clash = real.post(f"/users/{user_id}/edit", json={"email": "Alex@Example.org"}, headers=admin)
+    assert clash.status_code == 409
+    assert "email" in clash.json()["message"]
+
+    assert real.post(f"/users/{user_id}/edit", json={}, headers=admin).status_code == 400
+
+    # A User cannot edit anyone, including themself.
+    assert real.post(f"/users/{user_id}/edit", json={"name": "Nope"}, headers=bea).status_code == 403
+
+
 def test_deactivated_over_http(real):
     admin = sign_in(real)
     invited = real.post("/users/invite", json={"name": "Bea", "email": "bea@example.org"}, headers=admin).json()

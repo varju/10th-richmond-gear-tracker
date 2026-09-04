@@ -17,7 +17,7 @@ from typing import Annotated, Any, Literal
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from pydantic import EmailStr, StringConstraints
+from pydantic import ConfigDict, EmailStr, StringConstraints
 
 from gear_tracker import derived, events
 from gear_tracker.errors import (
@@ -86,6 +86,18 @@ class ResetRequest(Strict):
 
 class RoleChange(Strict):
     role: Role
+
+
+class UserEdit(Strict):
+    """What an Admin may fix about a person (FR-USR-04). Either field, or both; at least one.
+
+    `extra="forbid"` so an assistant's stray argument is refused, not silently dropped.
+    """
+
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+
+    name: NonEmpty | None = None
+    email: Email | None = None
 
 
 @dataclass(frozen=True)
@@ -375,6 +387,34 @@ def _guard_last_admin(conn: sqlite3.Connection, user_id: str) -> None:
     user = get_user(conn, user_id)
     if user["role"] == "admin" and user["active"] and active_admins(conn) == 1:
         raise Conflict("this is the last Admin")
+
+
+def _change_email(conn: sqlite3.Connection, user_id: str, email: str) -> None:
+    """Email is credential, not entity state (see accounts.py's docstring): it lives only in `accounts`,
+    updated in place, never as a log event. So it never reaches a device, and this write carries no old
+    value the way `_change` does — the row itself is not history.
+    """
+    email = email.lower()
+    if email_of(conn, user_id) == email:
+        return
+    try:
+        conn.execute("UPDATE accounts SET email = ? WHERE user_id = ?", (email, user_id))
+    except sqlite3.IntegrityError:
+        raise Conflict("an account with that email already exists") from None
+
+
+def edit_user(conn: sqlite3.Connection, who: Principal, user_id: str, body: UserEdit, now: int | None = None) -> None:
+    """Fix a person's name, email, or both (FR-USR-04). A name change is a field_changed event, old value
+    and new (FR-USR-05), the same as a role change. Sessions are untouched either way (FR-USR-07).
+    """
+    _require_admin(who)
+    if body.name is None and body.email is None:
+        raise BadRequest("say what to change")
+    now = now_ms() if now is None else now
+    if body.name is not None:
+        _change(conn, who.user_id, user_id, "name", body.name, now)
+    if body.email is not None:
+        _change_email(conn, user_id, body.email)
 
 
 def set_role(conn: sqlite3.Connection, who: Principal, user_id: str, role: Role, now: int | None = None) -> None:

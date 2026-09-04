@@ -204,6 +204,84 @@ function InviteForm({
   );
 }
 
+/** Fix a name or email inline, in the same style as the role and deactivate controls (FR-USR-04). */
+function EditForm({
+  user,
+  api,
+  onError,
+  onChanged,
+}: {
+  user: AccountUser;
+  api: Api;
+  onError: (message: string | null) => void;
+  onChanged: () => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(user.name);
+  const [email, setEmail] = useState(user.email);
+  const [busy, setBusy] = useState(false);
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        className="minor"
+        onClick={() => {
+          setName(user.name);
+          setEmail(user.email);
+          setEditing(true);
+        }}
+      >
+        Edit name or email
+      </button>
+    );
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    onError(null);
+    try {
+      await api.editUser(user.id, { name: name.trim(), email: email.trim() });
+      setEditing(false);
+      await onChanged();
+    } catch (err) {
+      onError(describe(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} aria-label={`Edit ${user.name}`}>
+      <label className="tight">
+        <span>Name</span>
+        <input value={name} onChange={(e) => setName(e.target.value)} required autoComplete="off" autoFocus />
+      </label>
+      <label className="tight">
+        <span>Email</span>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="off" />
+      </label>
+      <div className="row">
+        <button type="submit" className="minor primary" disabled={busy || !name.trim() || !email.trim()}>
+          Save
+        </button>
+        <button
+          type="button"
+          className="minor"
+          onClick={() => {
+            setName(user.name);
+            setEmail(user.email);
+            setEditing(false);
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function UserRow({
   user,
   me,
@@ -255,6 +333,7 @@ function UserRow({
       </button>
       {open && (
         <div className="user-detail">
+          <EditForm user={user} api={api} onError={onError} onChanged={onChanged} />
           <label className="tight">
             <span>Role</span>
             <select

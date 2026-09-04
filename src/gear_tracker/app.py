@@ -265,6 +265,11 @@ def create_app(
         link = body.link.replace("TOKEN", token) if body.link else None
         return stamped({"user_id": user_id, "token": token, **posted(conn, "invite", str(body.email), link)})
 
+    @app.post("/users/{user_id}/edit")
+    def edit_user(conn: Db, who: Who, user_id: str, body: accounts.UserEdit) -> dict[str, Any]:
+        accounts.edit_user(conn, who, user_id, body)
+        return stamped({"user": accounts.get_user(conn, user_id)})
+
     @app.post("/users/{user_id}/role")
     def set_role(conn: Db, who: Who, user_id: str, body: accounts.RoleChange) -> dict[str, Any]:
         accounts.set_role(conn, who, user_id, body.role)

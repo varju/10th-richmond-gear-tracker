@@ -1208,6 +1208,13 @@ def set_user_role(user_id: str, role: accounts.Role) -> dict[str, Any]:
         return {"user": _user_brief(accounts.get_user(conn, user_id))}
 
 
+def update_user(user_id: str, fields: accounts.UserEdit) -> dict[str, Any]:
+    """Fix a person's name, email, or both (FR-USR-04). Give only what changes. Admins only."""
+    with _open() as (conn, who):
+        accounts.edit_user(conn, who, user_id, fields)
+        return {"user": {**_user_brief(accounts.get_user(conn, user_id)), "email": accounts.email_of(conn, user_id)}}
+
+
 def list_devices(user_id: str) -> dict[str, Any]:
     """The devices one account is signed in on (FR-USR-14). Your own always; anyone's if you are an Admin."""
     with _open() as (conn, who):
@@ -1479,6 +1486,7 @@ TOOLS = [
     list_users,
     invite_user,
     reset_link,
+    update_user,
     set_user_active,
     set_user_role,
     list_devices,
