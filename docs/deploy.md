@@ -30,8 +30,8 @@ export TZ=America/Vancouver
 ```
 
 `GEAR_DATA` is a directory on the server. Everything worth keeping is in it — `gear.db`, the photos under `photos/`, the
-nightly snapshots under `backups/`, and the `seed.toml` below — so moving house is a copy of that one directory to the
-next machine (NFR-MAINT-05).
+nightly snapshots under `backups/`, the failed sign-in log, and the `seed.toml` — so moving house is a copy of that one
+directory to the next machine (NFR-MAINT-05).
 
 Check the connection before going further:
 
@@ -67,6 +67,26 @@ a 500. An invite or reset token in the query string is replaced with `[redacted]
 password.
 
 The container's health check runs every minute and is left out, or it would be most of the log.
+
+### Failed sign-ins
+
+A sign-in that does not open a session is appended to `GEAR_DATA/failed-sign-ins.log`, one line each (NFR-SEC-11):
+
+```
+2026-09-04T09:57:50-07:00 203.0.113.7 jo@example.org unauthorized
+```
+
+The reason is `unauthorized` for a wrong password or an email with no account, `deactivated` for a right password on an
+account that has been turned off. Who is trying what, most attempts first:
+
+```sh
+awk '{print $2, $3}' "$GEAR_DATA/failed-sign-ins.log" | sort | uniq -c | sort -rn | head
+```
+
+One address working through many accounts, or many attempts on one account, is worth acting on: deactivate the account,
+or block the address at the proxy. Nothing in the app slows sign-in attempts down yet.
+
+The file rolls over at about a megabyte, keeping one older copy as `failed-sign-ins.log.1`.
 
 Times are the container's own clock, in the timezone `TZ` names. Without it, UTC.
 

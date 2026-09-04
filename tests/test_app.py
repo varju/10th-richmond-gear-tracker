@@ -988,3 +988,102 @@ def test_the_assistants_calls_name_the_person_behind_them(real, access_log):
     assert answered.status_code == 200
 
     assert one_line(access_log) == 'testclient "POST /mcp" 200 alex@example.org'
+
+
+# --- the failed sign-in log (NFR-SEC-11) ------------------------------------------------------
+
+
+@pytest.fixture
+def failures(db_path):
+    """Where a refused sign-in is written: beside the database, as it is in the data directory."""
+    return db_path.parent / "failed-sign-ins.log"
+
+
+def lines_in(path):
+    return path.read_text().splitlines() if path.exists() else []
+
+
+def test_a_wrong_password_is_recorded_with_the_address_and_the_email(real, failures):
+    real.post("/auth/sign-in", json={"email": "alex@example.org", "password": "wrong", "device_id": "phone-a"})
+
+    [line] = lines_in(failures)
+    at, address, email, reason = line.split(" ")
+    assert datetime.fromisoformat(at).tzinfo is not None, "a local time, with its offset"
+    assert (address, email, reason) == ("testclient", "alex@example.org", "unauthorized")
+
+
+def test_an_email_with_no_account_is_recorded_too(real, failures):
+    """Spraying addresses that do not exist is the shape of an attack that a per-account count
+    would miss, so the attempt is recorded whether or not the account is real."""
+    real.post("/auth/sign-in", json={"email": "nobody@example.org", "password": "guess", "device_id": "phone-a"})
+
+    assert [line.split(" ")[2:] for line in lines_in(failures)] == [["nobody@example.org", "unauthorized"]]
+
+
+def test_the_email_is_recorded_lowercased(real, failures):
+    real.post("/auth/sign-in", json={"email": "Alex@Example.ORG", "password": "wrong", "device_id": "phone-a"})
+
+    assert lines_in(failures)[0].split(" ")[2] == "alex@example.org"
+
+
+def test_a_deactivated_account_says_so_rather_than_wrong_password(real, db_path, failures):
+    """The password was right. Reading it as a guess would send an Admin looking for an attacker."""
+    with open_db(db_path) as conn:
+        sam = accounts.install_admin(conn, "Sam", "sam@example.org", "also correct")
+    real.post(f"/users/{sam}/deactivate", headers=sign_in(real))
+
+    real.post("/auth/sign-in", json={"email": "sam@example.org", "password": "also correct", "device_id": "phone-b"})
+
+    assert lines_in(failures)[0].split(" ")[3] == "deactivated"
+
+
+def test_a_sign_in_that_works_writes_nothing(real, failures):
+    sign_in(real)
+
+    assert lines_in(failures) == []
+
+
+def test_every_attempt_is_kept_not_just_the_last(real, failures):
+    for n in range(3):
+        real.post("/auth/sign-in", json={"email": "alex@example.org", "password": f"no{n}", "device_id": "phone-a"})
+
+    assert len(lines_in(failures)) == 3
+
+
+def test_the_client_address_is_the_one_the_rate_limits_use(real, failures):
+    """A proxy's X-Forwarded-For, trusted the same way as everywhere else (FR-PUB-04), or the log
+    would name the proxy on every line once this is deployed behind one."""
+    behind = client_at(real, "127.0.0.1")
+    behind.post(
+        "/auth/sign-in",
+        json={"email": "alex@example.org", "password": "wrong", "device_id": "phone-a"},
+        headers={"X-Forwarded-For": "203.0.113.9"},
+    )
+
+    assert lines_in(failures)[0].split(" ")[1] == "203.0.113.9"
+
+
+def test_the_file_rolls_over_instead_of_growing_without_limit(real, failures, monkeypatch):
+    """Nothing slows sign-in attempts down, so an unbounded file is a way to fill the disk the
+    database is on. The older copy is kept: it holds the start of whatever is going on."""
+    monkeypatch.setattr("gear_tracker.app.FAILED_SIGN_INS_MAX_BYTES", 200)
+    attempt = {"email": "alex@example.org", "password": "wrong", "device_id": "phone-a"}
+
+    for _ in range(6):
+        real.post("/auth/sign-in", json=attempt)
+
+    rolled = failures.with_name(f"{failures.name}.1")
+    assert rolled.exists(), "the full file was moved aside"
+    assert lines_in(failures), "a new one was started"
+    assert len(lines_in(rolled) + lines_in(failures)) == 6, "and no attempt was lost between them"
+
+
+def test_a_log_that_cannot_be_written_does_not_break_signing_in(real, db_path, failures):
+    """A full disk, or a read-only mount. The sign-in was refused and stays refused."""
+    failures.mkdir()  # a directory where the file goes: opening it to append raises OSError
+
+    refused = real.post(
+        "/auth/sign-in", json={"email": "alex@example.org", "password": "wrong", "device_id": "phone-a"}
+    )
+
+    assert refused.status_code == 401

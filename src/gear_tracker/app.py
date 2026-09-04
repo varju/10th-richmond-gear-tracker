@@ -71,6 +71,14 @@ HEALTH_PATH = "/health"
 """Where the container's health check asks (Dockerfile). Kept out of the access log: a line a
 minute, forever, would bury everything worth reading."""
 
+FAILED_SIGN_INS = "failed-sign-ins.log"
+"""A refused sign-in is written here, beside the database, so a copy of the data directory holds
+it too (NFR-SEC-11)."""
+
+FAILED_SIGN_INS_MAX_BYTES = 1_000_000
+"""About 15,000 lines. Nothing slows attempts down, so the file rolls over rather than filling the
+disk the database is on; one older copy is kept."""
+
 SECRET_QUERY_KEYS = frozenset({"token", "link"})
 """An invite or reset link lands on /join?token=... (FR-USR-12), a standing join link on
 ?link=... (FR-USR-19). Both are client routes this server answers, so the value reaches the log
@@ -121,6 +129,25 @@ def access_line(request: Request, status: int, started: float) -> None:
         round((time.perf_counter() - started) * 1000),
         email,
     )
+
+
+def record_failed_sign_in(path: Path, request: Request, email: str, reason: str) -> None:
+    """One line per sign-in that did not open a session (NFR-SEC-11).
+
+    The access log already says a sign-in was refused. This says which address
+    tried which account, which is what tells a forgotten password from someone
+    working through a list.
+    """
+    try:
+        if path.exists() and path.stat().st_size >= FAILED_SIGN_INS_MAX_BYTES:
+            # Rolled over, not truncated: the older copy holds the start of whatever is going on.
+            path.replace(path.with_name(f"{path.name}.1"))
+        at = datetime.now().astimezone().isoformat(timespec="seconds")
+        with path.open("a", encoding="utf-8") as file:
+            file.write(f"{at} {client_address(request)} {email} {reason}\n")
+    except OSError as exc:
+        # A refused sign-in still has to be refused: a full disk must not turn a 401 into a 500.
+        logging.getLogger(__name__).warning("could not write %s: %s", path, exc)
 
 
 def _trusted_proxy(host: str | None) -> bool:
@@ -199,6 +226,7 @@ def create_app(
     app = FastAPI(title="Gear Tracker", lifespan=lifespan)
     app.router.routes.append(assistant.route(mcp))
     photo_dir = Path(photos) if photos is not None else Path(db_path).parent / "photos"
+    failed_sign_ins = Path(db_path).parent / FAILED_SIGN_INS
 
     # In memory, in this process. One uvicorn worker serves the group, so that is the whole picture.
     found_limits = {
@@ -348,8 +376,13 @@ def create_app(
         return stamped({"token": session.token, "user": session.user})
 
     @app.post("/auth/sign-in")
-    def sign_in(conn: Db, body: accounts.SignIn) -> dict[str, Any]:
-        return session_response(accounts.sign_in(conn, body))
+    def sign_in(request: Request, conn: Db, body: accounts.SignIn) -> dict[str, Any]:
+        try:
+            return session_response(accounts.sign_in(conn, body))
+        except ApiError as exc:
+            # Lowercased, the way the lookup is, so counting attempts per account is a sort.
+            record_failed_sign_in(failed_sign_ins, request, body.email.lower(), exc.code)
+            raise
 
     @app.post("/auth/redeem")
     def redeem(conn: Db, body: accounts.Redeem) -> dict[str, Any]:

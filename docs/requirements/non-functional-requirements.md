@@ -102,6 +102,7 @@ manage and no Scouts Canada youth-data obligations to meet.
 | NFR-SEC-07 | Should   | Deactivating a user ends their access at the server at once, and on a device at its next sync. Sessions do not expire (FR-USR-07), so a device that never reconnects keeps working offline.                 |
 | NFR-SEC-08 | Should   | Personal data is stored in Canada, or the group is told where it is stored.                                                                                                                                 |
 | NFR-SEC-09 | Should   | Dependencies are scanned for known vulnerabilities on every build.                                                                                                                                          |
+| NFR-SEC-11 | Should   | Failed sign-ins are recorded to a file in the data directory, with the time, the address, and the email tried.                                                                                              |
 
 ## 6. Maintainability (MAINT)
 
