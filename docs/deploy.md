@@ -175,8 +175,9 @@ docker exec gear-tracker gear-backup --db /data/gear.db --into /data/backups
 ```
 
 That writes one dated, gzipped file that restores on its own, deletes snapshots older than 30 days (NFR-DATA-05), and
-runs SQLite's integrity check on what it wrote. The check is the part a file copy cannot give you: a nightly answer to
-whether the database is still sound, rather than finding out at a restore.
+runs SQLite's integrity check on what it wrote. The date in the name is UTC, so an evening snapshot in Vancouver carries
+tomorrow's date. The check is the part a file copy cannot give you: a nightly answer to whether the database is still
+sound, rather than finding out at a restore.
 
 Nightly, from the host's own cron:
 
