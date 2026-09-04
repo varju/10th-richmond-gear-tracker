@@ -53,8 +53,6 @@ the row in the same commit.
 
 ### Features
 
-- [ ] Pack from home: under Check out, list reservations that start within seven days; one tap opens Pack. The Pack list
-      shows only what is still unpacked, with a toggle to show packed lines as well. New FR-RES row.
 - [ ] Join link: an Admin creates a standing join link, shown as a URL and a QR code, with an expiry and a Revoke
       button. Whoever opens it gives a name, email, and password and gets an active User account. Admins see the new
       account in Users. Amend FR-USR-13 to "no sign-up except through a link an Admin issued"; new FR-USR row.

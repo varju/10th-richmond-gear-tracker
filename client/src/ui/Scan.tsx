@@ -263,7 +263,9 @@ export function Scan({ store }: { store: Store }) {
 /**
  * What the reservation still needs, always in view (FR-RES-02), by home (FR-RES-06).
  * A row is a check-out for gear with no sticker (FR-OUT-02). Derived from state,
- * so a scan on another device ticks it here once both have synced.
+ * so a scan on another device ticks it here once both have synced. Packed lines
+ * are hidden by default; "Show packed" brings them back, ticked, to confirm what
+ * went (FR-RES-21).
  */
 function RemainingList({
   store,
@@ -275,6 +277,7 @@ function RemainingList({
   onMoved: (id: string, name: string) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [showPacked, setShowPacked] = useState(false);
   const rem = remaining(store.state, booked);
 
   async function take(id: string, name: string) {
@@ -318,6 +321,12 @@ function RemainingList({
         </ul>
       )}
       {rem.packed.length > 0 && (
+        <label className="check">
+          <input type="checkbox" checked={showPacked} onChange={(e) => setShowPacked(e.target.checked)} />
+          <span>Show packed</span>
+        </label>
+      )}
+      {showPacked && rem.packed.length > 0 && (
         <ul className="names">
           {rem.packed.map((it) => (
             <li key={it.id} className="muted">

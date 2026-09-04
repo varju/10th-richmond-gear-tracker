@@ -116,10 +116,26 @@ test("a scan ticks an item off; an unlisted one is appended with no fuss (FR-RES
   expect(item(store.state, stove)).toMatchObject({ status: "out", holder_id: "alice" });
   expect(rows().map((b) => b.textContent)).toEqual(["TarpWarm locker"]);
 
-  // The stove was not on the list. It joins it, and shows as ticked (S-RES-04).
+  // The stove was not on the list. It joins it, and shows as ticked (S-RES-04), hidden until asked for.
   await waitFor(() => expect(res.reservation(store.state, fall)?.items).toEqual([tarp, tent, stove]));
   expect(store.pending.at(-1)).toMatchObject({ type: "item_added", entity_id: fall, payload: { item_id: stove } });
+  expect(remaining()).not.toHaveTextContent("✓ Stove");
+  await user.click(within(remaining()).getByRole("checkbox", { name: "Show packed" }));
   expect(remaining()).toHaveTextContent("✓ Stove");
+});
+
+test("packed lines are hidden until Show packed is ticked (FR-RES-21)", async () => {
+  renderInShell(<Scan store={store} />);
+  await mv.checkOut(store, tarp, { event: "Fall Camp", reservation_id: fall });
+  await waitFor(() => expect(rows().map((b) => b.textContent)).toEqual(["4-person tent #1Cold locker"]));
+  expect(within(remaining()).queryByRole("checkbox", { name: "Show packed" })).toBeInTheDocument();
+  expect(remaining()).not.toHaveTextContent("✓ Tarp");
+
+  await user.click(within(remaining()).getByRole("checkbox", { name: "Show packed" }));
+  expect(remaining()).toHaveTextContent("✓ Tarp");
+
+  await user.click(within(remaining()).getByRole("checkbox", { name: "Show packed" }));
+  expect(remaining()).not.toHaveTextContent("✓ Tarp");
 });
 
 test("a unit that overflows a full generic line raises the line instead (FR-RES-07)", async () => {

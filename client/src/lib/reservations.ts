@@ -71,6 +71,10 @@ export const reservation = (state: State, id: string): Reservation | undefined =
 export const upcoming = (state: State, today: string): Reservation[] =>
   reservations(state).filter((r) => r.ends >= today);
 
+/** Under way now, or starting within the next seven days: worth a tap from the locker's home screen (FR-RES-21). */
+export const dueToPack = (state: State, today: string): Reservation[] =>
+  upcoming(state, today).filter((r) => r.starts <= shiftIso(today, 7));
+
 export const past = (state: State, today: string): Reservation[] =>
   reservations(state)
     .filter((r) => r.ends < today)

@@ -15,14 +15,16 @@ Covers: FR-RES-01, FR-RES-16
 
 ## S-RES-02 Pack for the camp
 
-On the Friday, a Scouter opens the reservation. It becomes a scanning session showing everything still unscanned.
+On the Friday, a Scouter opens the reservation. It becomes a scanning session showing everything still unscanned. Fall
+Camp starts tomorrow, so it is sitting right on the home screen; one tap gets there without a trip through the
+Reservations list.
 
 - The event name is taken from the reservation, not typed again
 - Each scan ticks an item off the list
-- The remaining list is always visible
+- The remaining list is always visible, packed lines hidden until asked for
 - Nothing is checked out unless it is scanned, or ticked off the list if it has no sticker
 
-Covers: FR-RES-02, FR-RES-03
+Covers: FR-RES-02, FR-RES-03, FR-RES-21
 
 ## S-RES-03 Leave something behind
 

@@ -18,8 +18,9 @@ you are keeping some back.
 
 ## Pack for a reservation
 
-Open Reservations, pick the camp, and tap Check out. Scan each item; the list under the viewfinder shows what is still
-to pack. Tap Finish, which names anything you did not scan.
+Open Reservations, pick the camp, and tap Check out. If it is under way or starts within a week, it is also sitting on
+the home screen: tap it there instead. Scan each item; the list under the viewfinder shows what is still to pack, with a
+"Show packed" toggle if you want to check what already went. Tap Finish, which names anything you did not scan.
 
 ## Find gear
 
