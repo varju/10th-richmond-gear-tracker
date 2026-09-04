@@ -99,7 +99,17 @@ function hapticSwitch(): HTMLLabelElement | null {
   input.id = "haptic-switch";
   input.tabIndex = -1;
   input.setAttribute("aria-hidden", "true");
-  input.style.display = "none";
+  // Rendered but invisible, not display: none. A switch with no box may toggle without the buzz.
+  Object.assign(input.style, {
+    position: "fixed",
+    left: "0",
+    bottom: "0",
+    width: "1px",
+    height: "1px",
+    margin: "0",
+    opacity: "0",
+    pointerEvents: "none",
+  });
   const label = document.createElement("label");
   label.htmlFor = input.id;
   label.style.display = "none";

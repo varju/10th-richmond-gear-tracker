@@ -68,7 +68,7 @@ test("without the Vibration API (iOS Safari) vibrate toggles one hidden switch, 
   expect(document.querySelectorAll("input[switch]")).toHaveLength(1);
   const hidden = document.querySelector<HTMLInputElement>("input[switch]")!;
   expect(hidden.checked).toBe(true);
-  expect(hidden.style.display).toBe("none");
+  expect(hidden.style.opacity).toBe("0");
   vibrate();
   expect(document.querySelectorAll("input[switch]")).toHaveLength(1);
   expect(hidden.checked).toBe(false);
