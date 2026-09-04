@@ -389,6 +389,12 @@ A device may also release a bound code, deliberately, with a `code_released` eve
 Unlike a replace, this is not superseded by a new sticker: the code goes back to unassigned and may be bound to a
 different item later. The server refuses to release a code that is not on anything.
 
+A pool (FR-INV-34) may carry a code too, on the container that holds the stack rather than on a labelled unit
+(FR-TAG-15): the same `code_bound` event, targeting the pool's own item id. The guard that refuses a code on a generic
+checks for units, not for `generic` alone, so a pool clears it while a plain generic still cannot take one (FR-INV-21).
+Scanning a pool's code during a check-out or return session opens a count field instead of the one-tap card, since a
+pool moves by count, not by holder (FR-OUT-25).
+
 Scanning lands on `/g/<code>`, the same path a sticker's URL has, so a camera app and the in-app scanner take one route.
 Assigned or replaced: open the item. Unassigned: create or bind. Unknown: say so, and suggest a sync, because a freshly
 printed sheet is unknown to a phone that has not pulled since.

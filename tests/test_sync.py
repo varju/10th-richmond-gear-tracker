@@ -681,7 +681,8 @@ def test_count_is_refused_off_a_pool(db):
     assert reasons(db, USER, out) == ["count is only for a pool (FR-OUT-22)"]
 
 
-def test_a_pool_takes_no_code(db):
+def test_a_pool_may_take_a_code(db):
+    """The code goes on the container, not a labelled unit — a pool has none (FR-TAG-15)."""
     push(
         db,
         USER,
@@ -694,7 +695,7 @@ def test_a_pool_takes_no_code(db):
     bind = own(
         USER, entity_type="code", entity_id="ABCDEFGH23", type="code_bound", payload={"item_id": "tent-1"}, device_seq=2
     )
-    assert reasons(db, USER, bind) == ["a pool has no code (FR-INV-34)"]
+    assert reasons(db, USER, bind) == []
 
 
 def test_recount_is_only_for_a_pool(db):

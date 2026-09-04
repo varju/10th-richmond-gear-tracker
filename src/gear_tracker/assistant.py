@@ -416,8 +416,8 @@ def get_item(item_id: str) -> dict[str, Any]:
             "since": views.iso(it.get("since")),
         }
         if views.is_pool(it):
-            # A pool has no units and no code of its own (FR-INV-34); owned, in, and out by holder
-            # stand in for them (FR-INV-36).
+            # A pool has no units (FR-INV-34); owned, in, and out by holder stand in for them
+            # (FR-INV-36). It may still carry a code, on the container (FR-TAG-15).
             out["pool"] = True
             counts = views.pool_counts(it)
             out["owned"] = counts["owned"]
@@ -431,9 +431,9 @@ def get_item(item_id: str) -> dict[str, Any]:
             if it.get("parent_id"):
                 out["generic_id"] = it["parent_id"]
                 out["number"] = it.get("number")
-            code_id = views.current_code(state, it["id"])
-            if code_id:
-                out["code"] = code_id
+        code_id = views.current_code(state, it["id"])
+        if code_id:
+            out["code"] = code_id
         out["open_tickets"] = [_ticket_brief(state, t) for t in views.repairs_for(state, it["id"]) if views.is_open(t)]
         out["reservations"] = _item_reservations(state, it)
         # A pool keeps its history (its check-outs, check-ins, and recounts); an ordinary generic
@@ -783,9 +783,10 @@ def create_item(
     once and each one becomes a numbered unit under it (FR-INV-21). Add those
     with add_unit. `pool` is for a counted stack instead, like tent pegs
     (FR-INV-34): give `quantity`, and it moves by count through check_out,
-    check_in and recount, with no units and no code of its own; `pool` implies
-    `generic`. `category_ids` puts it in any number of groups of similar gear
-    (FR-SET-07); call list_categories for the ids.
+    check_in and recount, with no units of its own though assign_code can still
+    put one code on the container (FR-TAG-15); `pool` implies `generic`.
+    `category_ids` puts it in any number of groups of similar gear (FR-SET-07);
+    call list_categories for the ids.
     """
     with _open() as (conn, who):
         state = _state(conn)
@@ -917,7 +918,8 @@ def assign_code(code: str, item_id: str) -> dict[str, Any]:
             raise Conflict(f"that code is already on {views.name_of(_state(conn), bound['item_id'])}")
         state = _state(conn)
         it = _item(state, item_id)
-        if it.get("generic"):
+        # A pool takes a code on its container (FR-TAG-15); a generic with units still does not (FR-INV-21).
+        if it.get("generic") and not views.is_pool(it):
             raise BadRequest("a generic has no code; its units do")
         _push(conn, who, [_draft("code", code, "code_bound", {"item_id": it["id"]})])
         return {"item_id": it["id"], "code": code}

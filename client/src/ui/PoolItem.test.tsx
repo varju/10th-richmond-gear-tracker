@@ -7,7 +7,7 @@ import * as mv from "../lib/movement";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { unsaved } from "../lib/unsaved";
-import { openStore } from "./codeTestKit";
+import { openStore, printCodes } from "./codeTestKit";
 import { ItemPage } from "./ItemPage";
 import { alice, carol, renderInShell, seedUsers } from "./moveTestKit";
 
@@ -118,16 +118,29 @@ test("returning more than a holder has out is refused, shown as an error (FR-OUT
   expect(await screen.findByRole("alert")).toHaveTextContent("only 3 out to alice");
 });
 
-test("a pool page has no unit list, no code, no group, and no make single (FR-INV-34)", async () => {
+test("a pool page has no unit list, no group, and no make single (FR-INV-34)", async () => {
   const bowls = await act.createPool(store, { name: "Bowls" }, 5);
   navigate(`/items/${bowls}`);
   renderInShell(<ItemPage store={store} id={bowls} />);
 
   expect(screen.queryByRole("heading", { name: "Units" })).not.toBeInTheDocument();
-  expect(screen.queryByText("Code")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /Group with/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /Make this a single item/ })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /QR code/ })).not.toBeInTheDocument();
+});
+
+test("a pool's container can carry a code, on the pool page's Details (FR-TAG-15)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 5);
+  navigate(`/items/${bowls}`);
+  renderInShell(<ItemPage store={store} id={bowls} />);
+
+  await user.click(screen.getByText("Details"));
+  expect(fact("Code")).toBe("none");
+  expect(screen.getByRole("button", { name: "Add QR code" })).toBeInTheDocument();
+
+  await printCodes(store, ["ABCDEFGH23"]);
+  await act.bindCode(store, "ABCDEFGH23", bowls);
+  expect(fact("Code")).toBe("ABCDEFGH23");
+  expect(screen.getByRole("button", { name: "Replace QR code" })).toBeInTheDocument();
 });
 
 test("a single item becomes a counted stack, the way it becomes a generic (FR-INV-26, FR-INV-34)", async () => {
@@ -145,4 +158,20 @@ test("a single item becomes a counted stack, the way it becomes a generic (FR-IN
   const poolId = location.pathname.split("/").at(-1)!;
   expect(inv.item(store.state, poolId)).toMatchObject({ name: "Stove", pool: true, pool_in: 12 });
   expect(inv.item(store.state, stove)?.merged_into).toBe(poolId);
+});
+
+test("a single item's code comes along when it becomes a counted stack (FR-TAG-15)", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  await printCodes(store, ["ABCDEFGH23"]);
+  await act.bindCode(store, "ABCDEFGH23", stove);
+  navigate(`/items/${stove}`);
+  renderInShell(<ItemPage store={store} id={stove} />);
+
+  await user.click(screen.getByRole("button", { name: "Make this a counted stack…" }));
+  await user.click(screen.getByRole("button", { name: "Really make it a counted stack?" }));
+
+  await waitFor(() => expect(location.pathname).not.toBe(`/items/${stove}`));
+  const poolId = location.pathname.split("/").at(-1)!;
+  expect(inv.currentCode(store.state, poolId)?.id).toBe("ABCDEFGH23");
+  expect(inv.codeStatus(store.state, "ABCDEFGH23")).toBe("assigned");
 });

@@ -228,9 +228,8 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
             payload = incoming.get("payload")
             named = payload.get("item_id") if isinstance(payload, dict) else None
             target = derived.get_entity(conn, "item", str(named)) or {}
-            if target.get("pool"):
-                raise Rejected("a pool has no code (FR-INV-34)")
-            if target.get("generic"):
+            # A pool takes a code on its container (FR-TAG-15); a generic with units still does not (FR-INV-21).
+            if target.get("generic") and not target.get("pool"):
                 raise Rejected("a generic item takes no code; put it on a unit (FR-INV-21)")
         if kind == "code_released":
             code = derived.get_entity(conn, "code", str(incoming.get("entity_id")))

@@ -19,9 +19,10 @@ export interface Item {
   /** One thing the group owns several of. Takes no code and no movement (FR-INV-21). */
   generic?: boolean;
   /**
-   * A counted stack, not units (FR-INV-34): always a generic, with no code and no units of its own.
-   * `pool_in` and `pool_out` carry the truth; `quantity` is what `created` was given and is not kept
-   * current. Read both through `poolCounts`.
+   * A counted stack, not units (FR-INV-34): always a generic, with no units of its own. It may
+   * still carry a code, on the container that holds the stack (FR-TAG-15). `pool_in` and
+   * `pool_out` carry the truth; `quantity` is what `created` was given and is not kept current.
+   * Read both through `poolCounts`.
    */
   pool?: boolean;
   quantity?: number;
@@ -283,8 +284,9 @@ export const numberTaken = (state: State, genericId: string, number: string, exc
 /**
  * Generics worth offering on a scanned code, most recently touched first
  * (FR-INV-24). Touched means the generic itself or any of its units, so the
- * one being labelled stays at the top of the walk. A pool takes no code, so
- * it is never offered here (FR-INV-34).
+ * one being labelled stays at the top of the walk. A pool has no units to add
+ * one to, so it is never offered here (FR-INV-34); it takes its own code
+ * through Bind instead (FR-TAG-15).
  */
 export function recentGenerics(state: State, limit = 4): Item[] {
   // One pass over every item builds each generic's most-touched unit, instead of a fresh scan
@@ -369,6 +371,25 @@ export function search(state: State, filter: Filter): Item[] {
     .filter((it) => !filter.category_id || categoriesOf(state, it).includes(filter.category_id))
     .filter((it) => matches(state, it, words))
     .sort(byName(state));
+}
+
+/**
+ * Candidates for binding a code (FR-TAG-07): everything search() finds, plus
+ * a pool's own container, which is a generic and so absent from search()
+ * (FR-TAG-15). A pool has no "out" or "missing" state, so a status filter
+ * other than "in" drops it the way it drops a retired item.
+ */
+export function bindTargets(state: State, filter: Filter): Item[] {
+  const words = terms(filter.query);
+  const pools = generics(state)
+    .filter(isPool)
+    .filter((it) => Boolean(it.retired) === Boolean(filter.retired))
+    .filter((it) => !filter.location_id || it.home_location_id === filter.location_id)
+    .filter((it) => !filter.sub_location || it.sub_location === filter.sub_location)
+    .filter((it) => !filter.status || filter.status === "in")
+    .filter((it) => !filter.category_id || categoriesOf(state, it).includes(filter.category_id))
+    .filter((it) => matches(state, it, words));
+  return [...search(state, filter), ...pools].sort(byName(state));
 }
 
 export interface SingleRow {

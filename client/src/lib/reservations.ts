@@ -370,7 +370,8 @@ export type ListChange = { kind: "item"; item_id: string } | { kind: "quantity";
  * What a check-out under this camp's event has to add to the gear list, once it
  * has happened (FR-RES-07). Nothing, when the item is already named or fills a
  * generic line that had room. A unit whose full line it overflows raises that
- * line by one; anything else joins by name.
+ * line by one; a pool's line grows to what this camp has taken of it; anything
+ * else joins by name.
  */
 export function extraChange(state: State, r: Reservation, itemId: string): ListChange | null {
   const id = resolveItem(state, itemId);
@@ -378,6 +379,12 @@ export function extraChange(state: State, r: Reservation, itemId: string): ListC
   if (named.has(id)) return null;
   const it = item(state, id);
   if (!it) return null;
+  if (isPool(it)) {
+    // A pool ticks off by count (FR-RES-13), read off the raw entity like remaining() does.
+    const taken = ((state.item?.[id]?.pool_reservations as PoolReservations | undefined) ?? {})[r.id] ?? 0;
+    const line = r.generics.find((g) => g.item_id === id);
+    return taken > (line?.quantity ?? 0) ? { kind: "quantity", item_id: id, quantity: taken } : null;
+  }
   const line = it.parent_id ? r.generics.find((g) => g.item_id === it.parent_id) : undefined;
   if (!line) return { kind: "item", item_id: id };
   const done = unitsOf(state, line.item_id).filter((u) => !named.has(u.id) && ticked(u, r)).length;

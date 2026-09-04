@@ -2,7 +2,17 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from "react"
 import { bindCode, seen } from "../lib/actions";
 import { eventDates, matchingEvents } from "../lib/calendar";
 import { parseCode } from "../lib/codes";
-import { code as codeOf, codeStatus, displayName, homeLabel, item, nameOf, resolveItem } from "../lib/inventory";
+import {
+  code as codeOf,
+  codeStatus,
+  displayName,
+  homeLabel,
+  isPool,
+  item,
+  nameOf,
+  poolCounts,
+  resolveItem,
+} from "../lib/inventory";
 import { withQuery } from "../lib/listUrl";
 import { checkOut } from "../lib/movement";
 import { addExtra, isPacked, type Remaining, remaining, type Reservation, reservation } from "../lib/reservations";
@@ -11,6 +21,7 @@ import { confirmRead, READ_MS, type Scanner, startScanner, unlockSound } from ".
 import type { Store } from "../lib/store";
 import { guard, useUnsaved } from "../lib/unsaved";
 import { useStore } from "../useStore";
+import { PoolActions } from "./ItemPage";
 import { statusLabel } from "./labels";
 import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
 import { Page } from "./Page";
@@ -226,7 +237,36 @@ export function Scan({ store }: { store: Store }) {
             {confirmed}
           </p>
         )}
-        {card && (
+        {card && isPool(card) && (
+          <section className="move-card" aria-labelledby="move-card-title">
+            <h2 id="move-card-title">{displayName(store.state, card)}</h2>
+            <p className="muted">
+              {poolCounts(card).in} in of {poolCounts(card).owned}
+            </p>
+            <PoolActions
+              store={store}
+              it={card}
+              initialMode={mode}
+              onMoved={(message, kind) => {
+                confirm(message);
+                showCard(null);
+                moved.current.set(card.id, Date.now());
+                // A count taken during a reservation session grows its line (FR-RES-07).
+                if (booked && kind === "out") void addExtra(store, booked.id, card.id);
+              }}
+            >
+              <div className="row">
+                <button type="button" onClick={() => guard(() => navigate(`/items/${card.id}?edit=1`))}>
+                  Edit
+                </button>
+                <button type="button" onClick={() => guard(() => showCard(null))}>
+                  Skip
+                </button>
+              </div>
+            </PoolActions>
+          </section>
+        )}
+        {card && !isPool(card) && (
           <section className="move-card" aria-labelledby="move-card-title">
             <h2 id="move-card-title">{displayName(store.state, card)}</h2>
             {homeLabel(store.state, card) && (

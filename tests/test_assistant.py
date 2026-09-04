@@ -1328,6 +1328,15 @@ def test_assign_code_binds_a_printed_code_to_a_unit(db_path, tools):
         assistant.assign_code("ABCDEFGH23", tools["stove"])
 
 
+def test_assign_code_can_bind_to_a_pools_container(db_path, tools, pool_id):
+    """A pool takes a code on the container, not a labelled unit (FR-TAG-15)."""
+    with open_db(db_path) as conn:
+        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "created", {})
+
+    assert assistant.assign_code("ABCDEFGH23", pool_id) == {"item_id": pool_id, "code": "ABCDEFGH23"}
+    assert assistant.get_item(pool_id)["code"] == "ABCDEFGH23"
+
+
 def test_retire_item_and_bring_it_back(db_path, tools):
     assert assistant.retire_item(tools["stove"]) == {"item_id": tools["stove"], "retired": True}
     assert entity(db_path, "item", tools["stove"])["retired"] is True

@@ -46,6 +46,17 @@ test("an item that already has a code asks before replacing it (FR-TAG-04)", asy
   expect(codeStatus(store.state, "AAAAAAAAAA")).toBe("replaced");
 });
 
+test("a pool is offered too, and can take a code the same way (FR-TAG-15)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  const user = userEvent.setup();
+  navigate("/bind/BBBBBBBBBB");
+  render(<Bind store={store} code="BBBBBBBBBB" />);
+  await user.type(screen.getByLabelText("Search items"), "bowl");
+  await user.click(screen.getByRole("button", { name: /Bowls/ }));
+  await waitFor(() => expect(location.pathname).toBe(`/items/${bowls}`));
+  expect(currentCode(store.state, bowls)?.id).toBe("BBBBBBBBBB");
+});
+
 test("a code that is no longer free says why", async () => {
   navigate("/bind/AAAAAAAAAA");
   render(<Bind store={store} code="AAAAAAAAAA" />);

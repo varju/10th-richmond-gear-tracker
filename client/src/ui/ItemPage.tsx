@@ -23,6 +23,7 @@ import {
   aliases,
   categoriesOf,
   categoryNames,
+  type Code,
   codesFor,
   displayName,
   generics,
@@ -201,6 +202,8 @@ export function ItemPage({ store, id }: Props) {
         store={store}
         id={id}
         it={it}
+        current={current}
+        codes={codes}
         onEdit={() => setEditing(true)}
         photos={<Photos store={store} on={onItem} />}
         record={record}
@@ -252,9 +255,7 @@ export function ItemPage({ store, id }: Props) {
               Group with another item…
             </button>
           )}
-          {!it.generic && !it.parent_id && !it.retired && !current && it.status === "in" && (
-            <MakePool store={store} it={it} />
-          )}
+          {!it.generic && !it.parent_id && !it.retired && it.status === "in" && <MakePool store={store} it={it} />}
           {admin && !it.retired && it.status === "in" && (
             <button type="button" onClick={() => setMerging(true)}>
               This is a duplicate record…
@@ -1082,19 +1083,24 @@ function withoutName(values: ItemInput): Partial<ItemInput> {
 
 /**
  * A counted stack (FR-INV-34): owned, in, and out by holder, checked out and
- * returned by count, recounted with a reason. No code, no units, and neither
- * "Group with" nor "Make this a single item": a pool is not a name for units.
+ * returned by count, recounted with a reason. No units, and neither "Group
+ * with" nor "Make this a single item": a pool is not a name for units. It may
+ * still carry a code, bound to the container that holds the stack (FR-TAG-15).
  */
 function PoolPage({
   store,
   id,
   it,
+  current,
+  codes,
   onEdit,
   photos,
   changes,
   record,
 }: Props & {
   it: Item;
+  current: Code | undefined;
+  codes: Code[];
   onEdit: () => void;
   photos: React.ReactNode;
   changes: React.ReactNode;
@@ -1115,6 +1121,9 @@ function PoolPage({
           <PoolActions store={store} it={it} onMoved={confirm} />
           <button type="button" onClick={onEdit}>
             Edit
+          </button>
+          <button type="button" onClick={() => navigate(`/scan?for=${id}`)}>
+            {current ? "Replace QR code" : "Add QR code"}
           </button>
         </>
       }
@@ -1164,6 +1173,11 @@ function PoolPage({
         <dl className="facts">
           <dt>Bought</dt>
           <dd>{boughtLabel(it) || "—"}</dd>
+          <dt>Code</dt>
+          <dd>
+            {current ? <code>{current.id}</code> : "none"}
+            {codes.length > 1 && <span className="muted"> · {codes.length - 1} replaced</span>}
+          </dd>
           <dt>Added</dt>
           <dd>{it.added_at ? localDate(it.added_at) : "—"}</dd>
           <dt>Modified</dt>
@@ -1188,9 +1202,24 @@ function PoolPage({
 
 /**
  * Check out, return, and recount a pool, by count (FR-OUT-22, FR-OUT-23,
- * FR-INV-35). Taking more than are in warns, never blocks.
+ * FR-INV-35). Taking more than are in warns, never blocks. `initialMode`
+ * skips straight to the count field for the session's mode, the way a scan of
+ * a pool's code does (FR-OUT-25), instead of asking which action first.
  */
-function PoolActions({ store, it, onMoved }: { store: Store; it: Item; onMoved: (message: string) => void }) {
+export function PoolActions({
+  store,
+  it,
+  initialMode,
+  onMoved,
+  children,
+}: {
+  store: Store;
+  it: Item;
+  initialMode?: "out" | "in" | null;
+  /** What was done, and which way it went: a scan during a packing session grows the reservation on "out". */
+  onMoved: (message: string, kind: "out" | "in" | "recount") => void;
+  children?: React.ReactNode;
+}) {
   const [mode, setMode] = useState<"out" | "in" | "recount" | null>(null);
   const [count, setCount] = useState("1");
   const [holder, setHolder] = useState<string | null>(null);
@@ -1226,6 +1255,14 @@ function PoolActions({ store, it, onMoved }: { store: Store; it: Item; onMoved: 
     setCount(String(holderCount(id) || 1));
   }
 
+  // A scan carries its own mode already (FR-OUT-06); skip straight to that count field once,
+  // rather than asking the person to choose an action they already chose by scanning in that mode.
+  useEffect(() => {
+    if (initialMode) begin(initialMode);
+    // Meant to run once, on mount: the scan card unmounts between scans, so a fresh instance
+    // picks up any later change in mode.
+  }, []);
+
   const n = Number(count.trim());
   const validCount = Number.isInteger(n) && (mode === "recount" ? n >= 0 : n >= 1);
   const overdraw = mode === "out" && validCount && n > counts.in;
@@ -1247,14 +1284,17 @@ function PoolActions({ store, it, onMoved }: { store: Store; it: Item; onMoved: 
     const label = mode === "out" ? `Checked out ${n}` : mode === "in" ? `Returned ${n}` : `Recounted to ${n}`;
     setBusy(false);
     setMode(null);
-    onMoved(`${label} · ${displayName(state, it)}`);
+    onMoved(`${label} · ${displayName(state, it)}`, mode);
   }
 
   if (it.retired) {
     return (
-      <p className="notice" role="note">
-        Retired. Cannot be checked out.
-      </p>
+      <div className="move-actions">
+        <p className="notice" role="note">
+          Retired. Cannot be checked out.
+        </p>
+        {children}
+      </div>
     );
   }
 
@@ -1339,6 +1379,7 @@ function PoolActions({ store, it, onMoved }: { store: Store; it: Item; onMoved: 
           </button>
         </div>
       )}
+      {children}
     </div>
   );
 }

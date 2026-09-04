@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { bindCode } from "../lib/actions";
 import {
+  bindTargets,
   code as codeOf,
   codeStatus,
   currentCode,
@@ -9,7 +10,6 @@ import {
   type Item,
   item,
   nameOf,
-  search,
 } from "../lib/inventory";
 import { back, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -61,7 +61,7 @@ export function Bind({ store, code }: { store: Store; code: string }) {
     else void bind(target);
   }
 
-  const results = search(store.state, { query });
+  const results = bindTargets(store.state, { query });
 
   return (
     <Page title="Put code on an item" back={`/g/${code}`}>

@@ -14,7 +14,8 @@ export type State = Record<string, Record<string, Fields>>;
 // --- pools (FR-INV-34) -------------------------------------------------------------------
 //
 // A pool is an item with `generic: true` and `pool: true`, `created` with an integer `quantity`
-// (>= 0). It has no code and no units (the server refuses both). Its `status` stays "in" and
+// (>= 0). It has no units (the server refuses that); it may carry a code, bound to the container
+// that holds the stack rather than to a labelled unit (FR-TAG-15). Its `status` stays "in" and
 // `holder_id` null forever; the counts below carry the truth. Owned is `pool_in` plus the sum
 // of every count in `pool_out`; it is never stored. Read both through `poolCounts` and
 // `isPool` in inventory.ts, not directly.

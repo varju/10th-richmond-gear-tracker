@@ -179,12 +179,12 @@ export async function makeGeneric(store: Store, id: string, number = "1"): Promi
 
 /**
  * A single item becomes a counted stack (FR-INV-34), the way it becomes a
- * generic (FR-INV-26). A pool takes no code and no units of its own, so
- * unlike makeGeneric this item cannot go on being the thing itself: it folds
- * into a fresh pool entity, the way a duplicate record folds into its
- * survivor (FR-INV-13). Its code, movements and tickets stay reachable
- * through the fold; nothing in its history is rewritten. It must be in, the
- * same guard mergeItem and makeSingle use.
+ * generic (FR-INV-26). A pool has no units of its own, so unlike makeGeneric
+ * this item cannot go on being the thing itself: it folds into a fresh pool
+ * entity, the way a duplicate record folds into its survivor (FR-INV-13). Its
+ * movements and tickets stay reachable through the fold, and its code now
+ * opens the pool (FR-TAG-15); nothing in its history is rewritten. It must be
+ * in, the same guard mergeItem and makeSingle use.
  */
 export async function makePool(store: Store, id: string, quantity: number): Promise<string> {
   const it = item(store.state, id);
