@@ -16,6 +16,8 @@ import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
 import { Page } from "./Page";
 
 const FLASH_MS = 2000;
+/** How long after a move the same sticker is ignored: long enough to lower the phone, short enough to undo a mistake. */
+export const RESCAN_MS = 10_000;
 
 /**
  * The movement session: the camera, full screen, kept running for the whole
@@ -25,9 +27,9 @@ const FLASH_MS = 2000;
  * and is bound here (FR-TAG-04). With ?reservation=<id> the session is seeded
  * with that reservation's gear (FR-RES-02). ?mode=out or ?mode=in sets which
  * move is expected; a scan that disagrees warns instead of switching the mode
- * for you (FR-OUT-12). An item moved in this session is not shown again until
- * the mode is switched or the screen is left, since the camera is still on
- * the sticker when the card closes.
+ * for you (FR-OUT-12). An item just moved is not shown again for ten seconds,
+ * since the camera is still on the sticker when the card closes. After that a
+ * rescan shows it again, so a wrong check-out is undone by scanning it back in.
  */
 export function Scan({ store }: { store: Store }) {
   useStore(store);
@@ -50,8 +52,8 @@ export function Scan({ store }: { store: Store }) {
   const [cardItem, setCardItem] = useState<string | null>(null);
   // The decode loop keeps running behind the card; its reads are dropped until the card closes.
   const cardOpen = useRef(false);
-  // Items moved this visit; the camera is still on the sticker after the card closes, so a repeat decode is dropped.
-  const moved = useRef(new Set<string>());
+  // When each item was last moved here; a decode within RESCAN_MS of that is the camera still on the sticker.
+  const moved = useRef(new Map<string, number>());
   const scanner = useRef<Scanner | null>(null);
 
   // The card opening freezes the frame on the sticker, so a read looks like a read; it
@@ -84,7 +86,8 @@ export function Scan({ store }: { store: Store }) {
         if (status === "unassigned") return navigate(`/g/${id}`);
         const bound = codeOf(store.state, id)?.item_id;
         const itemId = bound ? resolveItem(store.state, bound) : null;
-        if (itemId && moved.current.has(itemId)) return;
+        const movedAt = itemId ? moved.current.get(itemId) : undefined;
+        if (movedAt !== undefined && Date.now() - movedAt < RESCAN_MS) return;
         if (itemId) await seen(store, itemId);
         return showCard(itemId);
       }
@@ -231,7 +234,7 @@ export function Scan({ store }: { store: Store }) {
               onMoved={(kind) => {
                 confirm(`${kind} · ${displayName(store.state, card)}`);
                 showCard(null);
-                moved.current.add(card.id);
+                moved.current.set(card.id, Date.now());
                 // An extra taken during a reservation session joins its gear list (FR-RES-07).
                 if (booked && kind !== "Returned") void addExtra(store, booked.id, card.id);
               }}
@@ -264,7 +267,7 @@ export function Scan({ store }: { store: Store }) {
           store={store}
           booked={booked}
           onMoved={(id, name) => {
-            moved.current.add(id);
+            moved.current.set(id, Date.now());
             confirm(`Checked out · ${name}`);
           }}
         />

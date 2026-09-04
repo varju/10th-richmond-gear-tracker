@@ -1,6 +1,6 @@
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import * as act from "../lib/actions";
 import { item } from "../lib/inventory";
 import * as rep from "../lib/repairs";
@@ -10,7 +10,7 @@ import { unsaved } from "../lib/unsaved";
 import { openStore, printCodes } from "./codeTestKit";
 import { LeaveDialog } from "./LeaveDialog";
 import { alice, carol, renderInShell, seedUsers } from "./moveTestKit";
-import { Scan } from "./Scan";
+import { RESCAN_MS, Scan } from "./Scan";
 
 // The movement session: a code on an item shows a card; one tap moves it.
 let store: Store;
@@ -30,7 +30,10 @@ beforeEach(async () => {
   navigate("/scan");
 });
 
-afterEach(() => unsaved.cancel());
+afterEach(() => {
+  unsaved.cancel();
+  vi.restoreAllMocks();
+});
 
 const user = userEvent.setup();
 
@@ -82,7 +85,7 @@ test("an assigned code shows the card; one tap checks out under the session even
   });
 });
 
-test("moved items are not shown again until the mode switches, then the same code shows who has it and checks it in", async () => {
+test("a moved item is silent for ten seconds, then the same code shows who has it and checks it in", async () => {
   navigate("/scan?mode=out");
   renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");
@@ -95,7 +98,10 @@ test("moved items are not shown again until the mode switches, then the same cod
   await waitFor(() => expect(store.pending.length).toBe(afterCheckOut));
   expect(screen.queryByRole("region")).not.toBeInTheDocument();
 
-  await user.click(screen.getByRole("button", { name: "Return" }));
+  // Ten seconds on, still in Check out, the same code is a scan again: the wrong tent went out, and
+  // the way to undo that is to scan it back in (FR-OUT-06 keeps the other direction on the card).
+  const later = Date.now() + RESCAN_MS;
+  vi.spyOn(Date, "now").mockReturnValue(later);
   await typeCode("AAAAAAAAAA");
   expect(card()).toHaveTextContent("Out · Alice");
   expect(card()).toHaveTextContent("Put it back: Cold locker / shelf 4");
@@ -169,7 +175,7 @@ test("a problem typed at check-in raises a ticket after the move, without leavin
   await user.click(screen.getByRole("button", { name: "Check out" }));
   await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
 
-  // Leaving and reopening the scan screen is what makes a moved item scannable again.
+  // Leaving and reopening the scan screen makes a moved item scannable again at once.
   cleanup();
   renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");
