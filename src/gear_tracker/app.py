@@ -20,7 +20,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import Field, StringConstraints
 
-from gear_tracker import accounts, assistant, codes, derived, events, inventory_csv, labels, mail, sync
+from gear_tracker import accounts, assistant, codes, derived, events, inventory_csv, labels, mail, notify, sync
 from gear_tracker.db import connect
 from gear_tracker.errors import ApiError, BadRequest, Conflict, Deactivated, NotFound, TooLarge, TooMany, Unauthorized
 from gear_tracker.events import PHOTO_ENTITIES, PHOTO_TYPES, PUBLIC_ACTOR, Strict, now_ms
@@ -303,6 +303,19 @@ def create_app(
         """
         return stamped({"devices": accounts.revoke_device(conn, who, user_id, device_id)})
 
+    # --- notifications (anyone signed in) ---------------------------------------------------
+
+    @app.get("/me/notifications")
+    def get_notifications(conn: Db, who: Who) -> dict[str, Any]:
+        _require_active(who)
+        return stamped({"categories": notify.get(conn, who.user_id), "mail_configured": mail.configured(conn)})
+
+    @app.put("/me/notifications")
+    def set_notifications(conn: Db, who: Who, body: notify.Preferences) -> dict[str, Any]:
+        _require_active(who)
+        categories = notify.set_categories(conn, who.user_id, body)
+        return stamped({"categories": categories, "mail_configured": mail.configured(conn)})
+
     # --- mail (Admins) --------------------------------------------------------------------
 
     @app.get("/mail")
@@ -480,6 +493,7 @@ def create_app(
             {"code": code, "item_id": state.get("item_id"), "note": body.note, "contact": body.contact},
             now,
         )
+        notify.gear_found(conn, state.get("item_id"), body.note, body.contact)
         return stamped({})
 
     # --- inventory CSV -----------------------------------------------------------------

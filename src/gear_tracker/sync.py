@@ -13,7 +13,7 @@ from typing import Annotated, Any
 
 from pydantic import Field, ValidationError
 
-from gear_tracker import derived, events
+from gear_tracker import derived, events, notify
 from gear_tracker.errors import ApiError, BadRequest, Deactivated, Forbidden, Rebootstrap
 from gear_tracker.events import NonEmpty, Rejected, Strict, now_ms
 from gear_tracker.flags import add_flag
@@ -115,6 +115,7 @@ def push(conn: sqlite3.Connection, principal: Principal, body: Any, now: int | N
             stored = events.append(conn, incoming, received_at=now)
             if not seen_before:
                 _check_drift(conn, stored, measured_offset, now)
+                _notify_of(conn, stored)
             accepted.append(stored.id)
         except Rejected as exc:
             rejected.append({"id": incoming.get("id"), "reason": exc.reason})
@@ -241,6 +242,15 @@ def _check_drift(conn: sqlite3.Connection, event: events.Event, measured_offset:
             {"recorded_offset": event.clock_offset, "measured_offset": measured_offset, "drift": drift},
             now,
         )
+
+
+def _notify_of(conn: sqlite3.Connection, event: events.Event) -> None:
+    """A new repair ticket is worth an email (FR-USR-18), whether it arrived by an ordinary push or the
+    `raise_ticket` assistant tool, since both go through here."""
+    if event.entity_type == "repair" and event.type == "created":
+        payload = event.payload
+        item_id, description = str(payload.get("item_id")), str(payload.get("description"))
+        notify.repair_raised(conn, event.entity_id, item_id, description, event.actor_id)
 
 
 def pull(

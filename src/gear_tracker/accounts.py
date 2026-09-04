@@ -19,7 +19,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from pydantic import ConfigDict, EmailStr, StringConstraints
 
-from gear_tracker import derived, events
+from gear_tracker import derived, events, notify
 from gear_tracker.errors import (
     ApiError,
     BadRequest,
@@ -325,6 +325,10 @@ def redeem(conn: sqlite3.Connection, body: Redeem, now: int | None = None) -> Se
     except BaseException:
         conn.execute("ROLLBACK")
         raise
+    if link["kind"] == "invite":
+        # First redemption of an invite is what "joined" means today (FR-USR-18). A reusable join
+        # link, built separately, calls notify.user_joined itself when it makes its own account.
+        notify.user_joined(conn, link["user_id"])
     return session
 
 

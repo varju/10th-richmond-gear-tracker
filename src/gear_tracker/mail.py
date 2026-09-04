@@ -104,6 +104,16 @@ def send(conn: sqlite3.Connection, to: str, subject: str, body: str) -> None:
     settings = get(conn)
     if settings is None:
         raise Conflict("no mail account is set up")
+    send_with(settings, to, subject, body)
+
+
+def send_with(settings: dict[str, Any], to: str, subject: str, body: str) -> None:
+    """Like `send`, but with settings already read.
+
+    For a caller sending off a background thread (notify.py): a database
+    connection belongs to the thread that opened it, so the settings are read
+    on the request's thread and handed here as plain data.
+    """
     message = EmailMessage()
     message["From"] = settings["from_address"]
     message["To"] = to
