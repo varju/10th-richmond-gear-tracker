@@ -351,11 +351,6 @@ def test_create_reservation_refuses_true_for_a_generic_lines_quantity():
         )
 
 
-def test_a_json_whole_number_still_works_for_a_float_price():
-    validated = _arg_model("update_item").model_validate({"item_id": "x", "fields": {"price": 3}})
-    assert validated.fields.price == 3.0
-
-
 def test_create_join_link_refuses_a_string_for_expiry_days():
     with pytest.raises(pydantic.ValidationError):
         _arg_model("create_join_link").model_validate({"expiry_days": "7"})
@@ -700,8 +695,10 @@ def test_an_old_item_with_only_category_id_falls_back_to_one_category(db_path, t
 
 
 def test_updating_an_item_records_only_what_differs(db_path, tools):
-    changed = assistant.update_item(tools["stove"], assistant.ItemFields(description="Two burner", price=89.5))
-    assert set(changed["changed"]) == {"description", "price"}
+    changed = assistant.update_item(
+        tools["stove"], assistant.ItemFields(description="Two burner", sub_location="shelf 3")
+    )
+    assert set(changed["changed"]) == {"description", "sub_location"}
     again = assistant.update_item(tools["stove"], assistant.ItemFields(description="Two burner"))
     assert again["changed"] == []
 

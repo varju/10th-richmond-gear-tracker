@@ -26,9 +26,7 @@ export function syncLabel(at: number | undefined, now: number, busy: boolean, ou
 
 export const plural = (n: number, word: string): string => `${n} ${n === 1 ? word : `${word}s`}`;
 
-/** "2024-03-01 · $249.99": whichever parts are known (FR-INV-12). Empty when none are. */
-export function boughtLabel(it: Pick<Item, "purchase_date" | "price">): string {
-  return [it.purchase_date ?? "", typeof it.price === "number" ? `$${it.price.toFixed(2)}` : ""]
-    .filter(Boolean)
-    .join(" · ");
+/** "2024-03-01" (FR-INV-12). Empty when not known. */
+export function boughtLabel(it: Pick<Item, "purchase_date">): string {
+  return it.purchase_date ?? "";
 }

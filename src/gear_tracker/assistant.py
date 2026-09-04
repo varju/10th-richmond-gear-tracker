@@ -16,7 +16,7 @@ history reads "this Scouter, via the assistant". There is no second write path.
 **A read is derived state**, through views.py, which is the Python twin of what
 appears on screen.
 
-**A number or yes/no is not a string.** Every count, quantity, price, day count, port, and flag is
+**A number or yes/no is not a string.** Every count, quantity, day count, port, and flag is
 strict, so a JSON `"3"` or `true` sent for one is refused rather than quietly converted, the same as
 the event layer refuses it.
 
@@ -53,7 +53,7 @@ from typing import Annotated, Any, Literal
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StringConstraints
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -746,7 +746,6 @@ class ItemFields(BaseModel):
     home_location_id: str | None = None
     sub_location: str | None = None
     purchase_date: IsoDate | None = None
-    price: Annotated[StrictFloat, Field(ge=0)] | None = None
     nickname: str | None = None
     number: NonBlank | None = None
     category_ids: list[str] | None = None

@@ -18,16 +18,11 @@ test("changes list the record's edits newest first, with names for ids (FR-USR-0
   const cold = await act.createLocation(store, "Cold locker");
   const warm = await act.createLocation(store, "Warm locker");
   const tent = await act.createItem(store, { name: "Tent", home_location_id: cold });
-  await act.updateItem(store, tent, { home_location_id: warm, price: "249.99" });
+  await act.updateItem(store, tent, { home_location_id: warm });
   await act.retireItem(store, tent);
 
   const rows = changes(store, tent).map((c) => (c.kind === "created" ? c.label : `${c.label}: ${c.old} → ${c.new}`));
-  expect(rows).toEqual([
-    "Retired: — → Yes",
-    "Price: — → $249.99",
-    "Home location: Cold locker → Warm locker",
-    "Created",
-  ]);
+  expect(rows).toEqual(["Retired: — → Yes", "Home location: Cold locker → Warm locker", "Created"]);
   expect(changes(store, tent).every((c) => c.actor_id === "alice")).toBe(true);
 });
 
@@ -52,4 +47,6 @@ test("values read as a person would", async () => {
   expect(describeValue(state, "sub_location", "shelf 4")).toBe("shelf 4");
   expect(describeValue(state, "category_ids", [tents])).toBe("Tents");
   expect(describeValue(state, "category_ids", [])).toBe("—");
+  // price was dropped as a field (FR-INV-12); old events that changed it still read as dollars.
+  expect(describeValue(state, "price", 249.99)).toBe("$249.99");
 });

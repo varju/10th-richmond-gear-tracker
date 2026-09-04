@@ -45,7 +45,7 @@ Priorities are Must, Should, Could, Won't.
 | FR-INV-28 | Should   | A unit can move to a different generic. Its history moves with it.                                                                                                                                                                                                                                |
 | FR-INV-29 | Should   | A generic has a default home. New units start there.                                                                                                                                                                                                                                              |
 | FR-INV-11 | Should   | Attach photos to an item. Photos are never held in the offline copy. A photo taken with no signal is queued on the device and uploaded at the next sync; viewing one always needs a connection.                                                                                                   |
-| FR-INV-12 | Should   | Record purchase date and price.                                                                                                                                                                                                                                                                   |
+| FR-INV-12 | Should   | Record purchase date.                                                                                                                                                                                                                                                                             |
 | FR-INV-19 | Should   | Mark an item **missing**. It stays in the inventory, is excluded from what-is-out (FR-RPT-01), and clears on the next scan or check-in. Retire (FR-INV-04) is for gear written off; missing is for gear that is only lost.                                                                        |
 | FR-INV-20 | Should   | Leaving a screen with unsaved edits asks whether to save, discard, or keep editing.                                                                                                                                                                                                               |
 | FR-INV-32 | Should   | An Admin can delete an item that is in, and a generic only when it has no units. It leaves every list and screen and cannot be brought back in the app. Its events stay in the log. Retire (FR-INV-04) is for gear written off; delete is for a record made in error.                             |
@@ -61,6 +61,7 @@ Priorities are Must, Should, Could, Won't.
 | FR-INV-18 | Could    | Bulk edit: change category or home on several items at once.                                                                                                                                                                                                                                      |
 | FR-INV-13 | Could    | Merge a duplicate record into the item it doubles. The duplicate points at the survivor; readers follow the pointer, nothing is rewritten. The survivor's page names what was merged into it and can undo each one.                                                                               |
 | FR-INV-10 | Won't    | Withdrawn: browse by location then shelf. Replaced by the location and shelf filters on All items (FR-INV-08).                                                                                                                                                                                    |
+| FR-INV-38 | Won't    | Withdrawn: record price. Not useful to track for this group.                                                                                                                                                                                                                                      |
 
 ## 3. Labels and QR codes (TAG)
 
@@ -195,19 +196,19 @@ Reachable by scanning a label, with no sign-in.
 
 ## 9. Reports and data (RPT)
 
-| ID        | Priority | Requirement                                                                 |
-| --------- | -------- | --------------------------------------------------------------------------- |
-| FR-RPT-01 | Must     | One report: what is out, and who has it.                                    |
-| FR-RPT-02 | Should   | Repair report: open tickets, and repair history over a date range.          |
-| FR-RPT-11 | Should   | What is out (FR-RPT-01) lists a pool once per holder, with the count out.   |
-| FR-RPT-03 | Could    | Export the full inventory to CSV. Not the backup of record; NFR-DATA-06 is. |
-| FR-RPT-04 | Could    | Export any filtered list to CSV.                                            |
-| FR-RPT-05 | Could    | Overdue report: gear out longer than the group-wide period (FR-OUT-14).     |
-| FR-RPT-06 | Could    | Valuation: total purchase value by category and location.                   |
-| FR-RPT-07 | Could    | Usage: which gear moves, and which has not left the locker in a year.       |
-| FR-RPT-08 | Could    | Printable pick list for a reservation, grouped by home.                     |
-| FR-RPT-09 | Could    | Misplaced gear: items in, but not at their home.                            |
-| FR-RPT-10 | Could    | Printable contents sheet per shelf, listing what belongs there.             |
+| ID        | Priority | Requirement                                                                                                  |
+| --------- | -------- | ------------------------------------------------------------------------------------------------------------ |
+| FR-RPT-01 | Must     | One report: what is out, and who has it.                                                                     |
+| FR-RPT-02 | Should   | Repair report: open tickets, and repair history over a date range.                                           |
+| FR-RPT-11 | Should   | What is out (FR-RPT-01) lists a pool once per holder, with the count out.                                    |
+| FR-RPT-03 | Could    | Export the full inventory to CSV. Not the backup of record; NFR-DATA-06 is.                                  |
+| FR-RPT-04 | Could    | Export any filtered list to CSV.                                                                             |
+| FR-RPT-05 | Could    | Overdue report: gear out longer than the group-wide period (FR-OUT-14).                                      |
+| FR-RPT-07 | Could    | Usage: which gear moves, and which has not left the locker in a year.                                        |
+| FR-RPT-08 | Could    | Printable pick list for a reservation, grouped by home.                                                      |
+| FR-RPT-09 | Could    | Misplaced gear: items in, but not at their home.                                                             |
+| FR-RPT-10 | Could    | Printable contents sheet per shelf, listing what belongs there.                                              |
+| FR-RPT-06 | Won't    | Withdrawn: valuation, total purchase value by category and location. Price (FR-INV-38) is no longer tracked. |
 
 ## 10. Offline and sync (OFF)
 

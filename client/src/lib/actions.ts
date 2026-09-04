@@ -18,11 +18,11 @@ import {
   unitsOf,
 } from "./inventory";
 
-/** What the item form holds. The price is typed as text and stored as a number (FR-INV-12). */
+/** What the item form holds. */
 export type ItemInput = Pick<
   Item,
   "name" | "description" | "home_location_id" | "sub_location" | "purchase_date" | "category_ids"
-> & { price?: number | string | null };
+>;
 
 /** What the unit form holds. A unit has no name: its number and nickname make it (FR-INV-23). */
 export interface UnitInput {
@@ -202,7 +202,6 @@ export async function makePool(store: Store, id: string, quantity: number): Prom
       home_location_id: it.home_location_id ?? null,
       sub_location: it.sub_location ?? "",
       purchase_date: it.purchase_date ?? null,
-      price: it.price ?? null,
       category_ids: categoriesOf(store.state, it),
     },
     quantity,
@@ -284,17 +283,9 @@ function clean<T extends object>(input: T): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(input).map(([k, v]) => [
       k,
-      k === "price" ? price(v) : typeof v === "string" && v.trim() === "" ? null : typeof v === "string" ? v.trim() : v,
+      typeof v === "string" && v.trim() === "" ? null : typeof v === "string" ? v.trim() : v,
     ]),
   );
-}
-
-/** Dollars to the cent, from a number or what was typed. Blank (or all whitespace) or nonsense is no price. */
-export function price(value: unknown): number | null {
-  const trimmed = typeof value === "string" ? value.trim() : value;
-  const n =
-    typeof trimmed === "number" ? trimmed : typeof trimmed === "string" ? Number(trimmed.replace(/[$,\s]/g, "")) : NaN;
-  return Number.isFinite(n) && n >= 0 && trimmed !== "" ? Math.round(n * 100) / 100 : null;
 }
 
 /**
@@ -408,7 +399,6 @@ export async function makeSingle(store: Store, genericId: string): Promise<strin
       home_location_id: unit.home_location_id ?? generic.home_location_id ?? null,
       sub_location: unit.home_location_id ? unit.sub_location ?? "" : generic.sub_location ?? "",
       purchase_date: unit.purchase_date ?? generic.purchase_date ?? null,
-      price: unit.price ?? generic.price ?? null,
     }),
   );
   await changed(store, "item", genericId, { merged_into: unit.id });

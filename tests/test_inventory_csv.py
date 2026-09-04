@@ -40,7 +40,6 @@ def seeded(conn) -> dict:
             "sub_location": "bin 2",
             "category_ids": ["cat-2", "cat-1"],
             "purchase_date": "2021-03-06",
-            "price": 240.0,
             "supplier": "Local outfitter",
         },
     )
@@ -236,7 +235,6 @@ def test_an_absent_column_leaves_the_field_alone(db):
     trailer = derived.snapshot(db)["item"]["trailer"]
     assert trailer["description"] == "Very blue indeed"
     assert trailer["home_location_id"] == "loc-1"
-    assert trailer["price"] == 240.0
 
 
 def test_a_unit_with_a_non_blank_category_cell_is_an_error(db):
@@ -459,6 +457,18 @@ def test_a_supplier_column_from_an_old_export_does_not_error(db):
     """`supplier` was dropped (FR-INV-12); an export made before that still imports."""
     state = seeded(db)
     text = make_csv(["id", "supplier"], [["trailer", "New Outfitter"]])
+
+    plan = inventory_csv.plan(state, text)
+
+    assert plan.errors == []
+    assert plan.changes == []
+    assert plan.unchanged == 1
+
+
+def test_a_price_column_from_an_old_export_does_not_error(db):
+    """`price` was dropped (FR-INV-12); an export made before that still imports."""
+    state = seeded(db)
+    text = make_csv(["id", "price"], [["trailer", "240.0"]])
 
     plan = inventory_csv.plan(state, text)
 

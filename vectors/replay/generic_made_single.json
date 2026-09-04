@@ -17,8 +17,7 @@
         "home_location_id": "cold",
         "sub_location": "shelf 2",
         "category_ids": ["cat-1"],
-        "purchase_date": "2024-03-01",
-        "price": 249.99
+        "purchase_date": "2024-03-01"
       }
     },
     {
@@ -174,26 +173,11 @@
     {
       "id": "01000000000000000000000012",
       "entity_type": "item",
-      "entity_id": "tent-1",
-      "type": "field_changed",
-      "actor_id": "alice",
-      "device_id": "a",
-      "device_seq": 12,
-      "effective_at": 5000,
-      "payload": {
-        "field": "price",
-        "value": 249.99,
-        "old": null
-      }
-    },
-    {
-      "id": "01000000000000000000000013",
-      "entity_type": "item",
       "entity_id": "tent",
       "type": "field_changed",
       "actor_id": "alice",
       "device_id": "a",
-      "device_seq": 13,
+      "device_seq": 12,
       "effective_at": 5000,
       "payload": {
         "field": "merged_into",
@@ -212,7 +196,6 @@
         "sub_location": "shelf 2",
         "category_ids": ["cat-1"],
         "purchase_date": "2024-03-01",
-        "price": 249.99,
         "merged_into": "tent-1",
         "added_at": 1000,
         "modified_at": 5000
@@ -227,7 +210,6 @@
         "home_location_id": "cold",
         "sub_location": "shelf 2",
         "purchase_date": "2024-03-01",
-        "price": 249.99,
         "status": "in",
         "holder_id": null,
         "added_at": 2000,

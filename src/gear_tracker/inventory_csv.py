@@ -31,7 +31,6 @@ COLUMNS = [
     "shelf",
     "description",
     "purchase_date",
-    "price",
     "retired",
     "code",
     "status",
@@ -50,12 +49,11 @@ EDITABLE = (
     "shelf",
     "description",
     "purchase_date",
-    "price",
     "retired",
 )
 
-IGNORED_COLUMNS = frozenset({"supplier"})
-"""Accepted on import but no longer read or written (FR-INV-12). An old export may still have it."""
+IGNORED_COLUMNS = frozenset({"supplier", "price"})
+"""Accepted on import but no longer read or written (FR-INV-12). An old export may still have them."""
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -113,7 +111,6 @@ def _row(state: State, it: dict[str, Any]) -> list[str]:
     is_pool = views.is_pool(it)
     kind = "unit" if is_unit else ("pool" if is_pool else ("generic" if it.get("generic") else "single"))
     status = "" if it.get("generic") else (it.get("status") or "")
-    price = it.get("price")
     counts = views.pool_counts(it) if is_pool else None
     return [
         it["id"],
@@ -127,7 +124,6 @@ def _row(state: State, it: dict[str, Any]) -> list[str]:
         _safe(it.get("sub_location") or ""),
         _safe(it.get("description") or ""),
         it.get("purchase_date") or "",
-        "" if price is None else str(price),
         "yes" if it.get("retired") else "",
         _code_for(state, it["id"]) or "",
         status,
@@ -406,22 +402,6 @@ def _diff_field(
             p.errors.append({"row": row_num, "message": f"purchase_date {cell!r} is not YYYY-MM-DD"})
             return None
         return None if cell == old else _change("purchase_date", old or "", cell, old, cell)
-    if col == "price":
-        old = it.get("price")
-        old_display = "" if old is None else str(old)
-        if not cell:
-            return None if old is None else _change("price", old_display, "", old, None)
-        try:
-            value = float(cell)
-        except ValueError:
-            p.errors.append({"row": row_num, "message": f"price {cell!r} is not a number"})
-            return None
-        if value < 0:
-            p.errors.append({"row": row_num, "message": "price must not be negative"})
-            return None
-        if old is not None and float(old) == value:
-            return None
-        return _change("price", old_display, str(value), old, value)
     if col == "retired":
         old = bool(it.get("retired"))
         if not cell:
@@ -626,18 +606,6 @@ def _add_optional(
             p.errors.append({"row": row_num, "message": f"purchase_date {purchase_date!r} is not YYYY-MM-DD"})
             return False
         payload["purchase_date"] = purchase_date
-
-    price = _cell(vals, idx, "price")
-    if price:
-        try:
-            value = float(price)
-        except ValueError:
-            p.errors.append({"row": row_num, "message": f"price {price!r} is not a number"})
-            return False
-        if value < 0:
-            p.errors.append({"row": row_num, "message": "price must not be negative"})
-            return False
-        payload["price"] = value
 
     retired = _cell(vals, idx, "retired")
     if retired:

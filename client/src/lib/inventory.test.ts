@@ -225,7 +225,6 @@ test("a generic with one unit becomes a single item again, the reverse of makeGe
     sub_location: "shelf 2",
     category_ids: [category],
     purchase_date: "2024-03-01",
-    price: 249.99,
   });
   const u1 = await act.createUnit(store, { parent_id: tents, number: "1", nickname: "patched fly" });
   await act.bindCode(store, "ABCDEFGH23", u1);
@@ -246,7 +245,6 @@ test("a generic with one unit becomes a single item again, the reverse of makeGe
     home_location_id: f.cold,
     sub_location: "shelf 2",
     purchase_date: "2024-03-01",
-    price: 249.99,
     category_ids: [category],
     status: "in",
   });
@@ -472,20 +470,6 @@ test("missing is a field, filterable, and does not change status (FR-INV-19)", a
   const before = store.pending.length;
   await act.seen(store, f.stove);
   expect(store.pending.length).toBe(before);
-});
-
-test("the price is stored to the cent, and blank is no price (FR-INV-12)", async () => {
-  const id = await act.createItem(store, {
-    name: "Stove",
-    price: "$1,249.999",
-    purchase_date: "2024-03-01",
-  });
-  expect(inv.item(store.state, id)).toMatchObject({ price: 1250, purchase_date: "2024-03-01" });
-  await act.updateItem(store, id, { price: "" });
-  expect(inv.item(store.state, id)?.price).toBeNull();
-  expect(act.price("abc")).toBeNull();
-  expect(act.price(-1)).toBeNull();
-  expect(act.price(12.345)).toBe(12.35);
 });
 
 test("a merged duplicate leaves the list, and its sticker finds the survivor (FR-INV-13)", async () => {

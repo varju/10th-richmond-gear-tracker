@@ -365,11 +365,11 @@ test("nothing shows when there is no live reservation for the item (FR-INV-37)",
   expect(screen.queryByText("Reserved")).not.toBeInTheDocument();
 });
 
-test("what was paid and when shows as one line (FR-INV-12)", async () => {
-  await act.updateItem(store, tent, { purchase_date: "2024-03-01", price: "249.99" });
+test("the purchase date shows under Details (FR-INV-12)", async () => {
+  await act.updateItem(store, tent, { purchase_date: "2024-03-01" });
   renderInShell(<ItemPage store={store} id={tent} />);
   await user.click(screen.getByText("Details"));
-  expect(screen.getByText("2024-03-01 · $249.99")).toBeInTheDocument();
+  expect(screen.getByText("2024-03-01")).toBeInTheDocument();
 });
 
 test("the record's changes are listed with old and new values (FR-USR-09)", async () => {

@@ -48,8 +48,6 @@ export interface Item {
   nickname?: string | null;
   /** "YYYY-MM-DD" (FR-INV-12). */
   purchase_date?: string | null;
-  /** Dollars, to the cent. */
-  price?: number | null;
   retired?: boolean;
   /** Lost, not written off (FR-INV-19). Cleared by the next scan or check-in. */
   missing?: boolean;

@@ -103,14 +103,13 @@ test("editing an item records the change and shows it", async () => {
 
   await user.click(screen.getByRole("button", { name: "Edit" }));
   const before = store.pending.length;
-  await user.clear(screen.getByLabelText("Price"));
-  await user.type(screen.getByLabelText("Price"), "249.99");
+  await user.type(screen.getByLabelText("Bought on"), "2024-03-01");
   await user.click(screen.getByRole("button", { name: "Save" }));
 
-  await screen.findByText("$249.99");
+  await screen.findByText("2024-03-01");
   const added = store.pending.slice(before);
   expect(added.map((e) => [e.type, e.payload])).toEqual([
-    ["field_changed", { field: "price", value: 249.99, old: null }],
+    ["field_changed", { field: "purchase_date", value: "2024-03-01", old: null }],
   ]);
 });
 
