@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { type BeforeInstallPromptEvent, isHandheld, isInstalled, isIos } from "../lib/install";
+import {
+  type BeforeInstallPromptEvent,
+  browserName,
+  isHandheld,
+  isInstalled,
+  isIos,
+  nonIosInstallSteps,
+} from "../lib/install";
 
 const SNOOZE_KEY = "install-snoozed-until";
 const SNOOZE_MS = 24 * 3_600_000;
@@ -39,7 +46,7 @@ export function InstallPrompt() {
 
   return (
     <aside className="notice">
-      <strong>Add to your home screen.</strong> Safari clears a browser tab’s storage after seven days without a visit
+      <strong>Add to your home screen.</strong> {browserName()} clears a tab’s storage after seven days without a visit
       to the site, and unsent records go with it. An installed app is exempt.
       <p className="muted">
         Do it before you record anything. The installed app has storage of its own: it opens signed out and empty, and
@@ -49,8 +56,10 @@ export function InstallPrompt() {
         <button className="primary" onClick={() => prompt.prompt().then(() => setHidden(true))}>
           Install
         </button>
+      ) : isIos() ? (
+        <p className="muted">Tap Share, then “Add to Home Screen”.</p>
       ) : (
-        isIos() && <p className="muted">Tap Share, then “Add to Home Screen”.</p>
+        <p className="muted">{nonIosInstallSteps()}</p>
       )}
       <button onClick={later}>Not now</button>
     </aside>
