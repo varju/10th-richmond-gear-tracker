@@ -50,6 +50,7 @@ export function Users({ store, api }: Props) {
   const [users, setUsers] = useState<AccountUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [link, setLink] = useState<Passed | null>(null);
+  const [showDeactivated, setShowDeactivated] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -90,20 +91,30 @@ export function Users({ store, api }: Props) {
         }}
       />
       {users && (
-        <ul className="rows" aria-label="Users">
-          {users.map((u) => (
-            <UserRow
-              key={u.id}
-              user={u}
-              me={store.meta.user?.id === u.id}
-              myDevice={store.meta.device_id}
-              api={api}
-              onChanged={load}
-              onError={setError}
-              onLink={(passed) => setLink({ ...passed, name: u.name })}
-            />
-          ))}
-        </ul>
+        <>
+          {users.some((u) => !u.active) && (
+            <label className="check">
+              <input type="checkbox" checked={showDeactivated} onChange={(e) => setShowDeactivated(e.target.checked)} />
+              <span>Show deactivated</span>
+            </label>
+          )}
+          <ul className="rows" aria-label="Users">
+            {users
+              .filter((u) => showDeactivated || u.active)
+              .map((u) => (
+                <UserRow
+                  key={u.id}
+                  user={u}
+                  me={store.meta.user?.id === u.id}
+                  myDevice={store.meta.device_id}
+                  api={api}
+                  onChanged={load}
+                  onError={setError}
+                  onLink={(passed) => setLink({ ...passed, name: u.name })}
+                />
+              ))}
+          </ul>
+        </>
       )}
       <h2 className="section">Join link</h2>
       <JoinLinkSection api={api} onError={setError} />

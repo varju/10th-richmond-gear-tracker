@@ -101,6 +101,16 @@ test("lists the group and revokes one device without touching the person (FR-USR
   expect(calls.filter((c) => c.includes("deactivate"))).toEqual([]);
 });
 
+test("a deactivated user is hidden until an Admin asks to see them (FR-USR-04)", async () => {
+  users.push({ id: "cal", name: "Cal", role: "user", active: false, email: "cal@example.org", has_password: true });
+  mount();
+  const list = await screen.findByRole("list", { name: "Users" });
+  expect(within(list).queryByText(/Cal/)).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("checkbox", { name: "Show deactivated" }));
+  expect(within(list).getByText(/Cal/)).toBeInTheDocument();
+});
+
 test("an Admin's own device cannot be revoked here; sign out instead", async () => {
   mount();
   await user.click(await screen.findByRole("button", { name: /Alice/ }));
