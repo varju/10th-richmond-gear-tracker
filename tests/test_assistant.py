@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-from gear_tracker import accounts, assistant, derived, events
+from gear_tracker import accounts, assistant, derived, events, notify
 from gear_tracker.app import create_app
 from gear_tracker.db import open_db
 from gear_tracker.errors import ApiError, BadRequest, Conflict, Forbidden, NotFound
@@ -907,6 +907,10 @@ def test_admin_tools_refuse_a_user_the_same_way_the_app_does(tools):
     with pytest.raises(Forbidden):
         assistant.add_calendar_feed("https://example.org/feed.ics")
     with pytest.raises(Forbidden):
+        assistant.refresh_calendar_feeds()
+    with pytest.raises(Forbidden):
+        assistant.clear_mail()
+    with pytest.raises(Forbidden):
         assistant.add_location("Trailer")
     with pytest.raises(Forbidden):
         assistant.delete_location(tools["warm"])
@@ -1283,3 +1287,100 @@ def test_a_reservation_records_who_created_it_and_when(tools):
     listed = assistant.list_reservations()["reservations"][0]
     assert listed["created_by"] == "Alice"
     assert listed["added_at"] == got["added_at"]
+
+
+def test_assign_code_binds_a_printed_code_to_a_unit(db_path, tools):
+    with pytest.raises(BadRequest):
+        assistant.assign_code("not a code", tools["stove"])
+    with pytest.raises(NotFound):
+        assistant.assign_code("ABCDEFGH23", tools["stove"])
+
+    with open_db(db_path) as conn:
+        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "created", {})
+
+    with pytest.raises(BadRequest):
+        assistant.assign_code("ABCDEFGH23", tools["tents"])  # a generic takes no code
+    assert assistant.assign_code("ABCDEFGH23", tools["stove"]) == {"item_id": tools["stove"], "code": "ABCDEFGH23"}
+    assert entity(db_path, "code", "ABCDEFGH23")["item_id"] == tools["stove"]
+
+    with pytest.raises(Conflict):
+        assistant.assign_code("ABCDEFGH23", tools["stove"])
+
+
+def test_retire_item_and_bring_it_back(db_path, tools):
+    assert assistant.retire_item(tools["stove"]) == {"item_id": tools["stove"], "retired": True}
+    assert entity(db_path, "item", tools["stove"])["retired"] is True
+    assert assistant.retire_item(tools["stove"])["already"] is True
+    assert assistant.retire_item(tools["stove"], retired=False) == {"item_id": tools["stove"], "retired": False}
+    assert entity(db_path, "item", tools["stove"])["retired"] is False
+
+
+def test_retire_generic_needs_its_units_retired_first(db_path, tools):
+    with pytest.raises(BadRequest):
+        assistant.retire_item(tools["tents"])
+    for key in ("t1", "t2", "t3"):
+        assistant.retire_item(tools[key])
+    assert assistant.retire_item(tools["tents"])["retired"] is True
+
+
+def test_found_reports_are_listed_until_resolved(db_path, tools):
+    assert assistant.list_found_reports() == {"reports": []}
+    with open_db(db_path) as conn:
+        report = {"code": "ABCDEFGH23", "item_id": tools["stove"], "note": "By the gate", "contact": "555-0100"}
+        events.append_server(conn, "public", "found_report", "01REPORT00000000000000000A", "created", report)
+
+    listed = assistant.list_found_reports()["reports"]
+    assert len(listed) == 1
+    assert listed[0]["report_id"] == "01REPORT00000000000000000A"
+    assert listed[0]["item"] == "Camp stove"
+    assert listed[0]["note"] == "By the gate"
+
+    resolved = assistant.resolve_found_report("01REPORT00000000000000000A")
+    assert resolved == {"report_id": "01REPORT00000000000000000A", "resolved": True}
+    assert assistant.list_found_reports() == {"reports": []}
+    assert assistant.resolve_found_report("01REPORT00000000000000000A")["already"] is True
+    with pytest.raises(NotFound):
+        assistant.resolve_found_report("nope")
+
+
+def test_notification_categories_round_trip(admin_tools):
+    before = assistant.get_notifications()
+    assert before["categories"] == {"found": False, "repair": False, "joined": False}
+    assert before["mail_configured"] is False
+
+    saved = assistant.set_notifications(notify.Preferences(found=True, repair=False, joined=True))
+    assert saved["categories"] == {"found": True, "repair": False, "joined": True}
+    assert assistant.get_notifications()["categories"] == saved["categories"]
+
+
+def test_link_out_to_reservation_corrects_the_movement_and_adds_the_item(db_path, tools):
+    stove = tools["stove"]
+    rid = assistant.create_reservation(**FALL)["reservation_id"]
+    with pytest.raises(BadRequest):
+        assistant.link_out_to_reservation(rid, stove)  # not out yet
+
+    assistant.check_out(stove, event="camp")
+    linked = assistant.link_out_to_reservation(rid, stove)
+    assert linked == {"reservation_id": rid, "item_id": stove, "corrected": True}
+
+    item = entity(db_path, "item", stove)
+    assert item["movement"]["event"] == FALL["event"]
+    assert item["movement"]["reservation_id"] == rid
+    assert stove in entity(db_path, "reservation", rid)["items"]
+
+    assert assistant.link_out_to_reservation(rid, stove)["corrected"] is False
+
+
+def test_clear_mail_forgets_the_account(admin_tools):
+    assistant.set_mail(host="mail.example.org", from_address="gear@example.org", password="x")
+    assert assistant.get_mail()["mail"] is not None
+    assert assistant.clear_mail() == {"mail": None}
+    assert assistant.get_mail()["mail"] is None
+
+
+def test_refresh_calendar_feeds_reports_each_feed(admin_tools):
+    assistant.add_calendar_feed("http://127.0.0.1:1/feed.ics", label="Troop")
+    feeds = assistant.refresh_calendar_feeds()["feeds"]
+    assert len(feeds) == 1
+    assert feeds[0]["label"] == "Troop"
+    assert feeds[0]["last_error"]

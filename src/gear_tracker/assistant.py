@@ -59,7 +59,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.types import Receive, Scope, Send
 
-from gear_tracker import accounts, calendars, codes, derived, inventory_csv, labels, mail, sync, views
+from gear_tracker import accounts, calendars, codes, derived, inventory_csv, labels, mail, notify, sync, views
 from gear_tracker import conflicts as clashes
 from gear_tracker.db import connect
 from gear_tracker.errors import ApiError, BadRequest, Conflict, NotFound
@@ -650,6 +650,26 @@ def add_to_reservation(reservation_id: str, item_id: str, quantity: StrictInt | 
         return {"saved": True, "reservation_id": reservation_id, "clashes": []}
 
 
+def link_out_to_reservation(reservation_id: str, item_id: str) -> dict[str, Any]:
+    """Claim gear that went out before the plan did (FR-RES-17). The movement stands; its event is put
+    right by an appended record (FR-OUT-16), and the item joins the gear list by name. Nothing moves."""
+    with _open() as (conn, who):
+        state = _state(conn)
+        r = _reservation(state, reservation_id)
+        it = _item(state, item_id)
+        movement = it.get("movement") or {}
+        if it.get("status") != "out" or not movement:
+            raise BadRequest("it is not out")
+        drafts = []
+        if movement.get("event") != r.get("event") or movement.get("reservation_id") != r["id"]:
+            correction = {"movement_id": movement["id"], "event": r.get("event"), "reservation_id": r["id"]}
+            drafts.append(_draft("item", it["id"], "event_corrected", correction))
+        if it["id"] not in (r.get("items") or []):
+            drafts.append(_draft("reservation", r["id"], "item_added", {"item_id": it["id"]}))
+        _push(conn, who, drafts)
+        return {"reservation_id": r["id"], "item_id": it["id"], "corrected": bool(drafts)}
+
+
 def remove_from_reservation(reservation_id: str, item_id: str) -> dict[str, Any]:
     """Take gear off a reservation, whether it was named or asked for by quantity."""
     with _open() as (conn, who):
@@ -885,6 +905,40 @@ def mark_missing(item_id: str) -> dict[str, Any]:
         return {"item_id": it["id"], "missing": True}
 
 
+def assign_code(code: str, item_id: str) -> dict[str, Any]:
+    """Put a printed code on an item (FR-TAG-04). The code must be one we printed and not on anything;
+    an item that already has a code gets the new one, and the old one still resolves (FR-TAG-05)."""
+    with _open() as (conn, who):
+        if not codes.is_code(code):
+            raise BadRequest("not a code")
+        bound = codes.resolve(conn, code)
+        if bound is None:
+            raise NotFound("not one of our codes")
+        if bound.get("item_id"):
+            raise Conflict(f"that code is already on {views.name_of(_state(conn), bound['item_id'])}")
+        state = _state(conn)
+        it = _item(state, item_id)
+        if it.get("generic"):
+            raise BadRequest("a generic has no code; its units do")
+        _push(conn, who, [_draft("code", code, "code_bound", {"item_id": it["id"]})])
+        return {"item_id": it["id"], "code": code}
+
+
+def retire_item(item_id: str, retired: StrictBool = True) -> dict[str, Any]:
+    """Write gear off, or bring it back (FR-INV-04). Retired gear stays in history and off every list.
+    A generic is retired after its units are."""
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, item_id)
+        if bool(it.get("retired")) == retired:
+            return {"item_id": it["id"], "retired": retired, "already": True}
+        if retired and it.get("generic") and any(not u.get("retired") for u in views.units_of(state, it["id"])):
+            raise BadRequest("retire its units first")
+        payload = {"field": "retired", "value": retired, "old": it.get("retired")}
+        _push(conn, who, [_draft("item", it["id"], "field_changed", payload)])
+        return {"item_id": it["id"], "retired": retired}
+
+
 def unassign_code(item_id: str) -> dict[str, Any]:
     """Take an item's code off it, on purpose (FR-TAG-14). Only for a sticker already off the gear:
     the code goes back to unassigned, so scanning it again offers a new item or a bind (FR-TAG-07)."""
@@ -1016,6 +1070,60 @@ def set_ticket_state(ticket_id: str, state: RepairState) -> dict[str, Any]:
 
 
 Count = Annotated[StrictInt, Field(ge=1)]
+
+
+def list_found_reports() -> dict[str, Any]:
+    """What strangers have said about our gear and nobody has dealt with yet (FR-PUB-03), newest first."""
+    with _open() as (conn, _who):
+        state = _state(conn)
+        reports = [
+            {"report_id": rid, **fields}
+            for rid, fields in (state.get("found_report") or {}).items()
+            if not fields.get("resolved")
+        ]
+        reports.sort(key=lambda r: (-(r.get("added_at") or 0), r["report_id"]))
+        return {
+            "reports": [
+                {
+                    "report_id": r["report_id"],
+                    "code": r.get("code"),
+                    "item_id": r.get("item_id"),
+                    "item": views.name_of(state, r.get("item_id")) if r.get("item_id") else None,
+                    "note": r.get("note", ""),
+                    "contact": r.get("contact", ""),
+                    "at": views.iso(r.get("added_at")),
+                }
+                for r in reports
+            ]
+        }
+
+
+def resolve_found_report(report_id: str) -> dict[str, Any]:
+    """Dealt with (FR-PUB-03). The finder's words are not edited; the report just stops being listed."""
+    with _open() as (conn, who):
+        state = _state(conn)
+        report = views.entity(state, "found_report", report_id)
+        if report is None:
+            raise NotFound(f"no found report with id {report_id}")
+        if report.get("resolved"):
+            return {"report_id": report_id, "resolved": True, "already": True}
+        payload = {"field": "resolved", "value": True, "old": report.get("resolved")}
+        _push(conn, who, [_draft("found_report", report_id, "field_changed", payload)])
+        return {"report_id": report_id, "resolved": True}
+
+
+def get_notifications() -> dict[str, Any]:
+    """What the signed-in person is emailed about (FR-USR-18), and whether the server can send mail at all."""
+    with _open() as (conn, who):
+        return {"categories": notify.get(conn, who.user_id), "mail_configured": mail.configured(conn)}
+
+
+def set_notifications(categories: notify.Preferences) -> dict[str, Any]:
+    """Choose what the signed-in person is emailed about (FR-USR-18): found reports, new repair tickets,
+    new accounts. Nothing is sent until an Admin sets mail up."""
+    with _open() as (conn, who):
+        saved = notify.set_categories(conn, who.user_id, categories)
+        return {"categories": saved, "mail_configured": mail.configured(conn)}
 
 
 def check_out(
@@ -1289,6 +1397,14 @@ def set_mail(
         return {"mail": mail.describe(conn)}
 
 
+def clear_mail() -> dict[str, Any]:
+    """Stop sending mail. Links go back to being copied by hand (FR-USR-12). Admins only."""
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        mail.forget(conn)
+        return {"mail": None}
+
+
 def send_test_mail() -> dict[str, Any]:
     """Send a test message to your own address, to find a wrong password before someone else's reset needs it
     (FR-USR-16). Admins only."""
@@ -1370,6 +1486,13 @@ def remove_calendar_feed(feed_id: str) -> dict[str, Any]:
         accounts._require_admin(who)
         calendars.remove_feed(conn, feed_id)
         return {"feed_id": feed_id, "deleted": True}
+
+
+def refresh_calendar_feeds() -> dict[str, Any]:
+    """Fetch every feed again now, instead of waiting for the hourly refresh (FR-RES-20). Admins only."""
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        return {"feeds": calendars.refresh_all(conn)}
 
 
 def add_location(name: str) -> dict[str, Any]:
@@ -1528,6 +1651,7 @@ TOOLS = [
     update_reservation,
     add_to_reservation,
     remove_from_reservation,
+    link_out_to_reservation,
     cancel_reservation,
     duplicate_reservation,
     create_item,
@@ -1535,15 +1659,21 @@ TOOLS = [
     update_item,
     mark_missing,
     unassign_code,
+    assign_code,
+    retire_item,
     delete_item,
     merge_items,
     unmerge_item,
     raise_ticket,
     comment_ticket,
     set_ticket_state,
+    list_found_reports,
+    resolve_found_report,
     check_out,
     check_in,
     recount,
+    get_notifications,
+    set_notifications,
     list_users,
     invite_user,
     reset_link,
@@ -1558,11 +1688,13 @@ TOOLS = [
     get_mail,
     set_mail,
     send_test_mail,
+    clear_mail,
     get_group,
     set_group,
     list_calendar_feeds,
     add_calendar_feed,
     remove_calendar_feed,
+    refresh_calendar_feeds,
     add_location,
     rename_location,
     delete_location,
