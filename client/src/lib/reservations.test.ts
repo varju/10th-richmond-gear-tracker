@@ -234,33 +234,75 @@ test("a retired pool cannot be checked out for a reservation (FR-INV-04)", async
   await expect(res.checkOutPoolLine(store, r, "bowls", 4)).rejects.toThrow("retired items cannot be checked out");
 });
 
-test("nearby names a camp within seven days sharing a line, not one overlapping (FR-RES-19)", async () => {
+test("nearby names a camp within seven days sharing a unit, not one overlapping (FR-RES-19)", async () => {
   const f = await fixture();
-  await res.createReservation(store, { ...fall, items: [f.t1], generics: [{ item_id: f.tents, quantity: 1 }] });
+  await res.createReservation(store, { ...fall, items: [f.t1], generics: [] });
 
   // Four days after Fall Camp ends: near, not overlapping.
   const near = res.nearby(store.state, {
     event: "Winter Prep",
     starts: "2026-10-08",
     ends: "2026-10-09",
-    items: [],
-    generics: [{ item_id: f.tents, quantity: 1 }],
+    items: [f.t1],
+    generics: [],
   });
-  expect(near[f.tents]).toEqual([{ event: "Fall Camp", detail: "2026-10-02 – 2026-10-04" }]);
+  expect(near[f.t1]).toEqual([{ event: "Fall Camp", detail: "2026-10-02 – 2026-10-04" }]);
 
   // Eight days after Fall Camp ends: outside the window.
   const far = res.nearby(store.state, {
     event: "Spring",
     starts: "2026-10-13",
     ends: "2026-10-14",
-    items: [],
-    generics: [{ item_id: f.tents, quantity: 1 }],
+    items: [f.t1],
+    generics: [],
   });
   expect(far).toEqual({});
 
   // Overlapping is a conflict, not a near clash.
   const overlap = res.nearby(store.state, { ...fall, event: "Same time", items: [f.t1], generics: [] });
   expect(overlap).toEqual({});
+});
+
+test("nearby marks a generic only when the near camps would leave us short, not just for sharing a line (FR-RES-19, FR-RES-15)", async () => {
+  const f = await fixture();
+  // Fall Camp takes 2 of the 3 tents.
+  await res.createReservation(store, { ...fall, items: [], generics: [{ item_id: f.tents, quantity: 2 }] });
+
+  // Four days later, Winter Prep wants 1 more: 3 needed, 3 owned. Enough to go around.
+  const fits = res.nearby(store.state, {
+    event: "Winter Prep",
+    starts: "2026-10-08",
+    ends: "2026-10-09",
+    items: [],
+    generics: [{ item_id: f.tents, quantity: 1 }],
+  });
+  expect(fits).toEqual({});
+
+  // Winter Prep wants 2 more: 4 needed, only 3 owned. Now it is worth a warning.
+  const short = res.nearby(store.state, {
+    event: "Winter Prep",
+    starts: "2026-10-08",
+    ends: "2026-10-09",
+    items: [],
+    generics: [{ item_id: f.tents, quantity: 2 }],
+  });
+  expect(short[f.tents]).toEqual([{ event: "Fall Camp", detail: "2026-10-02 – 2026-10-04" }]);
+});
+
+test("nearby weighs each near camp against the draft alone, not against each other (FR-RES-19)", async () => {
+  const f = await fixture();
+  const before = { event: "Cub Camp", starts: "2026-09-26", ends: "2026-09-27" };
+  const after = { event: "Winter Prep", starts: "2026-10-09", ends: "2026-10-10" };
+  await res.createReservation(store, { ...before, items: [], generics: [{ item_id: f.tents, quantity: 2 }] });
+  await res.createReservation(store, { ...after, items: [], generics: [{ item_id: f.tents, quantity: 2 }] });
+
+  // One more tent between them: 3 of 3 with either neighbour. The neighbours are a fortnight
+  // apart and never share tents with each other, so they are not added together.
+  expect(res.nearby(store.state, { ...fall, items: [], generics: [{ item_id: f.tents, quantity: 1 }] })).toEqual({});
+
+  // Two more is short against each of them.
+  const short = res.nearby(store.state, { ...fall, items: [], generics: [{ item_id: f.tents, quantity: 2 }] });
+  expect(short[f.tents]?.map((n) => n.event)).toEqual(["Cub Camp", "Winter Prep"]);
 });
 
 test("editing a reservation does not conflict with itself", async () => {

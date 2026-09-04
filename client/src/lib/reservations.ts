@@ -91,6 +91,27 @@ export interface Conflict {
   detail: string;
 }
 
+/** What we actually have of a generic: a pool's count owned (FR-INV-36), or unretired units. */
+function stockOf(state: State, genericId: string): number {
+  const generic = item(state, genericId);
+  return generic && isPool(generic)
+    ? poolCounts(generic).owned
+    : unitsOf(state, genericId).filter((u) => !u.retired).length;
+}
+
+/**
+ * Every generic id `draft` reserves, whether by count or by naming one of its units (FR-RES-15):
+ * a draft that only names a unit must still be capacity-checked, not just one that reserves by count.
+ */
+function genericIdsOf(state: State, draft: ReservationInput): Set<string> {
+  return new Set([
+    ...draft.generics.map((g) => g.item_id),
+    ...namedItems(state, draft)
+      .map((id) => state.item?.[id]?.parent_id)
+      .filter((id): id is string => Boolean(id)),
+  ]);
+}
+
 /**
  * Other reservations this one cannot share the dates with (FR-RES-05). An item
  * named in both is a clash. A generic is a clash when everything reserved of it
@@ -108,24 +129,11 @@ export function conflicts(state: State, draft: ReservationInput, excludeId?: str
     for (const id of shared) add(other, nameOf(state, id));
   }
 
-  // For every generic the draft reserves, whether by count or by naming one of its units (FR-RES-15):
-  // a draft that only names a unit must still be capacity-checked, not just one that reserves by
-  // count. Named units count once each, however many reservations name them; naming the same tent
+  // Named units count once each, however many reservations name them; naming the same tent
   // twice is the item clash above, not a count one.
   const involved = [draft, ...others];
-  const draftGenericIds = new Set([
-    ...draft.generics.map((g) => g.item_id),
-    ...namedItems(state, draft)
-      .map((id) => state.item?.[id]?.parent_id)
-      .filter((id): id is string => Boolean(id)),
-  ]);
-  for (const genericId of draftGenericIds) {
-    const generic = item(state, genericId);
-    // A pool's stock is what it owns (FR-INV-36), not a count of units: it has none (FR-INV-34).
-    const owned =
-      generic && isPool(generic)
-        ? poolCounts(generic).owned
-        : unitsOf(state, genericId).filter((u) => !u.retired).length;
+  for (const genericId of genericIdsOf(state, draft)) {
+    const owned = stockOf(state, genericId);
     const byCount = (r: ReservationInput) =>
       r.generics.filter((g) => g.item_id === genericId).reduce((n, g) => n + g.quantity, 0);
     const byName = (r: ReservationInput) =>
@@ -167,10 +175,12 @@ export interface NearbyNote {
 
 /**
  * A line this draft shares with a camp nearby but not overlapping (FR-RES-19): its dates fall
- * within seven days either side of the draft's. Keyed by item id and by generic id, whichever
- * the other reservation names the same way (by unit or by count). Empty for nothing near; a
- * hint before the block, since an overlap is refused by `conflicts` instead. Twin of `nearby`
- * in views.py's conflicts.py.
+ * within seven days either side of the draft's. Keyed by item id and by generic id. A named item
+ * always earns a note, since it is one physical thing wanted twice; a generic earns one only when
+ * the draft and that camp, added up by count or by name, would leave us short (FR-RES-15) — with
+ * enough units, each camp still gets its own. Each near camp is weighed on its own: two camps a
+ * fortnight apart never share gear with each other. Empty for nothing near; a hint before the
+ * block, since an overlap is refused by `conflicts` instead. Twin of `nearby` in conflicts.py.
  */
 export function nearby(state: State, draft: ReservationInput, excludeId?: string): Record<string, NearbyNote[]> {
   if (!draft.starts || !draft.ends) return {};
@@ -180,15 +190,26 @@ export function nearby(state: State, draft: ReservationInput, excludeId?: string
   const add = (id: string, other: Reservation) => {
     (found[id] ??= []).push({ event: other.event, detail: shortDates(other) });
   };
+
   for (const other of others) {
     const theirs = new Set(namedItems(state, other));
     for (const id of draft.items) if (theirs.has(id)) add(id, other);
-    for (const g of draft.generics) {
-      const byCount = other.generics.some((x) => x.item_id === g.item_id);
-      const byName = namedItems(state, other).some((id) => state.item?.[id]?.parent_id === g.item_id);
-      if (byCount || byName) add(g.item_id, other);
+  }
+
+  for (const g of draft.generics) {
+    const genericId = g.item_id;
+    const owned = stockOf(state, genericId);
+    const byCount = (r: ReservationInput) =>
+      r.generics.filter((x) => x.item_id === genericId).reduce((n, x) => n + x.quantity, 0);
+    const byName = (r: ReservationInput) =>
+      namedItems(state, r).filter((id) => state.item?.[id]?.parent_id === genericId);
+    for (const other of others) {
+      if (byCount(other) === 0 && byName(other).length === 0) continue;
+      const named = new Set([...byName(draft), ...byName(other)]);
+      if (named.size + byCount(draft) + byCount(other) > owned) add(genericId, other);
     }
   }
+
   return found;
 }
 

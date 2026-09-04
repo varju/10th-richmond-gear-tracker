@@ -20,6 +20,26 @@ Draft = dict[str, Any]
 """An event, its days, and what it needs: `event`, `starts`, `ends`, `items`, `generics`."""
 
 
+def _owned(state: State, generic_id: str) -> int:
+    """What we actually have of a generic: a pool's count owned (FR-INV-36), or unretired units."""
+    generic = views.item(state, generic_id)
+    if generic and views.is_pool(generic):
+        return views.pool_counts(generic)["owned"]
+    return sum(1 for unit in views.units_of(state, generic_id) if not unit.get("retired"))
+
+
+def _generic_ids_of(state: State, draft: Draft) -> dict[str, None]:
+    """Every generic id `draft` reserves, whether by count or by naming one of its units (FR-RES-15):
+    a draft that only names a unit must still be capacity-checked, not just one that reserves by count.
+    """
+    ids = [line["item_id"] for line in draft.get("generics") or []]
+    for i in views.named_items(state, draft):
+        parent_id = (views.item(state, i) or {}).get("parent_id")
+        if parent_id:
+            ids.append(parent_id)
+    return dict.fromkeys(ids)
+
+
 def conflicts(state: State, draft: Draft, exclude_id: str | None = None) -> list[dict[str, str]]:
     """Other reservations this one cannot share the dates with. One entry each.
 
@@ -39,27 +59,11 @@ def conflicts(state: State, draft: Draft, exclude_id: str | None = None) -> list
             if item_id in theirs:
                 add(other, views.name_of(state, item_id))
 
-    # For every generic the draft reserves, whether by count or by naming one of its units (FR-RES-15):
-    # a draft that only names a unit must still be capacity-checked, not just one that reserves by
-    # count. Named units count once each, however many reservations name them; naming the same tent
+    # Named units count once each, however many reservations name them; naming the same tent
     # twice is the item clash above, not a count one.
     involved = [draft, *others]
-    draft_generic_ids = dict.fromkeys(
-        [line["item_id"] for line in draft.get("generics") or []]
-        + [
-            parent_id
-            for i in views.named_items(state, draft)
-            if (parent_id := (views.item(state, i) or {}).get("parent_id"))
-        ]
-    )
-    for generic_id in draft_generic_ids:
-        generic = views.item(state, generic_id)
-        # A pool's stock is what it owns (FR-INV-36), not a count of units: it has none (FR-INV-34).
-        owned = (
-            views.pool_counts(generic)["owned"]
-            if generic and views.is_pool(generic)
-            else sum(1 for unit in views.units_of(state, generic_id) if not unit.get("retired"))
-        )
+    for generic_id in _generic_ids_of(state, draft):
+        owned = _owned(state, generic_id)
 
         def by_count(r: Draft, generic_id: str = generic_id) -> int:
             return sum(line["quantity"] for line in r.get("generics") or [] if line["item_id"] == generic_id)
@@ -105,10 +109,12 @@ def _short_dates(r: Draft) -> str:
 
 def nearby(state: State, draft: Draft, exclude_id: str | None = None) -> dict[str, list[dict[str, str]]]:
     """A line this draft shares with a camp nearby but not overlapping (FR-RES-19): its dates fall
-    within seven days either side of the draft's. Keyed by item id and by generic id, whichever the
-    other reservation names the same way (by unit or by count). Empty for nothing near; a hint
-    before the block, since an overlap is refused by `conflicts` instead. Twin of `nearby` in
-    reservations.ts.
+    within seven days either side of the draft's. Keyed by item id and by generic id. A named item
+    always earns a note, since it is one physical thing wanted twice; a generic earns one only when
+    the draft and that camp, added up by count or by name, would leave us short (FR-RES-15) — with
+    enough units, each camp still gets its own. Each near camp is weighed on its own: two camps a
+    fortnight apart never share gear with each other. Empty for nothing near; a hint before the
+    block, since an overlap is refused by `conflicts` instead. Twin of `nearby` in reservations.ts.
     """
     if not draft.get("starts") or not draft.get("ends"):
         return {}
@@ -128,13 +134,24 @@ def nearby(state: State, draft: Draft, exclude_id: str | None = None) -> dict[st
         for item_id in draft.get("items") or []:
             if item_id in theirs:
                 add(item_id, other)
-        for line in draft.get("generics") or []:
-            generic_id = line["item_id"]
-            by_count = any(g["item_id"] == generic_id for g in other.get("generics") or [])
-            by_name = any(
-                (views.item(state, i) or {}).get("parent_id") == generic_id for i in views.named_items(state, other)
-            )
-            if by_count or by_name:
+
+    for line in draft.get("generics") or []:
+        generic_id = line["item_id"]
+        owned = _owned(state, generic_id)
+
+        def by_count(r: Draft, generic_id: str = generic_id) -> int:
+            return sum(g["quantity"] for g in r.get("generics") or [] if g["item_id"] == generic_id)
+
+        def by_name(r: Draft, generic_id: str = generic_id) -> set[str]:
+            return {
+                i for i in views.named_items(state, r) if (views.item(state, i) or {}).get("parent_id") == generic_id
+            }
+
+        for other in others:
+            if not by_count(other) and not by_name(other):
+                continue
+            total = len(by_name(draft) | by_name(other)) + by_count(draft) + by_count(other)
+            if total > owned:
                 add(generic_id, other)
 
     return found

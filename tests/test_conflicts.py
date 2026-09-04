@@ -114,3 +114,85 @@ def test_nearby_names_an_item_too():
         state, {"event": "Winter Prep", "starts": "2026-10-08", "ends": "2026-10-09", "items": ["t1"], "generics": []}
     )
     assert near == {"t1": [{"event": "Fall Camp", "detail": "2026-10-02 – 2026-10-04"}]}
+
+
+def test_nearby_marks_a_generic_only_when_the_near_camps_would_leave_us_short():
+    state = {
+        "item": {
+            "tents": {"name": "4-person tent", "generic": True},
+            "t1": {"parent_id": "tents", "number": "1", "status": "in", "holder_id": None},
+            "t2": {"parent_id": "tents", "number": "2", "status": "in", "holder_id": None},
+            "t3": {"parent_id": "tents", "number": "3", "status": "in", "holder_id": None},
+        },
+        "reservation": {
+            "r-fall": {
+                "event": "Fall Camp",
+                "starts": "2026-10-02",
+                "ends": "2026-10-04",
+                "items": [],
+                "generics": [{"item_id": "tents", "quantity": 2}],
+            }
+        },
+    }
+
+    # Four days later, Winter Prep wants 1 more: 3 needed, 3 owned. Enough to go around.
+    fits = nearby(
+        state,
+        {
+            "event": "Winter Prep",
+            "starts": "2026-10-08",
+            "ends": "2026-10-09",
+            "items": [],
+            "generics": [{"item_id": "tents", "quantity": 1}],
+        },
+    )
+    assert fits == {}
+
+    # Winter Prep wants 2 more: 4 needed, only 3 owned. Now it is worth a warning.
+    short = nearby(
+        state,
+        {
+            "event": "Winter Prep",
+            "starts": "2026-10-08",
+            "ends": "2026-10-09",
+            "items": [],
+            "generics": [{"item_id": "tents", "quantity": 2}],
+        },
+    )
+    assert short == {"tents": [{"event": "Fall Camp", "detail": "2026-10-02 – 2026-10-04"}]}
+
+
+def test_nearby_weighs_each_near_camp_against_the_draft_alone():
+    state = {
+        "item": {
+            "tents": {"name": "4-person tent", "generic": True},
+            "t1": {"parent_id": "tents", "number": "1", "status": "in", "holder_id": None},
+            "t2": {"parent_id": "tents", "number": "2", "status": "in", "holder_id": None},
+            "t3": {"parent_id": "tents", "number": "3", "status": "in", "holder_id": None},
+        },
+        "reservation": {
+            "r-before": {
+                "event": "Cub Camp",
+                "starts": "2026-09-26",
+                "ends": "2026-09-27",
+                "items": [],
+                "generics": [{"item_id": "tents", "quantity": 2}],
+            },
+            "r-after": {
+                "event": "Winter Prep",
+                "starts": "2026-10-09",
+                "ends": "2026-10-10",
+                "items": [],
+                "generics": [{"item_id": "tents", "quantity": 2}],
+            },
+        },
+    }
+    draft = {"event": "Fall Camp", "starts": "2026-10-02", "ends": "2026-10-04", "items": []}
+
+    # One more tent between them: 3 of 3 with either neighbour. The neighbours are a fortnight
+    # apart and never share tents with each other, so they are not added together.
+    assert nearby(state, {**draft, "generics": [{"item_id": "tents", "quantity": 1}]}) == {}
+
+    # Two more is short against each of them.
+    short = nearby(state, {**draft, "generics": [{"item_id": "tents", "quantity": 2}]})
+    assert [n["event"] for n in short["tents"]] == ["Cub Camp", "Winter Prep"]
