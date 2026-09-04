@@ -33,7 +33,7 @@ Built. What is left waits on other work:
 First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is
 fresh from the labelling walk.
 
-- [ ] Put the nightly `gear-backup` in the host's cron, and rehearse a restore once ([deploy.md](deploy.md#restoring))
+- [ ] Rehearse a restore from a nightly backup once ([deploy.md](deploy.md#restoring))
 - [ ] Print code sheets and do the labelling walk (S-BOOT-02, S-BOOT-03)
 
 Public pages come before the labelling walk, not after it. From the moment stickers go on gear, a stranger can scan one.
