@@ -426,26 +426,17 @@ def create_app(
     def public_code(conn: Db, code: str) -> dict[str, Any]:
         """The one route with no account behind it: what a stranger who scans a sticker sees.
 
-        The item name, the group name, and how to reach us (FR-PUB-01). Nothing
-        else is read here, so nothing else can leak (NFR-SEC-03). A unit has no
-        name of its own, so it answers with its generic's; the number is ours to
-        know and no use to a finder.
+        The group name and how to reach us (FR-PUB-01). The item itself is never
+        named: a stranger who scans a sticker must not be able to browse our
+        inventory that way (NFR-SEC-03).
         """
         if not codes.is_code(code):
             raise BadRequest("not a code")
         state = codes.resolve(conn, code)
         if state is None:
             raise NotFound("not one of our codes")
-        item = derived.get_entity(conn, "item", state["item_id"]) if state.get("item_id") else None
-        if item is not None and item.get("parent_id"):
-            item = derived.get_entity(conn, "item", str(item["parent_id"])) or {}
         group = derived.get_entity(conn, "setting", "group") or {}
-        return stamped(
-            {
-                "item": None if item is None else {"name": item.get("name", "")},
-                "group": {"name": group.get("name", ""), "contact": group.get("contact", "")},
-            }
-        )
+        return stamped({"group": {"name": group.get("name", ""), "contact": group.get("contact", "")}})
 
     @app.post("/public/codes/{code}/found")
     def report_found(request: Request, conn: Db, code: str, body: FoundBody) -> dict[str, Any]:

@@ -748,12 +748,12 @@ the same as the app's.
 
 ## Public pages
 
-The only unauthenticated surface: scan a code while signed out, see the item name, the group name, and how to make
-contact (NFR-SEC-03). Report it found. Nothing else — no member names, no prices, no history, and no check-in or
+The only unauthenticated surface: scan a code while signed out, see the group name and how to make contact, never the
+item's own name (NFR-SEC-03). Report it found. Nothing else — no member names, no prices, no history, and no check-in or
 check-out (FR-PUB-06).
 
-One route answers it, `/public/codes/<code>`, and it names the three fields it returns rather than filtering an item
-down. Nothing else is read, so a field added to an item later cannot arrive on the public page by accident.
+One route answers it, `/public/codes/<code>`, and it names the fields it returns rather than filtering an item down.
+Nothing about the item is read, so a field added to one later cannot arrive on the public page by accident.
 
 The contact route is a group setting. A sheet of codes will not print until it is set: a sticker becomes a public page
 the moment it goes on gear, and one with no way back to us is no use to whoever finds the tent.

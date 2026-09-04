@@ -61,8 +61,6 @@ the row in the same commit.
       menu, Add to Home screen), not nothing.
 - [ ] A used invite or reset link says "this link is not valid". A spent invite should say the account exists and offer
       Sign in; a spent reset should say the same and offer a new reset. Only an expired or unknown link is "not valid".
-- [ ] Public page: drop the item name. Show the group name, how to reach us, and the found form (amend FR-PUB-01). A
-      finder does not need the name, and a stranger must not learn the inventory by scanning codes.
 - [ ] Users: an Admin can change a user's name and email (extend FR-USR-04). Both changes go in the audit log with old
       and new values (FR-USR-05). Email stays unique. The user's open sessions are kept.
 

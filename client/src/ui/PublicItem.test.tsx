@@ -7,7 +7,7 @@ import { PublicItem } from "./PublicItem";
 const T0 = 1_756_684_800_000;
 
 const answer = (body: object, status = 200) => new Response(JSON.stringify({ ...body, server_time: T0 }), { status });
-const tent = { item: { name: "Tent 4" }, group: { name: "10th Richmond", contact: "gear@example.org" } };
+const tent = { group: { name: "10th Richmond", contact: "gear@example.org" } };
 
 function mount(fetchFake: typeof fetch, onSignIn = () => {}) {
   const api = createApi({ fetch: fetchFake, now: () => T0 });
@@ -27,25 +27,23 @@ function withPost(onPost: (init?: RequestInit) => Response | Promise<Response>) 
 
 const user = userEvent.setup();
 
-test("a stranger sees the item, the group, and how to reach us (FR-PUB-01)", async () => {
+test("a stranger sees the group and how to reach us, not the item (FR-PUB-01)", async () => {
   const calls: string[] = [];
   await mount(async (input) => {
     calls.push(String(input));
     return answer(tent);
   });
 
-  expect(await screen.findByText("Tent 4")).toBeInTheDocument();
+  expect(await screen.findByText("Found this? Please tell us where it is.")).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "10th Richmond" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "gear@example.org" })).toHaveAttribute("href", "mailto:gear@example.org");
   expect(calls).toEqual(["/public/codes/AAAAAAAAAA"]);
 });
 
 test("nothing on the page invites them further in", async () => {
-  await mount(async () =>
-    answer({ item: { name: "Tent 4" }, group: { name: "10th Richmond", contact: "https://example.org/gear" } }),
-  );
+  await mount(async () => answer({ group: { name: "10th Richmond", contact: "https://example.org/gear" } }));
 
-  await screen.findByText("Tent 4");
+  await screen.findByText("Found this? Please tell us where it is.");
   expect(screen.getByRole("link", { name: "https://example.org/gear" })).toHaveAttribute(
     "href",
     "https://example.org/gear",
@@ -56,12 +54,9 @@ test("nothing on the page invites them further in", async () => {
 
 test("a member who lands here can sign in instead", async () => {
   const onSignIn = vi.fn();
-  await mount(
-    async () => answer({ item: null, group: { name: "10th Richmond", contact: "gear@example.org" } }),
-    onSignIn,
-  );
+  await mount(async () => answer(tent), onSignIn);
 
-  expect(await screen.findByText("Our gear")).toBeInTheDocument();
+  await screen.findByRole("heading", { name: "10th Richmond" });
   await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
   expect(onSignIn).toHaveBeenCalled();
 });
@@ -81,7 +76,7 @@ test("no signal says so, because this page cannot work without one", async () =>
 test("the finder says where it is, and we say thanks (FR-PUB-02)", async () => {
   const { fetchFake, posts } = withPost(() => answer({}));
   mount(fetchFake);
-  await screen.findByText("Tent 4");
+  await screen.findByLabelText("Where is it?");
 
   expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
   await user.type(screen.getByLabelText("Where is it?"), "By the gate at Camp Byng");
@@ -102,7 +97,7 @@ test("the finder says where it is, and we say thanks (FR-PUB-02)", async () => {
 test("the honeypot is in the form, off screen, and out of the tab order (FR-PUB-04)", async () => {
   const { fetchFake } = withPost(() => answer({}));
   const { container } = mount(fetchFake);
-  await screen.findByText("Tent 4");
+  await screen.findByLabelText("Where is it?");
   const trap = container.querySelector<HTMLInputElement>(".hp input[name=website]")!;
   expect(trap).not.toBeNull();
   expect(trap.tabIndex).toBe(-1);
@@ -116,7 +111,7 @@ test("too many reports, or no signal, is said in words", async () => {
     return answer({ error: "rate_limited", message: "too many reports; try again later" }, 429);
   });
   mount(fetchFake);
-  await screen.findByText("Tent 4");
+  await screen.findByLabelText("Where is it?");
 
   await user.type(screen.getByLabelText("Where is it?"), "Here");
   await user.click(screen.getByRole("button", { name: "Send" }));

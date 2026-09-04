@@ -6,7 +6,7 @@ Someone outside the group finds our gear. They have no account and never will.
 
 Someone finds a tent at a campsite and scans the sticker with their phone camera.
 
-- They see the item name, the group name, and how to make contact
+- They see the group name and how to make contact, not the item's name
 - They see no member names, no prices, and no history
 - They are not asked to sign in
 

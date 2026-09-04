@@ -149,8 +149,8 @@ test("a sticker scanned while signed out shows the public page, not the sign-in 
   navigate("/g/AAAAAAAAAA");
   mount();
 
-  expect(await screen.findByText("Tent")).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "10th Richmond" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "10th Richmond" })).toBeInTheDocument();
+  expect(screen.queryByText("Tent")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
   expect(calls).toEqual(["/public/codes/AAAAAAAAAA"]);
 

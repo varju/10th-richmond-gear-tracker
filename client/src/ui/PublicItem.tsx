@@ -4,10 +4,10 @@ import { Contact } from "./Contact";
 import { Page } from "./Page";
 
 /**
- * What a stranger sees when they scan a sticker: the item, whose it is, and how
- * to reach us (FR-PUB-01), with a form to say where it is (FR-PUB-02). The same
- * URL a member scans, answered without an account. It talks to two public
- * routes and shows what comes back, so there is nothing here to leak (NFR-SEC-03).
+ * What a stranger sees when they scan a sticker: whose it is and how to reach
+ * us (FR-PUB-01), with a form to say where it is (FR-PUB-02). The item itself
+ * is never named, so scanning a sticker cannot be used to browse our inventory
+ * (NFR-SEC-03). The same URL a member scans, answered without an account.
  */
 export function PublicItem({ api, code, onSignIn }: { api: Api; code: string; onSignIn: () => void }) {
   const [found, setFound] = useState<PublicCode | null>(null);
@@ -52,7 +52,6 @@ export function PublicItem({ api, code, onSignIn }: { api: Api; code: string; on
 
   return (
     <Shell title={found.group.name || "Gear Tracker"} actions={signIn}>
-      <p className="big">{found.item?.name ?? "Our gear"}</p>
       <p>Found this? Please tell us where it is.</p>
       {found.group.contact && (
         <p>

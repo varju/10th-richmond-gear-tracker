@@ -144,12 +144,6 @@ label span {
   color: var(--muted);
 }
 
-.big {
-  font-size: 40px;
-  font-weight: 700;
-  margin: 24px 0 4px;
-}
-
 .error {
   color: var(--warn);
 }

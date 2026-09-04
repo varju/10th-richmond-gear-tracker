@@ -96,7 +96,7 @@ test("a printed code becomes an item", async ({ browser, page, request }) => {
   const theirs = await stranger.newPage();
   await theirs.goto(`/g/${code}`);
   await expect(theirs.getByRole("heading", { name: "10th Richmond" })).toBeVisible();
-  await expect(theirs.getByText("Tent 1")).toBeVisible();
+  await expect(theirs.getByText("Tent 1")).toHaveCount(0);
   await expect(theirs.getByRole("link", { name: "gear@example.org" })).toBeVisible();
   await expect(theirs.getByLabel("Password")).toHaveCount(0);
   await stranger.close();

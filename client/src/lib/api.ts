@@ -94,9 +94,8 @@ export interface Session {
   user: User;
 }
 
-/** All a scan shows to someone with no account (FR-PUB-01). */
+/** All a scan shows to someone with no account: not the item, so a sticker cannot be used to browse the inventory (FR-PUB-01). */
 export interface PublicCode {
-  item: { name: string } | null;
   group: { name: string; contact: string };
 }
 

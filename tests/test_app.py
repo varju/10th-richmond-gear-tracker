@@ -593,77 +593,30 @@ def public(client, db_path):
     return client
 
 
-def test_a_stranger_sees_the_item_the_group_and_a_way_to_reach_us(public):
+def test_a_stranger_sees_the_group_and_a_way_to_reach_us(public):
     r = public.get("/public/codes/AAAAAAAAAA")
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["item"] == {"name": "Tent 4"}
     assert body["group"] == {"name": "10th Richmond", "contact": "gear@example.org"}
 
 
 def test_the_public_page_carries_nothing_else(public):
-    """Whatever else the item holds stays on our side of the wall (NFR-SEC-03)."""
+    """The item is never named: scanning a sticker must not tell a stranger what it is (FR-PUB-01, NFR-SEC-03)."""
     r = public.get("/public/codes/AAAAAAAAAA")
-    assert set(r.json()) == {"item", "group", "server_time"}
+    assert set(r.json()) == {"group", "server_time"}
+    assert "Tent 4" not in r.text
     assert "patched fly" not in r.text
 
 
-def test_a_printed_but_unbound_code_still_says_whose_it_is(public):
-    body = public.get("/public/codes/BBBBBBBBBB").json()
-    assert body["item"] is None
-    assert body["group"]["name"] == "10th Richmond"
-
-
-def test_a_released_code_reads_as_unbound_on_the_public_page(public):
-    """FR-TAG-14: once the sticker is off the gear, a stranger who scans it sees no item."""
-    public.post(
-        "/sync/push",
-        json=push_body(
-            event(entity_type="code", entity_id="AAAAAAAAAA", type="code_released", payload={}, device_seq=3)
-        ),
-        headers=as_alice(),
-    )
-    body = public.get("/public/codes/AAAAAAAAAA").json()
-    assert body["item"] is None
+def test_a_printed_but_unbound_code_still_answers(public):
+    r = public.get("/public/codes/BBBBBBBBBB")
+    assert r.status_code == 200
+    assert r.json()["group"]["name"] == "10th Richmond"
 
 
 def test_the_public_route_refuses_a_code_that_is_not_ours(public):
     assert public.get("/public/codes/not-a-code").status_code == 400
     assert public.get("/public/codes/ZZZZZZZZZZ").status_code == 404
-
-
-def test_a_unit_answers_with_its_generic_name(public):
-    """A unit has no name of its own, and the number is no use to a finder (FR-PUB-01, FR-INV-22)."""
-    public.post(
-        "/sync/push",
-        json=push_body(
-            event(
-                entity_type="item",
-                entity_id="tarp",
-                type="created",
-                payload={"name": "3x3 tarp", "generic": True},
-                device_seq=3,
-            ),
-            event(
-                entity_type="item",
-                entity_id="tarp-2",
-                type="created",
-                payload={"parent_id": "tarp", "number": "2", "nickname": "torn corner"},
-                device_seq=4,
-            ),
-            event(
-                entity_type="code",
-                entity_id="BBBBBBBBBB",
-                type="code_bound",
-                payload={"item_id": "tarp-2"},
-                device_seq=5,
-            ),
-        ),
-        headers=as_alice(),
-    )
-    r = public.get("/public/codes/BBBBBBBBBB")
-    assert r.json()["item"] == {"name": "3x3 tarp"}
-    assert "torn corner" not in r.text
 
 
 # --- found gear ------------------------------------------------------------------------------

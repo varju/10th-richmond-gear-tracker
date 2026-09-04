@@ -159,7 +159,7 @@ Reachable by scanning a label, with no sign-in.
 
 | ID        | Priority | Requirement                                                                                                                                                   |
 | --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FR-PUB-01 | Must     | Scanning while signed out shows the item name, the group name, and how to reach us. No member names, prices, or history.                                      |
+| FR-PUB-01 | Must     | Scanning while signed out shows the group name and how to reach us, not the item's name. No member names, prices, or history.                                 |
 | FR-PUB-02 | Must     | Anyone can report the item found, with a note and optional contact detail.                                                                                    |
 | FR-PUB-03 | Must     | Found reports reach the Quartermaster in the app, as something to act on.                                                                                     |
 | FR-PUB-04 | Should   | Public submissions are rate-limited and spam-protected.                                                                                                       |
