@@ -44,9 +44,38 @@ export interface Scanner {
   resume(): void;
 }
 
-/** A short buzz to confirm a read. Android Chrome only; iOS Safari has no Vibration API. */
+let hapticLabel: HTMLLabelElement | null = null;
+
+/**
+ * iOS Safari has no Vibration API, but from 17.4 it buzzes the phone when a switch toggles, and it does so
+ * for a click the page makes itself. A hidden switch and its label, made once and kept for the page's life.
+ * Undocumented behaviour: if an iOS update stops it, this becomes a no-op, nothing worse.
+ */
+function hapticSwitch(): HTMLLabelElement | null {
+  if (hapticLabel) return hapticLabel;
+  if (typeof document === "undefined") return null;
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.setAttribute("switch", "");
+  input.id = "haptic-switch";
+  input.tabIndex = -1;
+  input.setAttribute("aria-hidden", "true");
+  input.style.display = "none";
+  const label = document.createElement("label");
+  label.htmlFor = input.id;
+  label.style.display = "none";
+  document.body.append(input, label);
+  hapticLabel = label;
+  return label;
+}
+
+/** A short buzz to confirm a read: the Vibration API where there is one (Android), the switch trick where not (iOS). */
 export function vibrate(): void {
-  navigator.vibrate?.(30);
+  if (navigator.vibrate) {
+    navigator.vibrate(30);
+    return;
+  }
+  hapticSwitch()?.click();
 }
 
 /** How long the read flash shows: the target goes green and the rest of the frame dims. */

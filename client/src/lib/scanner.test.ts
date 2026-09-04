@@ -30,12 +30,23 @@ afterEach(() => {
   delete navigator.vibrate;
 });
 
-test("vibrate buzzes where the API exists, and is quiet where it does not (iOS Safari)", () => {
-  expect(() => vibrate()).not.toThrow(); // no navigator.vibrate by default in this test environment
+test("vibrate buzzes through the Vibration API where it exists", () => {
   const buzz = vi.fn();
   Object.defineProperty(navigator, "vibrate", { value: buzz, configurable: true });
   vibrate();
   expect(buzz).toHaveBeenCalledWith(30);
+  expect(document.querySelector("input[switch]")).toBeNull(); // no need for the switch here
+});
+
+test("without the Vibration API (iOS Safari) vibrate toggles one hidden switch, made once", () => {
+  vibrate(); // no navigator.vibrate by default in this test environment
+  expect(document.querySelectorAll("input[switch]")).toHaveLength(1);
+  const hidden = document.querySelector<HTMLInputElement>("input[switch]")!;
+  expect(hidden.checked).toBe(true);
+  expect(hidden.style.display).toBe("none");
+  vibrate();
+  expect(document.querySelectorAll("input[switch]")).toHaveLength(1);
+  expect(hidden.checked).toBe(false);
 });
 
 /** The parts of AudioContext a click touches. A stand-in: the test environment has no sound card. */
