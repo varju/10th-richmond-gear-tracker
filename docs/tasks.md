@@ -51,9 +51,6 @@ the row in the same commit.
 
 ### Fixes
 
-- [ ] Scan: a read should look like a read. Pause the video when the card opens and resume it when the card closes, so
-      the frame freezes on the sticker. Draw a target box in the viewfinder. Vibrate on a read where the platform
-      allows.
 - [ ] Users: an Admin can change a user's name and email (extend FR-USR-04). Both changes go in the audit log with old
       and new values (FR-USR-05). Email stays unique. The user's open sessions are kept.
 

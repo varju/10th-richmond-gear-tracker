@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import * as act from "../lib/actions";
 import { item } from "../lib/inventory";
 import * as mv from "../lib/movement";
@@ -28,6 +28,11 @@ beforeEach(async () => {
   await act.bindCode(store, "BBBBBBBBBB", stove);
   await mv.checkOut(store, tent2);
   navigate("/stock-check");
+});
+
+afterEach(() => {
+  // @ts-expect-error test-only cleanup of a browser API stubbed per test
+  delete navigator.vibrate;
 });
 
 const user = userEvent.setup();
@@ -87,6 +92,18 @@ test("a scan during the walk clears missing (FR-INV-19)", async () => {
   expect(screen.getByText("Cold locker · 0 in place")).toBeInTheDocument();
   await typeCode("AAAAAAAAAA");
   await waitFor(() => expect(item(store.state, tent1)?.missing).toBe(false));
+});
+
+test("a code we know buzzes the phone; one we do not leaves it alone", async () => {
+  const buzz = vi.fn();
+  Object.defineProperty(navigator, "vibrate", { value: buzz, configurable: true });
+  renderInShell(<StockCheck store={store} />);
+  await user.selectOptions(screen.getByLabelText("Location"), cold);
+  await user.click(screen.getByRole("button", { name: "Start" }));
+  await typeCode("hello");
+  expect(buzz).not.toHaveBeenCalled();
+  await typeCode("AAAAAAAAAA");
+  expect(buzz).toHaveBeenCalledWith(30);
 });
 
 test("Seen beside a row counts as a sighting, for gear with no code or an awkward sticker", async () => {

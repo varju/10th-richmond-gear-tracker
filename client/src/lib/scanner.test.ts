@@ -1,5 +1,5 @@
-import { expect, test } from "vitest";
-import { cameraError, Debounce } from "./scanner";
+import { afterEach, expect, test, vi } from "vitest";
+import { cameraError, Debounce, startScanner, vibrate } from "./scanner";
 
 test("the same code within the window is reported once", () => {
   const d = new Debounce(1500);
@@ -21,4 +21,41 @@ test("camera errors are explained", () => {
   expect(cameraError(new DOMException("x", "NotAllowedError"))).toMatch(/refused/);
   expect(cameraError(new DOMException("x", "NotFoundError"))).toMatch(/No camera/);
   expect(cameraError(new Error("?"))).toMatch(/could not start/);
+});
+
+afterEach(() => {
+  // @ts-expect-error test-only cleanup of browser APIs stubbed per test
+  delete navigator.mediaDevices;
+  // @ts-expect-error test-only cleanup of browser APIs stubbed per test
+  delete navigator.vibrate;
+});
+
+test("vibrate buzzes where the API exists, and is quiet where it does not (iOS Safari)", () => {
+  expect(() => vibrate()).not.toThrow(); // no navigator.vibrate by default in this test environment
+  const buzz = vi.fn();
+  Object.defineProperty(navigator, "vibrate", { value: buzz, configurable: true });
+  vibrate();
+  expect(buzz).toHaveBeenCalledWith(30);
+});
+
+test("pause freezes the video and resume un-freezes it, without reopening the camera", async () => {
+  // A MediaStream this test environment can both assign to video.srcObject and stop.
+  const stream = Object.assign(new MediaStream(), { getTracks: () => [] });
+  const getUserMedia = vi.fn().mockResolvedValue(stream);
+  Object.defineProperty(navigator, "mediaDevices", { value: { getUserMedia }, configurable: true });
+  const video = document.createElement("video");
+  const pauseSpy = vi.spyOn(video, "pause");
+  const playSpy = vi.spyOn(video, "play");
+
+  const scanner = startScanner(video, () => {});
+  await vi.waitFor(() => expect(playSpy).toHaveBeenCalledTimes(1));
+
+  scanner.pause();
+  expect(pauseSpy).toHaveBeenCalledTimes(1);
+
+  scanner.resume();
+  expect(playSpy).toHaveBeenCalledTimes(2);
+
+  scanner.stop();
+  expect(getUserMedia).toHaveBeenCalledTimes(1); // the camera is opened once, never restarted for a pause
 });

@@ -38,6 +38,15 @@ export interface ScannerOptions {
 
 export interface Scanner {
   stop(): void;
+  /** Freeze on the current frame: a read looks like a read. The camera stays open. */
+  pause(): void;
+  /** Un-freeze after `pause()`. */
+  resume(): void;
+}
+
+/** A short buzz to confirm a read. Android Chrome only; iOS Safari has no Vibration API. */
+export function vibrate(): void {
+  navigator.vibrate?.(30);
 }
 
 /** Why the camera could not start, in words a person can act on. */
@@ -58,6 +67,8 @@ export function startScanner(
 ): Scanner {
   let stream: MediaStream | null = null;
   let stopped = false;
+  let paused = false;
+  let running = false; // the camera is open and the decode loop has run at least one frame
   let frame = 0;
   let decoding = false;
   const debounce = new Debounce();
@@ -67,7 +78,7 @@ export function startScanner(
   const fail = (message: string) => onError?.(message);
 
   const tick = () => {
-    if (stopped) return;
+    if (stopped || paused) return;
     frame = requestAnimationFrame(tick);
     if (decoding || !ctx || video.readyState < video.HAVE_CURRENT_DATA || !video.videoWidth) return;
     const scale = DECODE_WIDTH / video.videoWidth;
@@ -99,6 +110,7 @@ export function startScanner(
     video.srcObject = stream;
     await video.play();
     if (stopped) return release();
+    running = true;
     frame = requestAnimationFrame(tick);
   };
 
@@ -117,6 +129,19 @@ export function startScanner(
       stopped = true;
       cancelAnimationFrame(frame);
       release();
+    },
+    pause() {
+      if (!running || stopped || paused) return;
+      paused = true;
+      cancelAnimationFrame(frame);
+      video.pause();
+    },
+    resume() {
+      if (!running || stopped || !paused) return;
+      paused = false;
+      // A rejected play() (interrupted by a fast pause/resume) is not a failure worth showing.
+      video.play().catch(() => {});
+      frame = requestAnimationFrame(tick);
     },
   };
 }

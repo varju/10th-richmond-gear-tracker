@@ -12,7 +12,7 @@ import {
   subLocations,
 } from "../lib/inventory";
 import { navigate } from "../lib/router";
-import { startScanner } from "../lib/scanner";
+import { startScanner, vibrate } from "../lib/scanner";
 import {
   atHome,
   misplaced,
@@ -119,6 +119,7 @@ function Walk({ store, check }: { store: Store; check: Check }) {
     if (!id) return say("Not a gear code");
     const status = codeStatus(state, id);
     if (status === "unknown") return say("Not one of our codes");
+    vibrate();
     if (status === "unassigned") return say("Not on anything yet");
     const itemId = codeOf(state, id)?.item_id;
     const it = itemId ? item(state, itemId) : undefined;
@@ -222,6 +223,7 @@ function Walk({ store, check }: { store: Store; check: Check }) {
       </p>
       <div className="viewfinder">
         <video ref={video} muted playsInline hidden={cameraError !== null} />
+        {!cameraError && <div className="target" aria-hidden="true" />}
         {cameraError ? (
           <p className="scan-error" role="alert">
             {cameraError}

@@ -6,7 +6,7 @@ import { withQuery } from "../lib/listUrl";
 import { checkOut } from "../lib/movement";
 import { addExtra, isPacked, type Remaining, remaining, type Reservation, reservation } from "../lib/reservations";
 import { back, navigate, useRoute } from "../lib/router";
-import { startScanner } from "../lib/scanner";
+import { type Scanner, startScanner, vibrate } from "../lib/scanner";
 import type { Store } from "../lib/store";
 import { guard, useUnsaved } from "../lib/unsaved";
 import { useStore } from "../useStore";
@@ -47,10 +47,15 @@ export function Scan({ store }: { store: Store }) {
   const cardOpen = useRef(false);
   // Items moved this visit; the camera is still on the sticker after the card closes, so a repeat decode is dropped.
   const moved = useRef(new Set<string>());
+  const scanner = useRef<Scanner | null>(null);
 
+  // The card opening freezes the frame on the sticker, so a read looks like a read; it
+  // un-freezes when the card closes, whether by a move or by Skip.
   const showCard = (id: string | null) => {
     cardOpen.current = id !== null;
     setCardItem(id);
+    if (id !== null) scanner.current?.pause();
+    else scanner.current?.resume();
   };
 
   // Replace, so switching modes does not fill the back button; reservation= is kept as-is.
@@ -68,6 +73,7 @@ export function Scan({ store }: { store: Store }) {
       if (!id) return say("Not a gear code");
       const status = codeStatus(store.state, id);
       if (status === "unknown") return say("Not one of our codes");
+      vibrate();
       if (!forItem) {
         if (status === "unassigned") return navigate(`/g/${id}`);
         const bound = codeOf(store.state, id)?.item_id;
@@ -96,14 +102,18 @@ export function Scan({ store }: { store: Store }) {
 
   useEffect(() => {
     if (!video.current) return;
-    const scanner = startScanner(
+    const started = startScanner(
       video.current,
       (text) => {
         if (!cardOpen.current) void latest.current(text);
       },
       { onError: setCameraError },
     );
-    return () => scanner.stop();
+    scanner.current = started;
+    return () => {
+      scanner.current = null;
+      started.stop();
+    };
   }, []);
 
   function submit(e: FormEvent) {
@@ -174,6 +184,7 @@ export function Scan({ store }: { store: Store }) {
       {!forItem && mode !== "in" && <SessionEvent store={store} booked={booked} />}
       <div className="viewfinder">
         <video ref={video} muted playsInline hidden={cameraError !== null} />
+        {!cameraError && !card && <div className="target" aria-hidden="true" />}
         {cameraError ? (
           <p className="scan-error" role="alert">
             {cameraError}

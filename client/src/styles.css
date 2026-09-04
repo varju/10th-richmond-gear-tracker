@@ -234,6 +234,19 @@ main:has(> .viewfinder) {
   object-fit: cover;
 }
 
+/* Where to hold the code. CSS only, so it costs nothing and never blocks a tap. */
+.target {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(220px, 60vw);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
 .scan-hint,
 .scan-flash,
 .scan-error {
