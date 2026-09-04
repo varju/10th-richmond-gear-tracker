@@ -127,6 +127,13 @@ under Users.
 Open Mail in Settings and fill in the server, port, encryption, username, password and the address to send from. Save,
 then send a test to your own address. Mail is optional; without it you pass links on by hand.
 
+## Suggest event names from a calendar
+
+Open Calendars in Settings and paste a calendar feed's URL. The server checks it every hour, and the reservation form
+and a scanning session then offer its upcoming events for the event name; picking one in the reservation form also fills
+the dates. Remove a feed, or tap Refresh now to check it right away. A feed's URL stays on the server, even from an
+Admin: the list shows it with the host and path only.
+
 ## Backups
 
 The host copies the database and the photo directory on a schedule. Rehearse a restore once so you know it works. See

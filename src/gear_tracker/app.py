@@ -20,7 +20,19 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import Field, StringConstraints
 
-from gear_tracker import accounts, assistant, codes, derived, events, inventory_csv, labels, mail, notify, sync
+from gear_tracker import (
+    accounts,
+    assistant,
+    calendars,
+    codes,
+    derived,
+    events,
+    inventory_csv,
+    labels,
+    mail,
+    notify,
+    sync,
+)
 from gear_tracker.db import connect
 from gear_tracker.errors import ApiError, BadRequest, Conflict, Deactivated, NotFound, TooLarge, TooMany, Unauthorized
 from gear_tracker.events import PHOTO_ENTITIES, PHOTO_TYPES, PUBLIC_ACTOR, Strict, now_ms
@@ -108,8 +120,15 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        async with mcp.session_manager.run():
-            yield
+        # Refreshes every feed hourly for as long as the server runs (FR-RES-20). Harmless in
+        # tests: a fresh database has no feeds, so each tick finds nothing to fetch, and the
+        # thread stops the moment this context manager exits.
+        stop_calendar_refresh = calendars.start_background_refresh(db_path)
+        try:
+            async with mcp.session_manager.run():
+                yield
+        finally:
+            stop_calendar_refresh()
 
     app = FastAPI(title="Gear Tracker", lifespan=lifespan)
     app.router.routes.append(assistant.route(mcp))
@@ -344,6 +363,32 @@ def create_app(
         subject, body = mail.test_message(group_name(conn))
         mail.send(conn, to, subject, body)
         return stamped({"sent_to": to})
+
+    # --- calendars (Admins) ---------------------------------------------------------------
+
+    @app.get("/calendars")
+    def list_calendars(conn: Db, who: Who) -> dict[str, Any]:
+        """Feeds an Admin has added, with a redacted URL (FR-RES-20, NFR-SEC-10)."""
+        accounts._require_admin(who)
+        return stamped({"feeds": calendars.list_feeds(conn)})
+
+    @app.post("/calendars")
+    def add_calendar(conn: Db, who: Who, body: calendars.FeedInput) -> dict[str, Any]:
+        """Add a feed and fetch it once right away, so a bad URL shows up immediately."""
+        accounts._require_admin(who)
+        return stamped({"feed": calendars.add_feed(conn, body)})
+
+    @app.delete("/calendars/{feed_id}")
+    def remove_calendar(conn: Db, who: Who, feed_id: str) -> dict[str, Any]:
+        accounts._require_admin(who)
+        calendars.remove_feed(conn, feed_id)
+        return stamped({})
+
+    @app.post("/calendars/refresh")
+    def refresh_calendars(conn: Db, who: Who) -> dict[str, Any]:
+        """The Refresh now button: fetch every feed again, on the spot."""
+        accounts._require_admin(who)
+        return stamped({"feeds": calendars.refresh_all(conn)})
 
     # --- codes ----------------------------------------------------------------------------
 

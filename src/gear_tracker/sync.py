@@ -13,7 +13,7 @@ from typing import Annotated, Any
 
 from pydantic import Field, ValidationError
 
-from gear_tracker import derived, events, notify
+from gear_tracker import calendars, derived, events, notify
 from gear_tracker.errors import ApiError, BadRequest, Deactivated, Forbidden, Rebootstrap
 from gear_tracker.events import NonEmpty, Rejected, Strict, now_ms
 from gear_tracker.flags import add_flag
@@ -75,7 +75,15 @@ def bootstrap(conn: sqlite3.Connection, principal: Principal, now: int | None = 
         cursor = derived.cursor(conn)
     finally:
         conn.execute("COMMIT")
-    return {"snapshot": snapshot, "cursor": cursor, "log_id": log_id(conn), "server_time": now}
+    return {
+        "snapshot": snapshot,
+        "cursor": cursor,
+        "log_id": log_id(conn),
+        "server_time": now,
+        # Reference data the server owns, not part of the log (FR-RES-20). Every device gets the
+        # current list, so the reservation form and a scanning session can suggest it offline.
+        "calendar_events": calendars.upcoming_events(conn),
+    }
 
 
 def push(conn: sqlite3.Connection, principal: Principal, body: Any, now: int | None = None) -> dict[str, Any]:
@@ -294,4 +302,6 @@ def pull(
         "cursor": page[-1].seq if page else cursor,
         "log_id": log_id(conn),
         "server_time": now,
+        # Refreshed hourly on the server; a pull every 30 s keeps a device's copy close to that (FR-RES-20).
+        "calendar_events": calendars.upcoming_events(conn),
     }
