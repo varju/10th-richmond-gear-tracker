@@ -146,6 +146,7 @@ test("someone else's gear offers a transfer, which names the check-out it replac
     holder_id: "carol",
     event: "Cub camp",
     supersedes: first.id,
+    reservation_id: null,
   });
   expect(item(store.state, tent)).toMatchObject({
     status: "out",

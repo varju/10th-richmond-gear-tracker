@@ -51,6 +51,13 @@ test("a transfer names the check-out it replaces", async () => {
   expect(item(store.state, tent)?.conflicts).toBeUndefined();
 });
 
+test("a transfer carries the reservation it packs, like a check-out (FR-RES-22)", async () => {
+  await mv.checkOut(store, tent, { event: "Spring Camp" });
+  await store.setMeta({ user: { id: "carol", name: "Carol", role: "user", active: true } });
+  await mv.transfer(store, tent, { event: "Fall Camp", reservation_id: "r-fall" });
+  expect(item(store.state, tent)?.movement).toMatchObject({ event: "Fall Camp", reservation_id: "r-fall" });
+});
+
 test("the wrong direction is refused, and so is retired gear", async () => {
   await expect(mv.checkIn(store, tent)).rejects.toThrow("already in");
   await expect(mv.transfer(store, tent)).rejects.toThrow("not out");

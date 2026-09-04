@@ -23,8 +23,9 @@ Reservations list.
 - Each scan ticks an item off the list
 - The remaining list is always visible, packed lines hidden until asked for
 - Nothing is checked out unless it is scanned, or ticked off the list if it has no sticker
+- A stove never returned from Spring Camp shows who has it; one tap transfers it and ticks it off
 
-Covers: FR-RES-02, FR-RES-03, FR-RES-21
+Covers: FR-RES-02, FR-RES-03, FR-RES-21, FR-RES-22
 
 ## S-RES-03 Leave something behind
 

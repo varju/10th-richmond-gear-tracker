@@ -138,7 +138,11 @@ export async function recount(store: Store, itemId: string, count: number, reaso
   return move(store, itemId, "recounted", { count, reason: why });
 }
 
-/** Take something someone else has (FR-OUT-12). Names the check-out it replaces, so replay knows it is not a conflict. */
+/**
+ * Take something someone else has (FR-OUT-12). Names the check-out it replaces, so replay knows it
+ * is not a conflict. Carries the reservation like a check-out does: gear never returned from the
+ * last trip is packed for this one by transfer (FR-RES-22).
+ */
 export async function transfer(store: Store, itemId: string, options: MoveOptions = {}) {
   const it = current(store, itemId);
   if (it.retired) throw new Error("retired items cannot be checked out");
@@ -149,7 +153,12 @@ export async function transfer(store: Store, itemId: string, options: MoveOption
     store,
     itemId,
     "checked_out",
-    { holder_id: actor(store), event: options.event?.trim() || null, supersedes: previous.id },
+    {
+      holder_id: actor(store),
+      event: options.event?.trim() || null,
+      supersedes: previous.id,
+      reservation_id: options.reservation_id ?? null,
+    },
     options.note,
   );
 }

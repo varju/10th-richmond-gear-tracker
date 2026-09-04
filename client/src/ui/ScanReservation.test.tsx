@@ -9,7 +9,7 @@ import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { unsaved } from "../lib/unsaved";
 import { openStore, printCodes } from "./codeTestKit";
-import { alice, renderInShell, seedUsers } from "./moveTestKit";
+import { alice, carol, renderInShell, seedUsers } from "./moveTestKit";
 import { Scan } from "./Scan";
 
 // Packing for a camp: the session seeded with the reservation (S-RES-02, S-RES-03, S-RES-04).
@@ -22,7 +22,7 @@ let fall: string;
 
 beforeEach(async () => {
   store = await openStore();
-  await seedUsers(store, [alice]);
+  await seedUsers(store, [alice, carol]);
   await printCodes(store, ["AAAAAAAAAA", "BBBBBBBBBB"]);
   const cold = await act.createLocation(store, "Cold locker");
   const warm = await act.createLocation(store, "Warm locker");
@@ -122,6 +122,25 @@ test("a scan ticks an item off; an unlisted one is appended with no fuss (FR-RES
   expect(remaining()).not.toHaveTextContent("✓ Stove");
   await user.click(within(remaining()).getByRole("checkbox", { name: "Show packed" }));
   expect(remaining()).toHaveTextContent("✓ Stove");
+});
+
+test("a line never returned from the last trip names who has it; its tap offers a transfer that packs it (FR-RES-22)", async () => {
+  await store.setMeta({ user: carol });
+  await mv.checkOut(store, tarp, { event: "Spring Camp" });
+  await store.setMeta({ user: alice });
+  renderInShell(<Scan store={store} />);
+  await screen.findByText("Event: Fall Camp");
+  expect(rows().map((b) => b.textContent)).toEqual(["4-person tent #1Cold locker", "TarpOut · Carol"]);
+
+  // Not a check-out that fails: the card, with the transfer on it (FR-OUT-12).
+  await user.click(within(remaining()).getByRole("button", { name: /^Tarp/ }));
+  const card = await screen.findByRole("region", { name: "Tarp" });
+  expect(card).toHaveTextContent("Out · Carol");
+  await user.click(within(card).getByRole("button", { name: "Transfer to me" }));
+  await screen.findByText("Transferred · Tarp");
+  expect(item(store.state, tarp)).toMatchObject({ status: "out", holder_id: "alice" });
+  expect(item(store.state, tarp)?.movement).toMatchObject({ event: "Fall Camp", reservation_id: fall });
+  expect(rows().map((b) => b.textContent)).toEqual(["4-person tent #1Cold locker"]);
 });
 
 test("packed lines are hidden until Show packed is ticked (FR-RES-21)", async () => {

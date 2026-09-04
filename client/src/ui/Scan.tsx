@@ -318,6 +318,7 @@ export function Scan({ store }: { store: Store }) {
             moved.current.set(id, Date.now());
             confirm(`Checked out · ${name}`);
           }}
+          onOut={showCard}
         />
       )}
     </Page>
@@ -329,16 +330,19 @@ export function Scan({ store }: { store: Store }) {
  * A row is a check-out for gear with no sticker (FR-OUT-02). Derived from state,
  * so a scan on another device ticks it here once both have synced. Packed lines
  * are hidden by default; "Show packed" brings them back, ticked, to confirm what
- * went (FR-RES-21).
+ * went (FR-RES-21). A line never returned from the last trip names who has it, and
+ * its tap opens the card, where a transfer is offered (FR-RES-22, FR-OUT-12).
  */
 function RemainingList({
   store,
   booked,
   onMoved,
+  onOut,
 }: {
   store: Store;
   booked: Reservation;
   onMoved: (id: string, name: string) => void;
+  onOut: (id: string) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [showPacked, setShowPacked] = useState(false);
@@ -365,14 +369,23 @@ function RemainingList({
       {isPacked(rem) && <p className="muted">Everything is packed.</p>}
       {rem.items.length > 0 && (
         <ul className="items">
-          {rem.items.map((it) => (
-            <li key={it.id}>
-              <button className="item" type="button" onClick={() => take(it.id, displayName(store.state, it))}>
-                <span className="item-name">{displayName(store.state, it)}</span>
-                <span className="muted small">{homeLabel(store.state, it) || "No home"}</span>
-              </button>
-            </li>
-          ))}
+          {rem.items.map((it) => {
+            const out = it.status === "out";
+            return (
+              <li key={it.id}>
+                <button
+                  className="item"
+                  type="button"
+                  onClick={() => (out ? onOut(it.id) : take(it.id, displayName(store.state, it)))}
+                >
+                  <span className="item-name">{displayName(store.state, it)}</span>
+                  <span className="muted small">
+                    {out ? statusLabel(store.state, it) : homeLabel(store.state, it) || "No home"}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
       {rem.generics.length > 0 && (
