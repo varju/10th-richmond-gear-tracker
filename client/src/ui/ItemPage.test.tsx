@@ -506,12 +506,13 @@ test("a generic with one unit becomes a single item again, in two taps (FR-INV-3
   expect(item(store.state, tents)?.merged_into).toBe(unit);
 });
 
-test("making a generic single is offered only with exactly one unit that is in (FR-INV-33)", async () => {
+test("making a generic single is offered with no units, or exactly one that is in (FR-INV-33, FR-INV-39)", async () => {
   const tents = await act.createGeneric(store, { name: "4-person tent" });
   navigate(`/items/${tents}`);
   renderInShell(<ItemPage store={store} id={tents} />);
   const makeSingleBtn = () => screen.queryByRole("button", { name: "Make this a single item…" });
-  expect(makeSingleBtn()).not.toBeInTheDocument();
+  // No units at all: nothing to fall back on, so a fresh item is offered instead (FR-INV-39).
+  await waitFor(() => expect(makeSingleBtn()).toBeInTheDocument());
 
   const u1 = await act.addUnit(store, tents);
   await waitFor(() => expect(makeSingleBtn()).toBeInTheDocument());
@@ -526,6 +527,50 @@ test("making a generic single is offered only with exactly one unit that is in (
   // Out from under someone is not reshaped.
   await mv.checkOut(store, u2, { event: "Fall Camp" });
   await waitFor(() => expect(makeSingleBtn()).not.toBeInTheDocument());
+});
+
+test("a generic with no units becomes a fresh single item, folding the generic into it (FR-INV-39)", async () => {
+  const tents = await act.createGeneric(store, { name: "4-person tent", description: "green" });
+  navigate(`/items/${tents}`);
+  renderInShell(<ItemPage store={store} id={tents} />);
+
+  await user.click(screen.getByRole("button", { name: "Make this a single item…" }));
+  await user.click(screen.getByRole("button", { name: "Really make it a single item?" }));
+
+  await waitFor(() => expect(location.pathname).not.toBe(`/items/${tents}`));
+  const newId = location.pathname.split("/").at(-1)!;
+  expect(item(store.state, newId)).toMatchObject({ name: "4-person tent", description: "green" });
+  expect(item(store.state, newId)?.generic).toBeFalsy();
+  expect(item(store.state, newId)?.parent_id).toBeFalsy();
+  expect(item(store.state, tents)?.merged_into).toBe(newId);
+});
+
+test("a generic with no units becomes a counted pool, folding the generic into it (FR-INV-40)", async () => {
+  const tents = await act.createGeneric(store, { name: "4-person tent", description: "green" });
+  navigate(`/items/${tents}`);
+  renderInShell(<ItemPage store={store} id={tents} />);
+
+  const quantity = screen.getByLabelText("How many");
+  await user.clear(quantity);
+  await user.type(quantity, "6");
+  await user.click(screen.getByRole("button", { name: "Make this a counted stack…" }));
+  await user.click(screen.getByRole("button", { name: "Really make it a counted stack?" }));
+
+  await waitFor(() => expect(location.pathname).not.toBe(`/items/${tents}`));
+  const poolId = location.pathname.split("/").at(-1)!;
+  expect(item(store.state, poolId)).toMatchObject({ name: "4-person tent", pool: true, pool_in: 6 });
+  expect(item(store.state, tents)?.merged_into).toBe(poolId);
+});
+
+test("a generic with units offers neither conversion (FR-INV-33, FR-INV-39, FR-INV-40)", async () => {
+  const tents = await act.createGeneric(store, { name: "4-person tent" });
+  await act.addUnit(store, tents);
+  await act.addUnit(store, tents);
+  navigate(`/items/${tents}`);
+  renderInShell(<ItemPage store={store} id={tents} />);
+
+  expect(screen.queryByRole("button", { name: "Make this a single item…" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Make this a counted stack…" })).not.toBeInTheDocument();
 });
 
 test("a group of two needs two different numbers (FR-INV-23, FR-INV-30)", async () => {

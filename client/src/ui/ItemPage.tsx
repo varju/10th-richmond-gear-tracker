@@ -464,9 +464,10 @@ function MarkMissing({ store, it, onDone }: { store: Store; it: Item; onDone: ()
 }
 
 /**
- * A single item becomes a counted stack (FR-INV-34), the way it becomes a
- * generic (FR-INV-26). Two taps, like "Make this a single item…": the first
- * sets how many, the second does it.
+ * A single item, or a generic with no units (FR-INV-40), becomes a counted
+ * stack (FR-INV-34), the way a single item becomes a generic (FR-INV-26).
+ * Two taps, like "Make this a single item…": the first sets how many, the
+ * second does it.
  */
 function MakePool({ store, it }: { store: Store; it: Item }) {
   const [asked, setAsked] = useState(false);
@@ -1406,9 +1407,9 @@ function GenericPage({
   const [confirmSingle, setConfirmSingle] = useState(false);
   const units = unitsOf(state, it.id);
   const live = units.filter((u) => !u.retired);
-  // Only when there is exactly one unit to fall back to, and it is not out
-  // from under someone (the same guard mergeItem uses for its duplicate).
-  const canMakeSingle = units.length === 1 && !it.retired && units[0]!.status === "in";
+  // One unit to fall back to (FR-INV-33), not out from under someone (the
+  // same guard mergeItem uses for its duplicate), or none at all (FR-INV-39).
+  const canMakeSingle = !it.retired && (units.length === 0 || (units.length === 1 && units[0]!.status === "in"));
 
   async function add() {
     try {
@@ -1450,6 +1451,7 @@ function GenericPage({
               {confirmSingle ? "Really make it a single item?" : "Make this a single item…"}
             </button>
           )}
+          {units.length === 0 && !it.retired && <MakePool store={store} it={it} />}
         </>
       }
     >

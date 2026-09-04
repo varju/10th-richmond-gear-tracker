@@ -408,7 +408,9 @@ forging events, so the pointer stays and readers follow it.
 What follows the pointer: a sticker on the duplicate opens the survivor; the survivor's history and repair tickets
 include the duplicate's; a reservation that named the duplicate packs the survivor; the list hides the duplicate; and
 the server refuses to check the duplicate out. What does not: notes stay on the duplicate's page, which is still
-reachable and says where it went. Only an Admin merges, and only an item that is in. Unmerging is another
+reachable and says where it went. Only an Admin merges two records, and only an item that is in. A fold that changes one
+record's kind writes the same pointer and is open to anyone: a single item into a new pool (FR-INV-34), or a generic
+with nothing left under it into a single item or a pool (FR-INV-33, FR-INV-39, FR-INV-40). Unmerging is another
 `field_changed`, setting `merged_into` back to null, offered on both pages: the survivor lists what was merged into it,
 one line each, with the way back beside it.
 

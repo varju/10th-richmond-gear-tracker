@@ -159,6 +159,32 @@ def _is_pool(conn: sqlite3.Connection, item_id: Any) -> bool:
     return bool(item and item.get("pool"))
 
 
+def _has_units(conn: sqlite3.Connection, generic_id: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM entities WHERE entity_type = 'item' AND json_extract(state, '$.parent_id') = ? LIMIT 1",
+        (generic_id,),
+    ).fetchone()
+    return row is not None
+
+
+def _is_fold(conn: sqlite3.Connection, source_id: Any, target_id: Any) -> bool:
+    """Whether a merge only reshapes one thing, which anyone may do, rather than saying two records
+    are one thing, which an Admin does (FR-INV-13).
+
+    A fold is what the device writes to change an item's kind: a single item becomes a pool
+    (FR-INV-34), or a generic with nothing left under it becomes a single item or a pool
+    (FR-INV-33, FR-INV-39, FR-INV-40). The generic's last unit has already left it by the time its
+    `merged_into` arrives, so "nothing under it" is the whole test for a generic.
+    """
+    if not isinstance(source_id, str) or not isinstance(target_id, str):
+        return False
+    source = derived.get_entity(conn, "item", source_id) or {}
+    if source.get("generic"):
+        return not _has_units(conn, source_id)
+    target = derived.get_entity(conn, "item", target_id) or {}
+    return bool(target.get("pool"))
+
+
 def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming: dict[str, Any]) -> None:
     """What a device may not do, whatever it says. Field checks happen later, in events.validate."""
     entity_type, kind = incoming.get("entity_type"), incoming.get("type")
@@ -181,7 +207,11 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
         value = payload.get("value") if isinstance(payload, dict) else None
         if field == "parent_id" and _is_pool(conn, value):
             raise Rejected("a pool has no units (FR-INV-34)")
-        if field == "merged_into" and principal.role != "admin":
+        if (
+            field == "merged_into"
+            and principal.role != "admin"
+            and not _is_fold(conn, incoming.get("entity_id"), value)
+        ):
             raise Rejected("items are merged by an Admin (FR-INV-13)")
     if entity_type == "item" and kind == "created":
         payload = incoming.get("payload")

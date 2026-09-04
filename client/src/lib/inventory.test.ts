@@ -270,10 +270,10 @@ test("makeSingle keeps the unit's own home over the generic's default (FR-INV-29
   expect(inv.item(store.state, u1)).toMatchObject({ home_location_id: f.warm, sub_location: "shelf 9" });
 });
 
-test("makeSingle needs a generic, unmerged, with exactly one unit that is in (FR-INV-33)", async () => {
+test("makeSingle needs a generic, unmerged, with no more than one unit that is in (FR-INV-33, FR-INV-39)", async () => {
   const f = await withUnits();
   await expect(act.makeSingle(store, f.t1)).rejects.toThrow("not a generic item");
-  await expect(act.makeSingle(store, f.tents)).rejects.toThrow("needs exactly one unit");
+  await expect(act.makeSingle(store, f.tents)).rejects.toThrow("needs no more than one unit");
 
   await act.deleteItem(store, f.u2);
   await act.deleteItem(store, f.u3);
@@ -284,6 +284,51 @@ test("makeSingle needs a generic, unmerged, with exactly one unit that is in (FR
   const unitId = await act.makeSingle(store, f.tents);
   expect(unitId).toBe(f.u1);
   await expect(act.makeSingle(store, f.tents)).rejects.toThrow("already merged");
+});
+
+test("a generic with no units becomes a fresh single item, the reverse of makeGeneric with nothing to fall back on (FR-INV-39)", async () => {
+  const category = await act.createCategory(store, "Tents");
+  const tents = await act.createGeneric(store, {
+    name: "4-person tent, Brand X",
+    description: "green, two poles",
+    category_ids: [category],
+    purchase_date: "2024-03-01",
+  });
+
+  const newId = await act.makeSingle(store, tents);
+
+  const single = inv.item(store.state, newId)!;
+  expect(single).toMatchObject({
+    name: "4-person tent, Brand X",
+    description: "green, two poles",
+    category_ids: [category],
+    purchase_date: "2024-03-01",
+    status: "in",
+  });
+  expect(single.parent_id).toBeFalsy();
+  expect(single.generic).toBeFalsy();
+  // The generic is folded into the new item, like a duplicate record (FR-INV-13).
+  expect(inv.item(store.state, tents)?.merged_into).toBe(newId);
+});
+
+test("a generic with no units becomes a counted pool (FR-INV-40)", async () => {
+  const f = await fixture();
+  const category = await act.createCategory(store, "Tents");
+  const tents = await act.createGeneric(store, {
+    name: "4-person tent, Brand X",
+    home_location_id: f.cold,
+    category_ids: [category],
+  });
+
+  const poolId = await act.makePool(store, tents, 6);
+
+  const pool = inv.item(store.state, poolId)!;
+  expect(pool).toMatchObject({ name: "4-person tent, Brand X", generic: true, pool: true, pool_in: 6, pool_out: {} });
+  expect(inv.item(store.state, tents)?.merged_into).toBe(poolId);
+
+  const withAUnit = await act.createGeneric(store, { name: "Kettle" });
+  await act.addUnit(store, withAUnit);
+  await expect(act.makePool(store, withAUnit, 1)).rejects.toThrow("remove its units first");
 });
 
 test("grouping two singles makes a generic from the picked item's name (FR-INV-30)", async () => {

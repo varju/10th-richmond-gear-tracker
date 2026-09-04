@@ -52,9 +52,12 @@ next one by scanning a fresh code, tapping "Another of…", and picking the name
 
 ## Back to a single item
 
-Open the generic's page and tap "Make this a single item…", then confirm. Works only when one unit is left; it takes the
-generic's name, description, categories and purchase details, and its own home stays if it has one. The generic's page
-still opens, showing where it went.
+Open the generic's page and tap "Make this a single item…", then confirm. Works with one unit left, or none: with one,
+that unit takes the generic's name, description, categories and purchase details, and its own home stays if it has one;
+with none, a fresh item takes them instead. The generic's page still opens, showing where it went.
+
+With no units left, "Make this a counted stack…" is also there: pick a quantity and confirm, and a fresh pool takes the
+generic's name, description, categories and purchase details.
 
 ## Retire an item
 

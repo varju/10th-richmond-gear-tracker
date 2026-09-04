@@ -436,6 +436,51 @@ def test_items_are_merged_by_an_admin(db):
     assert reasons(db, ADMIN, {**merge, "id": new_ulid()}) == []
 
 
+def test_anyone_folds_one_thing_into_a_new_shape(db):
+    """A fold changes an item's kind (FR-INV-33, FR-INV-34, FR-INV-39, FR-INV-40); a merge says two
+    records are one (FR-INV-13). Both write `merged_into`, and only the merge takes an Admin."""
+    push(
+        db,
+        USER,
+        batch(
+            USER,
+            own(USER, type="created", payload={"name": "Bowl"}, device_seq=1),
+            own(
+                USER,
+                entity_id="bowls",
+                type="created",
+                payload={"name": "Bowls", "generic": True, "pool": True, "quantity": 12},
+                device_seq=2,
+            ),
+            own(USER, entity_id="tents", type="created", payload={"name": "Tent", "generic": True}, device_seq=3),
+            own(USER, entity_id="tent-2", type="created", payload={"name": "Tent"}, device_seq=4),
+            own(USER, entity_id="tarps", type="created", payload={"name": "Tarp", "generic": True}, device_seq=5),
+            own(
+                USER,
+                entity_id="tarp-1",
+                type="created",
+                payload={"name": "Tarp", "parent_id": "tarps", "number": "1"},
+                device_seq=6,
+            ),
+        ),
+        now=T0,
+    )
+
+    def fold(source: str, target: str, seq: int) -> dict:
+        return own(
+            USER, entity_id=source, payload={"field": "merged_into", "value": target, "old": None}, device_seq=seq
+        )
+
+    # A single item becomes a counted pool (FR-INV-34).
+    assert reasons(db, USER, fold("tent-1", "bowls", 7)) == []
+    # A generic with nothing under it becomes a single item (FR-INV-39).
+    assert reasons(db, USER, fold("tents", "tent-2", 8)) == []
+    # A generic that still has a unit is not folded: that would be two records of one thing.
+    assert reasons(db, USER, fold("tarps", "tent-2", 9)) == ["items are merged by an Admin (FR-INV-13)"]
+    # Nor is one single item into another.
+    assert reasons(db, USER, fold("tent-2", "tarp-1", 10)) == ["items are merged by an Admin (FR-INV-13)"]
+
+
 def test_devices_bind_codes_but_do_not_make_them(db):
     made = own(ADMIN, entity_type="code", entity_id="ABCDEFGH23", type="created", payload={})
     assert reasons(db, ADMIN, made) == ["codes come from printed sheets"]

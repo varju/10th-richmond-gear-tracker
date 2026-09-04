@@ -178,21 +178,27 @@ export async function makeGeneric(store: Store, id: string, number = "1"): Promi
 }
 
 /**
- * A single item becomes a counted stack (FR-INV-34), the way it becomes a
- * generic (FR-INV-26). A pool has no units of its own, so unlike makeGeneric
- * this item cannot go on being the thing itself: it folds into a fresh pool
- * entity, the way a duplicate record folds into its survivor (FR-INV-13). Its
- * movements and tickets stay reachable through the fold, and its code now
- * opens the pool (FR-TAG-15); nothing in its history is rewritten. It must be
- * in, the same guard mergeItem and makeSingle use.
+ * A single item, or a generic with no units (FR-INV-40), becomes a counted
+ * stack (FR-INV-34), the way a single item becomes a generic (FR-INV-26). A
+ * pool has no units of its own, so this cannot go on being the thing itself:
+ * it folds into a fresh pool entity, the way a duplicate record folds into
+ * its survivor (FR-INV-13). Its movements and tickets (a single item) or its
+ * name and description (an empty generic) stay reachable through the fold,
+ * and a single item's code now opens the pool (FR-TAG-15); nothing in its
+ * history is rewritten. A single item must be in, the same guard mergeItem
+ * and makeSingle use; a generic must have no units left.
  */
 export async function makePool(store: Store, id: string, quantity: number): Promise<string> {
   const it = item(store.state, id);
   if (!it) throw new Error("no such item");
-  if (it.generic) throw new Error("already several");
   if (it.parent_id) throw new Error("this is already one of several");
   if (it.merged_into) throw new Error("already merged");
-  if (it.status !== "in") throw new Error("return it first");
+  if (it.generic) {
+    if (it.pool) throw new Error("already several");
+    if (unitsOf(store.state, id).length) throw new Error("remove its units first");
+  } else if (it.status !== "in") {
+    throw new Error("return it first");
+  }
   if (!Number.isInteger(quantity) || quantity < 1) throw new Error("pick a quantity of at least 1");
   const poolId = await createPool(
     store,
@@ -356,19 +362,21 @@ export async function mergeItem(store: Store, duplicateId: string, survivorId: s
 export const unmergeItem = (store: Store, id: string) => changed(store, "item", id, { merged_into: null });
 
 /**
- * A generic with one unit becomes a single item again (FR-INV-33), the
- * reverse of makeGeneric (FR-INV-26). The unit keeps its id, code and
+ * A generic becomes a single item again, the reverse of makeGeneric
+ * (FR-INV-26). With one unit (FR-INV-33), that unit keeps its id, code and
  * history; takes the generic's name, description, categories and purchase
  * details. Its own home wins when it has one, so a unit already moved off
  * the generic's default is not moved back; otherwise it takes the generic's
  * default home (FR-INV-29). Its number and nickname go, the nickname landing
  * on the end of the description since a single item has no number to carry
- * it. The generic is then folded into the unit, like a duplicate record
- * (FR-INV-13): its photos and record stay readable, and nothing else on it
- * changes.
+ * it. With no units (FR-INV-39), there is nothing to fall back on: a fresh
+ * item takes the generic's name, description, categories and purchase
+ * details instead, with no code yet. Either way the generic is then folded
+ * into the result, like a duplicate record (FR-INV-13): its photos and
+ * record stay readable, and nothing else on it changes.
  *
- * Anyone signed in may do it. The unit must be in, the same guard mergeItem
- * uses, so gear is not reshaped out from under whoever has it.
+ * Anyone signed in may do it. A surviving unit must be in, the same guard
+ * mergeItem uses, so gear is not reshaped out from under whoever has it.
  */
 export async function makeSingle(store: Store, genericId: string): Promise<string> {
   const generic = item(store.state, genericId);
@@ -376,7 +384,19 @@ export async function makeSingle(store: Store, genericId: string): Promise<strin
   if (!generic.generic) throw new Error("not a generic item");
   if (generic.merged_into) throw new Error("already merged");
   const units = unitsOf(store.state, genericId);
-  if (units.length !== 1) throw new Error("needs exactly one unit");
+  if (units.length > 1) throw new Error("needs no more than one unit");
+  if (units.length === 0) {
+    const id = await createItem(store, {
+      name: generic.name ?? "",
+      description: generic.description ?? "",
+      home_location_id: generic.home_location_id ?? null,
+      sub_location: generic.sub_location ?? "",
+      purchase_date: generic.purchase_date ?? null,
+      category_ids: categoriesOf(store.state, generic),
+    });
+    await changed(store, "item", genericId, { merged_into: id });
+    return id;
+  }
   const unit = units[0]!;
   if (unit.status !== "in") throw new Error("return it first");
 
