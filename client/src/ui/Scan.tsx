@@ -203,7 +203,9 @@ export function Scan({ store }: { store: Store }) {
           </button>
         </div>
       )}
-      {!forItem && mode !== "in" && <SessionEvent store={store} booked={booked} />}
+      {/* A same-height placeholder, not a removed row: dropping the row let the viewfinder grow into its space,
+          which changes the crop math mid-session and can lose a sticker the camera has not moved off (FR-OUT-12). */}
+      {!forItem && (mode === "in" ? <div className="session" /> : <SessionEvent store={store} booked={booked} />)}
       <div className={read ? `viewfinder ${read}` : "viewfinder"}>
         <video ref={video} muted playsInline hidden={cameraError !== null} />
         {!cameraError && (!card || read) && <div ref={target} className="target" aria-hidden="true" />}
