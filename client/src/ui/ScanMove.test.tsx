@@ -33,6 +33,8 @@ beforeEach(async () => {
 afterEach(() => {
   unsaved.cancel();
   vi.restoreAllMocks();
+  // @ts-expect-error test-only cleanup of a browser API stubbed per test
+  delete navigator.vibrate;
 });
 
 const user = userEvent.setup();
@@ -93,12 +95,18 @@ test("a moved item is silent for ten seconds, then the same code shows who has i
   await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
   const afterCheckOut = store.pending.length;
 
-  // The camera is still on the sticker; a repeat decode of the item just moved is silent.
+  // The camera is still on the sticker; a repeat decode of the item just moved is ignored, and says so
+  // in amber rather than the green of a read.
+  const buzz = vi.fn();
+  Object.defineProperty(navigator, "vibrate", { value: buzz, configurable: true });
   await typeCode("AAAAAAAAAA");
   await waitFor(() => expect(store.pending.length).toBe(afterCheckOut));
   expect(screen.queryByRole("region")).not.toBeInTheDocument();
+  expect(document.querySelector(".viewfinder")).toHaveClass("ignored");
+  expect(document.querySelector(".viewfinder")).not.toHaveClass("read");
+  expect(buzz).not.toHaveBeenCalled();
 
-  // Ten seconds on, still in Check out, the same code is a scan again: the wrong tent went out, and
+  // Three seconds on, still in Check out, the same code is a scan again: the wrong tent went out, and
   // the way to undo that is to scan it back in (FR-OUT-06 keeps the other direction on the card).
   const later = Date.now() + RESCAN_MS;
   vi.spyOn(Date, "now").mockReturnValue(later);

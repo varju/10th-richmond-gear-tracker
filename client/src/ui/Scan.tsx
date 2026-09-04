@@ -17,7 +17,7 @@ import { Page } from "./Page";
 
 const FLASH_MS = 2000;
 /** How long after a move the same sticker is ignored: long enough to lower the phone, short enough to undo a mistake. */
-export const RESCAN_MS = 10_000;
+export const RESCAN_MS = 3000;
 
 /**
  * The movement session: the camera, full screen, kept running for the whole
@@ -27,7 +27,7 @@ export const RESCAN_MS = 10_000;
  * and is bound here (FR-TAG-04). With ?reservation=<id> the session is seeded
  * with that reservation's gear (FR-RES-02). ?mode=out or ?mode=in sets which
  * move is expected; a scan that disagrees warns instead of switching the mode
- * for you (FR-OUT-12). An item just moved is not shown again for ten seconds,
+ * for you (FR-OUT-12). An item just moved is not shown again for three seconds,
  * since the camera is still on the sticker when the card closes. After that a
  * rescan shows it again, so a wrong check-out is undone by scanning it back in.
  */
@@ -80,17 +80,23 @@ export function Scan({ store }: { store: Store }) {
       if (!id) return say("Not a gear code");
       const status = codeStatus(store.state, id);
       if (status === "unknown") return say("Not one of our codes");
-      confirmRead();
-      flashRead("read");
       if (!forItem) {
-        if (status === "unassigned") return navigate(`/g/${id}`);
+        if (status === "unassigned") {
+          confirmRead();
+          return navigate(`/g/${id}`);
+        }
         const bound = codeOf(store.state, id)?.item_id;
         const itemId = bound ? resolveItem(store.state, bound) : null;
         const movedAt = itemId ? moved.current.get(itemId) : undefined;
-        if (movedAt !== undefined && Date.now() - movedAt < RESCAN_MS) return;
+        // The camera is still on the sticker just moved: no buzz, and the target goes amber, not green.
+        if (movedAt !== undefined && Date.now() - movedAt < RESCAN_MS) return flashRead("ignored");
+        confirmRead();
+        flashRead("read");
         if (itemId) await seen(store, itemId);
         return showCard(itemId);
       }
+      confirmRead();
+      flashRead("read");
       if (status !== "unassigned") {
         const owner = resolveItem(store.state, codeOf(store.state, id)?.item_id ?? "");
         return say(`That code is already on ${nameOf(store.state, owner)}`);
@@ -198,7 +204,7 @@ export function Scan({ store }: { store: Store }) {
         </div>
       )}
       {!forItem && mode !== "in" && <SessionEvent store={store} booked={booked} />}
-      <div className={read ? "viewfinder read" : "viewfinder"}>
+      <div className={read ? `viewfinder ${read}` : "viewfinder"}>
         <video ref={video} muted playsInline hidden={cameraError !== null} />
         {!cameraError && (!card || read) && <div ref={target} className="target" aria-hidden="true" />}
         {cameraError ? (

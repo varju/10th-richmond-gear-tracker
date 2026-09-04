@@ -254,6 +254,11 @@ main:has(> .viewfinder) {
   box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5);
 }
 
+/* A rescan of the item just moved: seen, and ignored on purpose. Amber, no dim, no buzz. */
+.viewfinder.ignored .target {
+  border-color: var(--warn);
+}
+
 .scan-hint,
 .scan-flash,
 .scan-error {
