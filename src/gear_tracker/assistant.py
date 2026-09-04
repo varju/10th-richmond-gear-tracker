@@ -26,7 +26,7 @@ server refuses a count on anything else and refuses a pool without one. `get_ite
 reports owned, in, and out by holder in place of units and a code (FR-INV-36, FR-MCP-08).
 
 **An Admin's token unlocks an Admin's work** (FR-MCP-10): users, standing join links, mail, group
-settings, locations, categories (adding one is anyone's job), printed codes,
+settings, calendar feeds, locations, categories (adding one is anyone's job), printed codes,
 CSV export and import, deleting an item, and merging or unmerging duplicates. Every one of those tools calls
 the same accounts.py, mail.py, codes.py or inventory_csv.py function the app's
 own endpoint calls, so a User's token is refused the same way the app refuses
@@ -59,7 +59,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.types import Receive, Scope, Send
 
-from gear_tracker import accounts, codes, derived, inventory_csv, labels, mail, sync, views
+from gear_tracker import accounts, calendars, codes, derived, inventory_csv, labels, mail, sync, views
 from gear_tracker import conflicts as clashes
 from gear_tracker.db import connect
 from gear_tracker.errors import ApiError, BadRequest, Conflict, NotFound
@@ -79,7 +79,7 @@ HISTORY_SHOWN = 10
 INSTRUCTIONS = """Gear Tracker holds a Scout group's gear: what we own, where it lives, who has it,
 and what needs fixing. Search before you write, and use the ids the read tools
 return. Everything you write is recorded as the signed-in person, through the
-assistant. Users, standing join links, mail, group settings, locations, renaming or deleting
+assistant. Users, standing join links, mail, group settings, calendar feeds, locations, renaming or deleting
 categories, printed codes, CSV import, deleting an item, and merging duplicates
 are an Admin's job in the app, and are here too when the signed-in person is an Admin; a User's token is
 refused the same way the app refuses a User. A pool is gear kept as a counted stack, not named
@@ -1347,6 +1347,31 @@ def set_group(fields: GroupFields) -> dict[str, Any]:
         return get_group()
 
 
+def list_calendar_feeds() -> dict[str, Any]:
+    """Feeds an Admin has added, with a redacted URL (FR-RES-20, NFR-SEC-10). Admins only."""
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        return {"feeds": calendars.list_feeds(conn)}
+
+
+def add_calendar_feed(url: calendars.FeedUrl, label: calendars.FeedLabel = "") -> dict[str, Any]:
+    """Add an ICS feed and fetch it once right away, so a bad URL shows up immediately (FR-RES-20). Admins only.
+
+    The URL is checked in the argument model, so a refused one keeps its reason (see `_reported`).
+    """
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        return {"feed": calendars.add_feed(conn, calendars.FeedInput(url=url, label=label))}
+
+
+def remove_calendar_feed(feed_id: str) -> dict[str, Any]:
+    """Admins only."""
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        calendars.remove_feed(conn, feed_id)
+        return {"feed_id": feed_id, "deleted": True}
+
+
 def add_location(name: str) -> dict[str, Any]:
     """Add a place gear can call home (FR-SET-02). Admins only."""
     with _open() as (conn, who):
@@ -1535,6 +1560,9 @@ TOOLS = [
     send_test_mail,
     get_group,
     set_group,
+    list_calendar_feeds,
+    add_calendar_feed,
+    remove_calendar_feed,
     add_location,
     rename_location,
     delete_location,

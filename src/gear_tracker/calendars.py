@@ -56,11 +56,12 @@ ZONE = ZoneInfo("America/Vancouver")
 """Where the group is (NFR-DATA-12). A day off the calendar is a day here, not UTC."""
 
 FeedUrl = Annotated[str, StringConstraints(min_length=1, max_length=2000, pattern=r"^https?://")]
+FeedLabel = Annotated[str, StringConstraints(max_length=200)]
 
 
 class FeedInput(Strict):
     url: FeedUrl
-    label: Annotated[str, StringConstraints(max_length=200)] = ""
+    label: FeedLabel = ""
 
 
 def redact(url: str) -> str:

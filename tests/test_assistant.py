@@ -323,6 +323,11 @@ def test_update_user_refuses_a_bad_email():
         _arg_model("update_user").model_validate({"user_id": "x", "fields": {"email": "not-an-email"}})
 
 
+def test_add_calendar_feed_refuses_a_url_that_is_not_http():
+    with pytest.raises(pydantic.ValidationError):
+        _arg_model("add_calendar_feed").model_validate({"url": "ftp://example.org/feed.ics"})
+
+
 def test_recount_refuses_a_float_count():
     with pytest.raises(pydantic.ValidationError):
         _arg_model("recount").model_validate({"item_id": "x", "count": 2.0, "reason": "shelf check"})
@@ -898,6 +903,10 @@ def test_admin_tools_refuse_a_user_the_same_way_the_app_does(tools):
     with pytest.raises(Forbidden):
         assistant.update_user(ALICE, accounts.UserEdit(name="Not Alice"))
     with pytest.raises(Forbidden):
+        assistant.list_calendar_feeds()
+    with pytest.raises(Forbidden):
+        assistant.add_calendar_feed("https://example.org/feed.ics")
+    with pytest.raises(Forbidden):
         assistant.add_location("Trailer")
     with pytest.raises(Forbidden):
         assistant.delete_location(tools["warm"])
@@ -1063,6 +1072,27 @@ def test_an_admin_changes_group_settings(admin_tools):
     changed = assistant.set_group(assistant.GroupFields(overdue_days=14))
     assert changed["overdue_days"] == 14
     assert changed["name"] == "10th Richmond"  # untouched
+
+
+def test_an_admin_manages_calendar_feeds(admin_tools):
+    assert assistant.list_calendar_feeds() == {"feeds": []}
+
+    # Port 1 refuses the connection right away, so the feed's own fetch failure is exercised
+    # without a real ICS server (calendars.py already covers a successful fetch).
+    added = assistant.add_calendar_feed("http://127.0.0.1:1/feed.ics", label="Troop")
+    feed = added["feed"]
+    assert feed["label"] == "Troop"
+    assert feed["url_redacted"] == "http://127.0.0.1:1/feed.ics"
+    assert feed["last_error"]
+
+    assert assistant.list_calendar_feeds() == {"feeds": [feed]}
+
+    removed = assistant.remove_calendar_feed(feed["id"])
+    assert removed == {"feed_id": feed["id"], "deleted": True}
+    assert assistant.list_calendar_feeds() == {"feeds": []}
+
+    with pytest.raises(NotFound):
+        assistant.remove_calendar_feed(feed["id"])
 
 
 def test_an_invite_link_is_built_from_the_group_site_address_once_it_is_set(admin_tools):
