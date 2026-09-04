@@ -99,7 +99,7 @@ export function ItemPage({ store, id }: Props) {
 
   if (it.deleted) {
     // A record made in error, gone from every list (FR-INV-32). Its page stays
-    // readable so an old sticker and an old reference still name it.
+    // readable so an old reference still names it; its codes were released.
     return (
       <Page title="Item" back="/">
         <h2 className="item-title">

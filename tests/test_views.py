@@ -7,6 +7,7 @@ from __future__ import annotations
 from gear_tracker.views import (
     DAY_MS,
     category_blockers,
+    codes_for,
     current_code,
     has_gear_out,
     is_pool,
@@ -241,7 +242,22 @@ def test_rows_gives_a_pool_its_own_kind_and_counts_with_no_units():
     assert "units" not in row
 
 
-# --- current_code: a tie on bound_at ------------------------------------------------------
+# --- codes_for and current_code -----------------------------------------------------------
+
+
+def test_codes_for_lists_the_current_code_first_and_skips_released_ones():
+    state = {
+        "item": {"stove": {"name": "Camp stove"}, "dup": {"name": "Stove", "merged_into": "stove"}},
+        "code": {
+            "AAAAAAAAAA": {"item_id": "stove", "bound_at": 1000},
+            "BBBBBBBBBB": {"item_id": "dup", "bound_at": 2000},
+            "CCCCCCCCCC": {"item_id": None, "bound_at": 3000},
+            "DDDDDDDDDD": {"item_id": "other", "bound_at": 4000},
+        },
+    }
+    assert codes_for(state, "stove") == ["BBBBBBBBBB", "AAAAAAAAAA"]
+    assert codes_for(state, "other") == ["DDDDDDDDDD"]
+    assert codes_for(state, "dup") == []
 
 
 def test_current_code_breaks_a_tie_on_bound_at_by_the_larger_id():

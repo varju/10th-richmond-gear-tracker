@@ -96,13 +96,14 @@ test("the code screen steps aside, so back from what it opens returns to the sca
   expect(location.pathname).toBe("/scan");
 });
 
-test("a code on a deleted item still opens the item, which says so (FR-INV-32)", async () => {
+test("a code on a deleted item is unassigned again and offers create-or-bind (FR-INV-32, FR-TAG-14)", async () => {
   const tent = await act.createItem(store, { name: "Tent" });
   await act.bindCode(store, "AAAAAAAAAA", tent);
   await act.deleteItem(store, tent);
   navigate("/g/AAAAAAAAAA");
   render(<CodeLanding store={store} code="AAAAAAAAAA" />);
-  // The code binds once, so it stays on the item; the item page carries the notice.
-  await waitFor(() => expect(location.pathname).toBe(`/items/${tent}`));
-  expect(inv.codeStatus(store.state, "AAAAAAAAAA")).toBe("assigned");
+  // Deleting released the code, so the sticker is free for the item that is real.
+  expect(inv.codeStatus(store.state, "AAAAAAAAAA")).toBe("unassigned");
+  expect(screen.getByRole("heading", { name: "New code" })).toBeInTheDocument();
+  expect(location.pathname).toBe("/g/AAAAAAAAAA");
 });

@@ -597,6 +597,19 @@ test("a deleted item leaves every list, and its record still names it (FR-INV-32
   expect(inv.nameOf(store.state, f.t1)).toBe("Tent 1");
 });
 
+test("deleting an item releases its codes, current and replaced (FR-INV-32, FR-TAG-14)", async () => {
+  const f = await fixture();
+  await act.bindCode(store, "ABCDEFGH23", f.t1);
+  await act.bindCode(store, "BCDEFGHJ34", f.t1);
+  await act.deleteItem(store, f.t1);
+  expect(inv.codesFor(store.state, f.t1)).toEqual([]);
+  expect(inv.codeStatus(store.state, "ABCDEFGH23")).toBe("unassigned");
+  expect(inv.codeStatus(store.state, "BCDEFGHJ34")).toBe("unassigned");
+  // The sticker goes on the item that is real.
+  await act.bindCode(store, "BCDEFGHJ34", f.t2);
+  expect(inv.currentCode(store.state, f.t2)?.id).toBe("BCDEFGHJ34");
+});
+
 test("a deleted unit leaves its generic's row and does not retire it (FR-INV-32)", async () => {
   const f = await withUnits();
   await act.deleteItem(store, f.u1);

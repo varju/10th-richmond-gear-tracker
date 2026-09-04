@@ -83,20 +83,24 @@ def aliases(state: State, item_id: str) -> list[str]:
     return found
 
 
-def current_code(state: State, item_id: str) -> str | None:
-    """The code bound last (highest `bound_at`) that resolves, through merges, to this item.
+def codes_for(state: State, item_id: str) -> list[str]:
+    """Every code that resolves, through merges, to this item: the one bound last first, so the
+    first is its current code and the rest are replaced (FR-TAG-05).
 
-    A released code (FR-TAG-14) has no `item_id` and is never the answer. Two codes bound in the
-    same millisecond are broken by id, the larger winning. Mirrors currentCode in inventory.ts."""
-    best_code, best_at = None, -1
+    A released code (FR-TAG-14) has no `item_id` and is never listed. Two codes bound in the same
+    millisecond are ordered by id, the larger first. Mirrors codesFor in inventory.ts."""
+    found: list[tuple[int, str]] = []
     for code_id, fields in (state.get("code") or {}).items():
         bound_item = fields.get("item_id")
         if bound_item is None or resolve_item(state, bound_item) != item_id:
             continue
-        bound_at = fields.get("bound_at") or 0
-        if bound_at > best_at or (bound_at == best_at and (best_code is None or code_id > best_code)):
-            best_code, best_at = code_id, bound_at
-    return best_code
+        found.append((fields.get("bound_at") or 0, code_id))
+    return [code_id for _, code_id in sorted(found, reverse=True)]
+
+
+def current_code(state: State, item_id: str) -> str | None:
+    """The code bound last that resolves to this item. Mirrors currentCode in inventory.ts."""
+    return next(iter(codes_for(state, item_id)), None)
 
 
 def number_key(it: Fields) -> tuple[int, int, str]:

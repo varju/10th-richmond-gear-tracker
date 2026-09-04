@@ -261,6 +261,9 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
             # A pool takes a code on its container (FR-TAG-15); a generic with units still does not (FR-INV-21).
             if target.get("generic") and not target.get("pool"):
                 raise Rejected("a generic item takes no code; put it on a unit (FR-INV-21)")
+            # Deleting released its codes (FR-INV-32); a stale device does not put one back.
+            if target.get("deleted"):
+                raise Rejected("this item was deleted")
         if kind == "code_released":
             code = derived.get_entity(conn, "code", str(incoming.get("entity_id")))
             if code is None:

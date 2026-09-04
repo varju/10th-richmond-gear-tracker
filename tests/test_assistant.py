@@ -547,10 +547,30 @@ def test_deleting_merging_and_unmerging_are_admin_only(tools):
 
 def test_an_admin_deletes_an_item_that_is_in(db_path, admin_tools):
     deleted = assistant.delete_item(admin_tools["stove"])
-    assert deleted == {"item_id": admin_tools["stove"], "deleted": True}
+    assert deleted == {"item_id": admin_tools["stove"], "deleted": True, "released_codes": []}
     assert entity(db_path, "item", admin_tools["stove"])["deleted"] is True
     with pytest.raises(NotFound):
         assistant.get_item(admin_tools["stove"])
+
+
+def test_deleting_an_item_releases_its_codes(db_path, admin_tools):
+    """The record was made in error, so its stickers are free to go on the real one (FR-INV-32, FR-TAG-14)."""
+    stove = admin_tools["stove"]
+    with open_db(db_path) as conn:
+        for code in ("ABCDEFGH23", "BCDEFGHJ34"):
+            events.append_server(conn, ALICE, "code", code, "created", {})
+            events.append_server(conn, ALICE, "code", code, "code_bound", {"item_id": stove})
+
+    deleted = assistant.delete_item(stove)
+    assert deleted["released_codes"] == ["BCDEFGHJ34", "ABCDEFGH23"]
+    for code in ("ABCDEFGH23", "BCDEFGHJ34"):
+        assert entity(db_path, "code", code)["item_id"] is None
+
+    # Free again: the current code and the replaced one both go on the item that is real.
+    assistant.assign_code("ABCDEFGH23", admin_tools["t1"])
+    assert entity(db_path, "code", "ABCDEFGH23")["item_id"] == admin_tools["t1"]
+    with pytest.raises(NotFound):
+        assistant.assign_code("BCDEFGHJ34", stove)
 
 
 def test_an_item_that_is_out_cannot_be_deleted(admin_tools):

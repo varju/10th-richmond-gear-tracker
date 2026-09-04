@@ -957,7 +957,8 @@ def delete_item(item_id: str) -> dict[str, Any]:
     """Take a record made in error off every list, for good (FR-INV-32). Admins only.
 
     Only an item with nothing out, and a generic only once it has no units. Retire is
-    for gear written off; this is for a duplicate that was never real.
+    for gear written off; this is for a duplicate that was never real. Its codes go back
+    to unassigned (FR-TAG-14), so the stickers can go on the item that is real.
     """
     with _open() as (conn, who):
         accounts._require_admin(who)
@@ -969,8 +970,11 @@ def delete_item(item_id: str) -> dict[str, Any]:
             raise BadRequest("return it first")
         if it.get("generic") and views.units_of(state, item_id):
             raise BadRequest("delete its units first")
-        _push(conn, who, [_draft("item", item_id, "field_changed", {"field": "deleted", "value": True, "old": None})])
-        return {"item_id": item_id, "deleted": True}
+        released = views.codes_for(state, item_id)
+        drafts = [_draft("code", code_id, "code_released", {}) for code_id in released]
+        drafts.append(_draft("item", item_id, "field_changed", {"field": "deleted", "value": True, "old": None}))
+        _push(conn, who, drafts)
+        return {"item_id": item_id, "deleted": True, "released_codes": released}
 
 
 def merge_items(duplicate_id: str, survivor_id: str) -> dict[str, Any]:

@@ -9,6 +9,7 @@ import {
   categories,
   categoriesOf,
   categoryBlockers,
+  codesFor,
   displayName,
   type Item,
   item,
@@ -258,9 +259,10 @@ export const unretireItem = (store: Store, id: string) => changed(store, "item",
 
 /**
  * A record made in error, off every list for good (FR-INV-32). One field on the
- * item, like a location's `deleted`: the events stay in the log, the sticker
- * stays bound, and nothing in the app brings it back. Retire (FR-INV-04) is the
- * one for gear written off.
+ * item, like a location's `deleted`: the events stay in the log and nothing in
+ * the app brings it back. Its codes are released (FR-TAG-14), so a sticker
+ * scanned later offers create-or-bind instead of a dead record. Retire
+ * (FR-INV-04) is the one for gear written off.
  *
  * Admins only, and only an item that is in. A generic goes after its units, so
  * nothing is left pointing at a name that is gone.
@@ -272,6 +274,7 @@ export async function deleteItem(store: Store, id: string): Promise<void> {
   if (it.merged_into) throw new Error("this item was merged into another");
   if (it.status === "out") throw new Error("return it first");
   if (it.generic && unitsOf(store.state, id).length) throw new Error("delete its units first");
+  for (const code of codesFor(store.state, id)) await releaseCode(store, code.id);
   await changed(store, "item", id, { deleted: true });
 }
 
@@ -436,6 +439,17 @@ export async function bindCode(store: Store, codeId: string, itemId: string): Pr
     type: "code_bound",
     actor_id: actor(store),
     payload: { item_id: itemId },
+  });
+}
+
+/** Take a code off its item, on purpose, back to unassigned (FR-TAG-14). The sticker is already off the gear. */
+export async function releaseCode(store: Store, codeId: string): Promise<void> {
+  await store.record({
+    entity_type: "code",
+    entity_id: codeId,
+    type: "code_released",
+    actor_id: actor(store),
+    payload: {},
   });
 }
 

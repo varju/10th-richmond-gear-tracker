@@ -338,8 +338,9 @@ Neither has happened.
 Items and locations are entities on the same log as everything else: `created` once, then one `field_changed` per edit,
 with the old value kept. Retiring an item is a field, `retired`, so the item and its history stay (FR-INV-04). Deleting
 one is another field, `deleted`, written by an Admin for a record made in error (FR-INV-32): it hides the item
-everywhere, including from "show retired", and the app offers no way back. The log and the photo files stay, and so does
-the sticker, because a code binds once; scanning it opens a page that says the item was deleted.
+everywhere, including from "show retired", and the app offers no way back. The log and the photo files stay. Its codes
+are released in the same push (FR-TAG-14), so the stickers are free for the item that is real, and the server refuses to
+bind a code to a deleted item after that.
 
 **Generic items and units are both items.** A generic has `generic: true` and no code; a unit has `parent_id` and a
 `number` unique under that parent, and no name unless a nickname is set. Display name is derived: the parent's name, the
@@ -586,7 +587,7 @@ resolves correctly.
 
 A fourth move, releasing, takes an assigned or replaced code deliberately back to unassigned (FR-TAG-14): the sticker is
 off the gear, and the printed code is free to go on something else. Unlike a replace, nothing else takes its place on
-the item.
+the item. Deleting an item (FR-INV-32) releases every code on it.
 
 **Keep the URL short.** Length costs physical module size, which is what survives a scuffed sticker in a dim locker. In
 a 0.95in printed box including the quiet zone, at error correction M:

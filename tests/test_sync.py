@@ -549,6 +549,11 @@ def test_items_are_deleted_by_an_admin_and_then_cannot_move(db):
     back = own(ADMIN, type="checked_in", payload={}, device_seq=4)
     assert reasons(db, ADMIN, back) == ["this item was deleted"]
 
+    # Deleting released its codes; a phone that missed that does not bind one back on.
+    events.append_server(db, "alice", "code", "ABCDEFGH23", "created", {}, now=T0)
+    bind = own(ADMIN, entity_type="code", entity_id="ABCDEFGH23", type="code_bound", payload={"item_id": "tent-1"})
+    assert reasons(db, ADMIN, {**bind, "device_seq": 5}) == ["this item was deleted"]
+
 
 def test_a_device_cannot_file_a_found_report(db):
     forged = own(
