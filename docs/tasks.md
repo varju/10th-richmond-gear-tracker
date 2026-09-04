@@ -53,8 +53,6 @@ the row in the same commit.
 
 - [ ] Settings: the Sync now button flickers every 30 s. The poll in `autosync.ts` sets `shell.busy`, which disables the
       button. Only a sync the person started should disable it.
-- [ ] Reservations: "Also Fall Camp, …" becomes "Needed for Fall Camp, …", in `reservations.ts`, `conflicts.py`, and the
-      reservation page's "Also reserved for". Replay vectors do not carry the string; check before assuming.
 - [ ] Scan: a read should look like a read. Pause the video when the card opens and resume it when the card closes, so
       the frame freezes on the sticker. Draw a target box in the viewfinder. Vibrate on a read where the platform
       allows.

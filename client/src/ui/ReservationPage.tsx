@@ -266,7 +266,7 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
       {addedBy && <p className="muted small">{addedBy}</p>}
       {clashes.length > 0 && (
         <p className="notice" role="note">
-          Also reserved for {clashes.map((c) => `${c.event} (${c.detail})`).join("; ")}.
+          Needed for {clashes.map((c) => `${c.event} (${c.detail})`).join("; ")}.
         </p>
       )}
 

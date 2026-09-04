@@ -188,9 +188,9 @@ export function nearby(state: State, draft: ReservationInput, excludeId?: string
   return found;
 }
 
-/** "Also Fall Camp, 2026-10-02 – 2026-10-04". Joins more than one nearby camp with "; ". */
+/** "Needed for Fall Camp, 2026-10-02 – 2026-10-04". Joins more than one nearby camp with "; ". */
 export const nearbyLabel = (notes: NearbyNote[]): string =>
-  `Also ${notes.map((n) => `${n.event}, ${n.detail}`).join("; ")}`;
+  `Needed for ${notes.map((n) => `${n.event}, ${n.detail}`).join("; ")}`;
 
 export interface GenericProgress {
   generic: Item;

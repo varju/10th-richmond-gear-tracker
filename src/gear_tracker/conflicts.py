@@ -141,5 +141,5 @@ def nearby(state: State, draft: Draft, exclude_id: str | None = None) -> dict[st
 
 
 def near_label(notes: list[dict[str, str]]) -> str:
-    """'Also Fall Camp, 2026-10-02 – 2026-10-04'. Joins more than one nearby camp with '; '."""
-    return "Also " + "; ".join(f"{n['event']}, {n['detail']}" for n in notes)
+    """'Needed for Fall Camp, 2026-10-02 – 2026-10-04'. Joins more than one nearby camp with '; '."""
+    return "Needed for " + "; ".join(f"{n['event']}, {n['detail']}" for n in notes)

@@ -158,7 +158,7 @@ test("two camps saved on two devices are named against each other on the page (F
     generics: [],
   });
   renderInShell(<ReservationPage store={store} id={fall} />);
-  expect(screen.getByRole("note")).toHaveTextContent("Also reserved for Cub camp (4-person tent #1).");
+  expect(screen.getByRole("note")).toHaveTextContent("Needed for Cub camp (4-person tent #1).");
 });
 
 test("Edit opens the form with the reservation in it and saves changed fields only", async () => {
@@ -214,7 +214,7 @@ test("a camp within seven days of another sharing gear gets a muted hint, not a 
   // Fall Camp ends 2026-10-04; Winter Prep starts four days later: near, but not overlapping.
   renderInShell(<ReservationPage store={store} id={fall} />);
   expect(screen.queryByRole("note")).not.toBeInTheDocument();
-  expect(screen.getByText("Also Winter Prep, 2026-10-08 – 2026-10-09")).toBeInTheDocument();
+  expect(screen.getByText("Needed for Winter Prep, 2026-10-08 – 2026-10-09")).toBeInTheDocument();
 });
 
 test("a pool line on the page is checked out by count, and ticks off (FR-RES-13)", async () => {
