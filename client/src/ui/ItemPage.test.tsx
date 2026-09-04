@@ -544,13 +544,16 @@ test("a group of two needs two different numbers (FR-INV-23, FR-INV-30)", async 
 });
 
 test("an Admin deletes a record made in error, in two taps from Edit (FR-INV-32)", async () => {
+  // Arrived from a filtered inventory list, the way ItemList's row link does.
+  navigate("/items?status=in");
+  navigate(`/items/${tent}`);
   renderInShell(<ItemPage store={store} id={tent} />);
   await user.click(screen.getByRole("button", { name: "Edit" }));
   await user.click(screen.getByRole("button", { name: "Delete for good…" }));
   expect(item(store.state, tent)?.deleted).toBeUndefined();
 
   await user.click(screen.getByRole("button", { name: "Really delete? This cannot be undone" }));
-  await waitFor(() => expect(location.pathname).toBe("/items"));
+  await waitFor(() => expect(location.pathname + location.search).toBe("/items?status=in"));
   expect(item(store.state, tent)?.deleted).toBe(true);
   expect(store.pending.at(-1)).toMatchObject({ type: "field_changed", payload: { field: "deleted", value: true } });
 });

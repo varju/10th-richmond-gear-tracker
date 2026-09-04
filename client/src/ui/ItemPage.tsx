@@ -47,7 +47,7 @@ import { type Log, useRecord } from "../lib/record";
 import type { Note, State } from "../lib/replay";
 import { isOverdue } from "../lib/reports";
 import { todayIso } from "../lib/reservations";
-import { navigate, useRoute } from "../lib/router";
+import { back, navigate, useRoute } from "../lib/router";
 import { timeline, type TimelineEntry } from "../lib/timeline";
 import type { Store } from "../lib/store";
 import { localDate, localMinute } from "../lib/time";
@@ -427,7 +427,7 @@ function DeleteItem({ store, it }: { store: Store; it: Item }) {
       return;
     }
     await deleteItem(store, it.id);
-    navigate("/items", true);
+    back("/items");
   }
 
   return (
