@@ -38,6 +38,7 @@ export function Scan({ store }: { store: Store }) {
   const mode = modeParam === "out" || modeParam === "in" ? modeParam : null;
   const booked = reservation(store.state, query.get("reservation") ?? "");
   const video = useRef<HTMLVideoElement>(null);
+  const target = useRef<HTMLDivElement>(null);
   const [flash, say] = useFlash(FLASH_MS);
   const [confirmed, confirm] = useFlash(CONFIRM_MS);
   // The read flash: green target, dimmed frame. It shows through the card opening, so a read is seen even where
@@ -119,7 +120,7 @@ export function Scan({ store }: { store: Store }) {
       (text) => {
         if (!cardOpen.current) void latest.current(text);
       },
-      { onError: setCameraError },
+      { target: () => target.current, onError: setCameraError },
     );
     scanner.current = started;
     return () => {
@@ -196,7 +197,7 @@ export function Scan({ store }: { store: Store }) {
       {!forItem && mode !== "in" && <SessionEvent store={store} booked={booked} />}
       <div className={read ? "viewfinder read" : "viewfinder"}>
         <video ref={video} muted playsInline hidden={cameraError !== null} />
-        {!cameraError && (!card || read) && <div className="target" aria-hidden="true" />}
+        {!cameraError && (!card || read) && <div ref={target} className="target" aria-hidden="true" />}
         {cameraError ? (
           <p className="scan-error" role="alert">
             {cameraError}

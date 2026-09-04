@@ -105,6 +105,7 @@ function Start({ store }: { store: Store }) {
 function Walk({ store, check }: { store: Store; check: Check }) {
   const state = store.state;
   const video = useRef<HTMLVideoElement>(null);
+  const target = useRef<HTMLDivElement>(null);
   const [flash, say] = useFlash(FLASH_MS);
   const [read, flashRead] = useFlash(READ_MS);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -149,7 +150,10 @@ function Walk({ store, check }: { store: Store; check: Check }) {
 
   useEffect(() => {
     if (!video.current || finishing) return;
-    const scanner = startScanner(video.current, (text) => void latest.current(text), { onError: setCameraError });
+    const scanner = startScanner(video.current, (text) => void latest.current(text), {
+      target: () => target.current,
+      onError: setCameraError,
+    });
     return () => scanner.stop();
   }, [finishing]);
 
@@ -231,7 +235,7 @@ function Walk({ store, check }: { store: Store; check: Check }) {
       </p>
       <div className={read ? "viewfinder read" : "viewfinder"}>
         <video ref={video} muted playsInline hidden={cameraError !== null} />
-        {!cameraError && <div className="target" aria-hidden="true" />}
+        {!cameraError && <div ref={target} className="target" aria-hidden="true" />}
         {cameraError ? (
           <p className="scan-error" role="alert">
             {cameraError}

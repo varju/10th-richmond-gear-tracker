@@ -519,6 +519,11 @@ the decoder is WebAssembly, running frames pulled off a `getUserMedia` video str
 Keep the camera and the decode loop alive across scans rather than tearing them down per item, so the cost is paid once
 per session and not once per tent.
 
+Decode only the part of the frame around the target box, with half again its size as room. The video is shown with
+`object-fit: cover`, so a portrait screen cuts a wide band off each side of the landscape frame; decoding the whole
+frame read stickers that were not on the screen. Aiming is the person's way of choosing an item, and the crop makes that
+choice stick.
+
 ### What M0 measured
 
 This was the highest-risk piece in the build. It is no longer. Two iPhones, indoor light, codes printed on plain paper,

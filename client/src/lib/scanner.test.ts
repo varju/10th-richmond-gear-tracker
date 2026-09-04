@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { cameraError, click, Debounce, startScanner, unlockSound, vibrate } from "./scanner";
+import { cameraError, click, cropFor, Debounce, startScanner, unlockSound, vibrate } from "./scanner";
 
 test("the same code within the window is reported once", () => {
   const d = new Debounce(1500);
@@ -7,6 +7,31 @@ test("the same code within the window is reported once", () => {
   expect(d.accept("A", 100)).toBe(false);
   expect(d.accept("A", 1499)).toBe(false);
   expect(d.accept("A", 1500)).toBe(true);
+});
+
+test("the decoded region is the target box with room around it, in frame pixels, not the whole frame", () => {
+  // A landscape 1280×720 frame covering a portrait 390×520 element: the sides of the frame are cut off.
+  const frame = { w: 1280, h: 720 };
+  const shown = { w: 390, h: 520 };
+  const box = { x: 85, y: 150, w: 220, h: 220 }; // centred, as .target is
+  const crop = cropFor(frame, shown, box);
+  // cover scale is 520/720 = 0.722; the box is 220/0.722 = 305 frame px, times 1.5 room = 457.
+  expect(crop.w).toBe(457);
+  expect(crop.h).toBe(457);
+  // Centred on the frame, since the box is centred on the element.
+  expect(Math.abs(crop.x + crop.w / 2 - 640)).toBeLessThanOrEqual(1);
+  expect(Math.abs(crop.y + crop.h / 2 - 360)).toBeLessThanOrEqual(1);
+  // Well inside the frame: the cut-off sides (about 360 px each) are never decoded.
+  expect(crop.x).toBeGreaterThan(360);
+});
+
+test("the crop is clamped to the frame, and is the whole frame with no target or before layout", () => {
+  const frame = { w: 640, h: 480 };
+  expect(cropFor(frame, { w: 320, h: 240 }, null)).toEqual({ x: 0, y: 0, w: 640, h: 480 });
+  expect(cropFor(frame, { w: 0, h: 0 }, { x: 0, y: 0, w: 100, h: 100 })).toEqual({ x: 0, y: 0, w: 640, h: 480 });
+  // A box at the corner: the room around it cannot go past the frame's edge, so it shifts inward.
+  const corner = cropFor(frame, { w: 320, h: 240 }, { x: 0, y: 0, w: 100, h: 100 });
+  expect(corner).toEqual({ x: 0, y: 0, w: 300, h: 300 });
 });
 
 test("a different code is reported straight away, and resets the window", () => {
