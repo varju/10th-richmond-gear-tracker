@@ -41,6 +41,7 @@ import { Scan } from "./ui/Scan";
 import { Sections } from "./ui/Sections";
 import { Settings } from "./ui/Settings";
 import { SettingsAssistant } from "./ui/SettingsAssistant";
+import { SettingsCalendars } from "./ui/SettingsCalendars";
 import { SettingsCategories } from "./ui/SettingsCategories";
 import { SettingsCodes } from "./ui/SettingsCodes";
 import { SettingsCsv } from "./ui/SettingsCsv";
@@ -271,6 +272,7 @@ function Screen({
     case "settings":
       if (second === "users") return <Users store={store} api={api} />;
       if (second === "mail") return <Mail store={store} api={api} />;
+      if (second === "calendars") return <SettingsCalendars store={store} api={api} />;
       if (second === "group") return <SettingsGroup store={store} />;
       if (second === "locations") return <SettingsLocations store={store} />;
       if (second === "categories") return <SettingsCategories store={store} />;

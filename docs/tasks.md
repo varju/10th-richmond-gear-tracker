@@ -57,7 +57,3 @@ the row in the same commit.
       button. Whoever opens it gives a name, email, and password and gets an active User account. Admins see the new
       account in Users. Amend FR-USR-13 to "no sign-up except through a link an Admin issued"; new FR-USR row.
       Per-person one-time links (FR-USR-12) stay for email.
-- [ ] Calendar feeds: an Admin pastes ICS feed URLs (about four) into Settings. The server refreshes them hourly and
-      keeps the upcoming events. Devices receive the event names and dates in sync, so the reservation form and the
-      session event field suggest them offline. Feed URLs carry a private token and stay on the server, as the mail
-      password does (NFR-SEC-10). New FR-RES row. Do not name the calendar product in docs.

@@ -83,15 +83,42 @@ export interface AssistantToken {
   path: string;
 }
 
+/**
+ * An upcoming event from a calendar feed (FR-RES-20): a name and a date range for the
+ * reservation form and a scanning session to suggest. `starts` and `ends` are calendar
+ * dates, "YYYY-MM-DD", the same shape a reservation's own dates take. `uid` is the feed's
+ * event id; a recurring event's occurrences share one, so a list keyed on it also needs `starts`.
+ */
+export interface CalendarEvent {
+  uid: string;
+  summary: string;
+  starts: string;
+  ends: string;
+  all_day: boolean;
+}
+
 export interface Bootstrap {
   snapshot: State;
   cursor: number;
   log_id: string;
+  calendar_events: CalendarEvent[];
 }
 export interface Pull {
   events: ServerEvent[];
   cursor: number;
   log_id: string;
+  calendar_events: CalendarEvent[];
+}
+
+/** A calendar feed an Admin added (FR-RES-20). `url_redacted` is host and path; the query
+ * string, where a private token lives, never reaches a device (NFR-SEC-10). */
+export interface CalendarFeed {
+  id: string;
+  label: string;
+  url_redacted: string;
+  added_at: number;
+  last_fetched_at: number | null;
+  last_error: string | null;
 }
 export interface History {
   events: ServerEvent[];
@@ -287,6 +314,12 @@ export function createApi(options: ApiOptions = {}) {
     clearMail: () => request<{ mail: null }>("DELETE", "/mail"),
     /** To the signed-in Admin's own address, so a wrong password shows up now (FR-USR-16). */
     testMail: () => request<{ sent_to: string }>("POST", "/mail/test"),
+    /** Calendar feeds an Admin adds (FR-RES-20). Admins only; a device never sees the feed URLs. */
+    calendars: () => request<{ feeds: CalendarFeed[] }>("GET", "/calendars"),
+    addCalendar: (url: string, label: string) => request<{ feed: CalendarFeed }>("POST", "/calendars", { url, label }),
+    removeCalendar: (id: string) => request<Record<string, never>>("DELETE", `/calendars/${id}`),
+    /** "Refresh now": fetch every feed again, on the spot. */
+    refreshCalendars: () => request<{ feeds: CalendarFeed[] }>("POST", "/calendars/refresh"),
     publicCode: (code: string) => request<PublicCode>("GET", `/public/codes/${code}`),
     /** A finder's note (FR-PUB-02). `website` is a honeypot: people never see it, so it is sent empty. */
     reportFound: (code: string, body: { note: string; contact: string; website: string }) =>

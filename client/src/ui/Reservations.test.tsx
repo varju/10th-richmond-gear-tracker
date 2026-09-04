@@ -117,6 +117,23 @@ test("a unit's search surfaces its generic, reserved by count, adjusted in place
   expect(screen.getByRole("alert")).toHaveTextContent("Fall Camp (4 × 4-person tent, we have 2)");
 });
 
+test("a calendar feed's event fills the name and the dates when picked (FR-RES-20)", async () => {
+  await store.setMeta({
+    calendar_events: [
+      { uid: "e1", summary: "Spring Camp", starts: "2026-05-01", ends: "2026-05-03", all_day: true },
+      { uid: "e2", summary: "Winter Camp", starts: "2026-01-10", ends: "2026-01-12", all_day: true },
+    ],
+  });
+  navigate("/reservations/new");
+  renderInShell(<ReservationForm store={store} />);
+  await user.type(screen.getByLabelText("Event"), "spring");
+  expect(screen.queryByRole("button", { name: /Winter Camp/ })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /Spring Camp/ }));
+  expect(screen.getByLabelText("Event")).toHaveValue("Spring Camp");
+  expect(screen.getByLabelText("Starts")).toHaveValue("2026-05-01");
+  expect(screen.getByLabelText("Ends")).toHaveValue("2026-05-03");
+});
+
 test("duplicate carries the gear and the name over, not the dates (FR-RES-10)", async () => {
   navigate(`/reservations/new?from=${fall}`);
   renderInShell(<ReservationForm store={store} from={fall} />);

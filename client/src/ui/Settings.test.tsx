@@ -35,6 +35,7 @@ test("an Admin sees every section, in order", () => {
   expect(links.map((b) => b.textContent)).toEqual([
     "General",
     "Mail",
+    "Calendars",
     "Locations",
     "Categories",
     "Print QR codes",

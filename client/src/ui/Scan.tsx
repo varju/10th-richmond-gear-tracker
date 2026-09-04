@@ -1,5 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { bindCode, seen } from "../lib/actions";
+import { eventDates, matchingEvents } from "../lib/calendar";
 import { parseCode } from "../lib/codes";
 import { code as codeOf, codeStatus, displayName, homeLabel, item, nameOf, resolveItem } from "../lib/inventory";
 import { withQuery } from "../lib/listUrl";
@@ -415,7 +416,16 @@ function SessionEvent({ store, booked }: { store: Store; booked?: Reservation })
     setEditing(false);
   }
 
+  /** Tapping a calendar suggestion sets the name at once, the same one tap a scan takes (FR-RES-20). */
+  async function pick(name: string) {
+    await store.setMeta(
+      name === event ? { session_event: name } : { session_event: name, session_reservation_id: undefined },
+    );
+    setEditing(false);
+  }
+
   if (editing) {
+    const suggestions = matchingEvents(store.meta.calendar_events, draft);
     return (
       <form className="session" onSubmit={set}>
         <input
@@ -432,6 +442,23 @@ function SessionEvent({ store, booked }: { store: Store; booked?: Reservation })
         <button type="button" className="minor" onClick={clear}>
           Clear
         </button>
+        {suggestions.length > 0 && (
+          <ul className="rows">
+            {suggestions.map((ev) => (
+              <li key={`${ev.uid}-${ev.starts}`}>
+                <button
+                  type="button"
+                  className="row"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => void pick(ev.summary)}
+                >
+                  <span>{ev.summary}</span>
+                  <span className="muted">{eventDates(ev)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </form>
     );
   }

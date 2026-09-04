@@ -108,7 +108,13 @@ async function bootstrap(store: Store, api: Api): Promise<void> {
   // round trip are only a convenience and are set separately, and only when the server gave us
   // an offset to use.
   await store.bootstrap(data.snapshot, data.cursor, data.log_id);
-  await store.setMeta({ round_trip_ms: round_trip, ...(offset !== undefined ? { clock_offset: offset } : {}) });
+  await store.setMeta({
+    round_trip_ms: round_trip,
+    ...(offset !== undefined ? { clock_offset: offset } : {}),
+    // The current upcoming-events list, so it works offline too (FR-RES-20). Not part of the
+    // snapshot: the server owns it and replaces it whole, there is no history to replay.
+    calendar_events: data.calendar_events,
+  });
 }
 
 /** The device calls again until it gets an empty page. */
@@ -116,7 +122,11 @@ async function pull(store: Store, api: Api): Promise<void> {
   for (;;) {
     const since = store.meta.cursor ?? 0;
     const { data, offset, round_trip } = await api.pull(since, store.meta.log_id);
-    await store.setMeta({ round_trip_ms: round_trip, ...(offset !== undefined ? { clock_offset: offset } : {}) });
+    await store.setMeta({
+      round_trip_ms: round_trip,
+      ...(offset !== undefined ? { clock_offset: offset } : {}),
+      calendar_events: data.calendar_events,
+    });
     // A non-empty page must move the cursor past where we asked from; one that does not is a
     // server bug, not something a retry fixes, so this stops the loop instead of spinning forever.
     if (data.events.length > 0 && data.cursor <= since) {

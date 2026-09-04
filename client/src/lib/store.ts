@@ -6,7 +6,7 @@
  * written through on change and read once, here in open() (see architecture.md,
  * "In memory").
  */
-import type { OutgoingEvent, ServerEvent, User } from "./api";
+import type { CalendarEvent, OutgoingEvent, ServerEvent, User } from "./api";
 import { RETENTION_MS } from "./clock";
 import { done, req } from "./db";
 import { apply, type Fields, KNOWN_EVENT_TYPES, replay, type ReplayEvent, replayOrder, type State } from "./replay";
@@ -44,6 +44,9 @@ export interface Meta {
   stock_check?: StockCheck;
   /** The categories the last new item took, so a run of tents costs no taps. A device setting, not a record. */
   last_category_ids?: string[];
+  /** Upcoming events from the calendar feeds an Admin added (FR-RES-20), refreshed on every sync.
+   * Reference data the server owns, not a record made here. */
+  calendar_events?: CalendarEvent[];
 }
 
 export interface StockCheck {

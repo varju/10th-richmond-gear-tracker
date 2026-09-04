@@ -36,6 +36,9 @@ export function Settings({ store, shell }: Props) {
             <button className="link" type="button" onClick={() => navigate("/settings/mail")}>
               Mail
             </button>
+            <button className="link" type="button" onClick={() => navigate("/settings/calendars")}>
+              Calendars
+            </button>
             <button className="link" type="button" onClick={() => navigate("/settings/locations")}>
               Locations
             </button>

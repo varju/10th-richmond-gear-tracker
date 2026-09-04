@@ -1,4 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
+import type { CalendarEvent } from "../lib/api";
+import { eventDates, matchingEvents } from "../lib/calendar";
 import { homeLabel, nameOf, rows, type Row } from "../lib/inventory";
 import {
   conflicts,
@@ -72,6 +74,7 @@ export function ReservationForm({ store, id, from }: Props) {
   const [values, setValues] = useState<ReservationInput>(() => initial(store, id, from));
   const [start] = useState(values);
   const [query, setQuery] = useState("");
+  const [eventOpen, setEventOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const wide = useWide();
@@ -84,6 +87,13 @@ export function ReservationForm({ store, id, from }: Props) {
 
   const back = id ? `/reservations/${id}` : "/reservations";
   const near = nearby(state, values, id);
+  const eventSuggestions = eventOpen ? matchingEvents(store.meta.calendar_events, values.event) : [];
+
+  /** Fills the name and, since picking one is meant to save typing the dates too, the range (FR-RES-20). */
+  function pickEvent(picked: CalendarEvent) {
+    set({ event: picked.summary, starts: picked.starts, ends: picked.ends });
+    setEventOpen(false);
+  }
 
   async function save(): Promise<boolean> {
     if (!complete) return false;
@@ -225,8 +235,35 @@ export function ReservationForm({ store, id, from }: Props) {
     >
       <label>
         <span>Event</span>
-        <input value={values.event} onChange={(e) => set({ event: e.target.value })} autoComplete="off" required />
+        <input
+          value={values.event}
+          onChange={(e) => {
+            set({ event: e.target.value });
+            setEventOpen(true);
+          }}
+          onFocus={() => setEventOpen(true)}
+          onBlur={() => setEventOpen(false)}
+          autoComplete="off"
+          required
+        />
       </label>
+      {eventSuggestions.length > 0 && (
+        <ul className="rows">
+          {eventSuggestions.map((ev) => (
+            <li key={`${ev.uid}-${ev.starts}`}>
+              <button
+                type="button"
+                className="row"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pickEvent(ev)}
+              >
+                <span>{ev.summary}</span>
+                <span className="muted">{eventDates(ev)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="row">
         <label className="tight">
           <span>Starts</span>
