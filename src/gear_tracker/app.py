@@ -7,8 +7,10 @@ accounts.authenticate.
 
 import ipaddress
 import json
+import logging
 import re
 import sqlite3
+import sys
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
 from dataclasses import asdict
@@ -19,6 +21,7 @@ from fastapi import Body, Depends, FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import Field, StringConstraints
+from starlette.middleware.base import RequestResponseEndpoint
 
 from gear_tracker import (
     accounts,
@@ -60,6 +63,16 @@ JOIN_PER_ADDRESS = (5, HOUR_MS)
 JOIN_IN_ALL = (30, HOUR_MS)
 """Joining is unauthenticated too (FR-USR-19), so it gets the same shape of limit as a found report:
 per address, and in total. There is no per-code limit; a standing link has no code to key on."""
+
+access_logger = logging.getLogger("gear_tracker.access")
+access_logger.setLevel(logging.INFO)
+access_logger.propagate = False
+if not access_logger.handlers:
+    # Our own handler, not uvicorn's: an INFO record on a logger uvicorn does not know about
+    # goes nowhere without one. Plain %(message)s; the line is built already formatted below.
+    _access_handler = logging.StreamHandler(sys.stdout)
+    _access_handler.setFormatter(logging.Formatter("%(message)s"))
+    access_logger.addHandler(_access_handler)
 
 
 def _trusted_proxy(host: str | None) -> bool:
@@ -163,9 +176,27 @@ def create_app(
         p = authenticate(request, conn)
         if p is None:
             raise Unauthorized("sign in first")
+        try:
+            request.state.user_email = accounts.email_of(conn, p.user_id)
+        except NotFound:
+            # A log line should never break a request: a test's fake Principal has no row
+            # in `accounts`, and the request it is signing still deserves a log line.
+            request.state.user_email = None
         return p
 
     Who = Annotated[Principal, Depends(principal)]
+
+    @app.middleware("http")
+    async def log_access(request: Request, call_next: RequestResponseEndpoint) -> Response:
+        """One line per request, to stdout, for `docker logs`: the signed-in person's email if the
+        route needed one, "-" for a public route or a call that never got that far.
+        """
+        response = await call_next(request)
+        email = getattr(request.state, "user_email", None) or "-"
+        access_logger.info(
+            '%s "%s %s" %s %s', client_address(request), request.method, request.url.path, response.status_code, email
+        )
+        return response
 
     def error(status: int, code: str, message: str) -> JSONResponse:
         return JSONResponse({"error": code, "message": message, "server_time": now_ms()}, status_code=status)
@@ -688,5 +719,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--static", help="serve the built client from this directory")
     parser.add_argument("--photos", help="where photos are kept; default is a photos/ directory beside the database")
     args = parser.parse_args(argv)
-    uvicorn.run(create_app(args.db, static=args.static, photos=args.photos), host=args.host, port=args.port)
+    uvicorn.run(
+        create_app(args.db, static=args.static, photos=args.photos), host=args.host, port=args.port, access_log=False
+    )
     return 0

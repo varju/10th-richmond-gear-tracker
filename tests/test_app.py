@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 import pytest
 from fastapi import Request
@@ -849,3 +850,51 @@ def test_a_report_refused_by_the_code_limit_does_not_spend_the_address_budget(pu
     fresh = client_at(public, "198.51.100.50")
     assert report(fresh, code="AAAAAAAAAA").status_code == 429, "the code's own limit, not this address's"
     assert report(fresh, code="BBBBBBBBBB").status_code == 200, "so this address still has its budget"
+
+
+# --- the access log (docs/deploy.md) ----------------------------------------------------------
+
+
+@pytest.fixture
+def access_log(caplog):
+    """`gear_tracker.access` sets `propagate = False` so its lines only ever go to its own stdout
+    handler (deploy.md); caplog's handler is attached to the root logger, so it never sees them
+    without being attached here too."""
+    logger = logging.getLogger("gear_tracker.access")
+    caplog.set_level(logging.INFO, logger="gear_tracker.access")
+    logger.addHandler(caplog.handler)
+    yield caplog
+    logger.removeHandler(caplog.handler)
+
+
+def test_a_signed_in_request_is_logged_with_the_callers_email(real, access_log):
+    auth = sign_in(real)
+    access_log.clear()  # sign_in is itself a public request; start clean for the one under test
+
+    real.get("/sync/bootstrap", headers=auth)
+
+    [line] = [r.getMessage() for r in access_log.records]
+    assert line == 'testclient "GET /sync/bootstrap" 200 alex@example.org'
+
+
+def test_an_unauthenticated_request_is_logged_with_a_dash_for_email(real, access_log):
+    real.get("/sync/bootstrap")
+
+    [line] = [r.getMessage() for r in access_log.records]
+    assert line == 'testclient "GET /sync/bootstrap" 401 -'
+
+
+def test_a_public_request_is_logged_with_a_dash_for_email(real, access_log):
+    real.get("/public/codes/AAAAAAAAAA")
+
+    [line] = [r.getMessage() for r in access_log.records]
+    assert line == 'testclient "GET /public/codes/AAAAAAAAAA" 404 -'
+
+
+def test_a_caller_with_no_account_row_still_gets_a_log_line(client, access_log):
+    """The fake Principal `authenticate` (above) returns has no row in `accounts`; the log line
+    still gets written, with `-` standing in for the email that could not be found."""
+    client.get("/sync/bootstrap", headers=as_alice())
+
+    [line] = [r.getMessage() for r in access_log.records]
+    assert line == 'testclient "GET /sync/bootstrap" 200 -'

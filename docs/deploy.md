@@ -52,6 +52,15 @@ Migrations run on start, so a deploy is one step and a restart is safe (NFR-MAIN
 make logs    # follow the container's output
 ```
 
+One line per request, to stdout:
+
+```
+203.0.113.7 "POST /movements" 200 jo@example.org
+```
+
+The address, the method and path, the status, then who was signed in. A public route, or a call that never got as far as
+signing in, shows `-` in the last field.
+
 ## Under a path on an existing site
 
 The app can live at `https://example.org/gear` rather than on a host of its own. Two things have to agree.
