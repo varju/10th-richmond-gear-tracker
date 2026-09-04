@@ -92,6 +92,15 @@ test("a code we know buzzes the phone", async () => {
   expect(buzz).toHaveBeenCalledWith(30);
 });
 
+test("a code we know flashes the target green over the card, so a read is seen without a buzz", async () => {
+  navigate("/scan");
+  const { container } = render(<Scan store={store} />);
+  await typeCode("AAAAAAAAAA");
+  expect(container.querySelector(".viewfinder")).toHaveClass("read");
+  expect(await screen.findByRole("heading", { name: "Stove" })).toBeInTheDocument(); // the card is up meanwhile
+  await waitFor(() => expect(container.querySelector(".viewfinder")).not.toHaveClass("read"));
+});
+
 test("without navigator.vibrate (iOS Safari) a scan still works", async () => {
   navigate("/scan");
   render(<Scan store={store} />);

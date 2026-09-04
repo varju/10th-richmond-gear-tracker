@@ -12,7 +12,7 @@ import {
   subLocations,
 } from "../lib/inventory";
 import { navigate } from "../lib/router";
-import { startScanner, vibrate } from "../lib/scanner";
+import { confirmRead, READ_MS, startScanner, unlockSound } from "../lib/scanner";
 import {
   atHome,
   misplaced,
@@ -106,6 +106,7 @@ function Walk({ store, check }: { store: Store; check: Check }) {
   const state = store.state;
   const video = useRef<HTMLVideoElement>(null);
   const [flash, say] = useFlash(FLASH_MS);
+  const [read, flashRead] = useFlash(READ_MS);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
   const [typed, setTyped] = useState("");
@@ -119,7 +120,8 @@ function Walk({ store, check }: { store: Store; check: Check }) {
     if (!id) return say("Not a gear code");
     const status = codeStatus(state, id);
     if (status === "unknown") return say("Not one of our codes");
-    vibrate();
+    confirmRead();
+    flashRead("read");
     if (status === "unassigned") return say("Not on anything yet");
     const itemId = codeOf(state, id)?.item_id;
     const it = itemId ? item(state, itemId) : undefined;
@@ -138,6 +140,12 @@ function Walk({ store, check }: { store: Store; check: Check }) {
 
   const latest = useRef(handle);
   latest.current = handle;
+
+  useEffect(() => {
+    unlockSound();
+    document.addEventListener("pointerdown", unlockSound);
+    return () => document.removeEventListener("pointerdown", unlockSound);
+  }, []);
 
   useEffect(() => {
     if (!video.current || finishing) return;
@@ -221,7 +229,7 @@ function Walk({ store, check }: { store: Store; check: Check }) {
       <p className="muted small">
         {where} · {here.length} in place
       </p>
-      <div className="viewfinder">
+      <div className={read ? "viewfinder read" : "viewfinder"}>
         <video ref={video} muted playsInline hidden={cameraError !== null} />
         {!cameraError && <div className="target" aria-hidden="true" />}
         {cameraError ? (

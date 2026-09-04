@@ -6,6 +6,7 @@
   --muted: rgba(255, 255, 255, 0.7);
   --warn: #ffb000;
   --near: #ffb3b3;
+  --ok: #3ddc84;
   color-scheme: dark;
 }
 
@@ -245,6 +246,12 @@ main:has(> .viewfinder) {
   border: 3px solid var(--ink);
   border-radius: 12px;
   pointer-events: none;
+}
+
+/* A read: the target goes green and everything outside it dims. Short, so the card is not held up. */
+.viewfinder.read .target {
+  border-color: var(--ok);
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5);
 }
 
 .scan-hint,

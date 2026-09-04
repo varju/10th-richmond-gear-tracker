@@ -49,6 +49,42 @@ export function vibrate(): void {
   navigator.vibrate?.(30);
 }
 
+/** How long the read flash shows: the target goes green and the rest of the frame dims. */
+export const READ_MS = 300;
+
+let sound: AudioContext | null = null;
+
+/**
+ * Let the page make a sound. iOS will not start audio outside a tap, so call this from one:
+ * the scan screens call it on mount (React runs that inside the tap that opened them) and on
+ * every tap while open, so the first read of a session is not silent.
+ */
+export function unlockSound(): void {
+  if (typeof AudioContext === "undefined") return;
+  sound ??= new AudioContext();
+  if (sound.state === "suspended") void sound.resume().catch(() => {});
+}
+
+/** A short click, where sound is unlocked. Quiet otherwise; never an error. */
+export function click(): void {
+  if (!sound || sound.state !== "running") return;
+  const at = sound.currentTime;
+  const osc = sound.createOscillator();
+  const gain = sound.createGain();
+  osc.frequency.value = 1400;
+  gain.gain.setValueAtTime(0.25, at);
+  gain.gain.exponentialRampToValueAtTime(0.001, at + 0.08);
+  osc.connect(gain).connect(sound.destination);
+  osc.start(at);
+  osc.stop(at + 0.09);
+}
+
+/** What a phone can do to say "got it": a buzz where there is a Vibration API, a click where sound is unlocked. */
+export function confirmRead(): void {
+  vibrate();
+  click();
+}
+
 /** Why the camera could not start, in words a person can act on. */
 export function cameraError(e: unknown): string {
   const name = e instanceof Error ? e.name : "";

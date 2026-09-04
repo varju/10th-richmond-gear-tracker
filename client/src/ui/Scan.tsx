@@ -7,7 +7,7 @@ import { withQuery } from "../lib/listUrl";
 import { checkOut } from "../lib/movement";
 import { addExtra, isPacked, type Remaining, remaining, type Reservation, reservation } from "../lib/reservations";
 import { back, navigate, useRoute } from "../lib/router";
-import { type Scanner, startScanner, vibrate } from "../lib/scanner";
+import { confirmRead, READ_MS, type Scanner, startScanner, unlockSound } from "../lib/scanner";
 import type { Store } from "../lib/store";
 import { guard, useUnsaved } from "../lib/unsaved";
 import { useStore } from "../useStore";
@@ -40,6 +40,9 @@ export function Scan({ store }: { store: Store }) {
   const video = useRef<HTMLVideoElement>(null);
   const [flash, say] = useFlash(FLASH_MS);
   const [confirmed, confirm] = useFlash(CONFIRM_MS);
+  // The read flash: green target, dimmed frame. It shows through the card opening, so a read is seen even where
+  // the phone cannot buzz (iOS).
+  const [read, flashRead] = useFlash(READ_MS);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
   const [typed, setTyped] = useState("");
@@ -74,7 +77,8 @@ export function Scan({ store }: { store: Store }) {
       if (!id) return say("Not a gear code");
       const status = codeStatus(store.state, id);
       if (status === "unknown") return say("Not one of our codes");
-      vibrate();
+      confirmRead();
+      flashRead("read");
       if (!forItem) {
         if (status === "unassigned") return navigate(`/g/${id}`);
         const bound = codeOf(store.state, id)?.item_id;
@@ -94,12 +98,19 @@ export function Scan({ store }: { store: Store }) {
       }
       navigate(`/items/${forItem}`, true);
     },
-    [store, forItem, say],
+    [store, forItem, say, flashRead],
   );
 
   // The scanner closes over the latest handler without restarting the camera on every render.
   const latest = useRef(handle);
   latest.current = handle;
+
+  // Sound needs a tap on iOS: the one that opened this screen, or any tap while it is open.
+  useEffect(() => {
+    unlockSound();
+    document.addEventListener("pointerdown", unlockSound);
+    return () => document.removeEventListener("pointerdown", unlockSound);
+  }, []);
 
   useEffect(() => {
     if (!video.current) return;
@@ -183,9 +194,9 @@ export function Scan({ store }: { store: Store }) {
         </div>
       )}
       {!forItem && mode !== "in" && <SessionEvent store={store} booked={booked} />}
-      <div className="viewfinder">
+      <div className={read ? "viewfinder read" : "viewfinder"}>
         <video ref={video} muted playsInline hidden={cameraError !== null} />
-        {!cameraError && !card && <div className="target" aria-hidden="true" />}
+        {!cameraError && (!card || read) && <div className="target" aria-hidden="true" />}
         {cameraError ? (
           <p className="scan-error" role="alert">
             {cameraError}

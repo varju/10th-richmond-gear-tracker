@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { cameraError, Debounce, startScanner, vibrate } from "./scanner";
+import { cameraError, click, Debounce, startScanner, unlockSound, vibrate } from "./scanner";
 
 test("the same code within the window is reported once", () => {
   const d = new Debounce(1500);
@@ -36,6 +36,55 @@ test("vibrate buzzes where the API exists, and is quiet where it does not (iOS S
   Object.defineProperty(navigator, "vibrate", { value: buzz, configurable: true });
   vibrate();
   expect(buzz).toHaveBeenCalledWith(30);
+});
+
+/** The parts of AudioContext a click touches. A stand-in: the test environment has no sound card. */
+class FakeAudioContext {
+  static made = 0;
+  static last: FakeAudioContext | null = null;
+  state = "suspended";
+  currentTime = 0;
+  destination = {};
+  started: number[] = [];
+  constructor() {
+    FakeAudioContext.made += 1;
+    FakeAudioContext.last = this;
+  }
+  resume() {
+    this.state = "running";
+    return Promise.resolve();
+  }
+  createGain() {
+    const node = { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect: () => node };
+    return node;
+  }
+  createOscillator() {
+    const self = this;
+    const node = {
+      frequency: { value: 0 },
+      connect: () => node,
+      start(at: number) {
+        self.started.push(at);
+      },
+      stop() {},
+    };
+    return node;
+  }
+}
+
+test("a click is quiet until a tap has unlocked sound, and quiet where there is no Web Audio", () => {
+  expect(() => click()).not.toThrow(); // no AudioContext in this test environment
+  expect(() => unlockSound()).not.toThrow();
+  vi.stubGlobal("AudioContext", FakeAudioContext);
+  try {
+    unlockSound();
+    unlockSound(); // a second tap reuses the one context
+    expect(FakeAudioContext.made).toBe(1);
+    click();
+    expect(FakeAudioContext.last?.started).toEqual([0]);
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });
 
 test("pause freezes the video and resume un-freezes it, without reopening the camera", async () => {
