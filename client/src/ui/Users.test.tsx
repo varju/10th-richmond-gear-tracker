@@ -1,7 +1,9 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test } from "vitest";
+import type { AccountUser } from "../lib/api";
 import { createApi } from "../lib/api";
+import { localDate } from "../lib/time";
 import type { Store } from "../lib/store";
 import { openStore } from "./codeTestKit";
 import { Users } from "./Users";
@@ -22,9 +24,25 @@ let joinLinks: {
   expires_at: number | null;
 }[];
 
-const freshUsers = () => [
-  { id: "alice", name: "Alice", role: "admin", active: true, email: "alice@example.org", has_password: true },
-  { id: "bea", name: "Bea", role: "user", active: true, email: "bea@example.org", has_password: false },
+const freshUsers = (): AccountUser[] => [
+  {
+    id: "alice",
+    name: "Alice",
+    role: "admin",
+    active: true,
+    deactivated_at: null,
+    email: "alice@example.org",
+    has_password: true,
+  },
+  {
+    id: "bea",
+    name: "Bea",
+    role: "user",
+    active: true,
+    deactivated_at: null,
+    email: "bea@example.org",
+    has_password: false,
+  },
 ];
 let users: ReturnType<typeof freshUsers>;
 
@@ -42,7 +60,10 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
     devices = devices.filter((d) => d.device_id !== "phone-lost");
     return json({ devices });
   }
-  if (path === "/users/bea/deactivate") return json({ user: { ...users[1], active: false } });
+  if (path === "/users/bea/deactivate") {
+    users[1] = { ...users[1]!, active: false, deactivated_at: T0 };
+    return json({ user: users[1] });
+  }
   if (path === "/users/bea/edit") {
     if (sent.email === "alice@example.org") {
       return json({ error: "conflict", message: "an account with that email already exists" }, 409);
@@ -124,6 +145,21 @@ test("an Admin's own device cannot be revoked here; sign out instead", async () 
   expect(phones).toHaveTextContent("This device");
   expect(within(phones).getByRole("button", { name: "Revoke" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Deactivate" })).toBeDisabled();
+});
+
+test("deactivating shows the date next to the status (FR-USR-20)", async () => {
+  mount();
+  const list = await screen.findByRole("list", { name: "Users" });
+  await user.click(within(list).getByRole("button", { name: /Bea/ }));
+  await user.click(screen.getByRole("button", { name: "Deactivate" }));
+  await user.click(screen.getByRole("checkbox", { name: "Show deactivated" }));
+
+  await waitFor(() =>
+    expect(within(list).getByRole("button", { name: /Bea/ })).toHaveTextContent(
+      `Beabea@example.org · Deactivated ${localDate(T0)}`,
+    ),
+  );
+  expect(calls).toContain("POST /users/bea/deactivate");
 });
 
 test("inviting shows a one-time link to pass on (FR-USR-12)", async () => {

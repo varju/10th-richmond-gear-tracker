@@ -73,6 +73,7 @@ DERIVED_FIELDS = frozenset(
         "pool_in",
         "pool_out",
         "pool_reservations",
+        "deactivated_at",
     }
 )
 
@@ -123,6 +124,9 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             # Modified means the entity's own fields (FR-INV-03). Movements and notes do not count.
             entity[p["field"]] = p["value"]
             entity["modified_at"] = event.effective_at
+            # When a user is deactivated, remember when (FR-USR-20); a reactivation clears it.
+            if event.entity_type == "user" and p["field"] == "active":
+                entity["deactivated_at"] = event.effective_at if p["value"] is False else None
         case "item_added":
             # The gear list is edited one line at a time, so two devices adding an
             # extra offline both land (FR-RES-07). A new list each time: the one

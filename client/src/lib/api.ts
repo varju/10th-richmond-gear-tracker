@@ -24,6 +24,8 @@ export interface User {
   name: string;
   role: string;
   active: boolean;
+  /** Set once the account is deactivated (FR-USR-20); absent otherwise. */
+  deactivated_at?: number | null;
 }
 
 /** A user as an Admin sees them: the person from the log, plus the credential side (FR-USR-04). */

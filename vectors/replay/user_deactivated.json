@@ -1,0 +1,44 @@
+{
+  "name": "deactivating a user stamps deactivated_at with the event's effective_at",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "user",
+      "entity_id": "bea",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "name": "Bea"
+      }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "user",
+      "entity_id": "bea",
+      "type": "field_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": {
+        "field": "active",
+        "value": false,
+        "old": true
+      }
+    }
+  ],
+  "state": {
+    "user": {
+      "bea": {
+        "name": "Bea",
+        "added_at": 1000,
+        "modified_at": 2000,
+        "active": false,
+        "deactivated_at": 2000
+      }
+    }
+  }
+}

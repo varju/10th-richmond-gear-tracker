@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import io
+import json
 
 import pytest
 
 from gear_tracker import accounts, derived
-from gear_tracker.accounts import Redeem, SignIn
+from gear_tracker.accounts import Invite, Redeem, SignIn
 from gear_tracker.cli import main
 from gear_tracker.db import open_db
 from gear_tracker.errors import Unauthorized
 from gear_tracker.events import append_server
+from gear_tracker.sync import Principal
 
 
 def run(monkeypatch, capsys, *args, stdin=""):
@@ -158,3 +160,39 @@ def test_editing_the_exported_file_and_importing_it_applies_the_change(tmp_path,
 
     with open_db(db) as conn:
         assert derived.snapshot(conn)["item"]["tent-1"]["name"] == "Family tent"
+
+
+# --- rebuild -------------------------------------------------------------------------------
+
+
+def test_rebuild_backfills_a_derived_field_added_after_the_fact(tmp_path, monkeypatch, capsys):
+    """A user deactivated before `deactivated_at` existed shows a bare "Deactivated" forever,
+    because the cache is only ever updated incrementally. `rebuild` is the operator's way out."""
+    db = with_admin(tmp_path, monkeypatch, capsys)
+    with open_db(db) as conn:
+        admin_id = accounts.first_admin(conn)
+        assert admin_id is not None
+        who = Principal(user_id=admin_id, device_id="server", active=True, role="admin")
+        user_id, _ = accounts.invite(conn, who, Invite(name="Bea", email="bea@example.org", role="user"))
+        accounts.deactivate(conn, who, user_id)
+
+        # Simulate the pre-upgrade cache: the field the old code never wrote.
+        state = derived.get_entity(conn, "user", user_id)
+        assert state is not None
+        deactivated_at = state["deactivated_at"]
+        assert deactivated_at is not None
+        del state["deactivated_at"]
+        conn.execute(
+            "UPDATE entities SET state = ? WHERE entity_type = 'user' AND entity_id = ?",
+            (json.dumps(state, sort_keys=True), user_id),
+        )
+        assert derived.get_entity(conn, "user", user_id) == state
+
+    code, out, err = run(monkeypatch, capsys, "--db", str(db), "rebuild")
+    assert code == 0, err
+    assert out.strip() == "rebuilt 2 entities"
+
+    with open_db(db) as conn:
+        rebuilt = derived.get_entity(conn, "user", user_id)
+        assert rebuilt is not None
+        assert rebuilt["deactivated_at"] == deactivated_at

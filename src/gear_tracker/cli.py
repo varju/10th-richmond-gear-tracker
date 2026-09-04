@@ -56,6 +56,8 @@ def main(argv: list[str] | None = None) -> int:
     do_import.add_argument("--as", dest="actor", help="email of the Admin to record it as; the first Admin by default")
     do_import.add_argument("--dry-run", action="store_true", help="show what would change, and write nothing")
 
+    sub.add_parser("rebuild", help="throw away the derived-state cache and replay the whole log")
+
     args = parser.parse_args(argv)
     migrate(args.db)
     with open_db(args.db) as conn:
@@ -111,6 +113,9 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "seed":
                 done = seed.apply(conn, seed.read(args.file))
                 print("\n".join(done) if done else "nothing to do")
+            elif args.command == "rebuild":
+                count = derived.rebuild(conn)
+                print(f"rebuilt {count} {'entity' if count == 1 else 'entities'}")
             else:
                 user_id = accounts.user_id_of(conn, args.email)
                 if user_id is None:

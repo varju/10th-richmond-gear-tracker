@@ -151,6 +151,21 @@ If every Admin later loses their password, the way back in is the keyboard eithe
 docker exec -it gear-tracker gear-admin --db /data/gear.db reset-link --email you@example.com
 ```
 
+## Rebuilding derived state
+
+The server keeps a cache of current state, updated as each event arrives. An upgrade that adds or changes a field in
+that cache only reaches events recorded from then on; events already logged keep the old, incomplete answer until the
+whole log is replayed.
+
+After an upgrade like that, run:
+
+```sh
+docker exec gear-tracker gear-admin --db /data/gear.db rebuild
+```
+
+It throws the cache away and replays the whole log, and prints how many entities it rebuilt. It does not run on every
+start: the log grows, so a full replay is a deliberate step, not something a restart should pay for.
+
 ## Sending mail
 
 Optional. Fill nothing in and the app shows every invite and reset link for an Admin to copy, which costs nothing to run

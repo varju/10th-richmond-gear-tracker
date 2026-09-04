@@ -184,6 +184,10 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       // Modified means the entity's own fields (FR-INV-03). Movements and notes do not count.
       entity[p.field as string] = p.value;
       entity.modified_at = event.effective_at;
+      // When a user is deactivated, remember when (FR-USR-20); a reactivation clears it.
+      if (event.entity_type === "user" && p.field === "active") {
+        entity.deactivated_at = p.value === false ? event.effective_at : null;
+      }
       break;
     case "item_added": {
       // The gear list is edited one line at a time, so two devices adding an

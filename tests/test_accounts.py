@@ -261,6 +261,7 @@ def test_deactivation_ends_access_but_not_history(db, admin):
     assert [e.type for e in history] == ["created", "field_changed"]
     assert history[-1].payload == {"field": "active", "value": False, "old": True}
     assert snapshot(db)["user"][user_id]["name"] == "Bea"
+    assert accounts.get_user(db, user_id)["deactivated_at"] == T0 + 1
 
 
 def test_a_deactivated_users_final_push_still_lands(db, admin):
@@ -286,6 +287,7 @@ def test_reactivation_restores_access(db, admin):
     reactivated = accounts.authenticate(db, session.token)
     assert reactivated is not None and reactivated.active is True
     assert accounts.get_user(db, user_id)["active"] is True
+    assert not accounts.get_user(db, user_id)["deactivated_at"]
 
 
 def test_the_last_admin_cannot_be_demoted_or_deactivated(db, admin):

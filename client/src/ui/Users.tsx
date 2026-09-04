@@ -490,7 +490,13 @@ function UserRow({
     setOpen((o) => !o);
   }
 
-  const status = user.active ? (user.has_password ? "" : "Invited") : "Deactivated";
+  const status = user.active
+    ? user.has_password
+      ? ""
+      : "Invited"
+    : user.deactivated_at
+      ? `Deactivated ${localDate(user.deactivated_at)}`
+      : "Deactivated";
   const summary = [user.email, user.role === "admin" ? "Admin" : "", status].filter(Boolean).join(" · ");
 
   return (
