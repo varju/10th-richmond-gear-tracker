@@ -68,7 +68,3 @@ This covers layout only. The House style rules above are about what you write, a
 - Never `--no-verify`, never `commit --amend`, never `reset --hard`.
 - Prefer `git grep` and `git ls-files` over `find`.
 - Pull requests are created as drafts.
-
-## Delegating
-
-If you use subagents, Sonnet is the preferred model. Never Fable.
