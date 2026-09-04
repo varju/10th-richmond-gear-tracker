@@ -20,6 +20,30 @@ const open = async () => Store.open(await openDb("test", factory), () => clock);
 const tent = (store: Store, type: string, payload: Record<string, unknown>) =>
   store.record({ entity_type: "item", entity_id: "tent-1", type, actor_id: "alice", payload });
 
+/**
+ * The fastest of several rounds of two operations, run interleaved. A GC pause or scheduler
+ * hiccup can only add time, never remove it, so the minimum approaches the true cost; running
+ * `a` and `b` back to back each round (rather than all of `a` then all of `b`) keeps a hiccup
+ * from landing entirely inside one side's block and skewing the comparison.
+ */
+async function fastestOf(
+  times: number,
+  a: () => Promise<unknown>,
+  b: () => Promise<unknown>,
+): Promise<[number, number]> {
+  let bestA = Infinity;
+  let bestB = Infinity;
+  for (let i = 0; i < times; i++) {
+    const startA = performance.now();
+    await a();
+    bestA = Math.min(bestA, performance.now() - startA);
+    const startB = performance.now();
+    await b();
+    bestB = Math.min(bestB, performance.now() - startB);
+  }
+  return [bestA, bestB];
+}
+
 function fromServer(e: Partial<ServerEvent> & { seq: number }): ServerEvent {
   return {
     id: `0100000000000000000000${String(e.seq).padStart(4, "0")}`,
@@ -419,7 +443,7 @@ test("incremental apply matches a full replay through a mix of record, receive, 
 
 test("incremental apply stays fast once there is real history behind it", async () => {
   const store = await open();
-  const COUNT = 5_000;
+  const COUNT = 20_000;
   const bulk: ServerEvent[] = [];
   for (let i = 0; i < COUNT; i++) {
     bulk.push(
@@ -439,18 +463,17 @@ test("incremental apply stays fast once there is real history behind it", async 
   if (!first) throw new Error("test setup: expected a bulk event");
 
   clock = T0 + COUNT + 10;
-  const incrementalStart = performance.now();
-  await tent(store, "created", { name: "Tent" });
-  const incremental = performance.now() - incrementalStart;
-
-  // discard() always falls back to a full rebuild, so this is what the incremental record above
-  // would have cost without it.
-  const fullStart = performance.now();
-  await store.discard(first.id);
-  const full = performance.now() - fullStart;
+  // discard() always falls back to a full rebuild, so it stands in for what the incremental
+  // record above would have cost without it. Deleting an id already gone still forces the same
+  // rebuild, so calling it repeatedly on `first.id` is fine.
+  const [incremental, full] = await fastestOf(
+    8,
+    () => tent(store, "created", { name: "Tent" }),
+    () => store.discard(first.id),
+  );
 
   console.log(
     `over ${COUNT} events: incremental record ${incremental.toFixed(2)}ms, full rebuild ${full.toFixed(2)}ms`,
   );
   expect(incremental).toBeLessThan(full);
-});
+}, 20_000);

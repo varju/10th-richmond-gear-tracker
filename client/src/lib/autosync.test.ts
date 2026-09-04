@@ -42,16 +42,24 @@ const note = (text: string) =>
 const settle = () => new Promise((r) => setTimeout(r, 15));
 
 test("a record is pushed as soon as it is made; several in a row share one push", async () => {
-  stop = autoSync(store, run, timing);
-  await settle();
-  expect(runs).toHaveLength(0);
+  // Only the flush timer is faked, so the flush window is deterministic: fake-indexeddb
+  // resolves the three writes on a real macrotask (see scheduling.js, queueTask), and a slow
+  // one under CI load can no longer race the timer into firing between "a" and "c".
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    stop = autoSync(store, run, timing);
+    await vi.advanceTimersByTimeAsync(15);
+    expect(runs).toHaveLength(0);
 
-  await note("a");
-  await note("b");
-  await note("c");
-  await settle();
-  expect(runs).toHaveLength(1);
-  expect(store.pending).toHaveLength(0);
+    await note("a");
+    await note("b");
+    await note("c");
+    await vi.advanceTimersByTimeAsync(15);
+    expect(runs).toHaveLength(1);
+    expect(store.pending).toHaveLength(0);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("a failed sync backs off, then keeps the records until a sync succeeds", async () => {
