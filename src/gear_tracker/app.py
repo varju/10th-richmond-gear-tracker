@@ -11,11 +11,14 @@ import logging
 import re
 import sqlite3
 import sys
+import time
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
+from urllib.parse import parse_qsl, urlencode
 
 from fastapi import Body, Depends, FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -64,6 +67,15 @@ JOIN_IN_ALL = (30, HOUR_MS)
 """Joining is unauthenticated too (FR-USR-19), so it gets the same shape of limit as a found report:
 per address, and in total. There is no per-code limit; a standing link has no code to key on."""
 
+HEALTH_PATH = "/health"
+"""Where the container's health check asks (Dockerfile). Kept out of the access log: a line a
+minute, forever, would bury everything worth reading."""
+
+SECRET_QUERY_KEYS = frozenset({"token", "link"})
+"""An invite or reset link lands on /join?token=... (FR-USR-12), a standing join link on
+?link=... (FR-USR-19). Both are client routes this server answers, so the value reaches the log
+unless it is taken out, and it is enough to set someone's password."""
+
 access_logger = logging.getLogger("gear_tracker.access")
 access_logger.setLevel(logging.INFO)
 access_logger.propagate = False
@@ -73,6 +85,42 @@ if not access_logger.handlers:
     _access_handler = logging.StreamHandler(sys.stdout)
     _access_handler.setFormatter(logging.Formatter("%(message)s"))
     access_logger.addHandler(_access_handler)
+
+
+def logged_target(request: Request) -> str:
+    """The path and query string for a log line, with any secret in the query taken out.
+
+    The query string carries half the meaning of a request: `since` is what
+    tells a first pull from a later one.
+    """
+    query = request.url.query
+    if not query:
+        return request.url.path
+    pairs = [
+        (key, "[redacted]" if key in SECRET_QUERY_KEYS else value)
+        for key, value in parse_qsl(query, keep_blank_values=True)
+    ]
+    return f"{request.url.path}?{urlencode(pairs, safe='[]')}"
+
+
+def access_line(request: Request, status: int, started: float) -> None:
+    """One line per request, to stdout, for `docker logs` (docs/deploy.md).
+
+    The time is the container's own local time, so set TZ where it runs; how
+    long it took, then the signed-in person's email, or "-" for a public route
+    or a call that never got that far.
+    """
+    email = getattr(request.state, "user_email", None) or "-"
+    access_logger.info(
+        '%s %s "%s %s" %s %dms %s',
+        datetime.now().astimezone().isoformat(timespec="seconds"),
+        client_address(request),
+        request.method,
+        logged_target(request),
+        status,
+        round((time.perf_counter() - started) * 1000),
+        email,
+    )
 
 
 def _trusted_proxy(host: str | None) -> bool:
@@ -176,26 +224,26 @@ def create_app(
         p = authenticate(request, conn)
         if p is None:
             raise Unauthorized("sign in first")
-        try:
-            request.state.user_email = accounts.email_of(conn, p.user_id)
-        except NotFound:
-            # A log line should never break a request: a test's fake Principal has no row
-            # in `accounts`, and the request it is signing still deserves a log line.
-            request.state.user_email = None
+        request.state.user_email = accounts.email_or_none(conn, p.user_id)
         return p
 
     Who = Annotated[Principal, Depends(principal)]
 
     @app.middleware("http")
     async def log_access(request: Request, call_next: RequestResponseEndpoint) -> Response:
-        """One line per request, to stdout, for `docker logs`: the signed-in person's email if the
-        route needed one, "-" for a public route or a call that never got that far.
-        """
-        response = await call_next(request)
-        email = getattr(request.state, "user_email", None) or "-"
-        access_logger.info(
-            '%s "%s %s" %s %s', client_address(request), request.method, request.url.path, response.status_code, email
-        )
+        """A line for every request but the health check's; see access_line."""
+        if request.url.path == HEALTH_PATH:
+            return await call_next(request)
+        started = time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            # An unhandled exception reaches no exception handler, so without this the requests
+            # most worth reading about are the only ones with no line. uvicorn turns it into the
+            # 500 the caller gets, which is what the line says.
+            access_line(request, 500, started)
+            raise
+        access_line(request, response.status_code, started)
         return response
 
     def error(status: int, code: str, message: str) -> JSONResponse:
@@ -228,6 +276,19 @@ def create_app(
         except ApiError as exc:
             return {"emailed": False, "mail_error": exc.message}
         return {"emailed": True}
+
+    # --- health -------------------------------------------------------------------
+
+    @app.get(HEALTH_PATH, include_in_schema=False)
+    def health(conn: Db) -> dict[str, Any]:
+        """What the container's health check asks (NFR-OPS-05).
+
+        It opens the database, because an unreachable database is the failure
+        worth catching; the old check read index.html, which did that by
+        accident. Left out of the access log.
+        """
+        conn.execute("SELECT 1").fetchone()
+        return {"ok": True}
 
     # --- sync ---------------------------------------------------------------------
 

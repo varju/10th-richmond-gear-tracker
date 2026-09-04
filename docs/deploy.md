@@ -24,6 +24,9 @@ export GEAR_PORT=8000
 
 # The path it is served from. A domain root unless it sits under another site.
 export GEAR_BASE=/
+
+# The timezone the log's timestamps are in. UTC without it.
+export TZ=America/Vancouver
 ```
 
 `GEAR_DATA` is a directory on the server. Everything worth keeping is in it — `gear.db`, the photos under `photos/`, the
@@ -55,11 +58,17 @@ make logs    # follow the container's output
 One line per request, to stdout:
 
 ```
-203.0.113.7 "POST /movements" 200 jo@example.org
+2026-09-04T09:57:50-07:00 203.0.113.7 "GET /sync/pull?since=412" 200 12ms jo@example.org
 ```
 
-The address, the method and path, the status, then who was signed in. A public route, or a call that never got as far as
-signing in, shows `-` in the last field.
+The time, the address, the method and path, the status, how long it took, then who was signed in. A public route, or a
+call that never got as far as signing in, shows `-` in the last field. A request that crashed the server is logged as
+a 500. An invite or reset token in the query string is replaced with `[redacted]`, because it is enough to set a
+password.
+
+The container's health check runs every minute and is left out, or it would be most of the log.
+
+Times are the container's own clock, in the timezone `TZ` names. Without it, UTC.
 
 ## Under a path on an existing site
 

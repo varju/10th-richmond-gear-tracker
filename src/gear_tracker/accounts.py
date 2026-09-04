@@ -182,6 +182,18 @@ def email_of(conn: sqlite3.Connection, user_id: str) -> str:
     return row["email"]
 
 
+def email_or_none(conn: sqlite3.Connection, user_id: str) -> str | None:
+    """The address for an access-log line, or None when there is no row to read it from.
+
+    A log line should never break a request: a test's fake Principal has no row
+    in `accounts`, and the request it signs still deserves a line.
+    """
+    try:
+        return email_of(conn, user_id)
+    except NotFound:
+        return None
+
+
 def list_users(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     rows = conn.execute(
         """

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+from datetime import datetime
 
 import pytest
 from fastapi import Request
@@ -863,6 +865,9 @@ def test_a_report_refused_by_the_code_limit_does_not_spend_the_address_budget(pu
 # --- the access log (docs/deploy.md) ----------------------------------------------------------
 
 
+LINE = re.compile(r'^(?P<at>\S+) (?P<address>\S+) "(?P<request>[^"]+)" (?P<status>\d+) (?P<took>\d+)ms (?P<email>\S+)$')
+
+
 @pytest.fixture
 def access_log(caplog):
     """`gear_tracker.access` sets `propagate = False` so its lines only ever go to its own stdout
@@ -875,28 +880,38 @@ def access_log(caplog):
     logger.removeHandler(caplog.handler)
 
 
+def one_line(access_log):
+    """The single line written, with the two fields no test can predict checked and dropped.
+
+    The time and the duration are asserted here, once, so every other test can
+    compare a whole line against a string.
+    """
+    [line] = [r.getMessage() for r in access_log.records]
+    fields = LINE.match(line)
+    assert fields, line
+    assert datetime.fromisoformat(fields["at"]).tzinfo is not None, "a local time, with its offset"
+    return f'{fields["address"]} "{fields["request"]}" {fields["status"]} {fields["email"]}'
+
+
 def test_a_signed_in_request_is_logged_with_the_callers_email(real, access_log):
     auth = sign_in(real)
     access_log.clear()  # sign_in is itself a public request; start clean for the one under test
 
     real.get("/sync/bootstrap", headers=auth)
 
-    [line] = [r.getMessage() for r in access_log.records]
-    assert line == 'testclient "GET /sync/bootstrap" 200 alex@example.org'
+    assert one_line(access_log) == 'testclient "GET /sync/bootstrap" 200 alex@example.org'
 
 
 def test_an_unauthenticated_request_is_logged_with_a_dash_for_email(real, access_log):
     real.get("/sync/bootstrap")
 
-    [line] = [r.getMessage() for r in access_log.records]
-    assert line == 'testclient "GET /sync/bootstrap" 401 -'
+    assert one_line(access_log) == 'testclient "GET /sync/bootstrap" 401 -'
 
 
 def test_a_public_request_is_logged_with_a_dash_for_email(real, access_log):
     real.get("/public/codes/AAAAAAAAAA")
 
-    [line] = [r.getMessage() for r in access_log.records]
-    assert line == 'testclient "GET /public/codes/AAAAAAAAAA" 404 -'
+    assert one_line(access_log) == 'testclient "GET /public/codes/AAAAAAAAAA" 404 -'
 
 
 def test_a_caller_with_no_account_row_still_gets_a_log_line(client, access_log):
@@ -904,5 +919,72 @@ def test_a_caller_with_no_account_row_still_gets_a_log_line(client, access_log):
     still gets written, with `-` standing in for the email that could not be found."""
     client.get("/sync/bootstrap", headers=as_alice())
 
+    assert one_line(access_log) == 'testclient "GET /sync/bootstrap" 200 -'
+
+
+def test_the_time_is_local_and_the_duration_is_milliseconds(real, access_log):
+    real.get("/sync/bootstrap")
+
     [line] = [r.getMessage() for r in access_log.records]
-    assert line == 'testclient "GET /sync/bootstrap" 200 -'
+    fields = LINE.match(line)
+    assert fields, line
+    at = datetime.fromisoformat(fields["at"])
+    assert at.utcoffset() == datetime.now().astimezone().utcoffset(), "this machine's offset, not UTC"
+    assert abs((at - datetime.now().astimezone()).total_seconds()) < 60, "when the request happened"
+    assert int(fields["took"]) < 10_000, "how long it took, in ms"
+
+
+def test_the_query_string_is_logged(client, access_log):
+    """Uvicorn's own line had it, and `since` is what tells a first pull from a later one."""
+    client.get("/sync/pull?since=0", headers=as_alice())
+
+    assert one_line(access_log) == 'testclient "GET /sync/pull?since=0" 200 -'
+
+
+@pytest.mark.parametrize("key", ["token", "link"])
+def test_a_secret_in_the_query_string_is_kept_out_of_the_log(client, access_log, key):
+    """An invite or reset link is /join?token=... and a standing one /join?link=... (FR-USR-12,
+    FR-USR-19). Both are client routes this server answers, and either value sets a password."""
+    client.get(f"/join?{key}=SECRET-TOKEN")
+
+    logged = one_line(access_log)
+    assert f"{key}=[redacted]" in logged
+    assert "SECRET-TOKEN" not in logged
+
+
+def test_a_request_that_crashes_is_still_logged(db_path, access_log):
+    """An unhandled exception reaches no exception handler, so the middleware has to write the
+    line on the way out or the requests most worth reading about are the only ones missing."""
+    app = create_app(db_path, authenticate)
+
+    @app.get("/boom")
+    def boom() -> None:
+        raise RuntimeError("kaboom")
+
+    crashing = TestClient(app, raise_server_exceptions=False)
+    assert crashing.get("/boom", headers=as_alice()).status_code == 500
+
+    assert one_line(access_log) == 'testclient "GET /boom" 500 -'
+
+
+def test_the_health_check_is_not_logged(real, access_log):
+    """The container asks once a minute, forever (Dockerfile); logging it would bury the rest."""
+    assert real.get("/health").json() == {"ok": True}
+
+    assert access_log.records == []
+
+
+def test_the_assistants_calls_name_the_person_behind_them(real, access_log):
+    """/mcp authenticates itself rather than through the `principal` dependency, so it has to set
+    the email itself; every assistant write is recorded as a person (FR-MCP-01)."""
+    auth = sign_in(real)
+    made = real.post("/assistant/connect", headers=auth).json()
+    access_log.clear()
+
+    with real as connected:
+        rpc = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json"}
+        rpc["Authorization"] = f"Bearer {made['token']}"
+        answered = connected.post("/mcp", headers=rpc, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    assert answered.status_code == 200
+
+    assert one_line(access_log) == 'testclient "POST /mcp" 200 alex@example.org'

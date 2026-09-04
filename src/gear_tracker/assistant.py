@@ -1785,7 +1785,13 @@ class Endpoint:
     def _principal(self, request: Request) -> Principal | None:
         conn = connect(self.db_path)
         try:
-            return self.authenticate(request, conn)
+            who = self.authenticate(request, conn)
+            if who is not None:
+                # The access log names whoever authenticated (docs/deploy.md). This endpoint
+                # is not behind the app's `principal` dependency, so it says who is calling
+                # itself; an assistant's calls are a person's calls.
+                request.state.user_email = accounts.email_or_none(conn, who.user_id)
+            return who
         finally:
             conn.close()
 

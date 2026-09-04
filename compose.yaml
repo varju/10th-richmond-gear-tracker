@@ -15,4 +15,7 @@ services:
       - ${GEAR_DATA:?set GEAR_DATA to the host directory for gear.db}:/data
     ports:
       - "${GEAR_PORT:-8000}:8000"
+    environment:
+      # The access log's times are the container's local time, and a bare container is on UTC.
+      TZ: ${TZ:-UTC}
     restart: unless-stopped
