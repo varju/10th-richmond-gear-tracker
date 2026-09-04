@@ -281,6 +281,36 @@ test("revoking a join link removes it from the list", async () => {
   await waitFor(() => expect(screen.queryByRole("list", { name: "Join links" })).not.toBeInTheDocument());
 });
 
+test("Done hides a join link's notice; View link brings the same URL and QR back (FR-USR-19)", async () => {
+  mount();
+  await user.click(await screen.findByRole("button", { name: "Create join link" }));
+  await screen.findByRole("status");
+  await user.click(await screen.findByRole("button", { name: "Done" }));
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+  const list = await screen.findByRole("list", { name: "Join links" });
+  await user.click(within(list).getByRole("button", { name: "View link" }));
+
+  const status = await screen.findByRole("status");
+  expect(status).toHaveTextContent(`${location.origin}/join?link=JOIN-TOKEN`);
+  expect(status.querySelector(".qr svg")).toBeTruthy();
+  expect(calls.filter((c) => c === "POST /join-links")).toHaveLength(1);
+});
+
+test("Print opens a clean page with just the link and QR, and Back returns to Users (FR-USR-19)", async () => {
+  mount();
+  await user.click(await screen.findByRole("button", { name: "Create join link" }));
+  await user.click(await screen.findByRole("button", { name: "Print" }));
+
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Join link" })).toBeInTheDocument();
+  expect(screen.getByText(`${location.origin}/join?link=JOIN-TOKEN`)).toBeInTheDocument();
+  expect(document.querySelector(".qr-print svg")).toBeTruthy();
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(await screen.findByRole("heading", { name: "Users" })).toBeInTheDocument();
+});
+
 test("not for users", async () => {
   await store.setMeta({ user: { id: "bea", name: "Bea", role: "user", active: true } });
   mount();

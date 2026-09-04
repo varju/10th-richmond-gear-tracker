@@ -1029,6 +1029,18 @@ main:has(> .remaining) .viewfinder {
   display: block;
 }
 
+/* The printable join-link page (FR-USR-19): nothing else on it, so this can run bigger. */
+.qr-print {
+  width: 280px;
+  margin: 24px auto;
+}
+
+@media print {
+  .qr-print {
+    width: 320px;
+  }
+}
+
 .user-detail {
   display: grid;
   gap: 12px;

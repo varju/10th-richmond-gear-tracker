@@ -51,6 +51,7 @@ export function Users({ store, api }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [link, setLink] = useState<Passed | null>(null);
   const [showDeactivated, setShowDeactivated] = useState(false);
+  const [printing, setPrinting] = useState<CreatedJoinLink | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -65,6 +66,10 @@ export function Users({ store, api }: Props) {
   useEffect(() => {
     if (admin) void load();
   }, [admin, load]);
+
+  if (printing) {
+    return <PrintableJoinLink link={printing} onDone={() => setPrinting(null)} />;
+  }
 
   if (!admin) {
     return (
@@ -117,7 +122,7 @@ export function Users({ store, api }: Props) {
         </>
       )}
       <h2 className="section">Join link</h2>
-      <JoinLinkSection api={api} onError={setError} />
+      <JoinLinkSection api={api} onError={setError} onPrint={setPrinting} />
     </Page>
   );
 }
@@ -127,9 +132,21 @@ export function Users({ store, api }: Props) {
  * account (FR-USR-19). Kept apart from the one-time invite links above: this one is for a room
  * full of volunteers at once, and lives until it expires or is revoked.
  */
-function JoinLinkSection({ api, onError }: { api: Api; onError: (message: string | null) => void }) {
+function JoinLinkSection({
+  api,
+  onError,
+  onPrint,
+}: {
+  api: Api;
+  onError: (message: string | null) => void;
+  onPrint: (link: CreatedJoinLink) => void;
+}) {
   const [links, setLinks] = useState<JoinLink[] | null>(null);
   const [made, setMade] = useState<CreatedJoinLink | null>(null);
+  // Whether the notice for `made` is on screen. "Done" hides it without discarding `made`,
+  // so an Admin can bring the same link back up again (View link) without revoking and
+  // remaking it — the server cannot hand the token back once this notice is gone (FR-USR-19).
+  const [shown, setShown] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -151,6 +168,7 @@ function JoinLinkSection({ api, onError }: { api: Api; onError: (message: string
     try {
       const { data } = await api.createJoinLink(expiry_days, JOIN_LINK_TEMPLATE);
       setMade(data);
+      setShown(true);
       await load();
     } catch (e) {
       onError(describe(e));
@@ -164,7 +182,10 @@ function JoinLinkSection({ api, onError }: { api: Api; onError: (message: string
     onError(null);
     try {
       setLinks((await api.revokeJoinLink(id)).data.links);
-      if (made?.id === id) setMade(null);
+      if (made?.id === id) {
+        setMade(null);
+        setShown(false);
+      }
     } catch (e) {
       onError(describe(e));
     } finally {
@@ -174,7 +195,7 @@ function JoinLinkSection({ api, onError }: { api: Api; onError: (message: string
 
   return (
     <>
-      {made && <MadeJoinLink link={made} onDone={() => setMade(null)} />}
+      {made && shown && <MadeJoinLink link={made} onDone={() => setShown(false)} onPrint={onPrint} />}
       <CreateJoinLinkForm busy={busy} onCreate={create} />
       {links && links.length > 0 && (
         <ul className="names" aria-label="Join links">
@@ -184,6 +205,11 @@ function JoinLinkSection({ api, onError }: { api: Api; onError: (message: string
                 Made by {l.created_by_name ?? "someone gone"} {ago(Date.now() - l.created_at)} ·{" "}
                 {l.expires_at === null ? "never expires" : `expires ${localDate(l.expires_at)}`}
               </span>
+              {made?.id === l.id && !shown && (
+                <button type="button" className="minor" onClick={() => setShown(true)}>
+                  View link
+                </button>
+              )}
               <button type="button" className="minor" disabled={busy} onClick={() => revoke(l.id)}>
                 Revoke
               </button>
@@ -226,8 +252,20 @@ function CreateJoinLinkForm({ busy, onCreate }: { busy: boolean; onCreate: (expi
   );
 }
 
-/** A fresh link, shown once: the URL, a QR large enough to scan across a table, and Copy (FR-USR-19). */
-function MadeJoinLink({ link, onDone }: { link: CreatedJoinLink; onDone: () => void }) {
+/**
+ * A standing link's notice: the URL, a QR large enough to scan across a table, Copy, and Print
+ * (FR-USR-19). "Done" only hides this; the link stays live and its "View link" row in the list
+ * below brings the same notice back, since the token can be shown but never looked up again.
+ */
+function MadeJoinLink({
+  link,
+  onDone,
+  onPrint,
+}: {
+  link: CreatedJoinLink;
+  onDone: () => void;
+  onPrint: (link: CreatedJoinLink) => void;
+}) {
   const [copied, setCopied] = useState(false);
   async function copy() {
     if (!link.url) return;
@@ -258,11 +296,47 @@ function MadeJoinLink({ link, onDone }: { link: CreatedJoinLink; onDone: () => v
             {copied ? "Copied" : "Copy"}
           </button>
         )}
+        {link.url && link.qr_svg && (
+          <button type="button" className="minor" onClick={() => onPrint(link)}>
+            Print
+          </button>
+        )}
         <button type="button" className="minor" onClick={onDone}>
           Done
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * A page with nothing but the link and its code, so printing it prints only that (FR-USR-19).
+ * The same header, main and actions a Page renders, inside the shell's `.app` like every other
+ * screen; the print stylesheet already hides the buttons.
+ */
+function PrintableJoinLink({ link, onDone }: { link: CreatedJoinLink; onDone: () => void }) {
+  return (
+    <>
+      <header>
+        <h1>Join link</h1>
+      </header>
+      <main>
+        {link.url && (
+          <p>
+            <code className="wrap">{link.url}</code>
+          </p>
+        )}
+        {link.qr_svg && <div className="qr qr-print" dangerouslySetInnerHTML={{ __html: link.qr_svg }} />}
+      </main>
+      <div className="actions">
+        <button type="button" className="primary" onClick={() => window.print()}>
+          Print
+        </button>
+        <button type="button" onClick={onDone}>
+          Back
+        </button>
+      </div>
+    </>
   );
 }
 
