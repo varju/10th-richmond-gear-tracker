@@ -71,8 +71,8 @@ export interface Device {
   created_at: number;
 }
 
-/** The days a standing join link is good for (FR-USR-19): 1, 7 (the default) or 30. */
-export type JoinLinkExpiry = 1 | 7 | 30;
+/** The days a standing join link is good for (FR-USR-19): 1, 7 (the default) or 30, or null to never expire. */
+export type JoinLinkExpiry = 1 | 7 | 30 | null;
 
 /** A live standing join link, as an Admin sees it in the list. Never the token (FR-USR-19). */
 export interface JoinLink {
@@ -80,7 +80,7 @@ export interface JoinLink {
   created_by: string;
   created_by_name: string | null;
   created_at: number;
-  expires_at: number;
+  expires_at: number | null;
 }
 
 /** What creating a standing join link hands back, once, to show and print (FR-USR-19). */

@@ -1354,7 +1354,8 @@ def _join_link_response(state: dict[str, Any], made: dict[str, Any]) -> dict[str
 
 def create_join_link(expiry_days: accounts.JoinLinkExpiryDays = 7) -> dict[str, Any]:
     """A standing link and its QR, for a room of volunteers to make their own accounts at once
-    (FR-USR-19). Good for 1, 7 (the default) or 30 days, until revoked. Admins only.
+    (FR-USR-19). Good for 1, 7 (the default) or 30 days, or pass null for one that never expires,
+    until revoked. Admins only.
 
     The token and QR are shown only here; list_join_links names who made a link and when, not
     what it is.

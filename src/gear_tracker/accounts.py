@@ -102,8 +102,8 @@ class UserEdit(Strict):
     email: Email | None = None
 
 
-JoinLinkExpiryDays = Literal[1, 7, 30]
-"""What an Admin picks at creation (FR-USR-19). Sessions never expire; a standing link does."""
+JoinLinkExpiryDays = Literal[1, 7, 30] | None
+"""What an Admin picks at creation (FR-USR-19): 1, 7 or 30 days, or None for a link that never expires."""
 
 
 class CreateJoinLink(Strict):
@@ -365,7 +365,7 @@ def join(conn: sqlite3.Connection, body: Join, now: int | None = None) -> Sessio
     """
     now = now_ms() if now is None else now
     link = conn.execute("SELECT * FROM join_links WHERE token_hash = ?", (_hash_token(body.link),)).fetchone()
-    if link is None or link["revoked_at"] is not None or link["expires_at"] <= now:
+    if link is None or link["revoked_at"] is not None or (link["expires_at"] is not None and link["expires_at"] <= now):
         raise Unauthorized("this link is not valid")
     try:
         # The Admin who made the link is the actor, so the audit log (FR-USR-05) says who let them in.
@@ -442,7 +442,7 @@ def create_join_link(conn: sqlite3.Connection, who: Principal, body: CreateJoinL
     now = now_ms() if now is None else now
     link_id = new_ulid(now)
     token = _new_token()
-    expires_at = now + body.expiry_days * DAY_MS
+    expires_at = None if body.expiry_days is None else now + body.expiry_days * DAY_MS
     conn.execute(
         "INSERT INTO join_links (id, token_hash, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
         (link_id, _hash_token(token), who.user_id, now, expires_at),
@@ -461,7 +461,7 @@ def list_join_links(conn: sqlite3.Connection, who: Principal, now: int | None = 
     rows = conn.execute(
         """
         SELECT id, created_by, created_at, expires_at FROM join_links
-        WHERE revoked_at IS NULL AND expires_at > ?
+        WHERE revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)
         ORDER BY created_at DESC
         """,
         (now,),

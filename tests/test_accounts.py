@@ -546,12 +546,22 @@ def test_an_admin_creates_a_join_link_and_lists_it(db, admin):
     assert "token" not in listed
 
 
-def test_a_join_links_expiry_is_one_of_three_choices(db, admin):
+def test_a_join_links_expiry_is_one_of_three_choices_or_never(db, admin):
     for days in (1, 7, 30):
         made = make_join_link(db, admin, expiry_days=days, now=T0)
         assert made["expires_at"] == T0 + days * accounts.DAY_MS
+    made = make_join_link(db, admin, expiry_days=None, now=T0)
+    assert made["expires_at"] is None
     with pytest.raises(pydantic.ValidationError):
         accounts.CreateJoinLink(expiry_days=14)  # type: ignore
+
+
+def test_a_join_link_with_no_expiry_stays_good_and_listed_far_into_the_future(db, admin):
+    made = make_join_link(db, admin, expiry_days=None, now=T0)
+    session = use_join_link(db, made["token"], now=T0 + 100 * 365 * DAY)
+    assert session.user["name"] == "Bea"
+    [listed] = accounts.list_join_links(db, admin, now=T0 + 100 * 365 * DAY)
+    assert listed["expires_at"] is None
 
 
 def test_a_user_cannot_create_list_or_revoke_a_join_link(db, admin):

@@ -1025,6 +1025,13 @@ def test_an_admin_creates_lists_and_revokes_a_join_link(admin_tools, admin_id):
     assert [line["id"] for line in revoked["links"]] == [built["id"]]
 
 
+def test_a_join_link_can_be_created_with_no_expiry(admin_tools):
+    made = assistant.create_join_link(expiry_days=None)
+    assert made["expires_at"] is None
+    listed = assistant.list_join_links()["links"]
+    assert listed[0]["expires_at"] is None
+
+
 def test_join_links_are_admin_only(tools):
     with pytest.raises(Forbidden):
         assistant.create_join_link()

@@ -100,9 +100,9 @@ invite; if not, copy the link and send it however you normally talk. The link is
 
 ## A standing join link
 
-Open Users and make a join link, with an expiry of 1, 7, or 30 days. It shows a URL and a QR code: read it out, pass it
-around, or hold up the code for a room of new volunteers to scan at once. Whoever opens it picks a name, email, and
-password and gets their own User account. Revoke the link when you are done with it, or let it expire.
+Open Users and make a join link, with an expiry of 1, 7, or 30 days, or Never. It shows a URL and a QR code: read it
+out, pass it around, or hold up the code for a room of new volunteers to scan at once. Whoever opens it picks a name,
+email, and password and gets their own User account. Revoke the link when you are done with it, or let it expire.
 
 ## Change a role, or end access
 

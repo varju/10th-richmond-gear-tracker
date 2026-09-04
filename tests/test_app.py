@@ -401,6 +401,14 @@ def test_a_standing_join_link_is_created_used_and_revoked_over_http(real):
     assert refused.json()["message"] == "this link is not valid"
 
 
+def test_a_join_link_can_be_created_with_no_expiry(real):
+    admin = sign_in(real)
+    made = real.post("/join-links", json={"link": JOIN_LINK_TEMPLATE, "expiry_days": None}, headers=admin).json()
+    assert made["expires_at"] is None
+    listed = real.get("/join-links", headers=admin).json()["links"]
+    assert listed[0]["expires_at"] is None
+
+
 def join_body(token, name="Bea", email="bea@example.org", password="battery staple", device="phone-b"):
     return {"link": token, "name": name, "email": email, "password": password, "device_id": device}
 

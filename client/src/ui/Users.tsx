@@ -181,8 +181,8 @@ function JoinLinkSection({ api, onError }: { api: Api; onError: (message: string
           {links.map((l) => (
             <li key={l.id} className="row">
               <span className="small">
-                Made by {l.created_by_name ?? "someone gone"} {ago(Date.now() - l.created_at)} · expires{" "}
-                {localDate(l.expires_at)}
+                Made by {l.created_by_name ?? "someone gone"} {ago(Date.now() - l.created_at)} ·{" "}
+                {l.expires_at === null ? "never expires" : `expires ${localDate(l.expires_at)}`}
               </span>
               <button type="button" className="minor" disabled={busy} onClick={() => revoke(l.id)}>
                 Revoke
@@ -194,6 +194,8 @@ function JoinLinkSection({ api, onError }: { api: Api; onError: (message: string
     </>
   );
 }
+
+const NEVER = "never";
 
 function CreateJoinLinkForm({ busy, onCreate }: { busy: boolean; onCreate: (expiry_days: JoinLinkExpiry) => void }) {
   const [days, setDays] = useState<JoinLinkExpiry>(7);
@@ -207,10 +209,14 @@ function CreateJoinLinkForm({ busy, onCreate }: { busy: boolean; onCreate: (expi
     >
       <label className="tight">
         <span>Expires after</span>
-        <select value={days} onChange={(e) => setDays(Number(e.target.value) as JoinLinkExpiry)}>
+        <select
+          value={days === null ? NEVER : days}
+          onChange={(e) => setDays(e.target.value === NEVER ? null : (Number(e.target.value) as JoinLinkExpiry))}
+        >
           <option value={1}>1 day</option>
           <option value={7}>7 days</option>
           <option value={30}>30 days</option>
+          <option value={NEVER}>Never</option>
         </select>
       </label>
       <button type="submit" className="primary" disabled={busy}>

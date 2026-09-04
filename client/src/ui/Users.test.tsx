@@ -14,7 +14,13 @@ let down: boolean;
 let devices: { device_id: string; created_at: number }[];
 let emailed: boolean;
 let sent: Record<string, unknown>;
-let joinLinks: { id: string; created_by: string; created_by_name: string; created_at: number; expires_at: number }[];
+let joinLinks: {
+  id: string;
+  created_by: string;
+  created_by_name: string;
+  created_at: number;
+  expires_at: number | null;
+}[];
 
 const freshUsers = () => [
   { id: "alice", name: "Alice", role: "admin", active: true, email: "alice@example.org", has_password: true },
@@ -47,13 +53,13 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
   if (path === "/users/alice/devices") return json({ devices: [{ device_id: store.meta.device_id, created_at: T0 }] });
   if (path === "/join-links" && init?.method === "GET") return json({ links: joinLinks });
   if (path === "/join-links" && init?.method === "POST") {
-    const body = JSON.parse(String(init.body)) as { expiry_days: number; link: string };
+    const body = JSON.parse(String(init.body)) as { expiry_days: number | null; link: string };
     const made = {
       id: "link-1",
       created_by: "alice",
       created_by_name: "Alice",
       created_at: T0,
-      expires_at: T0 + body.expiry_days * 86_400_000,
+      expires_at: body.expiry_days === null ? null : T0 + body.expiry_days * 86_400_000,
     };
     joinLinks = [made, ...joinLinks];
     return json({ ...made, token: "JOIN-TOKEN", url: body.link.replace("TOKEN", "JOIN-TOKEN"), qr_svg: "<svg />" });
@@ -215,6 +221,17 @@ test("a chosen expiry is sent to the server", async () => {
   await user.click(screen.getByRole("button", { name: "Create join link" }));
   await screen.findByRole("status");
   expect(sent.expiry_days).toBe(1);
+});
+
+test("a join link can be set to never expire", async () => {
+  mount();
+  await user.selectOptions(await screen.findByLabelText("Expires after"), "Never");
+  await user.click(screen.getByRole("button", { name: "Create join link" }));
+  await screen.findByRole("status");
+  expect(sent.expiry_days).toBeNull();
+
+  const list = await screen.findByRole("list", { name: "Join links" });
+  expect(within(list).getByText(/never expires/)).toBeInTheDocument();
 });
 
 test("revoking a join link removes it from the list", async () => {
