@@ -28,12 +28,6 @@ Built. What is left waits on other work:
 
 - [ ] Check the printed sheet against real Avery 6576 stock and fix `labels.py` if the margins are off (FR-TAG-02)
 
-## M7 — Movement
-
-The vertical slice is built. What is left needs a phone.
-
-- [ ] End-to-end test on a real phone with wifi and data turned off
-
 ## M9 — Go live
 
 First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is
