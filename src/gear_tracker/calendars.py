@@ -27,7 +27,7 @@ import sqlite3
 import threading
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 from urllib.error import URLError
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import Request, urlopen
@@ -266,7 +266,7 @@ def parse_ics(text: str, now: int) -> list[dict[str, Any]]:
         if component.get("dtstart") is None:
             continue
         summary = str(component.get("summary", ""))
-        dtstart = component["dtstart"].dt
+        dtstart = cast(Any, component["dtstart"]).dt
         all_day = isinstance(dtstart, date) and not isinstance(dtstart, datetime)
         uid = _uid_of(component, summary, dtstart)
         for start, end in _occurrences(component, window_start, window_end):

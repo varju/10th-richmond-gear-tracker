@@ -29,7 +29,9 @@ def test_create_codes_records_each_as_printed(db):
     made = codes.create_codes(db, "alice", 3, now=T0)
     assert len(made) == 3
     for code in made:
-        assert "item_id" not in codes.resolve(db, code)
+        resolved = codes.resolve(db, code)
+        assert resolved is not None
+        assert "item_id" not in resolved
     rows = db.execute("SELECT entity_id, type, actor_id, device_id FROM events ORDER BY seq").fetchall()
     assert [r["entity_id"] for r in rows] == made
     assert {(r["type"], r["actor_id"], r["device_id"]) for r in rows} == {("created", "alice", "server")}
@@ -53,11 +55,15 @@ def test_count_is_bounded(db, count):
 def test_resolve_before_and_after_binding(db):
     assert codes.resolve(db, "ABCDEFGH23") is None
     [code] = codes.create_codes(db, "alice", 1, now=T0)
-    assert "item_id" not in codes.resolve(db, code)
+    resolved = codes.resolve(db, code)
+    assert resolved is not None
+    assert "item_id" not in resolved
 
     events.append(
         db,
         incoming(entity_type="code", entity_id=code, type="code_bound", payload={"item_id": "tent-1"}),
         received_at=T0 + 1,
     )
-    assert codes.resolve(db, code)["item_id"] == "tent-1"
+    bound = codes.resolve(db, code)
+    assert bound is not None
+    assert bound["item_id"] == "tent-1"

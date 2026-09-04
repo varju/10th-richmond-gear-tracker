@@ -178,7 +178,8 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
         if field == "deleted" and principal.role != "admin":
             raise Rejected("items are deleted by an Admin")
         # A pool has no units (FR-INV-34): moving one under a pool is refused, whether at creation or later.
-        if field == "parent_id" and _is_pool(conn, payload.get("value")):
+        value = payload.get("value") if isinstance(payload, dict) else None
+        if field == "parent_id" and _is_pool(conn, value):
             raise Rejected("a pool has no units (FR-INV-34)")
         if field == "merged_into" and principal.role != "admin":
             raise Rejected("items are merged by an Admin (FR-INV-13)")

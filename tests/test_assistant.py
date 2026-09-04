@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import email
 import socket
+from typing import TypedDict
 
 import anyio
 import httpx2
@@ -19,6 +20,7 @@ from fastapi import Request
 from fastapi.testclient import TestClient
 from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from mcp.types import TextContent
 
 from gear_tracker import accounts, assistant, derived, events, notify
 from gear_tracker.app import create_app
@@ -238,7 +240,9 @@ def test_the_sdks_own_client_can_talk_to_it(db_path, who, inventory):
             await session.initialize()
             listed = await session.list_tools()
             found = await session.call_tool("search_items", {"query": "stove"})
-            return [t.name for t in listed.tools], found.is_error, found.content[0].text
+            content = found.content[0]
+            assert isinstance(content, TextContent)
+            return [t.name for t in listed.tools], found.is_error, content.text
 
     names, failed, text = anyio.run(scenario)
     assert "search_items" in names
@@ -295,7 +299,9 @@ def test_a_coerced_type_is_refused_at_the_wire_not_silently_converted(db_path, w
 
 def _arg_model(name):
     """The real model the SDK generated for one tool's arguments, coercion rules and all."""
-    return assistant.build_server()._tool_manager.get_tool(name).fn_metadata.arg_model
+    tool = assistant.build_server()._tool_manager.get_tool(name)
+    assert tool is not None
+    return tool.fn_metadata.arg_model
 
 
 def test_set_group_refuses_true_for_overdue_days():
@@ -711,7 +717,14 @@ def test_updating_an_item_records_only_what_differs(db_path, tools):
 
 # --- reservations ------------------------------------------------------------------------------
 
-FALL = {"event": "Fall Camp", "starts": "2026-10-02", "ends": "2026-10-04"}
+
+class _EventDates(TypedDict):
+    event: str
+    starts: str
+    ends: str
+
+
+FALL: _EventDates = {"event": "Fall Camp", "starts": "2026-10-02", "ends": "2026-10-04"}
 
 
 def test_a_reservation_is_created_edited_and_cancelled(db_path, tools):
@@ -771,9 +784,12 @@ def test_a_clash_is_named_and_nothing_is_saved(db_path, tools):
 
 
 def test_a_generic_over_stock_clashes_on_the_way_in(tools):
-    assistant.create_reservation(**FALL, generics=[{"item_id": tools["tents"], "quantity": 2}])
+    assistant.create_reservation(**FALL, generics=[assistant.GenericLine(item_id=tools["tents"], quantity=2)])
     fits = assistant.create_reservation(
-        event="Cub camp", starts="2026-10-03", ends="2026-10-05", generics=[{"item_id": tools["tents"], "quantity": 1}]
+        event="Cub camp",
+        starts="2026-10-03",
+        ends="2026-10-05",
+        generics=[assistant.GenericLine(item_id=tools["tents"], quantity=1)],
     )
     assert fits["saved"] is True
 
@@ -789,7 +805,7 @@ def test_get_item_lists_its_upcoming_reservations(tools):
         event="Spring camp",
         starts="2026-11-01",
         ends="2026-11-03",
-        generics=[{"item_id": tools["tents"], "quantity": 1}],
+        generics=[assistant.GenericLine(item_id=tools["tents"], quantity=1)],
     )["reservation_id"]
     cancelled = assistant.create_reservation(
         event="Cub camp", starts="2026-12-01", ends="2026-12-03", items=[tools["stove"]]
@@ -826,7 +842,7 @@ def test_duplicating_a_reservation_copies_its_gear_onto_new_days(tools):
         starts="2025-10-03",
         ends="2025-10-05",
         items=[tools["stove"]],
-        generics=[{"item_id": tools["tents"], "quantity": 2}],
+        generics=[assistant.GenericLine(item_id=tools["tents"], quantity=2)],
     )["reservation_id"]
 
     copy = assistant.duplicate_reservation(last_year, "Fall Camp 2026", "2026-10-02", "2026-10-04")
@@ -841,7 +857,7 @@ def test_duplicating_a_reservation_copies_its_gear_onto_new_days(tools):
 
 def test_packing_is_derived_from_what_went_out_for_the_reservation(tools):
     made = assistant.create_reservation(
-        **FALL, items=[tools["stove"]], generics=[{"item_id": tools["tents"], "quantity": 1}]
+        **FALL, items=[tools["stove"]], generics=[assistant.GenericLine(item_id=tools["tents"], quantity=1)]
     )["reservation_id"]
     assistant.check_out(tools["stove"], event="Fall Camp", reservation_id=made)
     assistant.check_out(tools["t2"], event="Fall Camp", reservation_id=made)
@@ -1023,6 +1039,7 @@ class _Mailbox:
 
     def __init__(self) -> None:
         self.messages: list[email.message.Message] = []
+        self.port = 0
 
     async def handle_DATA(self, _server, _session, envelope) -> str:  # noqa: N802 (aiosmtpd's name)
         self.messages.append(email.message_from_bytes(envelope.content))

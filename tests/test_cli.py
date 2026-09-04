@@ -144,6 +144,7 @@ def test_editing_the_exported_file_and_importing_it_applies_the_change(tmp_path,
     db = with_admin(tmp_path, monkeypatch, capsys)
     with open_db(db) as conn:
         actor = accounts.first_admin(conn)
+        assert actor is not None
         append_server(conn, actor, "item", "tent-1", "created", {"name": "Tent"})
 
     out_file = tmp_path / "out.csv"

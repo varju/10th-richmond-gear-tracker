@@ -24,6 +24,7 @@ def modules(text: str) -> list[list[bool]]:
     qr = qrencoder.QRCode(None, qrencoder.QRErrorCorrectLevel.M)
     qr.addData(text)
     qr.make()
+    assert qr.modules is not None
     return qr.modules
 
 

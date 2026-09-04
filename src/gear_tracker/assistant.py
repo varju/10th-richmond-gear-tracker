@@ -48,7 +48,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
@@ -1243,7 +1243,12 @@ def recount(item_id: str, count: Annotated[StrictInt, Field(ge=0)], reason: str)
 
 
 def _link(
-    conn: sqlite3.Connection, state: dict[str, Any], kind: str, to: str, user_id: str, token: str
+    conn: sqlite3.Connection,
+    state: dict[str, Any],
+    kind: Literal["invite", "reset"],
+    to: str,
+    user_id: str,
+    token: str,
 ) -> dict[str, Any]:
     """A one-time link built from the group's site address (FR-USR-12), mailed if mail is set up (FR-USR-15).
 

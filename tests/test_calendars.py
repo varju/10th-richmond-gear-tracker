@@ -88,7 +88,7 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
-    def log_message(self, *args: object) -> None:  # quiet; pytest -s would otherwise be noisy
+    def log_message(self, format: str, *args: object) -> None:  # quiet; pytest -s would otherwise be noisy
         pass
 
 

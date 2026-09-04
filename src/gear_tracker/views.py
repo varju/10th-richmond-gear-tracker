@@ -341,15 +341,15 @@ def what_is_out(state: State, now: int) -> dict[str, Any]:
             overdue += 1
         by_holder.setdefault(it.get("holder_id") or "", []).append(entry)
 
+    def _holder_entry(holder_id: str, entries: list[Fields]) -> Fields:
+        return {
+            "holder_id": holder_id or None,
+            "holder": user_name(state, holder_id) if holder_id else "(no holder)",
+            "items": sorted(entries, key=lambda e: (-e.get("days", 0), e["name"])),
+        }
+
     holders = sorted(
-        (
-            {
-                "holder_id": holder_id or None,
-                "holder": user_name(state, holder_id) if holder_id else "(no holder)",
-                "items": sorted(entries, key=lambda e: (-e.get("days", 0), e["name"])),
-            }
-            for holder_id, entries in by_holder.items()
-        ),
+        (_holder_entry(holder_id, entries) for holder_id, entries in by_holder.items()),
         key=lambda h: h["holder"],
     )
     return {"holders": holders, "total": sum(len(h["items"]) for h in holders), "overdue": overdue}

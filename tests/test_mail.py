@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import email
 import socket
+from typing import Any, cast
 
 import pytest
 from aiosmtpd.controller import Controller
@@ -24,6 +25,7 @@ class Mailbox:
 
     def __init__(self) -> None:
         self.messages: list[email.message.Message] = []
+        self.port = 0
 
     async def handle_DATA(self, _server, _session, envelope) -> str:  # noqa: N802 (aiosmtpd's name)
         self.messages.append(email.message_from_bytes(envelope.content))
@@ -35,7 +37,7 @@ class Mailbox:
 
     def body(self) -> str:
         """Decoded: a long link is soft-wrapped on the wire, and would not match otherwise."""
-        return self.only().get_payload(decode=True).decode()
+        return cast(bytes, self.only().get_payload(decode=True)).decode()
 
 
 def authenticator(_server, _session, _envelope, _mechanism, auth_data):
@@ -71,15 +73,14 @@ def smtp():
 
 
 def settings(smtp, **overrides) -> mail.MailSettings:
-    return mail.MailSettings(
-        **{
-            "host": "127.0.0.1",
-            "port": smtp.port,
-            "encryption": "none",
-            "from_address": "gear@example.org",
-            **overrides,
-        }
-    )
+    fields: dict[str, Any] = {
+        "host": "127.0.0.1",
+        "port": smtp.port,
+        "encryption": "none",
+        "from_address": "gear@example.org",
+        **overrides,
+    }
+    return mail.MailSettings(**fields)
 
 
 def test_a_saved_account_sends(db, smtp):
@@ -126,13 +127,16 @@ def test_nothing_is_sent_until_an_account_is_set_up(db):
 def test_the_password_is_kept_but_never_read_back(db, smtp):
     mail.save(db, settings(smtp, username="gear@example.org", password=PASSWORD))
     described = mail.describe(db)
+    assert described is not None
     assert "password" not in described
     assert described["has_password"] is True
 
     # A blank password on a later save means "leave it alone", so an Admin can
     # change the port without retyping a secret they cannot read.
     mail.save(db, settings(smtp, username="gear@example.org"))
-    assert mail.get(db)["password"] == PASSWORD
+    saved = mail.get(db)
+    assert saved is not None
+    assert saved["password"] == PASSWORD
     mail.send(db, "bea@example.org", "Hello", "Hello\n")
     assert len(smtp.messages) == 1
 

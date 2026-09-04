@@ -70,6 +70,7 @@ def test_seeds_everything(db, tmp_path):
 
     assert done == ["created Admin alex@example.org", "created the group setting", "set mail"]
     user_id = accounts.user_id_of(db, "alex@example.org")
+    assert user_id is not None
     assert accounts.get_user(db, user_id)["role"] == "admin"
     assert accounts.sign_in(db, SignIn(email="alex@example.org", password="correct horse", device_id="p"))
     assert (
@@ -136,6 +137,7 @@ def test_a_field_changed_in_the_app_goes_back(db, tmp_path):
     """The file wins on config: it is the record of what this instance is."""
     apply(db, tmp_path)
     user_id = accounts.user_id_of(db, "alex@example.org")
+    assert user_id is not None
     events.append_server(
         db, user_id, "setting", "group", "field_changed", {"field": "contact", "value": "someone else", "old": None}
     )
@@ -147,6 +149,7 @@ def test_a_field_changed_in_the_app_goes_back(db, tmp_path):
 def test_an_admin_with_that_email_is_left_alone(db, tmp_path):
     apply(db, tmp_path)
     user_id = accounts.user_id_of(db, "alex@example.org")
+    assert user_id is not None
 
     assert apply(db, tmp_path, FILE.replace('name = "Alex"', 'name = "Someone Else"')) == []
     assert accounts.user_id_of(db, "alex@example.org") == user_id
@@ -157,6 +160,7 @@ def test_a_password_changed_in_the_app_is_left_alone(db, tmp_path):
     """The file's password is used once, at creation (FR-USR-13)."""
     apply(db, tmp_path)
     user_id = accounts.user_id_of(db, "alex@example.org")
+    assert user_id is not None
     token = accounts._issue_link(db, user_id, "reset", accounts.now_ms())
     accounts.redeem(db, accounts.Redeem(token=token, password="chosen in the app", device_id="p"))
 
@@ -183,7 +187,9 @@ def test_no_mail_section_leaves_mail_alone(db, tmp_path):
     apply(db, tmp_path)
 
     assert apply(db, tmp_path, NO_MAIL) == []
-    assert mail.describe(db)["host"] == "smtp.example.org"
+    described = mail.describe(db)
+    assert described is not None
+    assert described["host"] == "smtp.example.org"
 
 
 def test_no_mail_section_and_none_stored_configures_nothing(db, tmp_path):
@@ -195,21 +201,27 @@ def test_a_changed_mail_field_is_stored(db, tmp_path):
     apply(db, tmp_path)
 
     assert apply(db, tmp_path, FILE.replace("port = 465", "port = 587")) == ["set mail"]
-    assert mail.describe(db)["port"] == 587
+    described = mail.describe(db)
+    assert described is not None
+    assert described["port"] == 587
 
 
 def test_a_changed_mail_password_is_stored(db, tmp_path):
     apply(db, tmp_path)
 
     assert apply(db, tmp_path, FILE.replace('password = "app password"', 'password = "a new one"')) == ["set mail"]
-    assert mail.get(db)["password"] == "a new one"
+    saved = mail.get(db)
+    assert saved is not None
+    assert saved["password"] == "a new one"
 
 
 def test_a_blank_mail_password_keeps_the_stored_one(db, tmp_path):
     apply(db, tmp_path)
 
     assert apply(db, tmp_path, FILE.replace('password = "app password"', 'password = ""')) == []
-    assert mail.get(db)["password"] == "app password"
+    kept = mail.get(db)
+    assert kept is not None
+    assert kept["password"] == "app password"
 
 
 # --- a file that will not do ------------------------------------------------------

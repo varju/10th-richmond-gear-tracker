@@ -400,7 +400,7 @@ def _diff_field(
         return None if (old or None) == new else _change("description", old or "", new or "", old, new)
     if col == "purchase_date":
         old = it.get("purchase_date")
-        if cell == "":
+        if not cell:
             return None if old is None else _change("purchase_date", old, "", old, None)
         if not DATE_RE.match(cell):
             p.errors.append({"row": row_num, "message": f"purchase_date {cell!r} is not YYYY-MM-DD"})
@@ -409,7 +409,7 @@ def _diff_field(
     if col == "price":
         old = it.get("price")
         old_display = "" if old is None else str(old)
-        if cell == "":
+        if not cell:
             return None if old is None else _change("price", old_display, "", old, None)
         try:
             value = float(cell)
@@ -424,7 +424,7 @@ def _diff_field(
         return _change("price", old_display, str(value), old, value)
     if col == "retired":
         old = bool(it.get("retired"))
-        if cell == "":
+        if not cell:
             new = False
         else:
             parsed = _parse_bool(cell)
@@ -446,7 +446,7 @@ def _diff_named(
     name_of,
 ) -> dict[str, Any] | None:
     old_display = name_of(state, old_id) if old_id else ""
-    if cell == "":
+    if not cell:
         return None if old_id is None else _change(field_name, old_display, "", old_id, None)
     if cell == old_display:
         return None

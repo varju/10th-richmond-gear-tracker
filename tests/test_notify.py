@@ -10,6 +10,7 @@ from __future__ import annotations
 import email
 import socket
 import time
+from typing import Any, cast
 
 import pytest
 from aiosmtpd.controller import Controller
@@ -28,6 +29,7 @@ class _Mailbox:
 
     def __init__(self) -> None:
         self.messages: list[email.message.Message] = []
+        self.port = 0
 
     async def handle_DATA(self, _server, _session, envelope) -> str:  # noqa: N802 (aiosmtpd's name)
         self.messages.append(email.message_from_bytes(envelope.content))
@@ -39,7 +41,7 @@ class _Mailbox:
 
     def body(self) -> str:
         """Decoded: a long link is soft-wrapped on the wire, and would not match otherwise."""
-        return self.only().get_payload(decode=True).decode()
+        return cast(bytes, self.only().get_payload(decode=True)).decode()
 
 
 def _free_port() -> int:
@@ -62,15 +64,14 @@ def smtp():
 
 
 def settings(smtp, **overrides) -> mail.MailSettings:
-    return mail.MailSettings(
-        **{
-            "host": "127.0.0.1",
-            "port": smtp.port,
-            "encryption": "none",
-            "from_address": "gear@example.org",
-            **overrides,
-        }
-    )
+    fields: dict[str, Any] = {
+        "host": "127.0.0.1",
+        "port": smtp.port,
+        "encryption": "none",
+        "from_address": "gear@example.org",
+        **overrides,
+    }
+    return mail.MailSettings(**fields)
 
 
 def authenticate(request: Request, _conn) -> Principal | None:

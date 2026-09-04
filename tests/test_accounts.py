@@ -98,7 +98,8 @@ def test_invite_then_redeem_then_sign_in(db, admin):
 
     again = accounts.sign_in(db, SignIn(email="bea@example.org", password="battery staple", device_id="tablet"), now=T0)
     assert again.token != session.token
-    assert accounts.authenticate(db, again.token).device_id == "tablet"
+    reauthed = accounts.authenticate(db, again.token)
+    assert reauthed is not None and reauthed.device_id == "tablet"
 
 
 def test_an_invite_is_an_audited_event_with_the_admin_as_actor(db, admin):
@@ -208,7 +209,8 @@ def test_a_password_reset_revokes_old_sessions(db, admin):
     new = join(db, reset, password="a new password", device="phone-c")
 
     assert accounts.authenticate(db, old.token) is None
-    assert accounts.authenticate(db, new.token).device_id == "phone-c"
+    reauthed = accounts.authenticate(db, new.token)
+    assert reauthed is not None and reauthed.device_id == "phone-c"
     accounts.sign_in(db, SignIn(email="bea@example.org", password="a new password", device_id="d"), now=T0)
 
 
@@ -268,6 +270,7 @@ def test_a_deactivated_users_final_push_still_lands(db, admin):
     accounts.deactivate(db, admin, user_id, now=T0)
 
     who = accounts.authenticate(db, session.token)
+    assert who is not None
     event = incoming(actor_id=user_id, device_id="phone-b", type="checked_in", payload={})
     result = push(db, who, {"device_id": "phone-b", "client_time": T0, "events": [event]}, now=T0)
 
@@ -280,7 +283,8 @@ def test_reactivation_restores_access(db, admin):
     accounts.deactivate(db, admin, user_id, now=T0)
     accounts.reactivate(db, admin, user_id, now=T0 + 1)
 
-    assert accounts.authenticate(db, session.token).active is True
+    reactivated = accounts.authenticate(db, session.token)
+    assert reactivated is not None and reactivated.active is True
     assert accounts.get_user(db, user_id)["active"] is True
 
 
@@ -463,7 +467,8 @@ def test_revoking_a_device_ends_its_sessions_and_nothing_else(db, admin):
 
     assert [d["device_id"] for d in left] == ["phone-kept"]
     assert accounts.authenticate(db, lost.token) is None
-    assert accounts.authenticate(db, kept.token).device_id == "phone-kept"
+    still_kept = accounts.authenticate(db, kept.token)
+    assert still_kept is not None and still_kept.device_id == "phone-kept"
     assert accounts.get_user(db, user_id)["active"] is True
     assert list(in_replay_order(db)) == before, "sessions only; nothing on the log"
     # The account is untouched, so the same phone can sign in again.
@@ -473,6 +478,7 @@ def test_revoking_a_device_ends_its_sessions_and_nothing_else(db, admin):
 def test_an_admin_cannot_revoke_the_device_they_are_using(db, admin):
     session = accounts.sign_in(db, SignIn(email="alex@example.org", password="correct horse", device_id="a"))
     me = accounts.authenticate(db, session.token)
+    assert me is not None
     with pytest.raises(Conflict, match="sign out instead"):
         accounts.revoke_device(db, me, admin.user_id, "a")
     assert accounts.authenticate(db, session.token) is not None
@@ -482,6 +488,7 @@ def test_users_manage_their_own_devices(db, admin):
     user_id, token = invite(db, admin)
     session = join(db, token)
     bea = accounts.authenticate(db, session.token)
+    assert bea is not None
     accounts.sign_in(db, SignIn(email="bea@example.org", password="battery staple", device_id="phone-b2"), now=T0)
 
     devices = accounts.list_devices(db, bea, user_id)
@@ -502,7 +509,7 @@ def test_users_manage_their_own_devices(db, admin):
 
     accounts.deactivate(db, admin, user_id, now=T0)
     gone = accounts.authenticate(db, session.token)
-    assert gone.active is False
+    assert gone is not None and gone.active is False
     with pytest.raises(Deactivated):
         accounts.list_devices(db, gone, user_id)
 
@@ -544,7 +551,7 @@ def test_a_join_links_expiry_is_one_of_three_choices(db, admin):
         made = make_join_link(db, admin, expiry_days=days, now=T0)
         assert made["expires_at"] == T0 + days * accounts.DAY_MS
     with pytest.raises(pydantic.ValidationError):
-        accounts.CreateJoinLink(expiry_days=14)
+        accounts.CreateJoinLink(expiry_days=14)  # type: ignore
 
 
 def test_a_user_cannot_create_list_or_revoke_a_join_link(db, admin):

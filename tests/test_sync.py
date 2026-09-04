@@ -130,7 +130,7 @@ def test_push_rejects_a_malformed_body(db, body):
 
 
 def test_a_non_object_event_is_rejected_not_fatal(db):
-    result = push(db, ALICE, batch(ALICE, "not an event", own(ALICE)), now=T0)
+    result = push(db, ALICE, batch(ALICE, "not an event", own(ALICE)), now=T0)  # type: ignore
     assert len(result["accepted"]) == 1
     assert result["rejected"] == [{"id": None, "reason": "event must be a JSON object"}]
 
