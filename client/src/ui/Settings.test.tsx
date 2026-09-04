@@ -1,7 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { navigate } from "../lib/router";
+import type { Shell } from "../shell";
 import type { Store } from "../lib/store";
 import { openStore } from "./codeTestKit";
 import { Settings } from "./Settings";
@@ -11,11 +12,13 @@ import { Settings } from "./Settings";
 const T0 = 1_756_684_800_000;
 let store: Store;
 
-const shell = {
+const shell: Shell = {
   busy: false,
+  manualBusy: false,
   outcome: null,
   now: () => T0,
   sync: async () => undefined,
+  syncNow: async () => undefined,
   signOut: async () => {},
 };
 
@@ -24,7 +27,7 @@ beforeEach(async () => {
   navigate("/settings", true);
 });
 
-const mount = () => render(<Settings store={store} shell={shell} />);
+const mount = (over: Partial<typeof shell> = {}) => render(<Settings store={store} shell={{ ...shell, ...over }} />);
 
 test("an Admin sees every section, in order", () => {
   mount();
@@ -72,6 +75,27 @@ test("a refused record shows a count above Your devices, and opens the list", as
 
   await userEvent.setup().click(screen.getByRole("button", { name: "1 record the server refused" }));
   expect(location.pathname).toBe("/settings/refused");
+});
+
+// The background poll sets `busy` too (client/src/lib/autosync.ts), but the button
+// must only disable for a sync it started itself, or it flickers every 30s.
+test("the background poll running does not disable Sync now", () => {
+  mount({ busy: true, manualBusy: false });
+  expect(screen.getByRole("button", { name: "Sync now" })).not.toBeDisabled();
+});
+
+test("a sync the button started disables it until it finishes", () => {
+  mount({ manualBusy: true });
+  expect(screen.getByRole("button", { name: "Sync now" })).toBeDisabled();
+});
+
+test("Sync now calls the shell's syncNow, not its plain sync", async () => {
+  const syncNow = vi.fn(async () => undefined);
+  const plainSync = vi.fn(async () => undefined);
+  mount({ sync: plainSync, syncNow });
+  await userEvent.setup().click(screen.getByRole("button", { name: "Sync now" }));
+  expect(syncNow).toHaveBeenCalledOnce();
+  expect(plainSync).not.toHaveBeenCalled();
 });
 
 // __GIT_SHA__ is a compile-time constant, baked in by vite.config.ts from the

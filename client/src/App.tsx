@@ -64,31 +64,41 @@ export function App({ store, api, now = Date.now }: Props) {
   const route = useRoute();
   const wide = useWide();
   const [busy, setBusy] = useState(false);
+  // Set only around a sync someone asked for by tapping a button, so that button
+  // can disable itself without flickering every time the background poll syncs.
+  const [manualBusy, setManualBusy] = useState(false);
   const [outcome, setOutcome] = useState<SyncOutcome | null>(null);
   const [interruptSeen, setInterruptSeen] = useState(false);
   const [signInWanted, setSignInWanted] = useState(false);
   const inFlight = useRef(false);
 
   // One sync at a time; a second request while one runs is dropped, not queued.
-  const runSync = useCallback(async (): Promise<SyncOutcome | undefined> => {
-    if (inFlight.current || !store.meta.token) return undefined;
-    inFlight.current = true;
-    setBusy(true);
-    try {
-      const outcome = await sync(store, api, now);
-      setOutcome(outcome);
-      return outcome;
-    } catch (error) {
-      // Anything sync() did not turn into a SyncOutcome itself (a malformed response, say) still
-      // has to reach the banner: otherwise it keeps its last state and autosync never backs off.
-      const outcome: SyncOutcome = { ok: false, reason: "error", message: String(error) };
-      setOutcome(outcome);
-      return outcome;
-    } finally {
-      inFlight.current = false;
-      setBusy(false);
-    }
-  }, [store, api, now]);
+  const runSync = useCallback(
+    async (manual = false): Promise<SyncOutcome | undefined> => {
+      if (inFlight.current || !store.meta.token) return undefined;
+      inFlight.current = true;
+      setBusy(true);
+      if (manual) setManualBusy(true);
+      try {
+        const outcome = await sync(store, api, now);
+        setOutcome(outcome);
+        return outcome;
+      } catch (error) {
+        // Anything sync() did not turn into a SyncOutcome itself (a malformed response, say) still
+        // has to reach the banner: otherwise it keeps its last state and autosync never backs off.
+        const outcome: SyncOutcome = { ok: false, reason: "error", message: String(error) };
+        setOutcome(outcome);
+        return outcome;
+      } finally {
+        inFlight.current = false;
+        setBusy(false);
+        if (manual) setManualBusy(false);
+      }
+    },
+    [store, api, now],
+  );
+
+  const syncNow = useCallback(() => runSync(true), [runSync]);
 
   // On open, on regaining connectivity, and when brought back to the front (FR-OFF-03).
   useEffect(() => {
@@ -163,7 +173,7 @@ export function App({ store, api, now = Date.now }: Props) {
     return <SignIn store={store} api={api} onSignedIn={runSync} />;
   }
 
-  const shell: Shell = { busy, outcome, now, sync: runSync, signOut, api, store };
+  const shell: Shell = { busy, manualBusy, outcome, now, sync: runSync, syncNow, signOut, api, store };
   const pending = store.pending;
   const stale = pending.filter((e) => e.occurred_at < now() - STALE_PENDING_MS);
   return (
@@ -175,8 +185,8 @@ export function App({ store, api, now = Date.now }: Props) {
             count={stale.length}
             oldest={Math.min(...stale.map((e) => e.occurred_at))}
             now={now()}
-            busy={busy}
-            onSync={runSync}
+            busy={manualBusy}
+            onSync={syncNow}
             onContinue={() => setInterruptSeen(true)}
           />
         ) : wide ? (

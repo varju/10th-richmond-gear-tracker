@@ -51,8 +51,6 @@ the row in the same commit.
 
 ### Fixes
 
-- [ ] Settings: the Sync now button flickers every 30 s. The poll in `autosync.ts` sets `shell.busy`, which disables the
-      button. Only a sync the person started should disable it.
 - [ ] Scan: a read should look like a read. Pause the video when the card opens and resume it when the card closes, so
       the frame freezes on the sticker. Draw a target box in the viewfinder. Vibrate on a read where the platform
       allows.

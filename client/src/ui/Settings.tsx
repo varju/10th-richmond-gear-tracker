@@ -20,7 +20,7 @@ export function Settings({ store, shell }: Props) {
       title="Settings"
       back="/"
       actions={
-        <button className="primary" type="button" onClick={shell.sync} disabled={shell.busy}>
+        <button className="primary" type="button" onClick={shell.syncNow} disabled={shell.manualBusy}>
           Sync now
         </button>
       }

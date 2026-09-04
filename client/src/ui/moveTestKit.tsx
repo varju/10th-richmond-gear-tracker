@@ -48,9 +48,11 @@ export function renderInShell(node: ReactNode, now: () => number = Date.now, api
   const sync = vi.fn(async () => undefined);
   const shell: Shell = {
     busy: false,
+    manualBusy: false,
     outcome: null,
     now,
     sync,
+    syncNow: sync,
     signOut: async () => {},
     api,
   };

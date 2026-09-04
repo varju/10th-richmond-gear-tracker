@@ -39,10 +39,12 @@ const setGroup = (payload: Record<string, unknown>) =>
 function mount(node: React.ReactNode, daysLater = 0) {
   const shell: Shell = {
     busy: false,
+    manualBusy: false,
     outcome: null,
     // A second of slack: the store stamps each event a millisecond after T0.
     now: () => T0 + daysLater * DAY_MS + 1000,
     sync: async () => undefined,
+    syncNow: async () => undefined,
     signOut: async () => {},
   };
   return render(<ShellContext value={shell}>{node}</ShellContext>);

@@ -14,12 +14,14 @@ let synced: number;
 
 const shell = {
   busy: false,
+  manualBusy: false,
   outcome: null,
   now: () => T0,
   sync: async () => {
     synced += 1;
     return undefined;
   },
+  syncNow: async () => undefined,
   signOut: async () => {},
 };
 
