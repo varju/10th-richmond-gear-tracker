@@ -14,14 +14,24 @@ const MIN_PASSWORD = 8;
 /**
  * Where an invite or reset link lands: /join?token=… (FR-USR-12). Set a password,
  * and this device is signed in. The link is spent either way.
+ *
+ * A standing join link lands here too, told apart by `?link=` instead of `?token=` (FR-USR-19):
+ * whoever opens it has no account yet, so the form also asks for a name and email, and the link
+ * itself is not spent by their joining.
  */
 export function Join({ store, api, onJoined }: Props) {
-  const token = useRoute().query.get("token") ?? "";
+  const query = useRoute().query;
+  const token = query.get("token") ?? "";
+  const link = query.get("link") ?? "";
+  const standing = link !== "";
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [again, setAgain] = useState("");
   const [error, setError] = useState<string | null>(null);
-  // A link that already worked once (FR-USR-12): which kind decides what the person can do next.
-  const [spent, setSpent] = useState<"invite" | "reset" | null>(null);
+  // Why the form is not shown: a link that already worked once (FR-USR-12), which kind decides
+  // what the person can do next, or an email that already has an account (FR-USR-19).
+  const [blocked, setBlocked] = useState<"invite" | "reset" | "exists" | null>(null);
   const [busy, setBusy] = useState(false);
   const signedIn = store.meta.user;
 
@@ -31,15 +41,18 @@ export function Join({ store, api, onJoined }: Props) {
     if (password !== again) return setError("The two passwords differ.");
     setBusy(true);
     setError(null);
-    setSpent(null);
+    setBlocked(null);
     try {
-      const { data, offset } = await api.redeem(token, password, store.meta.device_id);
+      const { data, offset } = standing
+        ? await api.join(link, name.trim(), email.trim(), password, store.meta.device_id)
+        : await api.redeem(token, password, store.meta.device_id);
       await store.setMeta({ token: data.token, user: data.user, clock_offset: offset });
       onJoined();
     } catch (e) {
       if (e instanceof Offline) setError("No connection. Joining needs one.");
-      else if (e instanceof ApiError && e.code === "invite_used") setSpent("invite");
-      else if (e instanceof ApiError && e.code === "reset_used") setSpent("reset");
+      else if (e instanceof ApiError && e.code === "invite_used") setBlocked("invite");
+      else if (e instanceof ApiError && e.code === "reset_used") setBlocked("reset");
+      else if (e instanceof ApiError && e.status === 409) setBlocked("exists");
       else if (e instanceof ApiError) setError(e.message);
       else throw e;
     } finally {
@@ -60,20 +73,46 @@ export function Join({ store, api, onJoined }: Props) {
               Settings
             </button>
           </>
-        ) : !token ? (
+        ) : !token && !link ? (
           <p>This link is missing its token. Ask an Admin for a new one.</p>
-        ) : spent === "invite" ? (
+        ) : blocked === "invite" || blocked === "exists" ? (
           <>
             <p>You already have an account. Sign in instead.</p>
             <button type="button" onClick={() => navigate("/", true)}>
               Sign in
             </button>
           </>
-        ) : spent === "reset" ? (
+        ) : blocked === "reset" ? (
           <p role="alert">This reset link has already been used. Ask an Admin for a new one.</p>
         ) : (
           <>
-            <p>Choose a password for your account.</p>
+            <p>
+              {standing ? "Make an account: your name, email, and a password." : "Choose a password for your account."}
+            </p>
+            {standing && (
+              <>
+                <label>
+                  <span>Name</span>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    autoComplete="name"
+                    autoFocus
+                  />
+                </label>
+                <label>
+                  <span>Email</span>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                  />
+                </label>
+              </>
+            )}
             <label>
               <span>New password</span>
               <input
@@ -103,9 +142,9 @@ export function Join({ store, api, onJoined }: Props) {
           </>
         )}
       </main>
-      {!signedIn && token && !spent && (
+      {!signedIn && (token || link) && !blocked && (
         <div className="actions">
-          <button className="primary" type="submit" disabled={busy}>
+          <button className="primary" type="submit" disabled={busy || (standing && (!name.trim() || !email.trim()))}>
             Set password and sign in
           </button>
         </div>

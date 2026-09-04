@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test } from "vitest";
 import { createApi } from "../lib/api";
@@ -14,6 +14,7 @@ let down: boolean;
 let devices: { device_id: string; created_at: number }[];
 let emailed: boolean;
 let sent: Record<string, unknown>;
+let joinLinks: { id: string; created_by: string; created_by_name: string; created_at: number; expires_at: number }[];
 
 const freshUsers = () => [
   { id: "alice", name: "Alice", role: "admin", active: true, email: "alice@example.org", has_password: true },
@@ -44,6 +45,23 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
     return json({ user: users[1] });
   }
   if (path === "/users/alice/devices") return json({ devices: [{ device_id: store.meta.device_id, created_at: T0 }] });
+  if (path === "/join-links" && init?.method === "GET") return json({ links: joinLinks });
+  if (path === "/join-links" && init?.method === "POST") {
+    const body = JSON.parse(String(init.body)) as { expiry_days: number; link: string };
+    const made = {
+      id: "link-1",
+      created_by: "alice",
+      created_by_name: "Alice",
+      created_at: T0,
+      expires_at: T0 + body.expiry_days * 86_400_000,
+    };
+    joinLinks = [made, ...joinLinks];
+    return json({ ...made, token: "JOIN-TOKEN", url: body.link.replace("TOKEN", "JOIN-TOKEN"), qr_svg: "<svg />" });
+  }
+  if (path === "/join-links/link-1/revoke") {
+    joinLinks = joinLinks.filter((l) => l.id !== "link-1");
+    return json({ links: joinLinks });
+  }
   return json({ error: "not_found", message: path }, 404);
 };
 
@@ -51,6 +69,7 @@ beforeEach(async () => {
   calls = [];
   down = false;
   emailed = false;
+  joinLinks = [];
   sent = {};
   users = freshUsers();
   devices = [
@@ -164,6 +183,39 @@ test("offline, the screen says it needs a connection", async () => {
   down = true;
   mount();
   expect(await screen.findByRole("alert")).toHaveTextContent("Needs a connection");
+});
+
+test("an Admin creates a standing join link and sees its URL and QR (FR-USR-19)", async () => {
+  mount();
+  await user.click(await screen.findByRole("button", { name: "Create join link" }));
+
+  const status = await screen.findByRole("status");
+  expect(status).toHaveTextContent(`${location.origin}/join?link=JOIN-TOKEN`);
+  expect(status.querySelector(".qr svg")).toBeTruthy();
+  expect(calls).toContain("POST /join-links");
+  expect(sent).toEqual({ expiry_days: 7, link: `${location.origin}/join?link=TOKEN` });
+
+  const list = await screen.findByRole("list", { name: "Join links" });
+  expect(within(list).getByText(/Made by Alice/)).toBeInTheDocument();
+});
+
+test("a chosen expiry is sent to the server", async () => {
+  mount();
+  await user.selectOptions(await screen.findByLabelText("Expires after"), "1 day");
+  await user.click(screen.getByRole("button", { name: "Create join link" }));
+  await screen.findByRole("status");
+  expect(sent.expiry_days).toBe(1);
+});
+
+test("revoking a join link removes it from the list", async () => {
+  mount();
+  await user.click(await screen.findByRole("button", { name: "Create join link" }));
+  await user.click(await screen.findByRole("button", { name: "Done" }));
+
+  const list = await screen.findByRole("list", { name: "Join links" });
+  await user.click(within(list).getByRole("button", { name: "Revoke" }));
+  expect(calls).toContain("POST /join-links/link-1/revoke");
+  await waitFor(() => expect(screen.queryByRole("list", { name: "Join links" })).not.toBeInTheDocument());
 });
 
 test("not for users", async () => {

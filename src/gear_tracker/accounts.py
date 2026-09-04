@@ -39,7 +39,9 @@ Role = Literal["admin", "user"]
 Password = Annotated[str, StringConstraints(min_length=8)]
 Email = Annotated[EmailStr, StringConstraints(max_length=254)]
 
-LINK_TTL_MS = 7 * 24 * 3_600_000
+DAY_MS = 24 * 3_600_000
+
+LINK_TTL_MS = 7 * DAY_MS
 """An invite or reset link that has not been used in a week is dead. Sessions never expire; links do."""
 
 ASSISTANT_PREFIX = "mcp-"
@@ -98,6 +100,28 @@ class UserEdit(Strict):
 
     name: NonEmpty | None = None
     email: Email | None = None
+
+
+JoinLinkExpiryDays = Literal[1, 7, 30]
+"""What an Admin picks at creation (FR-USR-19). Sessions never expire; a standing link does."""
+
+
+class CreateJoinLink(Strict):
+    expiry_days: JoinLinkExpiryDays = 7
+    # Same idea as Invite.link: a template only the caller knows how to fill in. create_join_link
+    # itself never reads this; it is here so the HTTP body carries what the route needs to build
+    # the URL the QR encodes.
+    link: JoinLink | None = None
+
+
+class Join(Strict):
+    """What whoever opens a standing join link fills in (FR-USR-19): their own name, email and password."""
+
+    link: NonEmpty
+    name: NonEmpty
+    email: Email
+    password: Password
+    device_id: NonEmpty
 
 
 @dataclass(frozen=True)
@@ -332,6 +356,28 @@ def redeem(conn: sqlite3.Connection, body: Redeem, now: int | None = None) -> Se
     return session
 
 
+def join(conn: sqlite3.Connection, body: Join, now: int | None = None) -> Session:
+    """Whoever opens a standing join link makes their own account (FR-USR-19).
+
+    Unlike redeem, the link is not spent: it is good until it expires or an
+    Admin revokes it. Unknown, expired, and revoked links all answer alike, so
+    a made-up token learns nothing (the same rule FR-USR-12 gives redeem).
+    """
+    now = now_ms() if now is None else now
+    link = conn.execute("SELECT * FROM join_links WHERE token_hash = ?", (_hash_token(body.link),)).fetchone()
+    if link is None or link["revoked_at"] is not None or link["expires_at"] <= now:
+        raise Unauthorized("this link is not valid")
+    try:
+        # The Admin who made the link is the actor, so the audit log (FR-USR-05) says who let them in.
+        user_id = _create_user(conn, link["created_by"], body.name, body.email, "user", now)
+    except Conflict:
+        raise Conflict("an account with that email already exists; sign in instead") from None
+    conn.execute("UPDATE accounts SET password_hash = ? WHERE user_id = ?", (_hasher.hash(body.password), user_id))
+    session = _open_session(conn, user_id, body.device_id, now)
+    notify.user_joined(conn, user_id)
+    return session
+
+
 def sign_out(conn: sqlite3.Connection, token: str, now: int | None = None) -> None:
     now = now_ms() if now is None else now
     conn.execute(
@@ -384,6 +430,64 @@ def reset_link(conn: sqlite3.Connection, who: Principal, user_id: str, now: int 
     if not get_user(conn, user_id)["active"]:
         raise Conflict("reactivate the account first")
     return _issue_link(conn, user_id, "reset", now)
+
+
+def create_join_link(conn: sqlite3.Connection, who: Principal, body: CreateJoinLink, now: int | None = None) -> dict:
+    """A standing link a whole room can use to make their own accounts (FR-USR-19). Admins only.
+
+    The token is returned only here, once, like an invite link (FR-USR-12); list_join_links
+    never carries it again.
+    """
+    _require_admin(who)
+    now = now_ms() if now is None else now
+    link_id = new_ulid(now)
+    token = _new_token()
+    expires_at = now + body.expiry_days * DAY_MS
+    conn.execute(
+        "INSERT INTO join_links (id, token_hash, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
+        (link_id, _hash_token(token), who.user_id, now, expires_at),
+    )
+    return {"id": link_id, "token": token, "created_by": who.user_id, "created_at": now, "expires_at": expires_at}
+
+
+def list_join_links(conn: sqlite3.Connection, who: Principal, now: int | None = None) -> list[dict]:
+    """Live links: not revoked, not expired. Who made each one, and when it was made and dies.
+
+    Never the token: once shown at creation, a standing link is otherwise
+    known only by the id an Admin uses to revoke it.
+    """
+    _require_admin(who)
+    now = now_ms() if now is None else now
+    rows = conn.execute(
+        """
+        SELECT id, created_by, created_at, expires_at FROM join_links
+        WHERE revoked_at IS NULL AND expires_at > ?
+        ORDER BY created_at DESC
+        """,
+        (now,),
+    ).fetchall()
+    out = []
+    for row in rows:
+        creator = derived.get_entity(conn, "user", row["created_by"])
+        out.append(
+            {
+                "id": row["id"],
+                "created_by": row["created_by"],
+                "created_by_name": creator["name"] if creator else None,
+                "created_at": row["created_at"],
+                "expires_at": row["expires_at"],
+            }
+        )
+    return out
+
+
+def revoke_join_link(conn: sqlite3.Connection, who: Principal, link_id: str, now: int | None = None) -> None:
+    """Admins only. A revoked link answers the same "not valid" as an unknown or expired one."""
+    _require_admin(who)
+    now = now_ms() if now is None else now
+    if conn.execute("SELECT 1 FROM join_links WHERE id = ?", (link_id,)).fetchone() is None:
+        raise NotFound("no such join link")
+    conn.execute("UPDATE join_links SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", (now, link_id))
 
 
 def _guard_last_admin(conn: sqlite3.Connection, user_id: str) -> None:

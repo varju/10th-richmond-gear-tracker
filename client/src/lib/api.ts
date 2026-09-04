@@ -71,6 +71,25 @@ export interface Device {
   created_at: number;
 }
 
+/** The days a standing join link is good for (FR-USR-19): 1, 7 (the default) or 30. */
+export type JoinLinkExpiry = 1 | 7 | 30;
+
+/** A live standing join link, as an Admin sees it in the list. Never the token (FR-USR-19). */
+export interface JoinLink {
+  id: string;
+  created_by: string;
+  created_by_name: string | null;
+  created_at: number;
+  expires_at: number;
+}
+
+/** What creating a standing join link hands back, once, to show and print (FR-USR-19). */
+export interface CreatedJoinLink extends JoinLink {
+  token: string;
+  url: string | null;
+  qr_svg: string | null;
+}
+
 /** What makes a device an assistant rather than an ordinary device (FR-MCP-02). Matches accounts.py. */
 export const ASSISTANT_PREFIX = "mcp-";
 
@@ -290,6 +309,9 @@ export function createApi(options: ApiOptions = {}) {
     /** Use an invite or reset link (FR-USR-12): set a password, open this device's session. */
     redeem: (token: string, password: string, device_id: string) =>
       request<Session>("POST", "/auth/redeem", { token, password, device_id }),
+    /** Whoever opens a standing join link makes their own account (FR-USR-19), and this device signs in. */
+    join: (link: string, name: string, email: string, password: string, device_id: string) =>
+      request<Session>("POST", "/join", { link, name, email, password, device_id }),
     // Admins only. Every call needs the network; nothing here is stored on the device.
     users: () => request<{ users: AccountUser[] }>("GET", "/users"),
     /** `link` is this app's join page with TOKEN standing in for the token; the server fills it in. */
@@ -308,6 +330,11 @@ export function createApi(options: ApiOptions = {}) {
     notifications: () => request<NotificationSettings>("GET", "/me/notifications"),
     saveNotifications: (categories: NotificationCategories) =>
       request<NotificationSettings>("PUT", "/me/notifications", categories),
+    /** A standing link and its QR (FR-USR-19). `link` is this app's join page with TOKEN standing in. */
+    createJoinLink: (expiry_days: JoinLinkExpiry, link: string) =>
+      request<CreatedJoinLink>("POST", "/join-links", { expiry_days, link }),
+    joinLinks: () => request<{ links: JoinLink[] }>("GET", "/join-links"),
+    revokeJoinLink: (id: string) => request<{ links: JoinLink[] }>("POST", `/join-links/${id}/revoke`),
     mail: () => request<{ mail: MailSettings | null }>("GET", "/mail"),
     saveMail: (settings: Omit<MailSettings, "has_password"> & { password: string }) =>
       request<{ mail: MailSettings }>("PUT", "/mail", settings),

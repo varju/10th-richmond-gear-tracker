@@ -25,7 +25,7 @@ the event layer refuses it.
 server refuses a count on anything else and refuses a pool without one. `get_item` on a pool
 reports owned, in, and out by holder in place of units and a code (FR-INV-36, FR-MCP-08).
 
-**An Admin's token unlocks an Admin's work** (FR-MCP-10): users, mail, group
+**An Admin's token unlocks an Admin's work** (FR-MCP-10): users, standing join links, mail, group
 settings, locations, categories (adding one is anyone's job), printed codes,
 CSV export and import, deleting an item, and merging or unmerging duplicates. Every one of those tools calls
 the same accounts.py, mail.py, codes.py or inventory_csv.py function the app's
@@ -79,7 +79,7 @@ HISTORY_SHOWN = 10
 INSTRUCTIONS = """Gear Tracker holds a Scout group's gear: what we own, where it lives, who has it,
 and what needs fixing. Search before you write, and use the ids the read tools
 return. Everything you write is recorded as the signed-in person, through the
-assistant. Users, mail, group settings, locations, renaming or deleting
+assistant. Users, standing join links, mail, group settings, locations, renaming or deleting
 categories, printed codes, CSV import, deleting an item, and merging duplicates
 are an Admin's job in the app, and are here too when the signed-in person is an Admin; a User's token is
 refused the same way the app refuses a User. A pool is gear kept as a counted stack, not named
@@ -1228,6 +1228,42 @@ def revoke_device(user_id: str, device_id: str) -> dict[str, Any]:
         return {"devices": accounts.revoke_device(conn, who, user_id, device_id)}
 
 
+def _join_link_response(state: dict[str, Any], made: dict[str, Any]) -> dict[str, Any]:
+    """A standing link's URL and QR, built from the group's site address, the same way _link
+    builds an invite's (FR-USR-19). Without a site address there is no page for it to open."""
+    group = views.entity(state, "setting", "group") or {}
+    code_url = group.get("code_url")
+    if not code_url:
+        return {**made, "url": None, "note": "the group's site address is not set (Settings > Group)"}
+    url = f"{str(code_url).rstrip('/')}/join?link={made['token']}"
+    return {**made, "url": url, "qr_svg": labels.qr_svg(url)}
+
+
+def create_join_link(expiry_days: accounts.JoinLinkExpiryDays = 7) -> dict[str, Any]:
+    """A standing link and its QR, for a room of volunteers to make their own accounts at once
+    (FR-USR-19). Good for 1, 7 (the default) or 30 days, until revoked. Admins only.
+
+    The token and QR are shown only here; list_join_links names who made a link and when, not
+    what it is.
+    """
+    with _open() as (conn, who):
+        made = accounts.create_join_link(conn, who, accounts.CreateJoinLink(expiry_days=expiry_days))
+        return _join_link_response(_state(conn), made)
+
+
+def list_join_links() -> dict[str, Any]:
+    """Every live standing join link: who made it, when, and when it expires (FR-USR-19). Admins only."""
+    with _open() as (conn, who):
+        return {"links": accounts.list_join_links(conn, who)}
+
+
+def revoke_join_link(link_id: str) -> dict[str, Any]:
+    """End a standing join link before its expiry (FR-USR-19). Admins only."""
+    with _open() as (conn, who):
+        accounts.revoke_join_link(conn, who, link_id)
+        return {"links": accounts.list_join_links(conn, who)}
+
+
 def get_mail() -> dict[str, Any]:
     """The server's SMTP account, without the password (FR-USR-15). Admins only."""
     with _open() as (conn, who):
@@ -1491,6 +1527,9 @@ TOOLS = [
     set_user_role,
     list_devices,
     revoke_device,
+    create_join_link,
+    list_join_links,
+    revoke_join_link,
     get_mail,
     set_mail,
     send_test_mail,

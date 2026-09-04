@@ -345,6 +345,16 @@ def test_a_json_whole_number_still_works_for_a_float_price():
     assert validated.fields.price == 3.0
 
 
+def test_create_join_link_refuses_a_string_for_expiry_days():
+    with pytest.raises(pydantic.ValidationError):
+        _arg_model("create_join_link").model_validate({"expiry_days": "7"})
+
+
+def test_create_join_link_refuses_a_day_count_that_is_not_one_of_the_three_choices():
+    with pytest.raises(pydantic.ValidationError):
+        _arg_model("create_join_link").model_validate({"expiry_days": 14})
+
+
 # --- reading ---------------------------------------------------------------------------------
 
 
@@ -964,6 +974,35 @@ def test_devices_are_listed_and_revoked_for_self_or_by_an_admin(admin_tools, adm
     # Revoking the token making the call is "sign out instead" (accounts.revoke_device's own rule).
     with pytest.raises(Conflict):
         assistant.revoke_device(admin_id, "mcp-01CCCCCCCCCCCCCCCCCCCCCCCC")
+
+
+def test_an_admin_creates_lists_and_revokes_a_join_link(admin_tools, admin_id):
+    made = assistant.create_join_link()
+    assert made["token"]
+    assert made["url"] is None  # no site address is set yet (FR-USR-19), the same as invite_user
+    assert "site address" in made["note"]
+
+    listed = assistant.list_join_links()["links"]
+    assert [line["id"] for line in listed] == [made["id"]]
+    assert listed[0]["created_by"] == admin_id
+    assert "token" not in listed[0]
+
+    assistant.set_group(assistant.GroupFields(code_url="https://example.org/gear"))
+    built = assistant.create_join_link(expiry_days=1)
+    assert built["url"] == f"https://example.org/gear/join?link={built['token']}"
+    assert built["qr_svg"].startswith("<?xml")
+
+    revoked = assistant.revoke_join_link(made["id"])
+    assert [line["id"] for line in revoked["links"]] == [built["id"]]
+
+
+def test_join_links_are_admin_only(tools):
+    with pytest.raises(Forbidden):
+        assistant.create_join_link()
+    with pytest.raises(Forbidden):
+        assistant.list_join_links()
+    with pytest.raises(Forbidden):
+        assistant.revoke_join_link("nope")
 
 
 class _Mailbox:

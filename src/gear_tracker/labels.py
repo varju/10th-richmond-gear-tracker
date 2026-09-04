@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from io import BytesIO
 
+from reportlab.graphics import renderSVG
 from reportlab.graphics.barcode.qr import QrCodeWidget
 from reportlab.graphics.shapes import Drawing
 from reportlab.lib.pagesizes import letter
@@ -35,8 +36,22 @@ MIN_FONT_SIZE = 5
 """The name shrinks to fit beside the QR, one word per line, but no smaller than this."""
 
 
+QR_SCREEN_SIZE = 220
+"""A join link's QR (FR-USR-19), sized to read from a phone held up across a table, not a sticker."""
+
+
 def pages_needed(count: int) -> int:
     return math.ceil(count / LABELS_PER_SHEET)
+
+
+def qr_svg(url: str, size: float = QR_SCREEN_SIZE) -> str:
+    """One URL as inline SVG, the same widget the label sheet draws with (FR-USR-19)."""
+    qr = QrCodeWidget(url, barLevel="M")
+    left, bottom, right, top = qr.getBounds()
+    drawing = Drawing(size, size)
+    drawing.scale(size / (right - left), size / (top - bottom))
+    drawing.add(qr)
+    return renderSVG.drawToString(drawing)
 
 
 def sheet(codes: list[str], group_name: str, site_url: str) -> bytes:

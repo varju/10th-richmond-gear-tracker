@@ -1005,6 +1005,18 @@ main:has(> .remaining) .viewfinder {
   word-break: break-all;
 }
 
+.qr {
+  width: 220px;
+  max-width: 100%;
+  margin-top: 12px;
+}
+
+.qr svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
 .user-detail {
   display: grid;
   gap: 12px;

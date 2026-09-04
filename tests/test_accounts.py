@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pydantic
 import pytest
 
 from gear_tracker import accounts
@@ -509,3 +510,110 @@ def test_users_manage_their_own_devices(db, admin):
 def test_admin_lists_or_revokes_devices_for_nobody(db, admin):
     with pytest.raises(NotFound):
         accounts.list_devices(db, admin, "nobody")
+
+
+# --- standing join links (FR-USR-19) ----------------------------------------------------------
+
+
+def make_join_link(db, admin, expiry_days=7, now=T0):
+    return accounts.create_join_link(db, admin, accounts.CreateJoinLink(expiry_days=expiry_days), now=now)
+
+
+def use_join_link(db, token, name="Bea", email="bea@example.org", password="battery staple", device="phone-b", now=T0):
+    body = accounts.Join(link=token, name=name, email=email, password=password, device_id=device)
+    return accounts.join(db, body, now=now)
+
+
+def test_an_admin_creates_a_join_link_and_lists_it(db, admin):
+    made = make_join_link(db, admin, now=T0)
+    assert made["token"]
+    assert made["created_by"] == admin.user_id
+    assert made["created_at"] == T0
+    assert made["expires_at"] == T0 + 7 * accounts.DAY_MS
+
+    [listed] = accounts.list_join_links(db, admin, now=T0)
+    assert listed["id"] == made["id"]
+    assert listed["created_by"] == admin.user_id
+    assert listed["created_by_name"] == "Alex"
+    assert listed["expires_at"] == made["expires_at"]
+    assert "token" not in listed
+
+
+def test_a_join_links_expiry_is_one_of_three_choices(db, admin):
+    for days in (1, 7, 30):
+        made = make_join_link(db, admin, expiry_days=days, now=T0)
+        assert made["expires_at"] == T0 + days * accounts.DAY_MS
+    with pytest.raises(pydantic.ValidationError):
+        accounts.CreateJoinLink(expiry_days=14)
+
+
+def test_a_user_cannot_create_list_or_revoke_a_join_link(db, admin):
+    user_id, _ = invite(db, admin)
+    bea = Principal(user_id=user_id, device_id="phone-b", role="user")
+    with pytest.raises(Forbidden):
+        accounts.create_join_link(db, bea, accounts.CreateJoinLink())
+    with pytest.raises(Forbidden):
+        accounts.list_join_links(db, bea)
+    with pytest.raises(Forbidden):
+        accounts.revoke_join_link(db, bea, "nope")
+
+
+def test_joining_creates_a_user_audited_under_the_link_creators_name(db, admin):
+    made = make_join_link(db, admin, now=T0)
+    session = use_join_link(db, made["token"], now=T0 + 1)
+
+    assert session.user["name"] == "Bea"
+    assert session.user["role"] == "user"
+    assert accounts.authenticate(db, session.token) == Principal(session.user["id"], "phone-b", True, "user")
+
+    created = [e for e in in_replay_order(db) if e.entity_id == session.user["id"]]
+    assert [e.type for e in created] == ["created"]
+    assert created[0].actor_id == admin.user_id, "the audit log says who let them in (FR-USR-05)"
+
+
+def test_an_unknown_join_link_is_refused(db, admin):
+    with pytest.raises(Unauthorized, match="not valid"):
+        use_join_link(db, "nope")
+
+
+def test_an_expired_join_link_is_refused(db, admin):
+    made = make_join_link(db, admin, expiry_days=1, now=T0)
+    with pytest.raises(Unauthorized, match="not valid"):
+        use_join_link(db, made["token"], now=T0 + DAY + 1)
+
+
+def test_a_revoked_join_link_is_refused(db, admin):
+    made = make_join_link(db, admin, now=T0)
+    accounts.revoke_join_link(db, admin, made["id"], now=T0)
+    with pytest.raises(Unauthorized, match="not valid"):
+        use_join_link(db, made["token"])
+
+
+def test_a_join_link_stays_good_for_a_second_person_after_a_first_joins(db, admin):
+    """Unlike an invite or reset link, a standing link is not spent by one use (FR-USR-19)."""
+    made = make_join_link(db, admin, now=T0)
+    use_join_link(db, made["token"], name="Bea", email="bea@example.org", device="phone-b", now=T0)
+    second = use_join_link(db, made["token"], name="Cal", email="cal@example.org", device="phone-c", now=T0)
+    assert second.user["name"] == "Cal"
+
+
+def test_joining_with_an_email_already_in_use_is_a_conflict(db, admin):
+    made = make_join_link(db, admin, now=T0)
+    with pytest.raises(Conflict, match="sign in instead"):
+        use_join_link(db, made["token"], email="alex@example.org")
+
+
+def test_revoking_a_join_link_drops_it_from_the_list(db, admin):
+    made = make_join_link(db, admin, now=T0)
+    accounts.revoke_join_link(db, admin, made["id"], now=T0)
+    assert accounts.list_join_links(db, admin, now=T0) == []
+
+
+def test_revoking_an_unknown_join_link_is_not_found(db, admin):
+    with pytest.raises(NotFound):
+        accounts.revoke_join_link(db, admin, "nope")
+
+
+def test_an_expired_join_link_does_not_appear_in_the_list(db, admin):
+    make_join_link(db, admin, expiry_days=1, now=T0)
+    assert accounts.list_join_links(db, admin, now=T0 + DAY + 1) == []

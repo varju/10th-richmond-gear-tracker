@@ -56,6 +56,11 @@ FOUND_PER_CODE = (3, DAY_MS)
 FOUND_IN_ALL = (30, HOUR_MS)
 """How often a stranger may report gear found (FR-PUB-04): per address, per sticker, and in total."""
 
+JOIN_PER_ADDRESS = (5, HOUR_MS)
+JOIN_IN_ALL = (30, HOUR_MS)
+"""Joining is unauthenticated too (FR-USR-19), so it gets the same shape of limit as a found report:
+per address, and in total. There is no per-code limit; a standing link has no code to key on."""
+
 
 def _trusted_proxy(host: str | None) -> bool:
     """Whether the immediate peer is close enough to us to believe what it says about who is behind it.
@@ -139,6 +144,10 @@ def create_app(
         "address": RateLimit(*FOUND_PER_ADDRESS),
         "code": RateLimit(*FOUND_PER_CODE),
         "all": RateLimit(*FOUND_IN_ALL),
+    }
+    join_limits = {
+        "address": RateLimit(*JOIN_PER_ADDRESS),
+        "all": RateLimit(*JOIN_IN_ALL),
     }
 
     def db() -> Iterator[sqlite3.Connection]:
@@ -254,6 +263,21 @@ def create_app(
     def redeem(conn: Db, body: accounts.Redeem) -> dict[str, Any]:
         return session_response(accounts.redeem(conn, body))
 
+    @app.post("/join")
+    def do_join(request: Request, conn: Db, body: accounts.Join) -> dict[str, Any]:
+        """Whoever opens a standing join link makes their own account (FR-USR-19).
+
+        Unauthenticated, like a found report, so it is rate-limited the same way (FR-PUB-04's
+        pattern, not its numbers): per address, and in total.
+        """
+        now = now_ms()
+        address = client_address(request)
+        if not (join_limits["address"].would_allow(address, now) and join_limits["all"].would_allow("all", now)):
+            raise TooMany("too many join attempts; try again later")
+        join_limits["address"].record(address, now)
+        join_limits["all"].record("all", now)
+        return session_response(accounts.join(conn, body, now))
+
     @app.post("/auth/sign-out")
     def sign_out(request: Request, conn: Db, _who: Who) -> dict[str, Any]:
         accounts.sign_out(conn, bearer(request) or "")
@@ -334,6 +358,26 @@ def create_app(
         _require_active(who)
         categories = notify.set_categories(conn, who.user_id, body)
         return stamped({"categories": categories, "mail_configured": mail.configured(conn)})
+
+    # --- join links (Admins) ---------------------------------------------------------------
+
+    @app.post("/join-links")
+    def create_join_link(conn: Db, who: Who, body: accounts.CreateJoinLink) -> dict[str, Any]:
+        """A standing link and its QR (FR-USR-19). The URL is built here, from the app's own
+        template, the same way an invite link is; the QR is drawn from it so nothing else can
+        carry the bearer token that an `<img src>` would need."""
+        made = accounts.create_join_link(conn, who, body)
+        url = body.link.replace("TOKEN", made["token"]) if body.link else None
+        return stamped({**made, "url": url, "qr_svg": labels.qr_svg(url) if url else None})
+
+    @app.get("/join-links")
+    def join_links(conn: Db, who: Who) -> dict[str, Any]:
+        return stamped({"links": accounts.list_join_links(conn, who)})
+
+    @app.post("/join-links/{link_id}/revoke")
+    def revoke_join_link(conn: Db, who: Who, link_id: str) -> dict[str, Any]:
+        accounts.revoke_join_link(conn, who, link_id)
+        return stamped({"links": accounts.list_join_links(conn, who)})
 
     # --- mail (Admins) --------------------------------------------------------------------
 

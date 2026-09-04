@@ -43,17 +43,3 @@ fresh from the labelling walk.
 - [ ] Print code sheets and do the labelling walk (S-BOOT-02, S-BOOT-03)
 
 Public pages come before the labelling walk, not after it. From the moment stickers go on gear, a stranger can scan one.
-
-## M10 — First feedback
-
-From the first volunteers to use it. Fixes first, then features. Where a task changes a requirement, it says so; amend
-the row in the same commit.
-
-### Fixes
-
-### Features
-
-- [ ] Join link: an Admin creates a standing join link, shown as a URL and a QR code, with an expiry and a Revoke
-      button. Whoever opens it gives a name, email, and password and gets an active User account. Admins see the new
-      account in Users. Amend FR-USR-13 to "no sign-up except through a link an Admin issued"; new FR-USR row.
-      Per-person one-time links (FR-USR-12) stay for email.

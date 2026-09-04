@@ -9,7 +9,7 @@ from fastapi import Request
 from fastapi.testclient import TestClient
 
 from gear_tracker import accounts, derived, events, inventory_csv
-from gear_tracker.app import client_address, create_app
+from gear_tracker.app import HOUR_MS, client_address, create_app
 from gear_tracker.db import open_db
 from gear_tracker.sync import Principal
 from tests.factories import T0, incoming
@@ -363,6 +363,94 @@ def test_a_user_sees_and_manages_their_own_devices_over_http(real):
 
     alex_id = real.get("/users", headers=admin).json()["users"][0]["id"]
     assert real.get(f"/users/{alex_id}/devices", headers=bea).status_code == 403
+
+
+# --- standing join links, over HTTP (FR-USR-19) -------------------------------------------
+
+
+JOIN_LINK_TEMPLATE = "https://example.org/gear/join?link=TOKEN"
+
+
+def test_a_standing_join_link_is_created_used_and_revoked_over_http(real):
+    admin = sign_in(real)
+
+    made = real.post("/join-links", json={"link": JOIN_LINK_TEMPLATE}, headers=admin)
+    assert made.status_code == 200, made.text
+    body = made.json()
+    assert body["url"] == f"https://example.org/gear/join?link={body['token']}"
+    assert body["qr_svg"].startswith("<?xml")
+    assert body["expires_at"] - body["created_at"] == 7 * 24 * HOUR_MS
+
+    listed = real.get("/join-links", headers=admin).json()["links"]
+    assert [line["id"] for line in listed] == [body["id"]]
+    assert listed[0]["created_by_name"] == "Alex"
+    assert "token" not in listed[0]
+
+    joined = real.post("/join", json=join_body(body["token"], name="Bea", email="bea@example.org"))
+    assert joined.status_code == 200, joined.text
+    assert joined.json()["user"]["role"] == "user"
+    bea = {"Authorization": f"Bearer {joined.json()['token']}"}
+    assert real.get("/sync/bootstrap", headers=bea).status_code == 200
+
+    revoked = real.post(f"/join-links/{body['id']}/revoke", headers=admin)
+    assert revoked.json()["links"] == []
+
+    refused = real.post("/join", json=join_body(body["token"], name="Cal", email="cal@example.org"))
+    assert refused.status_code == 401
+    assert refused.json()["message"] == "this link is not valid"
+
+
+def join_body(token, name="Bea", email="bea@example.org", password="battery staple", device="phone-b"):
+    return {"link": token, "name": name, "email": email, "password": password, "device_id": device}
+
+
+def test_join_body_is_validated(real):
+    admin = sign_in(real)
+    made = real.post("/join-links", json={"link": JOIN_LINK_TEMPLATE}, headers=admin).json()
+    body = join_body(made["token"])
+    del body["device_id"]
+    r = real.post("/join", json=body)
+    assert r.status_code == 400
+
+
+def test_join_links_are_admin_only(real):
+    admin = sign_in(real)
+    invited = real.post("/users/invite", json={"name": "Bea", "email": "bea@example.org"}, headers=admin).json()
+    bea_token = real.post(
+        "/auth/redeem", json={"token": invited["token"], "password": "battery staple", "device_id": "phone-b"}
+    ).json()["token"]
+    bea = {"Authorization": f"Bearer {bea_token}"}
+    assert real.post("/join-links", json={"link": JOIN_LINK_TEMPLATE}, headers=bea).status_code == 403
+    assert real.get("/join-links", headers=bea).status_code == 403
+    assert real.post("/join-links/nope/revoke", headers=bea).status_code == 403
+
+
+def test_a_made_up_join_link_is_refused(real):
+    r = real.post("/join", json=join_body("nope"))
+    assert r.status_code == 401
+    assert r.json()["message"] == "this link is not valid"
+
+
+def test_an_email_already_in_use_gets_a_conflict_that_points_at_sign_in(real):
+    admin = sign_in(real)
+    made = real.post("/join-links", json={"link": JOIN_LINK_TEMPLATE}, headers=admin).json()
+    r = real.post("/join", json=join_body(made["token"], name="Someone", email="alex@example.org"))
+    assert r.status_code == 409
+    assert "sign in instead" in r.json()["message"]
+
+
+def test_join_is_rate_limited_per_address_and_in_all(real):
+    admin = sign_in(real)
+    made = real.post("/join-links", json={"link": JOIN_LINK_TEMPLATE}, headers=admin).json()
+
+    def attempt(n):
+        return real.post("/join", json=join_body(made["token"], name=f"Person {n}", email=f"person{n}@example.org"))
+
+    for n in range(5):
+        assert attempt(n).status_code in (200, 409)
+    refused = attempt(5)
+    assert refused.status_code == 429
+    assert refused.json()["error"] == "rate_limited"
 
 
 # --- the built client ------------------------------------------------------------------

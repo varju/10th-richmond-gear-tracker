@@ -1,6 +1,15 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react";
-import { type AccountUser, type Api, ApiError, Offline } from "../lib/api";
+import {
+  type AccountUser,
+  type Api,
+  ApiError,
+  type CreatedJoinLink,
+  type JoinLink,
+  type JoinLinkExpiry,
+  Offline,
+} from "../lib/api";
 import { BASE } from "../lib/router";
+import { ago, localDate } from "../lib/time";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { DeviceList } from "./Devices";
@@ -19,6 +28,11 @@ export const joinUrl = (token: string): string => `${location.origin}${BASE}/joi
  * mails the link, so it never has to know its own public address (FR-USR-15).
  */
 const LINK_TEMPLATE = joinUrl("TOKEN");
+
+/** A standing join link's page (FR-USR-19): the same route, told apart by `link` rather than `token`. */
+export const joinLinkUrl = (token: string): string => `${location.origin}${BASE}/join?link=${token}`;
+
+const JOIN_LINK_TEMPLATE = joinLinkUrl("TOKEN");
 
 function describe(e: unknown): string {
   if (e instanceof Offline) return "Needs a connection. Users are managed on the server, not on this device.";
@@ -91,7 +105,147 @@ export function Users({ store, api }: Props) {
           ))}
         </ul>
       )}
+      <h2 className="section">Join link</h2>
+      <JoinLinkSection api={api} onError={setError} />
     </Page>
+  );
+}
+
+/**
+ * A standing link, shown as a URL and a QR code, that lets whoever opens it make their own
+ * account (FR-USR-19). Kept apart from the one-time invite links above: this one is for a room
+ * full of volunteers at once, and lives until it expires or is revoked.
+ */
+function JoinLinkSection({ api, onError }: { api: Api; onError: (message: string | null) => void }) {
+  const [links, setLinks] = useState<JoinLink[] | null>(null);
+  const [made, setMade] = useState<CreatedJoinLink | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    onError(null);
+    try {
+      setLinks((await api.joinLinks()).data.links);
+    } catch (e) {
+      onError(describe(e));
+    }
+  }, [api, onError]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function create(expiry_days: JoinLinkExpiry) {
+    setBusy(true);
+    onError(null);
+    try {
+      const { data } = await api.createJoinLink(expiry_days, JOIN_LINK_TEMPLATE);
+      setMade(data);
+      await load();
+    } catch (e) {
+      onError(describe(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revoke(id: string) {
+    setBusy(true);
+    onError(null);
+    try {
+      setLinks((await api.revokeJoinLink(id)).data.links);
+      if (made?.id === id) setMade(null);
+    } catch (e) {
+      onError(describe(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      {made && <MadeJoinLink link={made} onDone={() => setMade(null)} />}
+      <CreateJoinLinkForm busy={busy} onCreate={create} />
+      {links && links.length > 0 && (
+        <ul className="names" aria-label="Join links">
+          {links.map((l) => (
+            <li key={l.id} className="row">
+              <span className="small">
+                Made by {l.created_by_name ?? "someone gone"} {ago(Date.now() - l.created_at)} · expires{" "}
+                {localDate(l.expires_at)}
+              </span>
+              <button type="button" className="minor" disabled={busy} onClick={() => revoke(l.id)}>
+                Revoke
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+function CreateJoinLinkForm({ busy, onCreate }: { busy: boolean; onCreate: (expiry_days: JoinLinkExpiry) => void }) {
+  const [days, setDays] = useState<JoinLinkExpiry>(7);
+  return (
+    <form
+      className="row"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onCreate(days);
+      }}
+    >
+      <label className="tight">
+        <span>Expires after</span>
+        <select value={days} onChange={(e) => setDays(Number(e.target.value) as JoinLinkExpiry)}>
+          <option value={1}>1 day</option>
+          <option value={7}>7 days</option>
+          <option value={30}>30 days</option>
+        </select>
+      </label>
+      <button type="submit" className="primary" disabled={busy}>
+        Create join link
+      </button>
+    </form>
+  );
+}
+
+/** A fresh link, shown once: the URL, a QR large enough to scan across a table, and Copy (FR-USR-19). */
+function MadeJoinLink({ link, onDone }: { link: CreatedJoinLink; onDone: () => void }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    if (!link.url) return;
+    try {
+      await navigator.clipboard.writeText(link.url);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }
+  return (
+    <div className="notice" role="status">
+      {link.url ? (
+        <>
+          <p>
+            Share this link or let people scan the code. It works until it expires or you revoke it.
+            <br />
+            <code className="wrap">{link.url}</code>
+          </p>
+          {link.qr_svg && <div className="qr" dangerouslySetInnerHTML={{ __html: link.qr_svg }} />}
+        </>
+      ) : (
+        <p>The group's site address is not set (Settings &gt; Group), so there is no page for this link to open yet.</p>
+      )}
+      <div className="row">
+        {link.url && (
+          <button type="button" className="minor primary" onClick={copy}>
+            {copied ? "Copied" : "Copy"}
+          </button>
+        )}
+        <button type="button" className="minor" onClick={onDone}>
+          Done
+        </button>
+      </div>
+    </div>
   );
 }
 
