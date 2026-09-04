@@ -201,6 +201,7 @@ Reachable by scanning a label, with no sign-in.
 | FR-RPT-01 | Must     | One report: what is out, and who has it.                                                                     |
 | FR-RPT-02 | Should   | Repair report: open tickets, and repair history over a date range.                                           |
 | FR-RPT-11 | Should   | What is out (FR-RPT-01) lists a pool once per holder, with the count out.                                    |
+| FR-RPT-12 | Should   | Sort what is out (FR-RPT-01) by holder, item, time checked out, or reservation.                              |
 | FR-RPT-03 | Could    | Export the full inventory to CSV. Not the backup of record; NFR-DATA-06 is.                                  |
 | FR-RPT-04 | Could    | Export any filtered list to CSV.                                                                             |
 | FR-RPT-05 | Could    | Overdue report: gear out longer than the group-wide period (FR-OUT-14).                                      |

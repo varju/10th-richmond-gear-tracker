@@ -114,6 +114,51 @@ test("a row opens the item", async () => {
   expect(location.pathname).toBe(`/items/${tent}`);
 });
 
+test("switching to time out reorders items across holders, no more grouping (FR-RPT-12)", async () => {
+  await mv.checkOut(store, tent, { event: "Spring camp" });
+  await mv.checkOut(store, stove);
+  await store.setMeta({ user: carol });
+  await mv.checkOut(store, axe);
+
+  mount(<Report store={store} />, 3);
+  await user.selectOptions(screen.getByLabelText("Sort by"), "Time out");
+  // Time opens longest out first, so the arrangement carries a direction the desk's table shares.
+  expect(location.pathname + location.search).toBe("/out?sort=days&dir=down");
+  expect(screen.queryByRole("region")).not.toBeInTheDocument();
+
+  const items = within(screen.getByRole("list"))
+    .getAllByRole("button")
+    .map((b) => b.textContent);
+  // Everything went out on the same day, so the tie falls to the holder's name, then the item's.
+  expect(items).toEqual([
+    "Stove" + "Alice · out 3 days",
+    "Tent 1" + "Alice · Spring camp · out 3 days",
+    "Axe" + "Carol · out 3 days",
+  ]);
+});
+
+test("switching to reservation clusters by event name (FR-RPT-12)", async () => {
+  await mv.checkOut(store, tent, { event: "Spring camp" });
+  await mv.checkOut(store, stove);
+  await store.setMeta({ user: carol });
+  await mv.checkOut(store, axe);
+
+  mount(<Report store={store} />, 3);
+  await user.selectOptions(screen.getByLabelText("Sort by"), "Reservation");
+  expect(location.pathname + location.search).toBe("/out?sort=reservation");
+  expect(screen.queryByRole("region")).not.toBeInTheDocument();
+
+  const items = within(screen.getByRole("list"))
+    .getAllByRole("button")
+    .map((b) => b.textContent);
+  // "Spring camp" sorts before the event-less rows, which tie-break on the holder's name.
+  expect(items).toEqual([
+    "Tent 1" + "Alice · Spring camp · out 3 days",
+    "Stove" + "Alice · out 3 days",
+    "Axe" + "Carol · out 3 days",
+  ]);
+});
+
 test("the reports page links to what is out, and counts it", async () => {
   navigate("/reports");
   const first = mount(<Reports store={store} />);
@@ -125,4 +170,24 @@ test("the reports page links to what is out, and counts it", async () => {
   mount(<Reports store={store} />);
   await user.click(screen.getByRole("button", { name: "What is out · 2" }));
   expect(location.pathname).toBe("/out");
+});
+
+test("a direction the desk's table put in the URL is honoured, not ignored (FR-RPT-12)", async () => {
+  await mv.checkOut(store, tent, { event: "Spring camp" });
+  await mv.checkOut(store, stove);
+  await store.setMeta({ user: carol });
+  await mv.checkOut(store, axe);
+  navigate("/out?dir=down");
+
+  mount(<Report store={store} />, 3);
+  // Holder descending: one flat list, Carol before Alice. Grouping is the default arrangement only.
+  expect(screen.queryByRole("region")).not.toBeInTheDocument();
+  const items = within(screen.getByRole("list"))
+    .getAllByRole("button")
+    .map((b) => b.textContent);
+  expect(items).toEqual([
+    "Axe" + "Carol · out 3 days",
+    "Stove" + "Alice · out 3 days",
+    "Tent 1" + "Alice · Spring camp · out 3 days",
+  ]);
 });

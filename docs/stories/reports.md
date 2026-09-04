@@ -9,8 +9,9 @@ exists.
 
 - One report, no filters required to make it useful
 - Names the holder and the event
+- Sortable by holder, item, time out, or reservation
 
-Covers: FR-RPT-01
+Covers: FR-RPT-01, FR-RPT-12
 
 ## S-RPT-02 What has been gone too long
 

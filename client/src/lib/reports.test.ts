@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { DAY_MS } from "./clock";
 import type { State } from "./replay";
-import { daysOut, isOverdue, whatIsOut } from "./reports";
+import { daysOut, isOverdue, orderParams, outRows, readOrder, rowKey, sortRows, whatIsOut } from "./reports";
 
 const T0 = 1_756_684_800_000;
 const out = (holder: string, since: number, event?: string) => ({
@@ -68,6 +68,60 @@ test("missing gear is not out, even with a check-out standing (FR-INV-19)", () =
   expect(report.holders.flatMap((h) => h.items.map((i) => i.item.name))).not.toContain("Axe");
 });
 
+test("outRows flattens the holder grouping, in the same order", () => {
+  const report = whatIsOut(state, T0);
+  expect(outRows(report).map((r) => [r.holderName, r.item.name])).toEqual([
+    ["(unknown person)", "Lamp"],
+    ["Alice", "Stove"],
+    ["Bob", "Tent"],
+    ["Bob", "Axe"],
+  ]);
+});
+
+test("sorting by time out ignores holder grouping, longest out first (FR-RPT-12)", () => {
+  const report = whatIsOut(state, T0);
+  const sorted = sortRows(state, outRows(report), { sort: "days", up: false });
+  expect(sorted.map((r) => r.item.name)).toEqual(["Tent", "Axe", "Stove", "Lamp"]);
+});
+
+test("sorting by reservation clusters by event name, with event-less rows after named ones (FR-RPT-12)", () => {
+  const report = whatIsOut(state, T0);
+  const sorted = sortRows(state, outRows(report), { sort: "reservation", up: true });
+  // Only the tent carries an event; the rest tie on "no event" and fall back to holder name.
+  expect(sorted.map((r) => r.item.name)).toEqual(["Tent", "Lamp", "Stove", "Axe"]);
+});
+
+test("sorting by holder is stable within a person: longest out first, then item name", () => {
+  // Same days out for both of Bob's items, so the tie falls to the item name.
+  const tied: State = {
+    ...state,
+    item: { ...state.item, tent: { ...state.item!.tent!, since: T0 - 3 * DAY_MS } },
+  };
+  const report = whatIsOut(tied, T0);
+  const sorted = sortRows(tied, outRows(report), { sort: "holder", up: true });
+  expect(sorted.map((r) => [r.holderName, r.item.name])).toEqual([
+    ["(unknown person)", "Lamp"],
+    ["Alice", "Stove"],
+    ["Bob", "Axe"],
+    ["Bob", "Tent"],
+  ]);
+});
+
+test("a pool row carries no event, and sorts among the event-less rows by reservation (FR-RPT-11, FR-RPT-12)", () => {
+  const withPool: State = {
+    ...state,
+    item: {
+      ...state.item,
+      bowls: { name: "Bowls", generic: true, pool: true, pool_in: 5, pool_out: { alice: 4 } },
+    },
+  };
+  const report = whatIsOut(withPool, T0);
+  const sorted = sortRows(withPool, outRows(report), { sort: "reservation", up: true });
+  // Ties fall back to the grouped order, where a pool's absent day count already puts it last
+  // within its holder: Alice's Stove, then her Bowls.
+  expect(sorted.map((r) => r.item.name)).toEqual(["Tent", "Lamp", "Stove", "Bowls", "Axe"]);
+});
+
 test("a pool lists once per holder, with its count, and carries no days or event of its own (FR-RPT-11)", () => {
   const withPool: State = {
     ...state,
@@ -85,4 +139,38 @@ test("a pool lists once per holder, with its count, and carries no days or event
   expect(alice.items[1]).toMatchObject({ count: 4, days: 0, event: null, overdue: false });
   expect(bob.items.map((i) => i.item.name)).toEqual(["Tent", "Axe", "Bowls"]);
   expect(bob.items[2]).toMatchObject({ count: 6, days: 0, event: null, overdue: false });
+});
+
+test("a pool out to two people makes one row each, told apart by holder (FR-RPT-11)", () => {
+  const shared: State = {
+    ...state,
+    item: {
+      ...state.item,
+      bowls: { name: "Bowls", generic: true, pool: true, pool_in: 3, pool_out: { alice: 4, bob: 3 } },
+    },
+  };
+  const rows = outRows(whatIsOut(shared, T0)).filter((r) => r.item.name === "Bowls");
+
+  // Both rows are the same item, so the item id alone is not a key. rowKey is what the lists use.
+  expect(rows.map((r) => [r.holderName, r.count])).toEqual([
+    ["Alice", 4],
+    ["Bob", 3],
+  ]);
+  expect(new Set(rows.map((r) => r.item.id)).size).toBe(1);
+  expect(new Set(rows.map(rowKey)).size).toBe(2);
+});
+
+test("turning a sort around reverses it, but ties still read the same way (FR-RPT-12)", () => {
+  const report = whatIsOut(state, T0);
+  const up = sortRows(state, outRows(report), { sort: "days", up: true });
+  expect(up.map((r) => r.item.name)).toEqual(["Lamp", "Stove", "Axe", "Tent"]);
+});
+
+test("the default arrangement is the one the URL leaves out", () => {
+  expect(readOrder(new URLSearchParams(""))).toEqual({ sort: "holder", up: true });
+  expect(orderParams({ sort: "holder", up: true }).toString()).toBe("");
+  expect(orderParams({ sort: "days", up: false }).toString()).toBe("sort=days&dir=down");
+  expect(readOrder(new URLSearchParams("sort=days&dir=down"))).toEqual({ sort: "days", up: false });
+  // An unknown sort is the default, not a crash.
+  expect(readOrder(new URLSearchParams("sort=nonsense"))).toEqual({ sort: "holder", up: true });
 });

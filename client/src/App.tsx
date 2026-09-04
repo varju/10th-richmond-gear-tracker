@@ -27,6 +27,7 @@ import { LeaveDialog } from "./ui/LeaveDialog";
 import { Mail } from "./ui/Mail";
 import { NewItem, NewUnit } from "./ui/NewItem";
 import { Notifications } from "./ui/Notifications";
+import { OutTable } from "./ui/OutTable";
 import { Page } from "./ui/Page";
 import { PendingInterrupt } from "./ui/PendingInterrupt";
 import { PublicItem } from "./ui/PublicItem";
@@ -242,7 +243,7 @@ function Screen({
     case "scan":
       return <Scan store={store} />;
     case "out":
-      return <Report store={store} />;
+      return wide ? <OutTable store={store} /> : <Report store={store} />;
     case "reports":
       return <Reports store={store} />;
     case "g":
