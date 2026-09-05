@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import re
 from datetime import datetime
+from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 
 import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
 
 from gear_tracker import accounts, derived, events, inventory_csv
-from gear_tracker.app import HOUR_MS, client_address, create_app
+from gear_tracker.app import ACCESS_LOG, ERROR_LOG, HOUR_MS, access_logger, client_address, create_app, log_to_files
 from gear_tracker.db import open_db
 from gear_tracker.sync import Principal
 from tests.factories import T0, incoming
@@ -901,13 +904,18 @@ def access_log(caplog):
     logger.removeHandler(caplog.handler)
 
 
+def access_lines(access_log):
+    """Only the access logger's records: caplog also catches whatever else the app logs."""
+    return [r.getMessage() for r in access_log.records if r.name == "gear_tracker.access"]
+
+
 def one_line(access_log):
     """The single line written, with the two fields no test can predict checked and dropped.
 
     The time and the duration are asserted here, once, so every other test can
     compare a whole line against a string.
     """
-    [line] = [r.getMessage() for r in access_log.records]
+    [line] = access_lines(access_log)
     fields = LINE.match(line)
     assert fields, line
     assert datetime.fromisoformat(fields["at"]).tzinfo is not None, "a local time, with its offset"
@@ -946,7 +954,7 @@ def test_a_caller_with_no_account_row_still_gets_a_log_line(client, access_log):
 def test_the_time_is_local_and_the_duration_is_milliseconds(real, access_log):
     real.get("/sync/bootstrap")
 
-    [line] = [r.getMessage() for r in access_log.records]
+    [line] = access_lines(access_log)
     fields = LINE.match(line)
     assert fields, line
     at = datetime.fromisoformat(fields["at"])
@@ -992,7 +1000,7 @@ def test_the_health_check_is_not_logged(real, access_log):
     """The container asks once a minute, forever (Dockerfile); logging it would bury the rest."""
     assert real.get("/health").json() == {"ok": True}
 
-    assert access_log.records == []
+    assert access_lines(access_log) == []
 
 
 def test_the_assistants_calls_name_the_person_behind_them(real, access_log):
@@ -1011,13 +1019,100 @@ def test_the_assistants_calls_name_the_person_behind_them(real, access_log):
     assert one_line(access_log) == 'testclient "POST /mcp" 200 alex@example.org'
 
 
+# --- the log files (NFR-OPS-06) ---------------------------------------------------------------
+
+
+@pytest.fixture
+def output():
+    """Standing in for stderr, which under pytest is a capture that closes between phases."""
+    return io.StringIO()
+
+
+@pytest.fixture
+def log_files(db_path, output):
+    """The handlers main() installs, taken off again so one test's lines do not reach the next."""
+    before = list(access_logger.handlers), list(logging.getLogger().handlers)
+    log_to_files(db_path, output)
+    yield db_path.parent / "logs"
+    for logger, kept in zip((access_logger, logging.getLogger()), before, strict=True):
+        for handler in [h for h in logger.handlers if h not in kept]:
+            logger.removeHandler(handler)
+            handler.close()
+
+
+def test_the_access_log_is_written_to_a_file_as_well_as_the_output(log_files, client, access_log):
+    client.get("/sync/bootstrap", headers=as_alice())
+
+    [line] = (log_files / ACCESS_LOG).read_text().splitlines()
+    assert [line] == access_lines(access_log), "the same line, not a second shape of one"
+    assert '"GET /sync/bootstrap" 200' in line
+
+
+def test_a_crash_puts_the_traceback_and_the_request_in_the_error_log(log_files, db_path):
+    """The access line says a request 500ed. This says why, which is the part worth keeping."""
+    app = create_app(db_path, authenticate)
+
+    @app.get("/boom")
+    def boom() -> None:
+        raise RuntimeError("kaboom")
+
+    TestClient(app, raise_server_exceptions=False).get("/boom", headers=as_alice())
+
+    errors = (log_files / ERROR_LOG).read_text()
+    assert "GET /boom crashed" in errors
+    assert "RuntimeError: kaboom" in errors
+    assert "Traceback (most recent call last)" in errors
+
+
+def test_a_warning_from_any_module_reaches_the_error_log(log_files):
+    """Nothing configures the root logger otherwise, so these fall back to stderr with no time."""
+    logging.getLogger("gear_tracker.calendars").warning("calendar feed %s could not be fetched", "feed-1")
+
+    [line] = (log_files / ERROR_LOG).read_text().splitlines()
+    at, level, name, message = line.split(" ", 3)
+    assert datetime.fromisoformat(at).tzinfo is not None, "a local time, with its offset"
+    assert (level, name, message) == ("WARNING", "gear_tracker.calendars", "calendar feed feed-1 could not be fetched")
+
+
+def test_a_warning_still_reaches_the_output_so_docker_logs_keep_it(log_files, output):
+    logging.getLogger("gear_tracker.somewhere").warning("the feed at %s did not answer", "example.org")
+
+    [line] = output.getvalue().splitlines()
+    assert line.endswith("WARNING gear_tracker.somewhere the feed at example.org did not answer")
+    assert [line] == (log_files / ERROR_LOG).read_text().splitlines(), "the same line in both"
+
+
+def test_a_librarys_chatter_stays_out_of_the_error_log(log_files):
+    """The libraries under us log at INFO, and a record that passed its own logger reaches the
+    root handler whatever root is set to. The file is for what went wrong."""
+    logging.getLogger("mcp.server.streamable_http_manager").info("session manager started")
+
+    assert (log_files / ERROR_LOG).read_text() == ""
+
+
+def test_the_access_log_stays_out_of_the_error_log(log_files, client):
+    """`gear_tracker.access` does not propagate, or every request would be an error line too."""
+    client.get("/sync/bootstrap", headers=as_alice())
+
+    assert (log_files / ERROR_LOG).read_text() == ""
+
+
+def test_the_files_roll_over_daily_and_keep_a_month(log_files):
+    """Rotation is the handler's, not ours. This pins the settings it was given."""
+    ours = [h for h in logging.getLogger().handlers + access_logger.handlers if isinstance(h, TimedRotatingFileHandler)]
+    assert sorted(Path(h.baseFilename).name for h in ours) == [ACCESS_LOG, ERROR_LOG]
+    for handler in ours:
+        assert handler.when == "MIDNIGHT"
+        assert handler.backupCount == 30
+
+
 # --- the failed sign-in log (NFR-SEC-11) ------------------------------------------------------
 
 
 @pytest.fixture
 def failures(db_path):
-    """Where a refused sign-in is written: beside the database, as it is in the data directory."""
-    return db_path.parent / "failed-sign-ins.log"
+    """Where a refused sign-in is written: under logs/, as it is in the data directory."""
+    return db_path.parent / "logs" / "failed-sign-ins.log"
 
 
 def lines_in(path):

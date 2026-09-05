@@ -16,8 +16,9 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import datetime
+from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, TextIO
 from urllib.parse import parse_qsl, urlencode
 
 from fastapi import Body, Depends, FastAPI, Query, Request, Response
@@ -71,13 +72,23 @@ HEALTH_PATH = "/health"
 """Where the container's health check asks (Dockerfile). Kept out of the access log: a line a
 minute, forever, would bury everything worth reading."""
 
+DATE_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
+"""Date, time and offset, so an error log line reads like an access log line."""
+
+LOGS = "logs"
+"""The directory the log files live in, beside the database, so a copy of the data directory
+carries them too (NFR-OPS-06)."""
+
+ACCESS_LOG = "access.log"
+ERROR_LOG = "error.log"
 FAILED_SIGN_INS = "failed-sign-ins.log"
-"""A refused sign-in is written here, beside the database, so a copy of the data directory holds
-it too (NFR-SEC-11)."""
+
+KEEP_LOG_DAYS = 30
+"""Days of rolled log files kept, the same window as the backups (NFR-DATA-05)."""
 
 FAILED_SIGN_INS_MAX_BYTES = 1_000_000
-"""About 15,000 lines. Nothing slows attempts down, so the file rolls over rather than filling the
-disk the database is on; one older copy is kept."""
+"""About 15,000 lines. Nothing slows attempts down, so the file rolls over on size rather than by
+the day like the others: a flood must not fill the disk the database is on. One older copy is kept."""
 
 SECRET_QUERY_KEYS = frozenset({"token", "link"})
 """An invite or reset link lands on /join?token=... (FR-USR-12), a standing join link on
@@ -148,6 +159,51 @@ def record_failed_sign_in(path: Path, request: Request, email: str, reason: str)
     except OSError as exc:
         # A refused sign-in still has to be refused: a full disk must not turn a 401 into a 500.
         logging.getLogger(__name__).warning("could not write %s: %s", path, exc)
+
+
+def log_directory(db_path: str | Path) -> Path:
+    """Where the log files live: a logs/ directory beside the database, made if it is not there."""
+    directory = Path(db_path).parent / LOGS
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
+def log_to_files(db_path: str | Path, output: TextIO | None = None) -> None:
+    """Also write the access log and our warnings to files under logs/ (NFR-OPS-06).
+
+    Without this the only copy is the container's output, which `docker logs`
+    caps and which goes when the container is recreated. The files sit in the
+    data directory, so whatever carries that off the machine carries them too
+    (NFR-DATA-06).
+
+    Called by main(), not create_app: these loggers are process-wide, and a
+    test builds many apps in one process. `output` is where warnings go as
+    well as the file; stderr unless a test says otherwise.
+    """
+    directory = log_directory(db_path)
+
+    access = _rolls_daily(directory / ACCESS_LOG)
+    # The line already starts with its own time; nothing goes in front of it.
+    access.setFormatter(logging.Formatter("%(message)s"))
+    access_logger.addHandler(access)
+
+    shape = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s", DATE_FORMAT)
+    # The root logger, so every module's warnings land in both. A level on each handler, not the
+    # logger: a record that passed its own logger reaches every ancestor's handlers whatever those
+    # loggers are set to, and the libraries under us chatter at INFO. These are for what went wrong.
+    #
+    # The output too, not only the file, and set up before create_app: the MCP server's
+    # constructor calls logging.basicConfig, which does nothing once root has a handler. Left to
+    # it, warnings would go to the file and stop reaching `docker logs`.
+    for handler in (_rolls_daily(directory / ERROR_LOG), logging.StreamHandler(output or sys.stderr)):
+        handler.setFormatter(shape)
+        handler.setLevel(logging.WARNING)
+        logging.getLogger().addHandler(handler)
+
+
+def _rolls_daily(path: Path) -> TimedRotatingFileHandler:
+    """A file that turns over at midnight, keeping KEEP_LOG_DAYS of older ones named by date."""
+    return TimedRotatingFileHandler(path, when="midnight", backupCount=KEEP_LOG_DAYS, encoding="utf-8")
 
 
 def _trusted_proxy(host: str | None) -> bool:
@@ -226,7 +282,7 @@ def create_app(
     app = FastAPI(title="Gear Tracker", lifespan=lifespan)
     app.router.routes.append(assistant.route(mcp))
     photo_dir = Path(photos) if photos is not None else Path(db_path).parent / "photos"
-    failed_sign_ins = Path(db_path).parent / FAILED_SIGN_INS
+    failed_sign_ins = log_directory(db_path) / FAILED_SIGN_INS
 
     # In memory, in this process. One uvicorn worker serves the group, so that is the whole picture.
     found_limits = {
@@ -270,6 +326,9 @@ def create_app(
             # most worth reading about are the only ones with no line. uvicorn turns it into the
             # 500 the caller gets, which is what the line says.
             access_line(request, 500, started)
+            # And the traceback, named with the request that caused it. uvicorn prints its own
+            # copy to stderr, but only there: its loggers do not reach ours (see log_to_files).
+            logging.getLogger(__name__).exception("%s %s crashed", request.method, logged_target(request))
             raise
         access_line(request, response.status_code, started)
         return response
@@ -818,6 +877,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--static", help="serve the built client from this directory")
     parser.add_argument("--photos", help="where photos are kept; default is a photos/ directory beside the database")
     args = parser.parse_args(argv)
+    log_to_files(args.db)
     uvicorn.run(
         create_app(args.db, static=args.static, photos=args.photos), host=args.host, port=args.port, access_log=False
     )

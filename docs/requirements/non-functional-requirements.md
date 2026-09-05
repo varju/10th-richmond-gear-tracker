@@ -123,13 +123,14 @@ Volunteers maintain this, in evenings, with turnover. Whoever inherits it in thr
 
 ## 7. Availability and operations (OPS)
 
-| ID         | Priority | Requirement                                                              |
-| ---------- | -------- | ------------------------------------------------------------------------ |
-| NFR-OPS-01 | Must     | A server outage does not stop check-out.                                 |
-| NFR-OPS-02 | Must     | Server maintenance can happen any time without warning users.            |
-| NFR-OPS-03 | Should   | Error logs and recent sync failures are readable without a debugger.     |
-| NFR-OPS-04 | Should   | Sync failures are visible to the Quartermaster, not only in server logs. |
-| NFR-OPS-05 | Could    | Health check endpoint and uptime alerting.                               |
+| ID         | Priority | Requirement                                                                 |
+| ---------- | -------- | --------------------------------------------------------------------------- |
+| NFR-OPS-01 | Must     | A server outage does not stop check-out.                                    |
+| NFR-OPS-02 | Must     | Server maintenance can happen any time without warning users.               |
+| NFR-OPS-03 | Should   | Error logs and recent sync failures are readable without a debugger.        |
+| NFR-OPS-04 | Should   | Sync failures are visible to the Quartermaster, not only in server logs.    |
+| NFR-OPS-06 | Should   | Request and error logs are kept as files in the data directory for 30 days. |
+| NFR-OPS-05 | Could    | Health check endpoint and uptime alerting.                                  |
 
 ## 8. Accessibility (A11Y)
 

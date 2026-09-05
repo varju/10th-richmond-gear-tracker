@@ -30,7 +30,7 @@ export TZ=America/Vancouver
 ```
 
 `GEAR_DATA` is a directory on the server. Everything worth keeping is in it — `gear.db`, the photos under `photos/`, the
-nightly snapshots under `backups/`, the failed sign-in log, and the `seed.toml` — so moving house is a copy of that one
+nightly snapshots under `backups/`, the logs under `logs/`, and the `seed.toml` — so moving house is a copy of that one
 directory to the next machine (NFR-MAINT-05).
 
 Check the connection before going further:
@@ -68,9 +68,28 @@ password.
 
 The container's health check runs every minute and is left out, or it would be most of the log.
 
+### The same thing, kept
+
+`docker logs` is the only copy of that output, and it goes when the container is recreated. So the same lines are also
+written to files under `GEAR_DATA/logs/`, which the host carries off the machine with everything else in there
+(NFR-OPS-06):
+
+| File                  | Holds                                                 |
+| --------------------- | ----------------------------------------------------- |
+| `access.log`          | The line above, one per request                       |
+| `error.log`           | Warnings and tracebacks, with the time and the module |
+| `failed-sign-ins.log` | A sign-in that did not open a session                 |
+
+`access.log` and `error.log` turn over at midnight, keeping 30 days as `access.log.2026-09-04` and so on — the same
+window the backups keep. A request that crashes writes both: the access line saying it was a 500, and the traceback in
+`error.log` under the method and path that caused it.
+
+uvicorn's own startup and shutdown messages stay in `docker logs` only. If the container will not start, that is where
+to look.
+
 ### Failed sign-ins
 
-A sign-in that does not open a session is appended to `GEAR_DATA/failed-sign-ins.log`, one line each (NFR-SEC-11):
+A sign-in that does not open a session is appended to `GEAR_DATA/logs/failed-sign-ins.log`, one line each (NFR-SEC-11):
 
 ```
 2026-09-04T09:57:50-07:00 203.0.113.7 jo@example.org unauthorized
@@ -80,13 +99,14 @@ The reason is `unauthorized` for a wrong password or an email with no account, `
 account that has been turned off. Who is trying what, most attempts first:
 
 ```sh
-awk '{print $2, $3}' "$GEAR_DATA/failed-sign-ins.log" | sort | uniq -c | sort -rn | head
+awk '{print $2, $3}' "$GEAR_DATA/logs/failed-sign-ins.log" | sort | uniq -c | sort -rn | head
 ```
 
 One address working through many accounts, or many attempts on one account, is worth acting on: deactivate the account,
 or block the address at the proxy. Nothing in the app slows sign-in attempts down yet.
 
-The file rolls over at about a megabyte, keeping one older copy as `failed-sign-ins.log.1`.
+This one rolls over on size, at about a megabyte, keeping one older copy as `failed-sign-ins.log.1`. Nothing slows
+sign-in attempts down, and a flood must not fill the disk the database is on.
 
 Times are the container's own clock, in the timezone `TZ` names. Without it, UTC.
 
