@@ -14,9 +14,8 @@ interface Props {
 /** A sheet of unassigned codes for Avery 6576 stock. Admin only (S-BOOT-02). */
 export function SettingsCodes({ store, api, shell }: Props) {
   useStore(store);
-  const admin = store.meta.user?.role === "admin";
 
-  if (!admin) {
+  if (!store.admin) {
     return (
       <Page title="Not found" back="/settings">
         <p>Admins only.</p>

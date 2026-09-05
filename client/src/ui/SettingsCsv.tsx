@@ -14,9 +14,8 @@ interface Props {
 /** Export the inventory to a spreadsheet and import it back. Admin only (FR-RPT-03, FR-SET-11). */
 export function SettingsCsv({ store, api, shell }: Props) {
   useStore(store);
-  const admin = store.meta.user?.role === "admin";
 
-  if (!admin) {
+  if (!store.admin) {
     return (
       <Page title="Not found" back="/settings">
         <p>Admins only.</p>

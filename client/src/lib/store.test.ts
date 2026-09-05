@@ -477,3 +477,39 @@ test("incremental apply stays fast once there is real history behind it", async 
   );
   expect(incremental).toBeLessThan(full);
 }, 20_000);
+
+test("a role change on the server reaches this device on the next sync", async () => {
+  const store = await open();
+  await store.setMeta({ token: "t", user: { id: "bea", name: "Bea", role: "user", active: true } });
+  expect(store.admin).toBe(false);
+
+  await store.receive(
+    [
+      fromServer({
+        seq: 1,
+        entity_type: "user",
+        entity_id: "bea",
+        type: "created",
+        payload: { name: "Bea", role: "admin", active: true },
+      }),
+    ],
+    1,
+  );
+  expect(store.admin).toBe(true);
+
+  // And back down, without waiting for a sign-out: meta.user still says "admin" here.
+  await store.receive(
+    [
+      fromServer({
+        seq: 2,
+        entity_type: "user",
+        entity_id: "bea",
+        type: "field_changed",
+        device_seq: 2,
+        payload: { field: "role", value: "user", old: "admin" },
+      }),
+    ],
+    2,
+  );
+  expect(store.admin).toBe(false);
+});

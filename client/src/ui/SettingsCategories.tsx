@@ -12,9 +12,8 @@ interface Props {
 /** How gear is grouped in the list. Admin only (FR-SET-07). */
 export function SettingsCategories({ store }: Props) {
   useStore(store);
-  const admin = store.meta.user?.role === "admin";
 
-  if (!admin) {
+  if (!store.admin) {
     return (
       <Page title="Not found" back="/settings">
         <p>Admins only.</p>

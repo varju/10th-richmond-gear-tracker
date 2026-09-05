@@ -268,7 +268,7 @@ export const unretireItem = (store: Store, id: string) => changed(store, "item",
  * nothing is left pointing at a name that is gone.
  */
 export async function deleteItem(store: Store, id: string): Promise<void> {
-  if (store.meta.user?.role !== "admin") throw new Error("Admins only");
+  if (!store.admin) throw new Error("Admins only");
   const it = item(store.state, id);
   if (!it) throw new Error("no such item");
   if (it.merged_into) throw new Error("this item was merged into another");
@@ -350,7 +350,7 @@ export async function groupWith(
  * Admins only; the duplicate must be in, and neither item retired or already merged.
  */
 export async function mergeItem(store: Store, duplicateId: string, survivorId: string): Promise<void> {
-  if (store.meta.user?.role !== "admin") throw new Error("Admins only");
+  if (!store.admin) throw new Error("Admins only");
   const dup = item(store.state, duplicateId);
   const survivor = item(store.state, survivorId);
   if (!dup || !survivor) throw new Error("no such item");

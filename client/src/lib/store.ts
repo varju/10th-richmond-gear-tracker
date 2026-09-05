@@ -145,6 +145,21 @@ export class Store {
     return this.state.item ?? {};
   }
 
+  /**
+   * Is the signed-in person an Admin?
+   *
+   * Read from the replayed state, not from `meta.user`, which is written once at sign-in and never
+   * again. A role granted or dropped on the server arrives as a user event like any other, so this
+   * follows it on the next sync instead of waiting for the person to sign out. `meta.user` is the
+   * fallback for the moment before the first sync, when the state holds no user rows yet.
+   */
+  get admin(): boolean {
+    const user = this.meta.user;
+    if (!user) return false;
+    const role = this.state.user?.[user.id]?.role;
+    return (typeof role === "string" ? role : user.role) === "admin";
+  }
+
   /** What this device knows happened to one entity, in replay order. History, not state: the last 90 days at most. */
   eventsFor(entity_type: string, entity_id: string): StoredEvent[] {
     return [...this.events.values()]

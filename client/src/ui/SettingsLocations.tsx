@@ -12,9 +12,8 @@ interface Props {
 /** Where gear lives when it is not out. Admin only (FR-SET-02, FR-SET-05). */
 export function SettingsLocations({ store }: Props) {
   useStore(store);
-  const admin = store.meta.user?.role === "admin";
 
-  if (!admin) {
+  if (!store.admin) {
     return (
       <Page title="Not found" back="/settings">
         <p>Admins only.</p>

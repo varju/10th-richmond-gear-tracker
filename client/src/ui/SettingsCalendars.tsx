@@ -41,7 +41,7 @@ export function SettingsCalendars({ store, api }: Props) {
     }
   }, [api]);
 
-  const admin = store.meta.user?.role === "admin";
+  const admin = store.admin;
   useEffect(() => {
     if (admin) void load();
   }, [admin, load]);

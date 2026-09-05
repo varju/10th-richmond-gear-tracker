@@ -110,3 +110,29 @@ test("with no build sha, the foot says Source: dev and links nowhere", () => {
   expect(foot).toHaveTextContent("Source: dev");
   expect(within(foot).queryAllByRole("link")).toHaveLength(0);
 });
+
+test("a role dropped on the server takes the admin sections away on the next sync", async () => {
+  await store.receive(
+    [
+      {
+        id: "010000000000000000000000A1",
+        entity_type: "user",
+        entity_id: "alice",
+        type: "field_changed",
+        actor_id: "bea",
+        device_id: "server",
+        device_seq: 1,
+        occurred_at: T0,
+        clock_offset: 0,
+        effective_at: T0,
+        received_at: T0,
+        payload: { field: "role", value: "user", old: "admin" },
+        seq: 1,
+      },
+    ],
+    1,
+  );
+  mount();
+  const links = within(screen.getByRole("navigation", { name: "Settings" })).getAllByRole("button");
+  expect(links.map((b) => b.textContent)).toEqual(["Your devices", "Notifications", "AI assistant"]);
+});

@@ -13,9 +13,8 @@ interface Props {
 /** Group name, address, contact, and the overdue period. Admin only (FR-SET-*). */
 export function SettingsGroup({ store }: Props) {
   useStore(store);
-  const admin = store.meta.user?.role === "admin";
 
-  if (!admin) {
+  if (!store.admin) {
     return (
       <Page title="Not found" back="/settings">
         <p>Admins only.</p>

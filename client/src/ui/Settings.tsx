@@ -13,7 +13,6 @@ interface Props {
 /** Who is signed in, the sync line, and a link to each section. Sign out lives in the menu. */
 export function Settings({ store, shell }: Props) {
   useStore(store);
-  const admin = store.meta.user?.role === "admin";
 
   return (
     <Page
@@ -28,7 +27,7 @@ export function Settings({ store, shell }: Props) {
       <p>Signed in as {store.meta.user?.name ?? "?"}</p>
       <p className="muted">{syncLabel(store.meta.last_sync_at, shell.now(), shell.busy, shell.outcome)}</p>
       <nav className="links" aria-label="Settings">
-        {admin && (
+        {store.admin && (
           <>
             <button className="link" type="button" onClick={() => navigate("/settings/group")}>
               General

@@ -80,7 +80,7 @@ export function Sections({ store, layout }: Props) {
   const { signOut } = useShell();
   const state = store.state;
   const empty = items(state).length === 0;
-  const admin = store.meta.user?.role === "admin";
+  const admin = store.admin;
   const sidebar = layout === "sidebar";
   const pending = store.pending.length;
   // The phone header has a house; the sidebar has no header to put one in.

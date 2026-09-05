@@ -79,7 +79,7 @@ export function ItemPage({ store, id }: Props) {
   const [moved, confirm] = useFlash(CONFIRM_MS);
   const state = store.state;
   const it = item(state, id);
-  const admin = store.meta.user?.role === "admin";
+  const admin = store.admin;
   // The whole record when there is signal, this device's 90 days when there is
   // not (FR-INV-31). Asked for once here, drawn by both blocks below. A merged
   // duplicate's events belong to the survivor, so its ids come too.
@@ -417,7 +417,7 @@ export function ItemPage({ store, id }: Props) {
  */
 function DeleteItem({ store, it }: { store: Store; it: Item }) {
   const [asked, setAsked] = useState(false);
-  const admin = store.meta.user?.role === "admin";
+  const admin = store.admin;
   const blocked = it.status === "out" || (it.generic && unitsOf(store.state, it.id).length > 0);
   if (!admin || blocked) return null;
 
