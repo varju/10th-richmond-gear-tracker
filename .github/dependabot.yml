@@ -1,11 +1,50 @@
+# Minor and patch bumps group into one PR; a major arrives on its own, so a
+# break can be traced to one package. Cooldown skips a release until it has
+# survived a week in the wild; security updates ignore it and come at once.
 version: 2
 updates:
   - package-ecosystem: "uv"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+    groups:
+      python:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "npm"
+    directory: "/client"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+    groups:
+      client:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # Actions move by major tag, so no minor/patch split; every bump groups.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "monthly"
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Three hooks: not worth a group, and grouped pre-commit updates have an
+  # open bug (dependabot-core#15266).
+  - package-ecosystem: "pre-commit"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      default-days: 7
