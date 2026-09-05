@@ -180,6 +180,13 @@ If every Admin later loses their password, the way back in is the keyboard eithe
 docker exec -it gear-tracker gear-admin --db /data/gear.db reset-link --email you@example.com
 ```
 
+An Admin cannot drop their own role (FR-USR-22), but one can still be dropped by another Admin. If nobody is left to
+give it back in the app, the keyboard does:
+
+```sh
+docker exec -it gear-tracker gear-admin --db /data/gear.db grant-admin --email you@example.com
+```
+
 ## Rebuilding derived state
 
 The server keeps a cache of current state, updated as each event arrives. An upgrade that adds or changes a field in

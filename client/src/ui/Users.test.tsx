@@ -154,6 +154,15 @@ test("an Admin's own device cannot be revoked here; sign out instead", async () 
   expect(screen.getByRole("button", { name: "Deactivate" })).toBeDisabled();
 });
 
+test("an Admin cannot drop their own role here (FR-USR-22)", async () => {
+  mount();
+  await user.click(await screen.findByRole("button", { name: /Alice/ }));
+  expect(await screen.findByRole("combobox", { name: "Role of Alice" })).toBeDisabled();
+
+  await user.click(screen.getByRole("button", { name: /Bea/ }));
+  expect(screen.getByRole("combobox", { name: "Role of Bea" })).toBeEnabled();
+});
+
 test("deactivating shows the date next to the status (FR-USR-20)", async () => {
   mount();
   const list = await screen.findByRole("list", { name: "Users" });

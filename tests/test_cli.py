@@ -12,7 +12,7 @@ from gear_tracker.accounts import Invite, Redeem, SignIn
 from gear_tracker.cli import main
 from gear_tracker.db import open_db
 from gear_tracker.errors import Unauthorized
-from gear_tracker.events import append_server
+from gear_tracker.events import append_server, in_replay_order
 from gear_tracker.sync import Principal
 
 
@@ -102,6 +102,35 @@ def test_reset_link_gets_a_locked_out_admin_back_in(tmp_path, monkeypatch, capsy
 
 def test_reset_link_for_nobody(tmp_path, monkeypatch, capsys):
     code, _, err = run(monkeypatch, capsys, "--db", str(tmp_path / "g.db"), "reset-link", "--email", "x@example.org")
+    assert code == 1
+    assert "no account" in err
+
+
+def test_grant_admin_gives_the_role_back(tmp_path, monkeypatch, capsys):
+    """FR-USR-22's way out: an Admin demoted by another Admin, with nobody left to promote them."""
+    db = with_admin(tmp_path, monkeypatch, capsys)
+    with open_db(db) as conn:
+        alex = accounts.user_id_of(conn, "alex@example.org")
+        assert alex is not None
+        bea_id, _ = accounts.invite(
+            conn,
+            Principal(user_id=alex, device_id="server", active=True, role="admin"),
+            Invite(name="Bea", email="bea@example.org", role="admin"),
+        )
+        accounts.set_role(conn, Principal(user_id=bea_id, device_id="p", active=True, role="admin"), alex, "user")
+
+    code, out, err = run(monkeypatch, capsys, "--db", str(db), "grant-admin", "--email", "alex@example.org")
+    assert code == 0, err
+    assert out.strip() == "alex@example.org is an Admin"
+
+    with open_db(db) as conn:
+        assert accounts.get_user(conn, alex)["role"] == "admin"
+        change = [e for e in in_replay_order(conn) if e.entity_id == alex][-1]
+        assert change.payload == {"field": "role", "value": "admin", "old": "user"}
+
+
+def test_grant_admin_for_nobody(tmp_path, monkeypatch, capsys):
+    code, _, err = run(monkeypatch, capsys, "--db", str(tmp_path / "g.db"), "grant-admin", "--email", "x@example.org")
     assert code == 1
     assert "no account" in err
 

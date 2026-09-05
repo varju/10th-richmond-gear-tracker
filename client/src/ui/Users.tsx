@@ -692,7 +692,7 @@ function UserRow({
             <select
               aria-label={`Role of ${user.name}`}
               value={user.role}
-              disabled={busy}
+              disabled={busy || me}
               onChange={(e) => act(() => api.setRole(user.id, e.target.value), onChanged)}
             >
               <option value="user">User</option>
@@ -733,6 +733,7 @@ function UserRow({
               Reset link
             </button>
           </div>
+          {me && <p className="muted small">Another Admin changes your role or ends your access.</p>}
           <h3 className="section small">Devices</h3>
           <DeviceList
             userId={user.id}

@@ -3,7 +3,7 @@
 Creating the first Admin (FR-USR-13), seeding a fresh instance from its config
 file, loading test data into an empty one, exporting and importing the
 inventory as a spreadsheet, and getting back in when every Admin has lost
-their password.
+their password or their role.
 """
 
 from __future__ import annotations
@@ -40,6 +40,9 @@ def main(argv: list[str] | None = None) -> int:
 
     reset = sub.add_parser("reset-link", help="print a one-time password reset link token for a user")
     reset.add_argument("--email", required=True)
+
+    grant = sub.add_parser("grant-admin", help="make an existing account an Admin")
+    grant.add_argument("--email", required=True)
 
     apply_seed = sub.add_parser("seed", help="apply a seed file: first Admin, group setting, mail")
     apply_seed.add_argument("--file", required=True, help="path to seed.toml")
@@ -113,6 +116,9 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "seed":
                 done = seed.apply(conn, seed.read(args.file))
                 print("\n".join(done) if done else "nothing to do")
+            elif args.command == "grant-admin":
+                accounts.grant_admin(conn, args.email)
+                print(f"{args.email} is an Admin")
             elif args.command == "rebuild":
                 count = derived.rebuild(conn)
                 print(f"rebuilt {count} {'entity' if count == 1 else 'entities'}")

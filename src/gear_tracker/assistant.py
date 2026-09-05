@@ -1320,7 +1320,8 @@ def set_user_active(user_id: str, active: StrictBool) -> dict[str, Any]:
 
 
 def set_user_role(user_id: str, role: accounts.Role) -> dict[str, Any]:
-    """Change a person's role. The last Admin cannot be demoted (FR-USR-03). Admins only."""
+    """Change a person's role. You cannot drop your own Admin role (FR-USR-22), and the last Admin
+    cannot be demoted (FR-USR-03). Admins only."""
     with _open() as (conn, who):
         accounts.set_role(conn, who, user_id, role)
         return {"user": _user_brief(accounts.get_user(conn, user_id))}

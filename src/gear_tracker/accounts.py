@@ -310,6 +310,21 @@ def install_admin(conn: sqlite3.Connection, name: str, email: str, password: str
     return user_id
 
 
+def grant_admin(conn: sqlite3.Connection, email: str, now: int | None = None) -> str:
+    """Make an existing account an Admin from the server's keyboard, when nobody in the app can.
+
+    The keyboard is the credential, as it is for `reset-link`, so there is no Principal and no
+    self-demotion guard (FR-USR-22) to answer to. The change is an ordinary role event, actor the
+    account itself, the way install_admin's first Admin creates themself. Returns the user id.
+    """
+    now = now_ms() if now is None else now
+    user_id = user_id_of(conn, email)
+    if user_id is None:
+        raise NotFound(f"no account for {email}")
+    _change(conn, user_id, user_id, "role", "admin", now)
+    return user_id
+
+
 # --- signing in and out -----------------------------------------------------------------
 
 
@@ -571,6 +586,10 @@ def set_role(conn: sqlite3.Connection, who: Principal, user_id: str, role: Role,
     _require_admin(who)
     now = now_ms() if now is None else now
     if role != "admin":
+        if user_id == who.user_id:
+            # FR-USR-22. The Users page goes with the role, so the mistake cannot be undone by the
+            # person who made it. Another Admin does it, or `gear-admin grant-admin` at the server.
+            raise Conflict("you cannot drop your own Admin role; another Admin must do it")
         # The guard and the write are one transaction, so two concurrent demotions of the last
         # two Admins cannot both read "someone else is still one" before either commits.
         conn.execute("BEGIN IMMEDIATE")
