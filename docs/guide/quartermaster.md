@@ -146,6 +146,15 @@ and a scanning session then offer its upcoming events for the event name; pickin
 the dates. Remove a feed, or tap Refresh now to check it right away. A feed's URL stays on the server, even from an
 Admin: the list shows it with the host and path only.
 
+## Read the audit log
+
+Open Audit log in Settings to see everything that has happened, newest first: gear moved, records edited, accounts
+invited and changed. Narrow it by event, by person, and to a range of days. Deactivated people stay in the log and stay
+in the list you pick from.
+
+The whole log lives on the server, so this one screen needs a connection. An item's own history is on its page, and
+works offline.
+
 ## Backups
 
 The host copies the database and the photo directory on a schedule. Rehearse a restore once so you know it works. See

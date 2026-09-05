@@ -4,7 +4,7 @@
  * functions over state; the device answers this with no network.
  */
 import { DAY_MS } from "./clock";
-import { displayName, group, isPool, type Item, items, movable, poolCounts } from "./inventory";
+import { displayName, group, isPool, type Item, items, movable, poolCounts, userName } from "./inventory";
 import type { State } from "./replay";
 
 export interface OutItem {
@@ -42,9 +42,6 @@ export function isOverdue(state: State, it: Item, now: number): boolean {
   return it.status === "out" && typeof days === "number" && days > 0 && daysOut(it, now) >= days;
 }
 
-const holderName = (state: State, id: string): string =>
-  (state.user?.[id]?.name as string | undefined) ?? "(unknown person)";
-
 /**
  * Everyone who has something, by name; each person's gear longest out first.
  * Missing gear is not out (FR-INV-19). A pool has no single "out": it lists
@@ -76,7 +73,7 @@ export function whatIsOut(state: State, now: number): OutReport {
   const holders = [...byHolder.entries()]
     .map(([id, list]) => ({
       id,
-      name: id ? holderName(state, id) : "(no holder)",
+      name: id ? userName(state, id) : "(no holder)",
       items: list.sort(
         (a, b) => b.days - a.days || displayName(state, a.item).localeCompare(displayName(state, b.item)),
       ),

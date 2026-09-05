@@ -200,6 +200,7 @@ Reachable by scanning a label, with no sign-in.
 | FR-USR-20 | Should   | The Users list shows the date a deactivated user was deactivated, next to their status.                                                                                                                                                         |
 | FR-USR-21 | Should   | An Admin can label a standing join link when issuing it, and change that label later. The link itself is unchanged, so a printed code keeps working.                                                                                            |
 | FR-USR-10 | Could    | Sign in with Google, to avoid managing passwords (NFR-SEC-02).                                                                                                                                                                                  |
+| FR-USR-24 | Could    | An Admin can read the whole audit log on one screen, filtered by event type, user, and date range. It reads from the server, so it needs signal.                                                                                                |
 | FR-USR-11 | Won't    | Withdrawn: shared-device mode. Personal phones only.                                                                                                                                                                                            |
 
 ## 9. Reports and data (RPT)

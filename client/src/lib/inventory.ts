@@ -154,6 +154,9 @@ export const locationName = (state: State, id: string | null | undefined): strin
   id ? (state.location?.[id]?.name as string | undefined) ?? "(unknown location)" : "";
 export const categoryName = (state: State, id: string | null | undefined): string =>
   id ? (state.category?.[id]?.name as string | undefined) ?? "(unknown category)" : "";
+/** Users arrive in the snapshot as entities; a holder or an actor is one of them. */
+export const userName = (state: State, id: string | null | undefined): string =>
+  id ? (state.user?.[id]?.name as string | undefined) ?? "(unknown person)" : "";
 
 // --- generics and units -------------------------------------------------------------------
 

@@ -40,6 +40,7 @@ test("an Admin sees every section, in order", () => {
     "Categories",
     "Print QR codes",
     "Export and import",
+    "Audit log",
     "Your devices",
     "Notifications",
     "AI assistant",

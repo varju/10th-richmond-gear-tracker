@@ -1,14 +1,10 @@
 /** Text the screens share. Pure functions over state. */
-import type { Item } from "../lib/inventory";
+import { type Item, userName } from "../lib/inventory";
 import type { State } from "../lib/replay";
 import type { SyncOutcome } from "../lib/sync";
 import { ago } from "../lib/time";
 
-/** Users arrive in the snapshot as entities; the holder is one of them. */
-export function userName(state: State, id: string | null | undefined): string {
-  if (!id) return "";
-  return (state.user?.[id]?.name as string | undefined) ?? "(unknown person)";
-}
+export { userName };
 
 /** "In", "Out · Alice", or "Missing" (FR-INV-19). */
 export function statusLabel(state: State, it: Item): string {

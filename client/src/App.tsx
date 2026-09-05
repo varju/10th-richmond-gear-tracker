@@ -11,6 +11,7 @@ import { unsaved } from "./lib/unsaved";
 import { useWide } from "./lib/wide";
 import { Banner } from "./ui/Banner";
 import { AnotherOf } from "./ui/AnotherOf";
+import { Audit } from "./ui/Audit";
 import { Bind } from "./ui/Bind";
 import { CodeLanding } from "./ui/CodeLanding";
 import { Conflicts } from "./ui/Conflicts";
@@ -272,6 +273,7 @@ function Screen({
       return <Reservations store={store} />;
     case "settings":
       if (second === "users") return <Users store={store} api={api} />;
+      if (second === "audit") return <Audit store={store} api={api} />;
       if (second === "mail") return <Mail store={store} api={api} />;
       if (second === "calendars") return <SettingsCalendars store={store} api={api} />;
       if (second === "group") return <SettingsGroup store={store} />;

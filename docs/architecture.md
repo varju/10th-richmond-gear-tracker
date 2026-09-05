@@ -206,6 +206,22 @@ for the whole `repair` type at once, because it is a list of tickets rather than
 offline the screen says "Offline: what this device knows, the last 90 days."; on success it says nothing, because there
 is nothing missing.
 
+### The audit screen
+
+The audit log is the same log again, narrowed rather than sliced (FR-USR-24).
+
+```
+GET  /audit?type=&actor=&entity_type=&from=&to=&offset=   -> { events: [...], more, server_time }
+```
+
+Admins only, and there is no fallback: a device holds 90 days, so an offline answer would be a partial one presented as
+whole. The screen says it needs a connection instead.
+
+`from` and `to` are calendar days where the group is (NFR-DATA-12), both inclusive. `localtime.day_span` turns them into
+the millisecond bounds the log is stored in, and is the one place that knows the zone. Rows come newest first, which is
+replay order reversed, so the `events_replay` index serves them without a sort. A page is 100 rows; `more` says whether
+another follows, and the screen asks again with `offset`.
+
 ## Client
 
 ### In memory

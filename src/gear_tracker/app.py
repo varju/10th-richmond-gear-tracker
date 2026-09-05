@@ -15,7 +15,7 @@ import time
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from datetime import datetime
+from datetime import date, datetime
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from typing import Annotated, Any, Literal, TextIO
@@ -36,6 +36,7 @@ from gear_tracker import (
     events,
     inventory_csv,
     labels,
+    localtime,
     mail,
     notify,
     sync,
@@ -57,6 +58,9 @@ PHOTO_MAX_BYTES = 5 * 1024 * 1024
 """A phone shrinks a photo before sending it; this is the ceiling for one that did not."""
 
 PHOTO_EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+
+AUDIT_PAGE = 100
+"""Audit rows per request (FR-USR-24). Enough to read a Friday evening; small enough to draw on a phone."""
 
 FOUND_PER_ADDRESS = (5, HOUR_MS)
 FOUND_PER_CODE = (3, DAY_MS)
@@ -428,6 +432,42 @@ def create_app(
         """Every event of one kind, in replay order. The repair report reads its whole record this way."""
         _require_active(_who)
         return stamped({"events": [asdict(e) for e in events.in_replay_order(conn, _entity_type(entity_type))]})
+
+    # --- audit (Admins) ------------------------------------------------------------
+
+    @app.get("/audit")
+    def audit(
+        conn: Db,
+        who: Who,
+        type: Annotated[str | None, Query()] = None,
+        actor: Annotated[str | None, Query()] = None,
+        entity_type: Annotated[str | None, Query()] = None,
+        first: Annotated[date | None, Query(alias="from")] = None,
+        last: Annotated[date | None, Query(alias="to")] = None,
+        offset: Annotated[int, Query(ge=0)] = 0,
+    ) -> dict[str, Any]:
+        """The whole log for an Admin, newest first, filtered (FR-USR-24).
+
+        `from` and `to` are calendar days where the group is, both inclusive.
+        One page at a time: `more` says whether another follows this offset.
+        """
+        accounts._require_admin(who)
+        if type is not None and type not in events.EVENT_TYPES:
+            raise BadRequest(f"type must be one of {', '.join(sorted(events.EVENT_TYPES))}")
+        if entity_type is not None:
+            _entity_type(entity_type)
+        start, end = localtime.day_span(first, last)
+        found = events.audit(
+            conn,
+            type=type,
+            actor_id=actor,
+            entity_type=entity_type,
+            start=start,
+            end=end,
+            limit=AUDIT_PAGE + 1,
+            offset=offset,
+        )
+        return stamped({"events": [asdict(e) for e in found[:AUDIT_PAGE]], "more": len(found) > AUDIT_PAGE})
 
     # --- auth ----------------------------------------------------------------------
 

@@ -674,6 +674,43 @@ def in_replay_order(
         yield from_row(row)
 
 
+def audit(
+    conn: sqlite3.Connection,
+    *,
+    type: str | None = None,
+    actor_id: str | None = None,
+    entity_type: str | None = None,
+    start: int | None = None,
+    end: int | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[Event]:
+    """The whole log, newest first, narrowed to what an Admin asked for (FR-USR-24).
+
+    `start` and `end` bound `effective_at`, half-open, so a day range built by
+    localtime.day_span does not drop the last day. The order is replay order
+    reversed, which the events_replay index serves either way round.
+    """
+    clauses = [
+        (c, v)
+        for c, v in (
+            ("type = ?", type),
+            ("actor_id = ?", actor_id),
+            ("entity_type = ?", entity_type),
+            ("effective_at >= ?", start),
+            ("effective_at < ?", end),
+        )
+        if v is not None
+    ]
+    where = " WHERE " + " AND ".join(c for c, _ in clauses) if clauses else ""
+    args = (*(v for _, v in clauses), limit, offset)
+    rows = conn.execute(
+        f"SELECT * FROM events{where} ORDER BY effective_at DESC, device_id DESC, device_seq DESC LIMIT ? OFFSET ?",
+        args,
+    )
+    return [from_row(row) for row in rows]
+
+
 def since(conn: sqlite3.Connection, cursor: int, limit: int = 1000) -> list[Event]:
     """Events after a sync cursor, in seq order. This is what pull returns."""
     rows = conn.execute("SELECT * FROM events WHERE seq > ? ORDER BY seq LIMIT ?", (cursor, limit))

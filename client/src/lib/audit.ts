@@ -1,13 +1,15 @@
 /**
- * An item's audit history (FR-USR-09): what changed on the record, from what to
- * what, by whom. Movements are the History section; this is the rest.
+ * The audit log (FR-USR-05): what changed, from what to what, by whom.
  *
- * Read from a `Log`, which is the server's whole record when there is signal
- * and this device's 90 days when there is not (FR-INV-31, NFR-DATA-03).
+ * `changes` is one item's slice, on its detail page (FR-USR-09), read from a
+ * `Log` — the server's whole record when there is signal and this device's 90
+ * days when there is not (FR-INV-31, NFR-DATA-03). `entries` is the group-wide
+ * screen (FR-USR-24). That one is always the server's answer, so it takes
+ * events rather than a `Log`.
  */
-import { categoryName, locationName, nameOf } from "./inventory";
+import { categoryName, locationName, nameOf, userName } from "./inventory";
 import type { Log } from "./record";
-import type { State } from "./replay";
+import type { ReplayEvent, State } from "./replay";
 
 export interface Change {
   id: string;
@@ -44,6 +46,10 @@ const LABELS: Record<string, string> = {
   missing: "Missing",
   merged_into: "Merged into",
   deleted: "Deleted",
+  // User fields. They never reach an item page; they do reach the group-wide log (FR-USR-05).
+  email: "Email",
+  role: "Role",
+  active: "Active",
 };
 
 export const fieldLabel = (field: string): string => LABELS[field] ?? field;
@@ -86,3 +92,97 @@ export function changes(log: Log, itemId: string): Change[] {
     })
     .reverse();
 }
+
+/** One line of the group-wide log: what happened, and what it happened to. */
+export interface Entry {
+  id: string;
+  at: number;
+  actor_id: string;
+  entity_type: string;
+  entity_id: string;
+  /** "Checked out", "Name: Tent → Tent 1". */
+  what: string;
+  /** "Tent 1", "Bob", "Hall cupboard". Empty when the thing has no name of its own. */
+  on: string;
+}
+
+/** Every event type but `field_changed`, which reads its own payload. */
+const HAPPENED: Record<string, string> = {
+  created: "Created",
+  note_added: "Note added",
+  note_corrected: "Note edited",
+  note_deleted: "Note deleted",
+  event_corrected: "Movement corrected",
+  item_added: "Gear added",
+  item_removed: "Gear removed",
+  quantity_changed: "Quantity changed",
+  checked_out: "Checked out",
+  checked_in: "Checked in",
+  recounted: "Recounted",
+  code_bound: "Code assigned",
+  code_released: "Code freed",
+  photo_added: "Photo added",
+  photo_removed: "Photo removed",
+};
+
+/** A count rides on a pool's movements (FR-OUT-22) and on a recount (FR-INV-35). */
+function counted(label: string, payload: Record<string, unknown>): string {
+  const count = payload.count;
+  return typeof count === "number" ? `${label} · ${count}` : label;
+}
+
+function what(state: State, event: ReplayEvent): string {
+  if (event.type === "field_changed") {
+    const field = String(event.payload.field);
+    const from = describeValue(state, field, event.payload.old);
+    const to = describeValue(state, field, event.payload.value);
+    return `${fieldLabel(field)}: ${from} → ${to}`;
+  }
+  // A build older than an event type still draws the row; it just cannot name it.
+  const label = HAPPENED[event.type];
+  return label ? counted(label, event.payload) : event.type;
+}
+
+/** What the event happened to, by name. An id is no use to someone reading a log. */
+function on(state: State, event: ReplayEvent): string {
+  const id = event.entity_id;
+  switch (event.entity_type) {
+    case "item":
+      return nameOf(state, id);
+    case "user":
+      return userName(state, id);
+    case "location":
+      return locationName(state, id);
+    case "category":
+      return categoryName(state, id);
+    case "reservation":
+      return String(state.reservation?.[id]?.event ?? "");
+    case "repair":
+      return nameOf(state, String(state.repair?.[id]?.item_id ?? ""));
+    case "found_report":
+      return nameOf(state, String(state.found_report?.[id]?.item_id ?? ""));
+    case "code":
+      return id;
+    default:
+      return "";
+  }
+}
+
+/** The server's answer, as lines to draw (FR-USR-24). It arrives newest first; that order is kept. */
+export function entries(state: State, events: ReplayEvent[]): Entry[] {
+  return events.map((e) => ({
+    id: e.id,
+    at: e.effective_at,
+    actor_id: e.actor_id,
+    entity_type: e.entity_type,
+    entity_id: e.entity_id,
+    what: what(state, e),
+    on: on(state, e),
+  }));
+}
+
+/** Every kind of event the log holds, for the filter an Admin picks from. */
+export const EVENT_TYPES: { value: string; label: string }[] = [
+  ...Object.entries(HAPPENED).map(([value, label]) => ({ value, label })),
+  { value: "field_changed", label: "Edited" },
+].sort((a, b) => a.label.localeCompare(b.label));

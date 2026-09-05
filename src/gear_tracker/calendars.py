@@ -31,7 +31,6 @@ from typing import Annotated, Any, cast
 from urllib.error import URLError
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import Request, urlopen
-from zoneinfo import ZoneInfo
 
 from dateutil.rrule import rrulestr
 from icalendar import Calendar
@@ -40,6 +39,7 @@ from pydantic import StringConstraints
 from gear_tracker.db import connect
 from gear_tracker.errors import NotFound
 from gear_tracker.events import Strict, now_ms
+from gear_tracker.localtime import ZONE
 from gear_tracker.ulid import new_ulid
 
 logger = logging.getLogger(__name__)
@@ -51,9 +51,6 @@ LOOKBACK_DAYS = 7
 LOOKAHEAD_DAYS = 180
 
 REFRESH_INTERVAL_S = 3600.0
-
-ZONE = ZoneInfo("America/Vancouver")
-"""Where the group is (NFR-DATA-12). A day off the calendar is a day here, not UTC."""
 
 FeedUrl = Annotated[str, StringConstraints(min_length=1, max_length=2000, pattern=r"^https?://")]
 FeedLabel = Annotated[str, StringConstraints(max_length=200)]

@@ -133,6 +133,98 @@ def test_history_needs_a_signed_in_caller_and_a_real_entity_type(client):
     assert "entity_type must be one of" in r.json()["message"]
 
 
+def as_admin(**extra):
+    return as_alice(**{"X-Test-Role": "admin", **extra})
+
+
+DAY_MS = 86_400_000
+
+
+def test_audit_is_the_whole_log_newest_first(client):
+    """One screen over every kind of event, not one entity's slice (FR-USR-24)."""
+    made = event(type="created", payload={"name": "Tent"}, occurred_at=T0, device_seq=1)
+    renamed = event(occurred_at=T0 + 60_000, device_seq=2)
+    assert client.post("/sync/push", json=push_body(made, renamed), headers=as_alice()).status_code == 200
+    # A user change never comes off a device, and still belongs in the audit (FR-USR-05).
+    invited = client.post("/users/invite", json={"name": "Bob", "email": "bob@example.org"}, headers=as_admin())
+    assert invited.status_code == 200
+
+    r = client.get("/audit", headers=as_admin())
+    assert r.status_code == 200
+    assert [(e["entity_type"], e["type"]) for e in r.json()["events"]] == [
+        ("user", "created"),
+        ("item", "field_changed"),
+        ("item", "created"),
+    ]
+    assert r.json()["more"] is False
+    # The same shape pull sends, so one renderer draws both.
+    pulled = client.get("/sync/pull?since=0", headers=as_alice()).json()["events"]
+    assert r.json()["events"][-1] == next(e for e in pulled if e["id"] == made["id"])
+
+
+def test_audit_filters_by_event_type_and_by_who_did_it(client):
+    mine = event(type="created", payload={"name": "Tent"}, device_seq=1)
+    renamed = event(device_seq=2)
+    assert client.post("/sync/push", json=push_body(mine, renamed), headers=as_alice()).status_code == 200
+    theirs = incoming(actor_id="bob", device_id="phone-b", entity_id="tarp-1", type="created", payload={"name": "Tarp"})
+    bob = {"X-Test-User": "bob", "X-Test-Device": "phone-b"}
+    body = {"device_id": "phone-b", "client_time": T0, "events": [theirs]}
+    assert client.post("/sync/push", json=body, headers=bob).status_code == 200
+
+    by_type = client.get("/audit?type=created", headers=as_admin()).json()["events"]
+    assert {e["id"] for e in by_type} == {mine["id"], theirs["id"]}
+
+    by_actor = client.get("/audit?actor=bob", headers=as_admin()).json()["events"]
+    assert [e["id"] for e in by_actor] == [theirs["id"]]
+
+    assert client.get("/audit?entity_type=location", headers=as_admin()).json()["events"] == []
+
+
+def test_audit_dates_are_calendar_days_where_the_group_is(client):
+    """T0 is UTC midnight of 2025-09-01, which is still 2025-08-31 evening in Vancouver (NFR-DATA-12)."""
+    evening = event(type="created", payload={"name": "Tent"}, occurred_at=T0, device_seq=1)
+    next_day = event(occurred_at=T0 + DAY_MS, device_seq=2)
+    assert client.post("/sync/push", json=push_body(evening, next_day), headers=as_alice()).status_code == 200
+
+    on_the_day = client.get("/audit?from=2025-08-31&to=2025-08-31", headers=as_admin()).json()["events"]
+    assert [e["id"] for e in on_the_day] == [evening["id"]]
+
+    # `to` is inclusive: a range that ends on a day still holds that whole day.
+    both = client.get("/audit?from=2025-08-31&to=2025-09-01", headers=as_admin()).json()["events"]
+    assert [e["id"] for e in both] == [next_day["id"], evening["id"]]
+
+    assert client.get("/audit?from=2025-09-02", headers=as_admin()).json()["events"] == []
+
+
+def test_audit_comes_a_page_at_a_time(client):
+    made = [
+        event(type="created", payload={"name": f"Tent {i}"}, entity_id=f"tent-{i}", device_seq=i) for i in range(1, 103)
+    ]
+    assert client.post("/sync/push", json=push_body(*made), headers=as_alice()).status_code == 200
+
+    first = client.get("/audit", headers=as_admin()).json()
+    assert len(first["events"]) == 100
+    assert first["more"] is True
+
+    rest = client.get("/audit?offset=100", headers=as_admin()).json()
+    assert len(rest["events"]) == 2
+    assert rest["more"] is False
+    assert {e["id"] for e in first["events"]} | {e["id"] for e in rest["events"]} == {e["id"] for e in made}
+
+
+def test_audit_is_for_admins_only_and_says_what_it_will_filter_on(client):
+    assert client.get("/audit").status_code == 401
+    assert client.get("/audit", headers=as_alice()).status_code == 403
+
+    r = client.get("/audit?type=banana", headers=as_admin())
+    assert r.status_code == 400
+    assert "type must be one of" in r.json()["message"]
+
+    r = client.get("/audit?entity_type=banana", headers=as_admin())
+    assert r.status_code == 400
+    assert "entity_type must be one of" in r.json()["message"]
+
+
 def test_push_with_a_non_json_body_is_400(client):
     r = client.post("/sync/push", content=b"not json", headers=as_alice(**{"Content-Type": "application/json"}))
     assert r.status_code == 400

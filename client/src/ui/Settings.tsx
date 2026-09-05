@@ -50,6 +50,9 @@ export function Settings({ store, shell }: Props) {
             <button className="link" type="button" onClick={() => navigate("/settings/csv")}>
               Export and import
             </button>
+            <button className="link" type="button" onClick={() => navigate("/settings/audit")}>
+              Audit log
+            </button>
           </>
         )}
         {store.rejected.length > 0 && (

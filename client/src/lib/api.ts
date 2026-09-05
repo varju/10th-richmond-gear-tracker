@@ -146,6 +146,22 @@ export interface CalendarFeed {
 export interface History {
   events: ServerEvent[];
 }
+
+/** What an Admin narrows the audit log to (FR-USR-24). Dates are calendar days where the group is. */
+export interface AuditFilter {
+  type?: string;
+  actor?: string;
+  entity_type?: string;
+  from?: string;
+  to?: string;
+  offset?: number;
+}
+
+export interface AuditPage {
+  events: ServerEvent[];
+  /** Another page follows this offset. */
+  more: boolean;
+}
 export interface PushResult {
   accepted: string[];
   rejected: { id: string | null; reason: string }[];
@@ -297,6 +313,18 @@ export function createApi(options: ApiOptions = {}) {
         "GET",
         entity_id === undefined ? `/history/${entity_type}` : `/history/${entity_type}/${entity_id}`,
       ),
+    /** The whole log, newest first, narrowed and one page at a time (FR-USR-24). Admins only. */
+    audit: (filter: AuditFilter = {}) => {
+      const query = new URLSearchParams(
+        Object.entries(filter)
+          .filter(([, v]) => v !== undefined && v !== "")
+          .map(([k, v]) => [k, String(v)]),
+      );
+      // Not `query.size`: a phone a few years old has no such property, and would ask for the
+      // whole log whatever was picked.
+      const asked = String(query);
+      return request<AuditPage>("GET", `/audit${asked ? `?${asked}` : ""}`);
+    },
     push: (device_id: string, client_time: number, events: OutgoingEvent[], round_trip_ms?: number) =>
       request<PushResult>(
         "POST",
