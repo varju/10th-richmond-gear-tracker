@@ -1357,22 +1357,32 @@ def _join_link_response(state: dict[str, Any], made: dict[str, Any]) -> dict[str
     return {**made, "url": url, "qr_svg": labels.qr_svg(url)}
 
 
-def create_join_link(expiry_days: accounts.JoinLinkExpiryDays = 7) -> dict[str, Any]:
+def create_join_link(
+    expiry_days: accounts.JoinLinkExpiryDays = 7, label: accounts.JoinLinkLabel = ""
+) -> dict[str, Any]:
     """A standing link and its QR, for a room of volunteers to make their own accounts at once
     (FR-USR-19). Good for 1, 7 (the default) or 30 days, or pass null for one that never expires,
     until revoked. Admins only.
 
-    The token and QR are shown only here; list_join_links names who made a link and when, not
-    what it is.
+    `label` says what the link is for, since the token is shown only here and a list of live
+    links is otherwise told apart only by who made each one and when (FR-USR-21).
     """
     with _open() as (conn, who):
-        made = accounts.create_join_link(conn, who, accounts.CreateJoinLink(expiry_days=expiry_days))
+        made = accounts.create_join_link(conn, who, accounts.CreateJoinLink(expiry_days=expiry_days, label=label))
         return _join_link_response(_state(conn), made)
 
 
 def list_join_links() -> dict[str, Any]:
-    """Every live standing join link: who made it, when, and when it expires (FR-USR-19). Admins only."""
+    """Every live standing join link: its label, who made it, when, and when it expires (FR-USR-19). Admins only."""
     with _open() as (conn, who):
+        return {"links": accounts.list_join_links(conn, who)}
+
+
+def rename_join_link(link_id: str, label: accounts.JoinLinkLabel = "") -> dict[str, Any]:
+    """Label a standing join link, or change the label it has (FR-USR-21). Pass an empty label to
+    clear it. The link itself is unchanged: what was printed or passed around still works. Admins only."""
+    with _open() as (conn, who):
+        accounts.rename_join_link(conn, who, link_id, label)
         return {"links": accounts.list_join_links(conn, who)}
 
 
@@ -1695,6 +1705,7 @@ TOOLS = [
     revoke_device,
     create_join_link,
     list_join_links,
+    rename_join_link,
     revoke_join_link,
     get_mail,
     set_mail,

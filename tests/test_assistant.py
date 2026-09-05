@@ -1042,6 +1042,22 @@ def test_an_admin_creates_lists_and_revokes_a_join_link(admin_tools, admin_id):
     assert [line["id"] for line in revoked["links"]] == [built["id"]]
 
 
+def test_an_admin_labels_a_join_link_and_renames_it(admin_tools):
+    made = assistant.create_join_link(label="Beaver leaders")
+    assert made["label"] == "Beaver leaders"
+    assert [line["label"] for line in assistant.list_join_links()["links"]] == ["Beaver leaders"]
+
+    renamed = assistant.rename_join_link(made["id"], "Cub leaders")
+    assert [line["label"] for line in renamed["links"]] == ["Cub leaders"]
+
+    assert [line["label"] for line in assistant.rename_join_link(made["id"])["links"]] == [""]
+
+
+def test_renaming_a_join_link_that_is_not_there_is_not_found(admin_tools):
+    with pytest.raises(NotFound):
+        assistant.rename_join_link("nope", "Cub leaders")
+
+
 def test_a_join_link_can_be_created_with_no_expiry(admin_tools):
     made = assistant.create_join_link(expiry_days=None)
     assert made["expires_at"] is None
@@ -1056,6 +1072,8 @@ def test_join_links_are_admin_only(tools):
         assistant.list_join_links()
     with pytest.raises(Forbidden):
         assistant.revoke_join_link("nope")
+    with pytest.raises(Forbidden):
+        assistant.rename_join_link("nope", "Cubs")
 
 
 class _Mailbox:

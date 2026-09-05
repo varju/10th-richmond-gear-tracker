@@ -165,14 +165,26 @@ function JoinLinkSection({
     void load();
   }, [load]);
 
-  async function create(expiry_days: JoinLinkExpiry) {
+  async function create(expiry_days: JoinLinkExpiry, label: string) {
     setBusy(true);
     onError(null);
     try {
-      const { data } = await api.createJoinLink(expiry_days, JOIN_LINK_TEMPLATE);
+      const { data } = await api.createJoinLink(expiry_days, JOIN_LINK_TEMPLATE, label);
       setMade(data);
       setShown(true);
       await load();
+    } catch (e) {
+      onError(describe(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rename(id: string, label: string) {
+    setBusy(true);
+    onError(null);
+    try {
+      setLinks((await api.renameJoinLink(id, label)).data.links);
     } catch (e) {
       onError(describe(e));
     } finally {
@@ -203,20 +215,14 @@ function JoinLinkSection({
       {links && links.length > 0 && (
         <ul className="names" aria-label="Join links">
           {links.map((l) => (
-            <li key={l.id} className="row">
-              <span className="small">
-                Made by {l.created_by_name ?? "someone gone"} {ago(Date.now() - l.created_at)} ·{" "}
-                {l.expires_at === null ? "never expires" : `expires ${localDate(l.expires_at)}`}
-              </span>
-              {made?.id === l.id && !shown && (
-                <button type="button" className="minor" onClick={() => setShown(true)}>
-                  View link
-                </button>
-              )}
-              <button type="button" className="minor" disabled={busy} onClick={() => revoke(l.id)}>
-                Revoke
-              </button>
-            </li>
+            <JoinLinkRow
+              key={l.id}
+              link={l}
+              busy={busy}
+              onRename={(label) => rename(l.id, label)}
+              onRevoke={() => revoke(l.id)}
+              onView={made?.id === l.id && !shown ? () => setShown(true) : null}
+            />
           ))}
         </ul>
       )}
@@ -226,16 +232,109 @@ function JoinLinkSection({
 
 const NEVER = "never";
 
-function CreateJoinLinkForm({ busy, onCreate }: { busy: boolean; onCreate: (expiry_days: JoinLinkExpiry) => void }) {
+/**
+ * A row for one live link (FR-USR-19): its label, or the making of it when there is none, and
+ * an inline edit to name it later (FR-USR-21). The same row as the lists of locations and
+ * categories, which rename in place too.
+ */
+function JoinLinkRow({
+  link,
+  busy,
+  onRename,
+  onRevoke,
+  onView,
+}: {
+  link: JoinLink;
+  busy: boolean;
+  onRename: (label: string) => Promise<void>;
+  onRevoke: () => void;
+  onView: (() => void) | null;
+}) {
+  const [editing, setEditing] = useState<string | null>(null);
+  const made = `Made by ${link.created_by_name ?? "someone gone"} ${ago(Date.now() - link.created_at)} · ${
+    link.expires_at === null ? "never expires" : `expires ${localDate(link.expires_at)}`
+  }`;
+
+  async function save() {
+    if (editing === null) return;
+    await onRename(editing.trim());
+    setEditing(null);
+  }
+
+  if (editing !== null) {
+    return (
+      <li className="row">
+        <input
+          aria-label={`Label for the link ${made}`}
+          placeholder="What it is for"
+          value={editing}
+          onChange={(e) => setEditing(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void save())}
+          autoComplete="off"
+          autoFocus
+        />
+        <button type="button" className="minor" disabled={busy} onClick={save}>
+          Save
+        </button>
+        <button type="button" className="minor" onClick={() => setEditing(null)}>
+          Cancel
+        </button>
+      </li>
+    );
+  }
+
+  return (
+    <li className="row">
+      <span className={link.label ? "name" : "small"}>{link.label || made}</span>
+      {link.label && <span className="small">{made}</span>}
+      <button
+        type="button"
+        className="minor"
+        disabled={busy}
+        onClick={() => setEditing(link.label)}
+        aria-label={link.label ? `Rename ${link.label}` : `Label the link ${made}`}
+      >
+        {link.label ? "Rename" : "Label"}
+      </button>
+      {onView && (
+        <button type="button" className="minor" onClick={onView}>
+          View link
+        </button>
+      )}
+      <button type="button" className="minor" disabled={busy} onClick={onRevoke}>
+        Revoke
+      </button>
+    </li>
+  );
+}
+
+function CreateJoinLinkForm({
+  busy,
+  onCreate,
+}: {
+  busy: boolean;
+  onCreate: (expiry_days: JoinLinkExpiry, label: string) => void;
+}) {
   const [days, setDays] = useState<JoinLinkExpiry>(7);
+  const [label, setLabel] = useState("");
   return (
     <form
       className="row"
       onSubmit={(e) => {
         e.preventDefault();
-        onCreate(days);
+        onCreate(days, label.trim());
+        setLabel("");
       }}
     >
+      <label className="tight">
+        <span>Label</span>
+        <input
+          value={label}
+          placeholder="What it is for"
+          onChange={(e) => setLabel(e.target.value)}
+          autoComplete="off"
+        />
+      </label>
       <label className="tight">
         <span>Expires after</span>
         <select

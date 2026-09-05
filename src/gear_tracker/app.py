@@ -499,6 +499,11 @@ def create_app(
     def join_links(conn: Db, who: Who) -> dict[str, Any]:
         return stamped({"links": accounts.list_join_links(conn, who)})
 
+    @app.post("/join-links/{link_id}/label")
+    def label_join_link(conn: Db, who: Who, link_id: str, body: accounts.RenameJoinLink) -> dict[str, Any]:
+        accounts.rename_join_link(conn, who, link_id, body.label)
+        return stamped({"links": accounts.list_join_links(conn, who)})
+
     @app.post("/join-links/{link_id}/revoke")
     def revoke_join_link(conn: Db, who: Who, link_id: str) -> dict[str, Any]:
         accounts.revoke_join_link(conn, who, link_id)

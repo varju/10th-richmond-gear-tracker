@@ -79,6 +79,8 @@ export type JoinLinkExpiry = 1 | 7 | 30 | null;
 /** A live standing join link, as an Admin sees it in the list. Never the token (FR-USR-19). */
 export interface JoinLink {
   id: string;
+  /** What the link is for, in the Admin's words (FR-USR-21). Empty when unlabelled. */
+  label: string;
   created_by: string;
   created_by_name: string | null;
   created_at: number;
@@ -333,9 +335,12 @@ export function createApi(options: ApiOptions = {}) {
     saveNotifications: (categories: NotificationCategories) =>
       request<NotificationSettings>("PUT", "/me/notifications", categories),
     /** A standing link and its QR (FR-USR-19). `link` is this app's join page with TOKEN standing in. */
-    createJoinLink: (expiry_days: JoinLinkExpiry, link: string) =>
-      request<CreatedJoinLink>("POST", "/join-links", { expiry_days, link }),
+    createJoinLink: (expiry_days: JoinLinkExpiry, link: string, label: string) =>
+      request<CreatedJoinLink>("POST", "/join-links", { expiry_days, link, label }),
     joinLinks: () => request<{ links: JoinLink[] }>("GET", "/join-links"),
+    /** Label a link, or change its label (FR-USR-21). The link itself keeps working. */
+    renameJoinLink: (id: string, label: string) =>
+      request<{ links: JoinLink[] }>("POST", `/join-links/${id}/label`, { label }),
     revokeJoinLink: (id: string) => request<{ links: JoinLink[] }>("POST", `/join-links/${id}/revoke`),
     mail: () => request<{ mail: MailSettings | null }>("GET", "/mail"),
     saveMail: (settings: Omit<MailSettings, "has_password"> & { password: string }) =>

@@ -18,6 +18,7 @@ let emailed: boolean;
 let sent: Record<string, unknown>;
 let joinLinks: {
   id: string;
+  label: string;
   created_by: string;
   created_by_name: string;
   created_at: number;
@@ -74,9 +75,10 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
   if (path === "/users/alice/devices") return json({ devices: [{ device_id: store.meta.device_id, created_at: T0 }] });
   if (path === "/join-links" && init?.method === "GET") return json({ links: joinLinks });
   if (path === "/join-links" && init?.method === "POST") {
-    const body = JSON.parse(String(init.body)) as { expiry_days: number | null; link: string };
+    const body = JSON.parse(String(init.body)) as { expiry_days: number | null; link: string; label: string };
     const made = {
       id: "link-1",
+      label: body.label,
       created_by: "alice",
       created_by_name: "Alice",
       created_at: T0,
@@ -84,6 +86,11 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
     };
     joinLinks = [made, ...joinLinks];
     return json({ ...made, token: "JOIN-TOKEN", url: body.link.replace("TOKEN", "JOIN-TOKEN"), qr_svg: "<svg />" });
+  }
+  if (path === "/join-links/link-1/label") {
+    const { label } = JSON.parse(String(init?.body ?? "{}")) as { label: string };
+    joinLinks = joinLinks.map((l) => (l.id === "link-1" ? { ...l, label } : l));
+    return json({ links: joinLinks });
   }
   if (path === "/join-links/link-1/revoke") {
     joinLinks = joinLinks.filter((l) => l.id !== "link-1");
@@ -245,7 +252,7 @@ test("an Admin creates a standing join link and sees its URL and QR (FR-USR-19)"
   expect(status).toHaveTextContent(`${location.origin}/join?link=JOIN-TOKEN`);
   expect(status.querySelector(".qr svg")).toBeTruthy();
   expect(calls).toContain("POST /join-links");
-  expect(sent).toEqual({ expiry_days: 7, link: `${location.origin}/join?link=TOKEN` });
+  expect(sent).toEqual({ expiry_days: 7, link: `${location.origin}/join?link=TOKEN`, label: "" });
 
   const list = await screen.findByRole("list", { name: "Join links" });
   expect(within(list).getByText(/Made by Alice/)).toBeInTheDocument();
@@ -268,6 +275,46 @@ test("a join link can be set to never expire", async () => {
 
   const list = await screen.findByRole("list", { name: "Join links" });
   expect(within(list).getByText(/never expires/)).toBeInTheDocument();
+});
+
+test("a link is made with a label, and renamed later (FR-USR-21)", async () => {
+  mount();
+  await user.type(await screen.findByLabelText("Label"), "  Beaver leaders  ");
+  await user.click(screen.getByRole("button", { name: "Create join link" }));
+  await screen.findByRole("status");
+  expect(sent.label).toBe("Beaver leaders");
+
+  const list = await screen.findByRole("list", { name: "Join links" });
+  expect(within(list).getByText("Beaver leaders")).toBeInTheDocument();
+
+  await user.click(within(list).getByRole("button", { name: "Rename Beaver leaders" }));
+  const field = within(list).getByRole("textbox");
+  await user.clear(field);
+  await user.type(field, "Cub leaders");
+  await user.click(within(list).getByRole("button", { name: "Save" }));
+
+  expect(calls).toContain("POST /join-links/link-1/label");
+  expect(sent).toEqual({ label: "Cub leaders" });
+  expect(await within(list).findByText("Cub leaders")).toBeInTheDocument();
+});
+
+test("an unlabelled link is labelled from the list, and Cancel changes nothing (FR-USR-21)", async () => {
+  mount();
+  await user.click(await screen.findByRole("button", { name: "Create join link" }));
+  await user.click(await screen.findByRole("button", { name: "Done" }));
+
+  const list = await screen.findByRole("list", { name: "Join links" });
+  expect(within(list).getByText(/Made by Alice/)).toBeInTheDocument();
+
+  await user.click(within(list).getByRole("button", { name: /^Label the link/ }));
+  await user.type(within(list).getByRole("textbox"), "Beaver leaders");
+  await user.click(within(list).getByRole("button", { name: "Cancel" }));
+  expect(calls).not.toContain("POST /join-links/link-1/label");
+
+  await user.click(within(list).getByRole("button", { name: /^Label the link/ }));
+  await user.type(within(list).getByRole("textbox"), "Beaver leaders");
+  await user.click(within(list).getByRole("button", { name: "Save" }));
+  expect(await within(list).findByText("Beaver leaders")).toBeInTheDocument();
 });
 
 test("revoking a join link removes it from the list", async () => {

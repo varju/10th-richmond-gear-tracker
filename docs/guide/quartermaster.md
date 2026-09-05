@@ -107,6 +107,9 @@ Open Users and make a join link, with an expiry of 1, 7, or 30 days, or Never. I
 out, pass it around, or hold up the code for a room of new volunteers to scan at once. Whoever opens it picks a name,
 email, and password and gets their own User account. Revoke the link when you are done with it, or let it expire.
 
+Give the link a label, such as "Beaver leaders", so you can tell your live links apart. You can change a label later,
+and the link keeps working, so anything already printed is still good.
+
 ## Change a role, or end access
 
 Open Users and pick the person. Change their role, or deactivate them to end access; their history stays. The last Admin

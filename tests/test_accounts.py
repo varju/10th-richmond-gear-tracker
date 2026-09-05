@@ -524,8 +524,9 @@ def test_admin_lists_or_revokes_devices_for_nobody(db, admin):
 # --- standing join links (FR-USR-19) ----------------------------------------------------------
 
 
-def make_join_link(db, admin, expiry_days=7, now=T0):
-    return accounts.create_join_link(db, admin, accounts.CreateJoinLink(expiry_days=expiry_days), now=now)
+def make_join_link(db, admin, expiry_days=7, label="", now=T0):
+    body = accounts.CreateJoinLink(expiry_days=expiry_days, label=label)
+    return accounts.create_join_link(db, admin, body, now=now)
 
 
 def use_join_link(db, token, name="Bea", email="bea@example.org", password="battery staple", device="phone-b", now=T0):
@@ -546,6 +547,48 @@ def test_an_admin_creates_a_join_link_and_lists_it(db, admin):
     assert listed["created_by_name"] == "Alex"
     assert listed["expires_at"] == made["expires_at"]
     assert "token" not in listed
+
+
+def test_a_join_link_carries_the_label_it_was_made_with(db, admin):
+    made = make_join_link(db, admin, label="Beaver leaders", now=T0)
+    assert made["label"] == "Beaver leaders"
+    [listed] = accounts.list_join_links(db, admin, now=T0)
+    assert listed["label"] == "Beaver leaders"
+
+
+def test_a_link_made_without_a_label_has_an_empty_one(db, admin):
+    make_join_link(db, admin, now=T0)
+    [listed] = accounts.list_join_links(db, admin, now=T0)
+    assert listed["label"] == ""
+
+
+def test_an_admin_renames_a_link_and_can_clear_the_label(db, admin):
+    made = make_join_link(db, admin, label="Beaver leaders", now=T0)
+
+    accounts.rename_join_link(db, admin, made["id"], "September open house")
+    [listed] = accounts.list_join_links(db, admin, now=T0)
+    assert listed["label"] == "September open house"
+
+    accounts.rename_join_link(db, admin, made["id"], "")
+    [listed] = accounts.list_join_links(db, admin, now=T0)
+    assert listed["label"] == ""
+
+
+def test_renaming_a_link_leaves_its_token_working(db, admin):
+    made = make_join_link(db, admin, label="Beaver leaders", now=T0)
+    accounts.rename_join_link(db, admin, made["id"], "Cub leaders")
+    assert use_join_link(db, made["token"], now=T0 + 1).user["name"] == "Bea"
+
+
+def test_renaming_a_link_that_is_not_there_is_not_found(db, admin):
+    with pytest.raises(NotFound):
+        accounts.rename_join_link(db, admin, "nope", "Beaver leaders")
+
+
+def test_a_label_is_trimmed_and_bounded(db, admin):
+    assert accounts.CreateJoinLink(label="  Beaver leaders  ").label == "Beaver leaders"
+    with pytest.raises(pydantic.ValidationError):
+        accounts.CreateJoinLink(label="x" * 101)
 
 
 def test_a_join_links_expiry_is_one_of_three_choices_or_never(db, admin):
@@ -575,6 +618,8 @@ def test_a_user_cannot_create_list_or_revoke_a_join_link(db, admin):
         accounts.list_join_links(db, bea)
     with pytest.raises(Forbidden):
         accounts.revoke_join_link(db, bea, "nope")
+    with pytest.raises(Forbidden):
+        accounts.rename_join_link(db, bea, "nope", "Beaver leaders")
 
 
 def test_joining_creates_a_user_audited_under_the_link_creators_name(db, admin):

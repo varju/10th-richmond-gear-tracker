@@ -106,12 +106,23 @@ JoinLinkExpiryDays = Literal[1, 7, 30] | None
 """What an Admin picks at creation (FR-USR-19): 1, 7 or 30 days, or None for a link that never expires."""
 
 
+JoinLinkLabel = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]
+"""What a link is for, in an Admin's words (FR-USR-21). Empty means unlabelled."""
+
+
 class CreateJoinLink(Strict):
     expiry_days: JoinLinkExpiryDays = 7
+    label: JoinLinkLabel = ""
     # Same idea as Invite.link: a template only the caller knows how to fill in. create_join_link
     # itself never reads this; it is here so the HTTP body carries what the route needs to build
     # the URL the QR encodes.
     link: JoinLink | None = None
+
+
+class RenameJoinLink(Strict):
+    """A new label for a link already handed out (FR-USR-21). Empty clears it."""
+
+    label: JoinLinkLabel = ""
 
 
 class Join(Strict):
@@ -456,10 +467,17 @@ def create_join_link(conn: sqlite3.Connection, who: Principal, body: CreateJoinL
     token = _new_token()
     expires_at = None if body.expiry_days is None else now + body.expiry_days * DAY_MS
     conn.execute(
-        "INSERT INTO join_links (id, token_hash, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
-        (link_id, _hash_token(token), who.user_id, now, expires_at),
+        "INSERT INTO join_links (id, token_hash, created_by, created_at, expires_at, label) VALUES (?, ?, ?, ?, ?, ?)",
+        (link_id, _hash_token(token), who.user_id, now, expires_at, body.label),
     )
-    return {"id": link_id, "token": token, "created_by": who.user_id, "created_at": now, "expires_at": expires_at}
+    return {
+        "id": link_id,
+        "token": token,
+        "created_by": who.user_id,
+        "created_at": now,
+        "expires_at": expires_at,
+        "label": body.label,
+    }
 
 
 def list_join_links(conn: sqlite3.Connection, who: Principal, now: int | None = None) -> list[dict]:
@@ -472,7 +490,7 @@ def list_join_links(conn: sqlite3.Connection, who: Principal, now: int | None = 
     now = now_ms() if now is None else now
     rows = conn.execute(
         """
-        SELECT id, created_by, created_at, expires_at FROM join_links
+        SELECT id, created_by, created_at, expires_at, label FROM join_links
         WHERE revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)
         ORDER BY created_at DESC
         """,
@@ -488,9 +506,21 @@ def list_join_links(conn: sqlite3.Connection, who: Principal, now: int | None = 
                 "created_by_name": creator["name"] if creator else None,
                 "created_at": row["created_at"],
                 "expires_at": row["expires_at"],
+                "label": row["label"],
             }
         )
     return out
+
+
+def rename_join_link(conn: sqlite3.Connection, who: Principal, link_id: str, label: str) -> None:
+    """Label a link, or change the label it already has (FR-USR-21). Admins only.
+
+    The token is unchanged: whatever was printed or passed around still works.
+    """
+    _require_admin(who)
+    if conn.execute("SELECT 1 FROM join_links WHERE id = ?", (link_id,)).fetchone() is None:
+        raise NotFound("no such join link")
+    conn.execute("UPDATE join_links SET label = ? WHERE id = ?", (label, link_id))
 
 
 def revoke_join_link(conn: sqlite3.Connection, who: Principal, link_id: str, now: int | None = None) -> None:

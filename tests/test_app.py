@@ -403,6 +403,23 @@ def test_a_standing_join_link_is_created_used_and_revoked_over_http(real):
     assert refused.json()["message"] == "this link is not valid"
 
 
+def test_a_join_link_is_labelled_at_creation_and_renamed_later_over_http(real):
+    admin = sign_in(real)
+    body = {"link": JOIN_LINK_TEMPLATE, "label": "Beaver leaders"}
+    made = real.post("/join-links", json=body, headers=admin).json()
+    assert made["label"] == "Beaver leaders"
+
+    renamed = real.post(f"/join-links/{made['id']}/label", json={"label": "Cub leaders"}, headers=admin)
+    assert renamed.status_code == 200, renamed.text
+    assert [line["label"] for line in renamed.json()["links"]] == ["Cub leaders"]
+
+    joined = real.post("/join", json=join_body(made["token"], name="Bea", email="bea@example.org"))
+    assert joined.status_code == 200, "renaming does not spend the link"
+
+    missing = real.post("/join-links/nope/label", json={"label": "Cub leaders"}, headers=admin)
+    assert missing.status_code == 404
+
+
 def test_a_join_link_can_be_created_with_no_expiry(real):
     admin = sign_in(real)
     made = real.post("/join-links", json={"link": JOIN_LINK_TEMPLATE, "expiry_days": None}, headers=admin).json()
@@ -434,6 +451,7 @@ def test_join_links_are_admin_only(real):
     assert real.post("/join-links", json={"link": JOIN_LINK_TEMPLATE}, headers=bea).status_code == 403
     assert real.get("/join-links", headers=bea).status_code == 403
     assert real.post("/join-links/nope/revoke", headers=bea).status_code == 403
+    assert real.post("/join-links/nope/label", json={"label": "Cubs"}, headers=bea).status_code == 403
 
 
 def test_a_made_up_join_link_is_refused(real):
