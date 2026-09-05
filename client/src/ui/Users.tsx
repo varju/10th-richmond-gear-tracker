@@ -326,7 +326,8 @@ function PrintableJoinLink({ group, link, onDone }: { group: string; link: Creat
       </header>
       <main>
         <p className="join-lead">
-          Scan this code to set up your account. Then you can see the gear we own and sign it out.
+          Scan this code to set up your account. Then you can check gear out and return it, reserve gear for an event,
+          and see who has what.
         </p>
         {link.qr_svg && <div className="qr qr-print" dangerouslySetInnerHTML={{ __html: link.qr_svg }} />}
       </main>

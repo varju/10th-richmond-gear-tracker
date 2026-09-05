@@ -1036,7 +1036,7 @@ main:has(> .remaining) .viewfinder {
 
 .join-lead {
   margin: 16px auto 0;
-  max-width: 32ch;
+  max-width: 40ch;
   text-align: center;
 }
 
