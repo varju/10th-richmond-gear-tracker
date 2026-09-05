@@ -80,6 +80,12 @@ export function ReservationForm({ store, id, from }: Props) {
   const wide = useWide();
   const state = store.state;
   const set = (patch: Partial<ReservationInput>) => setValues((v) => ({ ...v, ...patch }));
+  /** Most camps are one day, so the first date filled fills the other; a date already set is left alone. */
+  const setDate = (field: "starts" | "ends", value: string) =>
+    setValues((v) => {
+      const other = field === "starts" ? "ends" : "starts";
+      return { ...v, [field]: value, [other]: v[other] === "" ? value : v[other] };
+    });
 
   const complete = values.event.trim() !== "" && values.starts !== "" && values.ends !== "";
   const dirty = JSON.stringify(values) !== JSON.stringify(start);
@@ -267,11 +273,11 @@ export function ReservationForm({ store, id, from }: Props) {
       <div className="row">
         <label className="tight">
           <span>Starts</span>
-          <input type="date" value={values.starts} onChange={(e) => set({ starts: e.target.value })} required />
+          <input type="date" value={values.starts} onChange={(e) => setDate("starts", e.target.value)} required />
         </label>
         <label className="tight">
           <span>Ends</span>
-          <input type="date" value={values.ends} onChange={(e) => set({ ends: e.target.value })} required />
+          <input type="date" value={values.ends} onChange={(e) => setDate("ends", e.target.value)} required />
         </label>
       </div>
 

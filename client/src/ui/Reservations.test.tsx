@@ -43,9 +43,13 @@ afterEach(() => unsaved.cancel());
 
 const user = userEvent.setup();
 
+/** Filling Starts fills Ends too, so a different end date replaces it. */
 async function fillDates(starts: string, ends: string) {
   await user.type(screen.getByLabelText("Starts"), starts);
-  await user.type(screen.getByLabelText("Ends"), ends);
+  if (ends !== starts) {
+    await user.clear(screen.getByLabelText("Ends"));
+    await user.type(screen.getByLabelText("Ends"), ends);
+  }
 }
 
 test("the list shows what is ahead, with past camps folded away", async () => {
@@ -97,6 +101,16 @@ test("a new reservation is built from one search; an item already booked blocks 
   const made = res.reservations(store.state).find((r) => r.event === "Cub camp")!;
   expect(made).toMatchObject({ starts: "2026-10-04", ends: "2026-10-05", items: [tarp], generics: [] });
   expect(location.pathname).toBe(`/reservations/${made.id}`);
+});
+
+test("the first date filled fills the other; a date already set is kept", async () => {
+  navigate("/reservations/new");
+  renderInShell(<ReservationForm store={store} />);
+  await user.type(screen.getByLabelText("Starts"), "2026-10-03");
+  expect(screen.getByLabelText("Ends")).toHaveValue("2026-10-03");
+  await user.clear(screen.getByLabelText("Ends"));
+  await user.type(screen.getByLabelText("Ends"), "2026-10-05");
+  expect(screen.getByLabelText("Starts")).toHaveValue("2026-10-03");
 });
 
 test("a unit's search surfaces its generic, reserved by count, adjusted in place; too many names the other camp (FR-RES-13, FR-RES-15)", async () => {
