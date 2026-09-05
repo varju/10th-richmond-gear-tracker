@@ -1309,7 +1309,8 @@ def reset_link(user_id: str) -> dict[str, Any]:
 def set_user_active(user_id: str, active: StrictBool) -> dict[str, Any]:
     """Deactivate or reactivate an account (FR-USR-04).
 
-    The last Admin cannot be deactivated (FR-USR-03). Admins only.
+    You cannot deactivate your own account (FR-USR-23), and the last Admin cannot be
+    deactivated (FR-USR-03). Admins only.
     """
     with _open() as (conn, who):
         if active:

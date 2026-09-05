@@ -290,18 +290,6 @@ def test_reactivation_restores_access(db, admin):
     assert not accounts.get_user(db, user_id)["deactivated_at"]
 
 
-def test_the_last_admin_cannot_be_deactivated(db, admin):
-    """FR-USR-03."""
-    with pytest.raises(Conflict, match="last Admin"):
-        accounts.deactivate(db, admin, admin.user_id, now=T0)
-
-    # With a second Admin, it is allowed.
-    user_id, _ = invite(db, admin)
-    accounts.set_role(db, admin, user_id, "admin", now=T0)
-    accounts.deactivate(db, admin, admin.user_id, now=T0 + 1)
-    assert accounts.get_user(db, admin.user_id)["active"] is False
-
-
 def test_an_admin_cannot_drop_their_own_role(db, admin):
     """FR-USR-22. Not even with another Admin standing by: the mistake is one nobody can undo alone."""
     bea_id, _ = invite(db, admin, role="admin")
@@ -317,40 +305,64 @@ def test_an_admin_cannot_drop_their_own_role(db, admin):
     assert accounts.get_user(db, admin.user_id)["role"] == "user"
 
 
-def test_the_last_admin_cannot_be_demoted_by_a_stale_admin(db, admin):
-    """FR-USR-03 for demotion, which only two Admins racing can reach now that FR-USR-22 bars the self case."""
+def test_an_admin_cannot_deactivate_themself(db, admin):
+    """FR-USR-23. The app already refused; the server refuses too, so the assistant cannot do it either."""
     bea_id, _ = invite(db, admin, role="admin")
     bea = Principal(user_id=bea_id, device_id="phone-b", active=True, role="admin")
 
+    with pytest.raises(Conflict, match="your own account"):
+        accounts.deactivate(db, admin, admin.user_id, now=T0)
+    assert accounts.get_user(db, admin.user_id)["active"] is True
+
+    accounts.deactivate(db, bea, admin.user_id, now=T0 + 1)
+    assert accounts.get_user(db, admin.user_id)["active"] is False
+
+
+def test_the_last_admin_cannot_be_demoted_or_deactivated(db, admin):
+    """FR-USR-03. With the self cases barred, only two Admins acting at once reach this: each holds a
+    Principal read before the other's change landed, so both still pass for an Admin.
+    """
+    bea_id, _ = invite(db, admin, role="admin")
+    bea = Principal(user_id=bea_id, device_id="phone-b", active=True, role="admin")
     accounts.set_role(db, bea, admin.user_id, "user", now=T0)
 
-    # Alex's principal was read before the demotion landed, as a request already in flight would have.
     with pytest.raises(Conflict, match="last Admin"):
         accounts.set_role(db, admin, bea_id, "user", now=T0 + 1)
+    with pytest.raises(Conflict, match="last Admin"):
+        accounts.deactivate(db, admin, bea_id, now=T0 + 1)
     assert accounts.get_user(db, bea_id)["role"] == "admin"
+    assert accounts.get_user(db, bea_id)["active"] is True
 
 
 def test_a_deactivated_admin_does_not_count(db, admin):
-    user_id, _ = invite(db, admin, role="admin")
-    accounts.deactivate(db, admin, user_id, now=T0)
+    bea_id, _ = invite(db, admin, role="admin")
+    cal_id, _ = invite(db, admin, name="Cal", email="cal@example.org", role="admin")
+    cal = Principal(user_id=cal_id, device_id="phone-c", active=True, role="admin")
+    accounts.deactivate(db, admin, bea_id, now=T0)
+    accounts.deactivate(db, cal, admin.user_id, now=T0)
+
     with pytest.raises(Conflict, match="last Admin"):
-        accounts.deactivate(db, admin, admin.user_id, now=T0)
+        accounts.deactivate(db, admin, cal_id, now=T0)
 
 
 def test_the_last_admin_guard_and_the_write_are_one_transaction(db, db_path, admin):
-    """The guard now reads inside the same transaction as the write; ordinary behaviour is unchanged.
+    """The guard reads inside the same transaction as the write; ordinary behaviour is unchanged.
 
     A second connection, so the read that decides "am I the last Admin" is
     the one made durable by the first connection's commit, not a value
     already sitting in the calling process.
     """
-    user_id, _ = invite(db, admin, role="admin")
+    bea_id, _ = invite(db, admin, role="admin")
+    bea = Principal(user_id=bea_id, device_id="phone-b", active=True, role="admin")
     other = connect(db_path)
     try:
-        accounts.deactivate(other, admin, user_id, now=T0)
-        assert accounts.get_user(db, user_id)["active"] is False
+        accounts.deactivate(other, bea, admin.user_id, now=T0)
+        assert accounts.get_user(db, admin.user_id)["active"] is False
+        # Alex's Principal predates that, as a request already in flight would have.
         with pytest.raises(Conflict, match="last Admin"):
-            accounts.deactivate(other, admin, admin.user_id, now=T0)
+            accounts.deactivate(other, admin, bea_id, now=T0)
+        with pytest.raises(Conflict, match="last Admin"):
+            accounts.set_role(other, admin, bea_id, "user", now=T0)
     finally:
         other.close()
 

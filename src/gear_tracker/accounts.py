@@ -610,6 +610,10 @@ def deactivate(conn: sqlite3.Connection, who: Principal, user_id: str, now: int 
     The guard and the write are one transaction, for the same reason as set_role's demotion.
     """
     _require_admin(who)
+    if user_id == who.user_id:
+        # FR-USR-23, and FR-USR-22's reason: signing yourself out of the app is not something you
+        # can take back. Another Admin ends an account; sign out to leave a device.
+        raise Conflict("you cannot deactivate your own account; another Admin must do it")
     now = now_ms() if now is None else now
     conn.execute("BEGIN IMMEDIATE")
     try:

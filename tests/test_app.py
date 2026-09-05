@@ -252,12 +252,15 @@ def test_invite_redeem_and_manage(real):
     assert promoted.json()["user"]["role"] == "admin"
     assert real.get("/users", headers=bea).status_code == 200
 
-    # Now Alex can step down, and the last-Admin rule protects Bea.
+    # Bea can step Alex down, but not herself: that is the lockout nobody can undo (FR-USR-22, FR-USR-23).
     alex_id = real.get("/users", headers=admin).json()["users"][0]["id"]
     assert real.post(f"/users/{alex_id}/role", json={"role": "user"}, headers=bea).status_code == 200
+    r = real.post(f"/users/{user_id}/role", json={"role": "user"}, headers=bea)
+    assert r.status_code == 409
+    assert r.json()["message"] == "you cannot drop your own Admin role; another Admin must do it"
     r = real.post(f"/users/{user_id}/deactivate", headers=bea)
     assert r.status_code == 409
-    assert r.json()["message"] == "this is the last Admin"
+    assert r.json()["message"] == "you cannot deactivate your own account; another Admin must do it"
 
 
 def test_edit_user_over_http(real):
