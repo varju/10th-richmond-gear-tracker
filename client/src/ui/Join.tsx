@@ -29,6 +29,8 @@ export function Join({ store, api, onJoined }: Props) {
   const [password, setPassword] = useState("");
   const [again, setAgain] = useState("");
   const [error, setError] = useState<string | null>(null);
+  /** Which field the error is about. */
+  const [fault, setFault] = useState<"password" | "again" | null>(null);
   // Why the form is not shown: a link that already worked once (FR-USR-12), which kind decides
   // what the person can do next, or an email that already has an account (FR-USR-19).
   const [blocked, setBlocked] = useState<"invite" | "reset" | "exists" | null>(null);
@@ -37,10 +39,17 @@ export function Join({ store, api, onJoined }: Props) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (password.length < MIN_PASSWORD) return setError(`Use at least ${MIN_PASSWORD} characters.`);
-    if (password !== again) return setError("The two passwords differ.");
+    if (password.length < MIN_PASSWORD) {
+      setFault("password");
+      return setError(`Use at least ${MIN_PASSWORD} characters.`);
+    }
+    if (password !== again) {
+      setFault("again");
+      return setError("The two passwords differ.");
+    }
     setBusy(true);
     setError(null);
+    setFault(null);
     setBlocked(null);
     try {
       const { data, offset } = standing
@@ -119,7 +128,11 @@ export function Join({ store, api, onJoined }: Props) {
                 type="password"
                 autoComplete="new-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setFault(null);
+                }}
+                aria-invalid={fault === "password" || undefined}
                 required
                 minLength={MIN_PASSWORD}
               />
@@ -130,7 +143,11 @@ export function Join({ store, api, onJoined }: Props) {
                 type="password"
                 autoComplete="new-password"
                 value={again}
-                onChange={(e) => setAgain(e.target.value)}
+                onChange={(e) => {
+                  setAgain(e.target.value);
+                  setFault(null);
+                }}
+                aria-invalid={fault === "again" || undefined}
                 required
               />
             </label>

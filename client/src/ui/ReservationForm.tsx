@@ -76,16 +76,23 @@ export function ReservationForm({ store, id, from }: Props) {
   const [query, setQuery] = useState("");
   const [eventOpen, setEventOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Which field the error is about, marked so the message and the fix are found together. */
+  const [fault, setFault] = useState<"ends" | null>(null);
   const [saving, setSaving] = useState(false);
   const wide = useWide();
   const state = store.state;
   const set = (patch: Partial<ReservationInput>) => setValues((v) => ({ ...v, ...patch }));
   /** Most camps are one day, so the first date filled fills the other; a date already set is left alone. */
-  const setDate = (field: "starts" | "ends", value: string) =>
+  const setDate = (field: "starts" | "ends", value: string) => {
     setValues((v) => {
       const other = field === "starts" ? "ends" : "starts";
       return { ...v, [field]: value, [other]: v[other] === "" ? value : v[other] };
     });
+    if (fault) {
+      setFault(null);
+      setError(null);
+    }
+  };
 
   const complete = values.event.trim() !== "" && values.starts !== "" && values.ends !== "";
   const dirty = JSON.stringify(values) !== JSON.stringify(start);
@@ -105,6 +112,7 @@ export function ReservationForm({ store, id, from }: Props) {
     if (!complete) return false;
     if (values.ends < values.starts) {
       setError("It ends before it starts.");
+      setFault("ends");
       return false;
     }
     // Blocked here, on this device's state (FR-RES-05). Two devices offline can both save; the page names the clash.
@@ -277,7 +285,13 @@ export function ReservationForm({ store, id, from }: Props) {
         </label>
         <label className="tight">
           <span>Ends</span>
-          <input type="date" value={values.ends} onChange={(e) => setDate("ends", e.target.value)} required />
+          <input
+            type="date"
+            value={values.ends}
+            onChange={(e) => setDate("ends", e.target.value)}
+            aria-invalid={fault === "ends" || undefined}
+            required
+          />
         </label>
       </div>
 

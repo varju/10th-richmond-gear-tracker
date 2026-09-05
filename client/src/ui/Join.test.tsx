@@ -82,10 +82,13 @@ test("short or mismatched passwords never reach the server", async () => {
   await user.type(screen.getByLabelText("Again"), "short");
   await user.click(screen.getByRole("button", { name: "Set password and sign in" }));
   expect(screen.getByRole("alert")).toHaveTextContent("at least 8 characters");
+  expect(screen.getByLabelText("New password")).toBeInvalid();
 
   await user.type(screen.getByLabelText("New password"), "-enough");
+  expect(screen.getByLabelText("New password")).not.toBeInvalid();
   await user.click(screen.getByRole("button", { name: "Set password and sign in" }));
   expect(screen.getByRole("alert")).toHaveTextContent("differ");
+  expect(screen.getByLabelText("Again")).toBeInvalid();
   expect(bodies).toEqual([]);
 });
 

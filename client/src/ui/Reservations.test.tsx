@@ -113,6 +113,22 @@ test("the first date filled fills the other; a date already set is kept", async 
   expect(screen.getByLabelText("Starts")).toHaveValue("2026-10-03");
 });
 
+test("ending before it starts marks the end date until it changes", async () => {
+  navigate("/reservations/new");
+  renderInShell(<ReservationForm store={store} />);
+  await user.type(screen.getByLabelText("Event"), "Cub camp");
+  await fillDates("2026-10-05", "2026-10-03");
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("It ends before it starts.");
+  expect(screen.getByLabelText("Ends")).toBeInvalid();
+  expect(screen.getByLabelText("Starts")).not.toBeInvalid();
+
+  await user.clear(screen.getByLabelText("Ends"));
+  await user.type(screen.getByLabelText("Ends"), "2026-10-06");
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Ends")).not.toBeInvalid();
+});
+
 test("a unit's search surfaces its generic, reserved by count, adjusted in place; too many names the other camp (FR-RES-13, FR-RES-15)", async () => {
   navigate("/reservations/new");
   renderInShell(<ReservationForm store={store} />);

@@ -149,6 +149,11 @@ label span {
   color: var(--warn);
 }
 
+/* The field a form error is about, so the message and the fix are found together. */
+input[aria-invalid="true"] {
+  border: 2px solid var(--warn);
+}
+
 /* A question at the thumb, over whatever is on screen. */
 .sheet {
   position: fixed;
