@@ -102,10 +102,15 @@ export function Sections({ store, layout }: Props) {
   );
 
   if (!sidebar) {
+    const help = links.find((l) => l.path === "/help");
+    const rest = links.filter((l) => l.path !== "/help");
     return (
       <nav className="links menu" aria-label="Menu">
-        <Links links={links} />
-        {signOutRow}
+        <Links links={rest} />
+        <div className="menu-foot">
+          {help && <Links links={[help]} />}
+          {signOutRow}
+        </div>
       </nav>
     );
   }

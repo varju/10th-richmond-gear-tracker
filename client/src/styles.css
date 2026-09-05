@@ -1220,6 +1220,18 @@ h3.section.small {
   text-align: left;
 }
 
+/* The phone's full-screen menu: everywhere the app goes, then Help and Sign out
+   pinned to the bottom regardless of how short the list above them is. */
+.links.menu {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.menu-foot {
+  margin-top: auto;
+}
+
 /* Things wrong, above the day's work and ruled off from it. */
 .sidebar .alerts {
   display: flex;
