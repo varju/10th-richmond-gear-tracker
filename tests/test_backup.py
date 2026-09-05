@@ -14,6 +14,23 @@ from gear_tracker.db import open_db
 
 DAY = 86400
 
+AFTERNOON = 1788625845.0
+"""2026-09-05T16:30:45Z, which is half past nine in the morning in Vancouver."""
+
+
+@pytest.fixture
+def vancouver():
+    """Where the server runs, so a name a test asserts does not depend on the machine running it."""
+    was = os.environ.get("TZ")
+    os.environ["TZ"] = "America/Vancouver"
+    time.tzset()
+    yield
+    if was is None:
+        del os.environ["TZ"]
+    else:
+        os.environ["TZ"] = was
+    time.tzset()
+
 
 def restore(archive: Path, to: Path) -> Path:
     """What docs/deploy.md tells a volunteer to do, as a function."""
@@ -34,6 +51,23 @@ def test_a_snapshot_restores_to_the_same_events(db_path, tmp_path):
     with open_db(restored) as conn:
         names = [row["entity_id"] for row in conn.execute("SELECT entity_id FROM events ORDER BY seq")]
     assert names == ["item-0", "item-1", "item-2"]
+
+
+def test_the_name_carries_the_local_date_and_time(vancouver, db_path, tmp_path):
+    archive = backup.backup(db_path, tmp_path / "backups", now=AFTERNOON)
+    assert archive.name == "gear-20260905-093045.db.gz"
+
+
+def test_a_second_snapshot_in_one_day_does_not_overwrite_the_first(vancouver, db_path, tmp_path):
+    into = tmp_path / "backups"
+
+    morning = backup.backup(db_path, into, now=AFTERNOON)
+    evening = backup.backup(db_path, into, now=AFTERNOON + 8 * 3600)
+
+    assert morning != evening
+    # Both are the fifth, and they sort in the order they were taken.
+    assert sorted(p.name for p in into.glob("gear-*.db.gz")) == [morning.name, evening.name]
+    assert [morning.name, evening.name] == ["gear-20260905-093045.db.gz", "gear-20260905-173045.db.gz"]
 
 
 def test_a_snapshot_is_consistent_while_the_server_is_writing(db_path, tmp_path):
@@ -57,7 +91,12 @@ def test_thirty_days_are_kept_and_older_ones_go(db_path, tmp_path):
     into = tmp_path / "backups"
     into.mkdir()
     now = time.time()
-    ages = {"gear-2026-07-01.db.gz": 40, "gear-2026-08-20.db.gz": 12, "gear-2026-08-31.db.gz": 1}
+    # The oldest carries a day-only name, from before the time was in it: it prunes the same way.
+    ages = {
+        "gear-2026-07-01.db.gz": 40,
+        "gear-20260820-030000.db.gz": 12,
+        "gear-20260831-030000.db.gz": 1,
+    }
     for name, days in ages.items():
         (into / name).write_bytes(b"old")
         os.utime(into / name, (now - days * DAY, now - days * DAY))
@@ -66,8 +105,8 @@ def test_thirty_days_are_kept_and_older_ones_go(db_path, tmp_path):
 
     kept = sorted(p.name for p in into.glob("gear-*.db.gz"))
     assert "gear-2026-07-01.db.gz" not in kept
-    assert "gear-2026-08-20.db.gz" in kept
-    assert "gear-2026-08-31.db.gz" in kept
+    assert "gear-20260820-030000.db.gz" in kept
+    assert "gear-20260831-030000.db.gz" in kept
     assert len(kept) == 3  # two survivors and today's
 
 

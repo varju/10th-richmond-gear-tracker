@@ -661,9 +661,9 @@ tunnel rather than a forwarded port, so no home network is exposed (NFR-DEP-05).
 
 Backups are a nightly `gear-backup`: SQLite's online backup API rather than a file copy, because in WAL mode the file on
 disk is not the database until a checkpoint lands. Each snapshot is integrity-checked as it is written, which is the one
-thing a copy cannot do — it says nightly whether the database is still sound. Thirty are kept (NFR-DATA-05). They leave
-the machine on the host filesystem's own schedule rather than through a second tool (NFR-DATA-06). Restoring is in
-[deploy.md](deploy.md#restoring) (NFR-DATA-07).
+thing a copy cannot do — it says nightly whether the database is still sound. Thirty days of them are kept
+(NFR-DATA-05). They leave the machine on the host filesystem's own schedule rather than through a second tool
+(NFR-DATA-06). Restoring is in [deploy.md](deploy.md#restoring) (NFR-DATA-07).
 
 ### Seeding
 

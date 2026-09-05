@@ -26,6 +26,14 @@ KEEP_DAYS = 30
 PREFIX = "gear-"
 SUFFIX = ".db.gz"
 
+STAMP = "%Y%m%d-%H%M%S"
+"""The date and time in the name, so a second snapshot in one day does not overwrite the first.
+
+The container's local time, the same clock the access log prints, so set TZ
+where it runs (docs/deploy.md). Without it the container is on UTC and these
+read as local times that are hours out.
+"""
+
 
 class Corrupt(RuntimeError):
     """SQLite would not copy the database, or would not vouch for the copy.
@@ -36,11 +44,11 @@ class Corrupt(RuntimeError):
 
 
 def backup(db: str | Path, into: str | Path, keep_days: int = KEEP_DAYS, now: float | None = None) -> Path:
-    """Snapshot `db` into `into`, gzipped and dated. Returns the file written."""
+    """Snapshot `db` into `into`, gzipped and stamped. Returns the file written."""
     now = time.time() if now is None else now
     into = Path(into)
     into.mkdir(parents=True, exist_ok=True)
-    stamp = time.strftime("%Y-%m-%d", time.gmtime(now))
+    stamp = time.strftime(STAMP, time.localtime(now))
     target = into / f"{PREFIX}{stamp}{SUFFIX}"
     plain = into / f"{PREFIX}{stamp}.db.part"
     zipped = into / f"{PREFIX}{stamp}{SUFFIX}.part"

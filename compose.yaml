@@ -16,6 +16,7 @@ services:
     ports:
       - "${GEAR_PORT:-8000}:8000"
     environment:
-      # The access log's times are the container's local time, and a bare container is on UTC.
+      # The access log's times and the backup filenames are the container's local time, and a bare
+      # container is on UTC.
       TZ: ${TZ:-UTC}
     restart: unless-stopped

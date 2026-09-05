@@ -25,7 +25,7 @@ export GEAR_PORT=8000
 # The path it is served from. A domain root unless it sits under another site.
 export GEAR_BASE=/
 
-# The timezone the log's timestamps are in. UTC without it.
+# The timezone the log's timestamps and the backup filenames are in. UTC without it.
 export TZ=America/Vancouver
 ```
 
@@ -234,10 +234,11 @@ serving while the snapshot is taken:
 docker exec gear-tracker gear-backup --db /data/gear.db --into /data/backups
 ```
 
-That writes one dated, gzipped file that restores on its own, deletes snapshots older than 30 days (NFR-DATA-05), and
-runs SQLite's integrity check on what it wrote. The date in the name is UTC, so an evening snapshot in Vancouver carries
-tomorrow's date. The check is the part a file copy cannot give you: a nightly answer to whether the database is still
-sound, rather than finding out at a restore.
+That writes one gzipped file that restores on its own, deletes snapshots older than 30 days (NFR-DATA-05), and runs
+SQLite's integrity check on what it wrote. The name carries the date and time, so running it a second time in one day
+adds a snapshot rather than replacing the first — worth doing by hand before you change anything. Both are the
+container's local time, the same clock the log prints. The check is the part a file copy cannot give you: a nightly
+answer to whether the database is still sound, rather than finding out at a restore.
 
 Nightly, from the host's own cron:
 
@@ -265,7 +266,7 @@ cd "$GEAR_DATA"
 # behind and SQLite trusts it over the file you just restored.
 mv gear.db gear.db.before-restore
 rm -f gear.db-wal gear.db-shm
-gunzip --stdout backups/gear-2026-09-01.db.gz > gear.db
+gunzip --stdout backups/gear-20260901-030000.db.gz > gear.db
 
 docker start gear-tracker
 docker exec gear-tracker python -c \
