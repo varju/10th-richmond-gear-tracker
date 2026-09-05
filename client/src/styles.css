@@ -1030,12 +1030,26 @@ main:has(> .remaining) .viewfinder {
 }
 
 /* The printable join-link page (FR-USR-19): nothing else on it, so this can run bigger. */
+.join-heading {
+  font-size: 28px;
+}
+
+.join-lead {
+  margin: 16px auto 0;
+  max-width: 32ch;
+  text-align: center;
+}
+
 .qr-print {
   width: 280px;
   margin: 24px auto;
 }
 
 @media print {
+  .join-heading {
+    font-size: 32px;
+  }
+
   .qr-print {
     width: 320px;
   }

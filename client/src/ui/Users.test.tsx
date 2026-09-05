@@ -297,14 +297,22 @@ test("Done hides a join link's notice; View link brings the same URL and QR back
   expect(calls.filter((c) => c === "POST /join-links")).toHaveLength(1);
 });
 
-test("Print opens a clean page with just the link and QR, and Back returns to Users (FR-USR-19)", async () => {
+test("Print opens a page titled for the group, with the QR and no URL, and Back returns to Users (FR-USR-19)", async () => {
+  await store.record({
+    entity_type: "setting",
+    entity_id: "group",
+    type: "created",
+    actor_id: "alice",
+    payload: { name: "10th Richmond" },
+  });
   mount();
   await user.click(await screen.findByRole("button", { name: "Create join link" }));
   await user.click(await screen.findByRole("button", { name: "Print" }));
 
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Join link" })).toBeInTheDocument();
-  expect(screen.getByText(`${location.origin}/join?link=JOIN-TOKEN`)).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "10th Richmond Gear Tracker" })).toBeInTheDocument();
+  expect(screen.getByText(/Scan this code to set up your account/)).toBeInTheDocument();
+  expect(screen.queryByText(`${location.origin}/join?link=JOIN-TOKEN`)).not.toBeInTheDocument();
   expect(document.querySelector(".qr-print svg")).toBeTruthy();
 
   await user.click(screen.getByRole("button", { name: "Back" }));

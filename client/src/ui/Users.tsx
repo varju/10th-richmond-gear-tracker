@@ -8,6 +8,7 @@ import {
   type JoinLinkExpiry,
   Offline,
 } from "../lib/api";
+import * as inv from "../lib/inventory";
 import { BASE } from "../lib/router";
 import { ago, localDate } from "../lib/time";
 import type { Store } from "../lib/store";
@@ -68,7 +69,9 @@ export function Users({ store, api }: Props) {
   }, [admin, load]);
 
   if (printing) {
-    return <PrintableJoinLink link={printing} onDone={() => setPrinting(null)} />;
+    return (
+      <PrintableJoinLink group={inv.group(store.state).name ?? ""} link={printing} onDone={() => setPrinting(null)} />
+    );
   }
 
   if (!admin) {
@@ -310,22 +313,21 @@ function MadeJoinLink({
 }
 
 /**
- * A page with nothing but the link and its code, so printing it prints only that (FR-USR-19).
- * The same header, main and actions a Page renders, inside the shell's `.app` like every other
- * screen; the print stylesheet already hides the buttons.
+ * A page with nothing but the group's name, what the code is for, and the code (FR-USR-19).
+ * The URL is left off: the QR carries it, and nobody types it in. The same header, main and
+ * actions a Page renders, inside the shell's `.app` like every other screen; the print
+ * stylesheet already hides the buttons.
  */
-function PrintableJoinLink({ link, onDone }: { link: CreatedJoinLink; onDone: () => void }) {
+function PrintableJoinLink({ group, link, onDone }: { group: string; link: CreatedJoinLink; onDone: () => void }) {
   return (
     <>
       <header>
-        <h1>Join link</h1>
+        <h1 className="join-heading">{group ? `${group} Gear Tracker` : "Gear Tracker"}</h1>
       </header>
       <main>
-        {link.url && (
-          <p>
-            <code className="wrap">{link.url}</code>
-          </p>
-        )}
+        <p className="join-lead">
+          Scan this code to set up your account. Then you can see the gear we own and sign it out.
+        </p>
         {link.qr_svg && <div className="qr qr-print" dangerouslySetInnerHTML={{ __html: link.qr_svg }} />}
       </main>
       <div className="actions">
