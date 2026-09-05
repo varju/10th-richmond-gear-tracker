@@ -226,8 +226,8 @@ Applies if we adopt the offline model. See [NFR-DEP](non-functional-requirements
 
 Two iOS facts shape this whole section. Safari does not support the Background Sync API and is not expected to, so a
 closed app on a locked iPhone will not sync. Safari also clears a browser tab's storage after 7 days without a visit,
-which would take unsent work with it. So: sync happens while the app is open, the app is installed to the home screen to
-escape eviction (NFR-DEP-06), and pending work is visible enough that nobody walks away unaware.
+which would take unsent work with it. So: sync happens while the app is open, an iPhone is told to install the app to
+the home screen to escape eviction (NFR-DEP-06), and pending work is visible enough that nobody walks away unaware.
 
 | ID        | Priority | Requirement                                                                                                                                                                                                                |
 | --------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

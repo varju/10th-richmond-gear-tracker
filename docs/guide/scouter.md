@@ -79,8 +79,9 @@ connection; using the app does not.
 
 ## Install it
 
-Do this before you record anything. On iPhone tap Share, then Add to Home Screen; elsewhere tap Install when the app
-offers. A browser tab loses unsent records after seven days without a visit; an installed app does not.
+On an iPhone, do this before you record anything: tap Share, then Add to Home Screen. Safari loses a tab's unsent
+records after seven days without a visit; an installed app does not. Android keeps them either way, so installing there
+is only a shortcut: open the browser menu and tap Add to Home screen if you want one.
 
 ## A lost device
 

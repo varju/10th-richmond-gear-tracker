@@ -314,11 +314,14 @@ would lose the evening's work, which is exactly the failure NFR-DATA-01 forbids.
 - **Install to the home screen** (NFR-DEP-06). Home-screen apps are exempt from the 7-day rule. This is why that
   requirement is a Must and not a nicety. Install before recording anything: on iOS the installed app has its own
   cookies, local storage and IndexedDB, so it opens signed out and empty and cannot rescue what is already sitting in
-  the Safari tab. The prompt says so. The icon is named for the group: the server rewrites `name` and `short_name` in
-  the built manifest from the group setting, because a build cannot know whose gear it is.
-- **Ask for persistent storage** via `navigator.storage.persist()` (NFR-DATA-11). Chromium grants it to an installed
-  app. iOS refuses every site, so a refusal is not shown: the unsent count is already on every screen, and the answer to
-  both is the same, open the app with signal.
+  the Safari tab. The prompt says so, and only iOS sees it. Android has no time-based clearing, and its installed app
+  shares the browser's storage, so an Android phone is never asked; installing there is a shortcut, not a defence. The
+  icon is named for the group: the server rewrites `name` and `short_name` in the built manifest from the group setting,
+  because a build cannot know whose gear it is.
+- **Ask for persistent storage** via `navigator.storage.persist()` (NFR-DATA-11). Chromium grants it to a site that is
+  installed, bookmarked, or used often; otherwise it keeps the data until the phone runs low on space, then clears the
+  least recently used sites first. iOS refuses every site. A refusal is not shown: the unsent count is already on every
+  screen, and the answer to both is the same, open the app with signal.
 
 Neither promise covers a full disk. A browser may still clear the site to free space, and Apple publishes no rule for
 when. Sync on every change, on open, and on regaining signal keeps that window to minutes with signal and hours without.

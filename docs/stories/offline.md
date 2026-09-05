@@ -36,7 +36,8 @@ A Scouter never reopens the app. Nothing syncs, because nothing on iOS can sync 
 
 - The count is waiting when they next open it
 - After 3 days, opening the app interrupts rather than showing a banner
-- The records survive the wait: the app is installed to the home screen, so the 7-day clearing does not apply
+- The records survive the wait: on an iPhone the app is installed to the home screen, so the 7-day clearing does not
+  apply; Android has no such clearing
 
 Covers: FR-OFF-04, FR-OFF-09, NFR-DEP-06, NFR-DATA-11
 
