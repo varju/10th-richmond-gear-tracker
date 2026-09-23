@@ -126,12 +126,11 @@ test("a spent reset link says to ask an Admin, with no form left to retry", asyn
   expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
 });
 
-test("signed in already, it says to sign out first", async () => {
+test("signed in already, an invite or reset link goes straight home", async () => {
   await store.setMeta({ token: "t", user: { id: "alice", name: "Alice", role: "admin", active: true } });
   navigate("/join?token=GOOD");
   mount();
-  expect(screen.getByText(/signed in as Alice/)).toBeInTheDocument();
-  expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
+  await waitFor(() => expect(location.pathname).toBe("/"));
 });
 
 // --- a standing join link, told apart by ?link= (FR-USR-19) --------------------------------

@@ -17,8 +17,11 @@ const MIN_PASSWORD = 8;
  *
  * A standing join link lands here too, told apart by `?link=` instead of `?token=` (FR-USR-19):
  * whoever opens it has no account yet, so the form also asks for a name and email, and the link
- * itself is not spent by their joining. A member who is already signed in on this device is sent
- * straight home instead — the sticker is also how they get back in day to day.
+ * itself is not spent by their joining.
+ *
+ * This device already signed in: any of these links is sent straight home, as if it had opened
+ * the root URL. Whoever is signed in already has no use for a join link, and the sticker is also
+ * how a member gets back in day to day.
  */
 export function Join({ store, api, onJoined }: Props) {
   const query = useRoute().query;
@@ -38,10 +41,10 @@ export function Join({ store, api, onJoined }: Props) {
   const [busy, setBusy] = useState(false);
   const signedIn = store.meta.user;
 
-  // A standing link is also the way back in. Already signed in on this device: home, not the form.
+  // Already signed in on this device: home, not a dead end asking to sign out first.
   useEffect(() => {
-    if (signedIn && standing) navigate("/", true);
-  }, [signedIn, standing]);
+    if (signedIn) navigate("/", true);
+  }, [signedIn]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -81,14 +84,7 @@ export function Join({ store, api, onJoined }: Props) {
         <h1>Gear Tracker</h1>
       </header>
       <main>
-        {signedIn && standing ? null : signedIn ? (
-          <>
-            <p>This device is signed in as {signedIn.name}. Sign out in Settings, then open the link again.</p>
-            <button type="button" onClick={() => navigate("/settings")}>
-              Settings
-            </button>
-          </>
-        ) : !token && !link ? (
+        {signedIn ? null : !token && !link ? (
           <p>This link is missing its token. Ask an Admin for a new one.</p>
         ) : blocked === "invite" || blocked === "exists" ? (
           <>
