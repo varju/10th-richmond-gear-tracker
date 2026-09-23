@@ -192,3 +192,17 @@ test("a spent or made-up standing link shows the server's reason, not the confli
   await user.click(screen.getByRole("button", { name: "Set password and sign in" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("this link is not valid");
 });
+
+test("a standing link offers a subtle way to log in instead, for a member without an account form", async () => {
+  navigate("/join?link=GOOD");
+  mount();
+  await user.click(screen.getByRole("button", { name: "Log in" }));
+  expect(location.pathname).toBe("/");
+});
+
+test("a standing link opened while already signed in on this device goes straight home", async () => {
+  await store.setMeta({ token: "t", user: { id: "alice", name: "Alice", role: "admin", active: true } });
+  navigate("/join?link=GOOD");
+  mount();
+  await waitFor(() => expect(location.pathname).toBe("/"));
+});

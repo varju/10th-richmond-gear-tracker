@@ -110,6 +110,9 @@ email, and password and gets their own User account. Revoke the link when you ar
 Give the link a label, such as "Beaver leaders", so you can tell your live links apart. You can change a label later,
 and the link keeps working, so anything already printed is still good.
 
+A printed code doubles as the way back in. Someone already signed in on their device is sent straight home. Someone
+signed out sees "Already have an account? Log in" under the join form.
+
 ## Change a role, or end access
 
 Open Users and pick the person. Change their role, or deactivate them to end access; their history stays. The last Admin
