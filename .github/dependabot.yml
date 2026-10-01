@@ -32,6 +32,9 @@ updates:
       client:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+      client-security:
+        applies-to: security-updates
+        patterns: ["*"]
 
   # Actions move by major tag, so no minor/patch split; every bump groups.
   - package-ecosystem: "github-actions"
