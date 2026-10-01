@@ -15,6 +15,10 @@ updates:
       python:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+      # Security fixes land together, or the audit stays red until the last merges.
+      python-security:
+        applies-to: security-updates
+        patterns: ["*"]
 
   - package-ecosystem: "npm"
     directory: "/client"
