@@ -331,10 +331,17 @@ A lost record is a missing movement, not a broken database; the next scan of the
 
 A Could (NFR-DEP-11). A prototype is built in `ios/`; it has not shipped.
 
-**What it buys.** The home-screen install is the one step a volunteer can skip, and skipping it puts their Friday's work
-under the 7-day rule. An app from the App Store has its own storage that Apple does not purge, so the install step and
-the prompt around it go away. Nothing else improves: the scanner already meets its gate in WebAssembly, and background
-sync is still not on offer.
+**What it buys.**
+
+- Storage Apple does not purge. The home-screen install is the one step a volunteer can skip, and skipping it puts their
+  Friday's work under the 7-day rule. An app from the App Store keeps its own storage, so the install step and the
+  prompt around it go away.
+- Offline from the first launch. The client is on disk from install, not in a cache that may be missing or stale.
+- Links that open the app. Join links and sticker URLs can open it directly. A home-screen web app on iOS cannot do
+  this; links always open Safari.
+
+Print and password AutoFill are not gains: Safari already has them, and the wrapper only matches it. The scanner is the
+same WebAssembly one, and background sync is still not on offer.
 
 **What it is.** Capacitor around the built client, the bundle shipped inside the app and served from a local scheme, so
 the shell is on disk and offline needs no service worker. The same code talks to the same server. No feature lives only
