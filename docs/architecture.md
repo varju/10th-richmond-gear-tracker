@@ -612,10 +612,10 @@ Not built. The iPhone app ([Store wrapper](#store-wrapper)) scans with the same 
 - App Review rejects the app under guideline 4.2, and a native feature would answer it.
 
 **What it is.** A plugin in the app, beside the print and link plugins, that scans with AVFoundation's metadata output.
-That runs on iOS 15, the app's floor, and on the baseline phone. VisionKit's data scanner needs iOS 16 or later. The
-plugin shows the camera with the target box, keeps the session alive across scans, limits detection to the box
-(`rectOfInterest`), offers the torch, and hands each code to the page. The page treats it as a typed code, through
-`parseCode`, so what happens after a scan does not change.
+That runs on every phone the app supports. VisionKit's data scanner also fits the app's floor of iOS 16.4; try both and
+keep the faster. The plugin shows the camera with the target box, keeps the session alive across scans, limits detection
+to the box (`rectOfInterest`), offers the torch, and hands each code to the page. The page treats it as a typed code,
+through `parseCode`, so what happens after a scan does not change.
 
 **What stays the same.** The web keeps its scanner, so no feature lives only in the app. The app falls back to the web
 scanner if the plugin is missing or the camera fails.
