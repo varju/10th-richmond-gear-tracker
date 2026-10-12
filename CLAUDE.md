@@ -31,6 +31,11 @@ the tent and the data goes wrong.
 **Event log, not status field.** Movements are append-only; status is derived. That is what makes offline merges safe
 (NFR-DATA-02).
 
+**The server outlives the app's client.** The iPhone app carries its own copy of the client, which changes only when
+Apple approves an update and the phone installs it. A server deploy must keep older app builds syncing, including a
+TestFlight build. Change the API or sync additively; drop the old shape only once no supported app build uses it. See
+[architecture.md](docs/architecture.md) "How it ships".
+
 ## Writing requirements
 
 - Each section is sorted by descending priority: Must, Should, Could, Won't. IDs run linearly from 01 within a section.
