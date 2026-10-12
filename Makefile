@@ -98,3 +98,6 @@ start-over:
 	  done; \
 	  echo "moved aside into $$old"'
 	$(GEAR_DEPLOY)
+
+# Targets that stay on one machine: phones, signing teams. Not committed.
+-include Makefile.local

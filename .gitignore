@@ -18,6 +18,7 @@ logs/
 # Local
 .env
 .envrc
+Makefile.local
 # Holds the Admin and mail passwords.
 seed.toml
 .direnv/
