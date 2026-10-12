@@ -420,25 +420,45 @@ HTTPS.
 
 The simulator has a test camera only. To check the scanner, use a real iPhone.
 
-### Saved passwords
+### Linking the app to your site
 
-A password manager offers your site's saved logins in the app only once the app and the site name each other. Without
-that, people must search for the login by hand.
+Once the app and the site name each other:
+
+- A password manager offers your site's saved logins in the app. Without this, people must search for the login by hand.
+- Join links open the Join screen in the app, not Safari. If someone is signed in already, the app says who, and offers
+  to sign out first.
+- Stickers open in the app, where a scan of them in the app lands, but only when the group's site address is `https://`
+  on the same host as `IOS_SERVER_URL`, under its path: for example `https://example.org/gear`. A site address with no
+  scheme, or on another host, leaves stickers in Safari, where they still work.
 
 1. **The site.** Serve this at `https://example.org/.well-known/apple-app-site-association`, as `application/json`, with
    no redirect. It must be at the domain root, even when the app is under `/gear`, so it goes in your web server's
    config, not Gear Tracker's:
 
    ```json
-   { "webcredentials": { "apps": ["TEAMID.org.example.geartracker"] } }
+   {
+     "webcredentials": { "apps": ["TEAMID.org.example.geartracker"] },
+     "applinks": {
+       "details": [
+         {
+           "appIDs": ["TEAMID.org.example.geartracker"],
+           "components": [{ "/": "/gear/join*" }, { "/": "/gear/g/*" }]
+         }
+       ]
+     }
+   }
    ```
 
-   `TEAMID` is your Apple team ID, and the rest is your app's bundle id.
+   `TEAMID` is your Apple team ID, and the rest is your app's bundle id. The paths are the path of `IOS_SERVER_URL` plus
+   `/join` and `/g/`. With the server at the domain root, they are `/join*` and `/g/*`.
 
-2. **The app.** Sign it with the Associated Domains entitlement `webcredentials:example.org`. Keep the domain out of the
-   repo: write the entitlements file somewhere ignored and pass `CODE_SIGN_ENTITLEMENTS=<path>` to `xcodebuild`.
-   `Makefile.local`, which `make` reads if it exists, is a good home for that. Do not add `?mode=developer`: the phone
-   ignores that entry unless a developer setting is on.
+   Only the listed paths open the app. Every other link to the site still opens in Safari. Do not widen them: the app
+   knows only the links under `IOS_SERVER_URL`, and ignores the rest.
+
+2. **The app.** Sign it with the Associated Domains entitlements `webcredentials:example.org` and
+   `applinks:example.org`. Keep the domain out of the repo: write the entitlements file somewhere ignored and pass
+   `CODE_SIGN_ENTITLEMENTS=<path>` to `xcodebuild`. `Makefile.local`, which `make` reads if it exists, is a good home
+   for that. Do not add `?mode=developer`: the phone ignores that entry unless a developer setting is on.
 
 The entitlement needs an App ID registered for that exact bundle id. A wildcard App ID cannot hold it. Register the
 explicit one before the first install, or the phone may refuse the later upgrade and you will have to delete the app and
@@ -446,5 +466,16 @@ its data.
 
 To check the site half, open `https://app-site-association.cdn-apple.com/a/v1/example.org`. It shows the copy Apple
 holds. iOS fetches it when the app is installed, so after a fix, reinstall the app.
+
+A link opens the app when it is tapped in another app, such as Mail or Messages. A link typed into Safari stays in
+Safari. A sticker scanned with the Camera app should open the app too, given the `https://` form above; this is not yet
+tried on a phone.
+
+The simulator opens `https` links in Safari, because no site names it. To try the app's side there, a Debug build also
+takes the link behind `geartracker-debug:`, then asks to open the app:
+
+```sh
+xcrun simctl openurl booted 'geartracker-debug:https://example.org/gear/g/ABCDEFGH23'
+```
 
 Signing, TestFlight and the App Store are not set up yet; see [tasks.md](tasks.md).

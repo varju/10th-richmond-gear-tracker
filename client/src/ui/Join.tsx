@@ -1,12 +1,16 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { type Api, ApiError, Offline } from "../lib/api";
 import { navigate, useRoute } from "../lib/router";
+import { NATIVE } from "../lib/server";
 import type { Store } from "../lib/store";
 
 interface Props {
   store: Store;
   api: Api;
   onJoined: () => void;
+  /** Signed in already: the app's own sign-out, so the link can be used for another account. */
+  onSignOut?: () => Promise<void>;
+  native?: boolean;
 }
 
 const MIN_PASSWORD = 8;
@@ -22,8 +26,11 @@ const MIN_PASSWORD = 8;
  * This device already signed in: any of these links is sent straight home, as if it had opened
  * the root URL. Whoever is signed in already has no use for a join link, and the sticker is also
  * how a member gets back in day to day.
+ *
+ * In the iPhone app a tapped link opens here instead of in Safari, where it would still have
+ * worked. So the app says who is signed in, and offers to sign out and use the link.
  */
-export function Join({ store, api, onJoined }: Props) {
+export function Join({ store, api, onJoined, onSignOut, native = NATIVE }: Props) {
   const query = useRoute().query;
   const token = query.get("token") ?? "";
   const link = query.get("link") ?? "";
@@ -41,10 +48,13 @@ export function Join({ store, api, onJoined }: Props) {
   const [busy, setBusy] = useState(false);
   const signedIn = store.meta.user;
 
+  const offerSignOut = native && Boolean(onSignOut);
+  const pending = store.pending.length;
+
   // Already signed in on this device: home, not a dead end asking to sign out first.
   useEffect(() => {
-    if (signedIn) navigate("/", true);
-  }, [signedIn]);
+    if (signedIn && !offerSignOut) navigate("/", true);
+  }, [signedIn, offerSignOut]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -84,7 +94,27 @@ export function Join({ store, api, onJoined }: Props) {
         <h1>Gear Tracker</h1>
       </header>
       <main>
-        {signedIn ? null : !token && !link ? (
+        {signedIn ? (
+          offerSignOut && (
+            <>
+              <p>You are signed in as {signedIn.name}. This link is for a new account, or for someone else's.</p>
+              <div className="actions">
+                <button
+                  className="primary"
+                  type="button"
+                  onClick={() => void onSignOut?.()}
+                  disabled={busy || pending > 0}
+                >
+                  Sign out and use the link
+                </button>
+                <button type="button" onClick={() => navigate("/", true)}>
+                  Stay signed in
+                </button>
+              </div>
+              {pending > 0 && <p className="muted small">Sign out after your unsent records are sent.</p>}
+            </>
+          )
+        ) : !token && !link ? (
           <p>This link is missing its token. Ask an Admin for a new one.</p>
         ) : blocked === "invite" || blocked === "exists" ? (
           <>

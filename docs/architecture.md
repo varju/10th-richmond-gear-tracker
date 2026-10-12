@@ -350,8 +350,11 @@ the browser. The page's origin is `capacitor://localhost`, so:
 - WKWebView cannot download, open a window, or print. A file goes to the share sheet instead (`lib/share.ts`), and print
   goes through a small plugin in `MainViewController.swift`.
 
-Invite and join links open in Safari and make the account there; the person then signs in to the app. Universal links
-would open them in the app, and are not built.
+Join links and sticker URLs open in the app once the site names it (universal links; see
+[deploy.md](deploy.md#linking-the-app-to-your-site)). iOS hands the link to `MainViewController.swift`, which holds it
+until the page asks; `lib/links.ts` takes off the `SERVER_URL` prefix and goes to that route. A link that launches the
+app waits for the page to load. Without the site's half, the links open in Safari, and the person signs in to the app
+afterwards.
 
 **How it ships.** Unlisted App Store distribution: a normal App Review with a note asking for unlisted, plus a separate
 request form. Both are needed. The app is hidden from search and charts and installs from a link. The switch to unlisted
@@ -648,6 +651,11 @@ would buy no decode margin at all.
 The step at 43 is the one to stay under, and `https://www.10thrichmond.ca/gear/g/XXXXXXXXXX` is 45. Dropping the `www.`
 is enough to clear it; dropping the scheme as well leaves real headroom, and is what the shorter example above does. Set
 the group's site address accordingly before any sheet is printed.
+
+The iPhone app pulls the other way. It opens a sticker only from an `https://` address on its own server's host and path
+(see [deploy.md](deploy.md#linking-the-app-to-your-site)); without the scheme, the sticker opens in Safari, which still
+works. `https://10thrichmond.ca/gear/g/XXXXXXXXXX` is 41 characters, under the step at 43, so a group that wants
+stickers to open the app can keep the scheme and drop only the `www.`.
 
 **Capitals would buy a step, and we are not taking it.** All of the above is byte mode, at 8 bits a character. QR also
 has an alphanumeric mode at 5.5, whose charset is digits, uppercase A-Z and a few symbols — a whole URL, so long as

@@ -288,7 +288,7 @@ function Screen({
       return <Settings store={store} shell={shell} />;
     case "join":
       // Signed in already. Join says what to do; it needs no shell.
-      return <Join store={store} api={api} onJoined={() => undefined} />;
+      return <Join store={store} api={api} onJoined={() => undefined} onSignOut={shell.signOut} />;
   }
   return (
     <Page title="Not found" back="/">

@@ -45,4 +45,3 @@ Public pages come before the labelling walk, not after it. From the moment stick
 - [ ] Time the scanner in the app against the M0 bar of 2 s
 - [ ] Submit for App Review, with a note asking for unlisted distribution
 - [ ] Send the unlisted distribution request form
-- [ ] Decide whether invite links need universal links to open in the app

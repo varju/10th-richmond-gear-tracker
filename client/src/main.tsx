@@ -4,6 +4,7 @@ import { registerSW } from "virtual:pwa-register";
 import { App } from "./App";
 import { createApi } from "./lib/api";
 import { openDb } from "./lib/db";
+import { followLinks } from "./lib/links";
 import { API_BASE } from "./lib/server";
 import { Store } from "./lib/store";
 import "./styles.css";
@@ -18,3 +19,4 @@ createRoot(document.getElementById("root")!).render(
     <App store={store} api={api} />
   </StrictMode>,
 );
+followLinks();

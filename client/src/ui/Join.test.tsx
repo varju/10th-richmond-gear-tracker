@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, expect, test, vi } from "vitest";
+import * as act from "../lib/actions";
 import { createApi } from "../lib/api";
 import { openDb } from "../lib/db";
 import { navigate } from "../lib/router";
@@ -131,6 +132,57 @@ test("signed in already, an invite or reset link goes straight home", async () =
   navigate("/join?token=GOOD");
   mount();
   await waitFor(() => expect(location.pathname).toBe("/"));
+});
+
+// --- the iPhone app, where a tapped link opens here and not in Safari ------------------------
+
+const ALICE = { id: "alice", name: "Alice", role: "admin", active: true } as const;
+
+const mountInApp = () => {
+  const signOut = vi.fn(async () => {
+    await store.setMeta({ token: undefined, user: undefined });
+  });
+  render(
+    <Join
+      store={store}
+      api={createApi({ fetch: fetchFake, token: () => store.meta.token })}
+      onJoined={() => undefined}
+      onSignOut={signOut}
+      native
+    />,
+  );
+  return signOut;
+};
+
+test("in the app, signed in already, a link says who is signed in and offers to sign out", async () => {
+  await store.setMeta({ token: "t", user: ALICE });
+  navigate("/join?link=GOOD");
+  const signOut = mountInApp();
+  expect(screen.getByText(/signed in as Alice/)).toBeInTheDocument();
+  expect(location.pathname).toBe("/join");
+  await user.click(screen.getByRole("button", { name: "Sign out and use the link" }));
+  expect(signOut).toHaveBeenCalled();
+  expect(store.meta.token).toBeUndefined();
+  expect(location.search).toBe("?link=GOOD");
+});
+
+test("in the app, staying signed in goes home", async () => {
+  await store.setMeta({ token: "t", user: ALICE });
+  navigate("/join?token=GOOD");
+  const signOut = mountInApp();
+  await user.click(screen.getByRole("button", { name: "Stay signed in" }));
+  expect(location.pathname).toBe("/");
+  expect(signOut).not.toHaveBeenCalled();
+  expect(store.meta.token).toBe("t");
+});
+
+test("in the app, unsent records keep the person signed in", async () => {
+  await store.setMeta({ token: "t", user: ALICE });
+  await act.createItem(store, { name: "Tent" });
+  navigate("/join?token=GOOD");
+  mountInApp();
+  expect(screen.getByRole("button", { name: "Sign out and use the link" })).toBeDisabled();
+  expect(screen.getByText(/after your unsent records are sent/)).toBeInTheDocument();
 });
 
 // --- a standing join link, told apart by ?link= (FR-USR-19) --------------------------------
