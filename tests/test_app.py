@@ -466,6 +466,85 @@ def test_a_user_sees_and_manages_their_own_devices_over_http(real):
     assert real.get(f"/users/{alex_id}/devices", headers=bea).status_code == 403
 
 
+# --- the iPhone app's origin (NFR-DEP-11) ----------------------------------------------------
+
+APP = {"Origin": "capacitor://localhost"}
+
+
+def preflight(client, origin, method="POST", headers="authorization,content-type"):
+    return client.options(
+        "/sync/push",
+        headers={"Origin": origin, "Access-Control-Request-Method": method, "Access-Control-Request-Headers": headers},
+    )
+
+
+def test_the_app_may_send_its_bearer_header(real):
+    r = preflight(real, "capacitor://localhost")
+    assert r.status_code == 200
+    assert r.headers["access-control-allow-origin"] == "capacitor://localhost"
+    allowed = {h.strip().lower() for h in r.headers["access-control-allow-headers"].split(",")}
+    assert {"authorization", "content-type"} <= allowed
+    assert "access-control-allow-credentials" not in r.headers
+
+
+def test_the_app_signs_in_and_syncs_cross_origin(real):
+    r = real.post(
+        "/auth/sign-in",
+        headers=APP,
+        json={"email": "alex@example.org", "password": "correct horse", "device_id": "iphone"},
+    )
+    assert r.status_code == 200
+    assert r.headers["access-control-allow-origin"] == "capacitor://localhost"
+    auth = {**APP, "Authorization": f"Bearer {r.json()['token']}"}
+    r = real.get("/sync/bootstrap", headers=auth)
+    assert r.status_code == 200
+    assert r.headers["access-control-allow-origin"] == "capacitor://localhost"
+
+
+def test_a_refusal_still_reaches_the_app(real):
+    """Without the header the app would see a network error, and call it offline."""
+    r = real.get("/sync/bootstrap", headers=APP)
+    assert r.status_code == 401
+    assert r.headers["access-control-allow-origin"] == "capacitor://localhost"
+
+
+@pytest.mark.parametrize("origin", ["https://evil.example", "http://localhost", "capacitor://evil"])
+def test_no_other_origin_is_let_in(real, origin):
+    assert preflight(real, origin).status_code == 400
+    r = real.get("/sync/bootstrap", headers={"Origin": origin, **sign_in(real)})
+    assert "access-control-allow-origin" not in r.headers
+
+
+def test_the_app_may_upload_a_photo(real):
+    """A photo goes up as a PUT with an image type, which no simple request covers."""
+    r = preflight(real, "capacitor://localhost", method="PUT")
+    assert r.status_code == 200
+    assert "PUT" in r.headers["access-control-allow-methods"]
+
+
+def test_a_crash_still_reaches_the_app(db_path):
+    """Without the header the app would read a server bug as no signal."""
+    app = create_app(db_path, authenticate)
+
+    @app.get("/boom")
+    def boom() -> None:
+        raise RuntimeError("kaboom")
+
+    crashing = TestClient(app, raise_server_exceptions=False)
+    r = crashing.get("/boom", headers={**APP, **as_alice()})
+    assert r.status_code == 500
+    assert r.headers["access-control-allow-origin"] == "capacitor://localhost"
+
+
+def test_the_app_may_send_no_other_header(real):
+    assert preflight(real, "capacitor://localhost", headers="x-test-user").status_code == 400
+
+
+def test_same_origin_calls_carry_no_cors_headers(real):
+    r = real.get("/sync/bootstrap", headers=sign_in(real))
+    assert not [h for h in r.headers if h.startswith("access-control-")]
+
+
 # --- standing join links, over HTTP (FR-USR-19) -------------------------------------------
 
 

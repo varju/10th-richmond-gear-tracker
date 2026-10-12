@@ -1,0 +1,9 @@
+{
+  "appId": "org.example.geartracker",
+  "appName": "Gear Tracker",
+  "webDir": "dist-ios",
+  "ios": {
+    "path": "../ios"
+  },
+  "backgroundColor": "#001a70"
+}

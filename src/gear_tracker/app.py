@@ -26,6 +26,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import Field, StringConstraints
 from starlette.middleware.base import RequestResponseEndpoint
+from starlette.middleware.cors import CORSMiddleware
+from starlette.types import ASGIApp
 
 from gear_tracker import (
     accounts,
@@ -75,6 +77,10 @@ per address, and in total. There is no per-code limit; a standing link has no co
 HEALTH_PATH = "/health"
 """Where the container's health check asks (Dockerfile). Kept out of the access log: a line a
 minute, forever, would bury everything worth reading."""
+
+APP_ORIGIN = "capacitor://localhost"
+"""The iPhone app's page (NFR-DEP-11). It serves the client from disk, so every call it makes is
+cross-origin. The only origin let in: the web client is same-origin and needs nothing."""
 
 DATE_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
 """Date, time and offset, so an error log line reads like an access log line."""
@@ -257,6 +263,23 @@ def by_token(request: Request, conn: sqlite3.Connection) -> Principal | None:
     return accounts.authenticate(conn, bearer(request))
 
 
+class GearApp(FastAPI):
+    """FastAPI with CORS for the iPhone app outside everything else.
+
+    `add_middleware` would put it inside Starlette's error middleware, so an unhandled 500 would
+    reach the app with no CORS header, and the app would read a server bug as no signal.
+    """
+
+    def build_middleware_stack(self) -> ASGIApp:
+        # A bearer header, never a cookie, so no credentials mode.
+        return CORSMiddleware(
+            super().build_middleware_stack(),
+            allow_origins=[APP_ORIGIN],
+            allow_methods=["GET", "POST", "PUT", "DELETE"],
+            allow_headers=["Authorization", "Content-Type"],
+        )
+
+
 def create_app(
     db_path: str | Path,
     authenticate: Authenticator = by_token,
@@ -283,7 +306,7 @@ def create_app(
         finally:
             stop_calendar_refresh()
 
-    app = FastAPI(title="Gear Tracker", lifespan=lifespan)
+    app = GearApp(title="Gear Tracker", lifespan=lifespan)
     app.router.routes.append(assistant.route(mcp))
     photo_dir = Path(photos) if photos is not None else Path(db_path).parent / "photos"
     failed_sign_ins = log_directory(db_path) / FAILED_SIGN_INS

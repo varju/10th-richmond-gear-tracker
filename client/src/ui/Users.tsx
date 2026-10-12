@@ -9,7 +9,8 @@ import {
   Offline,
 } from "../lib/api";
 import * as inv from "../lib/inventory";
-import { BASE } from "../lib/router";
+import { siteUrl } from "../lib/server";
+import { printPage } from "../lib/share";
 import { ago, localDate } from "../lib/time";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
@@ -22,7 +23,7 @@ interface Props {
 }
 
 /** The page a link opens. Absolute, because it is pasted into a message (FR-USR-12). */
-export const joinUrl = (token: string): string => `${location.origin}${BASE}/join?token=${token}`;
+export const joinUrl = (token: string): string => `${siteUrl()}/join?token=${token}`;
 
 /**
  * The same URL with TOKEN where the token goes. The server fills it in when it
@@ -31,7 +32,7 @@ export const joinUrl = (token: string): string => `${location.origin}${BASE}/joi
 const LINK_TEMPLATE = joinUrl("TOKEN");
 
 /** A standing join link's page (FR-USR-19): the same route, told apart by `link` rather than `token`. */
-export const joinLinkUrl = (token: string): string => `${location.origin}${BASE}/join?link=${token}`;
+export const joinLinkUrl = (token: string): string => `${siteUrl()}/join?link=${token}`;
 
 const JOIN_LINK_TEMPLATE = joinLinkUrl("TOKEN");
 
@@ -417,7 +418,23 @@ function MadeJoinLink({
  * actions a Page renders, inside the shell's `.app` like every other screen; the print
  * stylesheet already hides the buttons.
  */
-function PrintableJoinLink({ group, link, onDone }: { group: string; link: CreatedJoinLink; onDone: () => void }) {
+export function PrintableJoinLink({
+  group,
+  link,
+  onDone,
+  native,
+}: {
+  group: string;
+  link: CreatedJoinLink;
+  onDone: () => void;
+  /** The iPhone app's build. A prop so tests can reach that branch. */
+  native?: boolean;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  function print() {
+    setError(null);
+    printPage(native).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  }
   return (
     <>
       <header>
@@ -429,9 +446,14 @@ function PrintableJoinLink({ group, link, onDone }: { group: string; link: Creat
           and see who has what.
         </p>
         {link.qr_svg && <div className="qr qr-print" dangerouslySetInnerHTML={{ __html: link.qr_svg }} />}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
       </main>
       <div className="actions">
-        <button type="button" className="primary" onClick={() => window.print()}>
+        <button type="button" className="primary" onClick={print}>
           Print
         </button>
         <button type="button" onClick={onDone}>

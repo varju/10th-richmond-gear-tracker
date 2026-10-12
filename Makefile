@@ -1,6 +1,6 @@
 DB ?= gear.db
 
-.PHONY: setup test lint fmt migrate audit check client-install client-test client-build e2e serve image deploy logs start-over
+.PHONY: setup test lint fmt migrate audit check client-install client-test client-build e2e serve ios image deploy logs start-over
 
 setup:
 	./bin/setup
@@ -42,6 +42,13 @@ serve: client-build
 	uv run gear-serve --db $(DB) --static client/dist
 
 check: lint test client-test
+
+# The iPhone app (NFR-DEP-11): the client built for it, copied into ios/. SERVER_URL is the
+# server's public address, path included, e.g. https://example.org/gear. See docs/deploy.md.
+ios:
+	@test -n "$(SERVER_URL)" || { echo "set SERVER_URL to the server's address, e.g. https://example.org/gear"; exit 1; }
+	cd client && SERVER_URL=$(SERVER_URL) GIT_SHA=$(GIT_SHA) npm run build
+	cd client && npx cap sync ios
 
 # --- deployment ------------------------------------------------------------
 # DOCKER_HOST points at the server, so these build and run there. The image is

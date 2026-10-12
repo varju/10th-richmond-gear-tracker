@@ -93,15 +93,28 @@ const base = process.env.BASE_PATH || "/";
 // and `npm test`, where nothing sets GIT_SHA.
 const gitSha = process.env.GIT_SHA || "dev";
 
+// Where the server is, for the iPhone app (NFR-DEP-11), e.g. https://example.org/gear. The app
+// serves this client from its own origin, so it cannot reach the API by path. Empty for the
+// web build, which is same-origin with the server. Setting it makes this the native build.
+const serverUrl = (process.env.SERVER_URL || "").replace(/\/+$/, "");
+const native = serverUrl !== "";
+if (native && base !== "/")
+  throw new Error("BASE_PATH must be / when SERVER_URL is set: the app serves the client from its root");
+
 export default defineConfig({
   base,
+  // Apart from the web build, so `make serve` never serves the app's by mistake.
+  build: { outDir: native ? "dist-ios" : "dist" },
   define: {
     __GIT_SHA__: JSON.stringify(gitSha),
+    __SERVER_URL__: JSON.stringify(serverUrl),
   },
   plugins: [
     react(),
     guide(),
     VitePWA({
+      // The app has the shell on disk already, and WKWebView has no service worker for it.
+      disable: native,
       registerType: "autoUpdate",
       manifest: {
         name: "Gear Tracker",

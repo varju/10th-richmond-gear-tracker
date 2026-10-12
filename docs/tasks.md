@@ -36,3 +36,13 @@ fresh from the labelling walk.
 - [ ] Print code sheets and do the labelling walk (S-BOOT-02, S-BOOT-03)
 
 Public pages come before the labelling walk, not after it. From the moment stickers go on gear, a stranger can scan one.
+
+## M11 — iPhone app
+
+- [ ] Join the Apple Developer Program and pick the bundle id; `org.example.geartracker` is a placeholder
+- [ ] Set up signing in Xcode
+- [ ] Ship a TestFlight build and try it on a real iPhone
+- [ ] Time the scanner in the app against the M0 bar of 2 s
+- [ ] Submit for App Review, with a note asking for unlisted distribution
+- [ ] Send the unlisted distribution request form
+- [ ] Decide whether invite links need universal links to open in the app

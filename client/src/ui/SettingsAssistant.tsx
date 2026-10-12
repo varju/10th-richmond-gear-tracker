@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { type Api, ApiError, type AssistantToken, Offline } from "../lib/api";
-import { BASE, navigate } from "../lib/router";
+import { navigate } from "../lib/router";
+import { siteUrl } from "../lib/server";
 import { Page } from "./Page";
 
 interface Props {
@@ -85,7 +86,7 @@ function ConnectAssistant({ api }: { api: Api }) {
         <code className="wrap">{made.token}</code>
       </p>
       <p className="muted small">
-        In your assistant, add an MCP server at <code className="wrap">{`${location.origin}${BASE}${made.path}`}</code>
+        In your assistant, add an MCP server at <code className="wrap">{`${siteUrl()}${made.path}`}</code>
         <br />
         with the header <code>Authorization: Bearer &lt;token&gt;</code>.
       </p>

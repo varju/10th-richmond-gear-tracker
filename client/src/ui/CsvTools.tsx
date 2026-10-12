@@ -1,11 +1,15 @@
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { type Api, ApiError, type ImportPlan, type ImportResult, Offline } from "../lib/api";
+import { NATIVE } from "../lib/server";
+import { NOT_SHARED, shareFile } from "../lib/share";
 import { plural } from "./labels";
 
 interface Props {
   api: Api;
   /** Called after an import is applied, so the changed items reach this device. */
   onDone: () => Promise<unknown>;
+  /** The iPhone app's build. A prop so tests can reach that branch. */
+  native?: boolean;
 }
 
 function describe(e: unknown): string {
@@ -22,7 +26,7 @@ const ROW_LIMIT = 50;
  * built from the same check `apply` runs, so a bad row is caught before
  * anything changes.
  */
-export function CsvTools({ api, onDone }: Props) {
+export function CsvTools({ api, onDone, native = NATIVE }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState<string | null>(null);
@@ -30,6 +34,8 @@ export function CsvTools({ api, onDone }: Props) {
   const [result, setResult] = useState<ImportResult | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const lastUrl = useRef<string | null>(null);
+  // The app shares the file rather than downloading it. Kept so a second tap can share it again.
+  const [csv, setCsv] = useState<Blob | null>(null);
 
   useEffect(() => {
     return () => {
@@ -41,7 +47,13 @@ export function CsvTools({ api, onDone }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const url = URL.createObjectURL(await api.exportCsv());
+      const blob = await api.exportCsv();
+      if (native) {
+        setCsv(blob);
+        await share(blob);
+        return;
+      }
+      const url = URL.createObjectURL(blob);
       if (lastUrl.current) URL.revokeObjectURL(lastUrl.current);
       lastUrl.current = url;
       // A synthetic anchor, clicked and discarded: one tap, and the blob never becomes a link the person has to find.
@@ -55,6 +67,15 @@ export function CsvTools({ api, onDone }: Props) {
       setError(describe(e));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function share(blob: Blob) {
+    setError(null);
+    try {
+      await shareFile(blob, "inventory.csv");
+    } catch {
+      setError(NOT_SHARED);
     }
   }
 
@@ -117,6 +138,11 @@ export function CsvTools({ api, onDone }: Props) {
       <button type="button" onClick={download} disabled={busy}>
         Download inventory.csv
       </button>
+      {csv && (
+        <button type="button" onClick={() => share(csv)}>
+          Share inventory.csv
+        </button>
+      )}
       <label>
         <span>Import a CSV</span>
         <input ref={input} type="file" accept=".csv,text/csv" onChange={onFile} />

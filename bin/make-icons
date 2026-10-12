@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draw the app icons into client/public/.
+"""Draw the app icons into client/public/, and the iPhone app's into ios/.
 
 A QR code's three finder squares, white on the group's navy. It is what the app
 does, and it is legible at 40 px on a home screen, which a tent or a knot is not.
@@ -70,9 +70,15 @@ def png(size: int, raw: bytes) -> bytes:
 
 
 def main() -> None:
-    public = Path(__file__).resolve().parent.parent / "client" / "public"
-    for size, mark in ((192, PLAIN), (512, MASKABLE)):
-        target = public / f"icon-{size}.png"
+    root = Path(__file__).resolve().parent.parent
+    public = root / "client" / "public"
+    # iOS rounds the corners off, so the app's icon keeps the maskable margin too.
+    ios = root / "ios" / "App" / "App" / "Assets.xcassets" / "AppIcon.appiconset" / "AppIcon-512@2x.png"
+    for target, size, mark in (
+        (public / "icon-192.png", 192, PLAIN),
+        (public / "icon-512.png", 512, MASKABLE),
+        (ios, 1024, MASKABLE),
+    ):
         target.write_bytes(draw(size, mark))
         print(target)
 

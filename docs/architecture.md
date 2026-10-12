@@ -329,7 +329,7 @@ A lost record is a missing movement, not a broken database; the next scan of the
 
 ### Store wrapper
 
-A Could (NFR-DEP-11), not planned. Written down so the argument is settled once.
+A Could (NFR-DEP-11). A prototype is built in `ios/`; it has not shipped.
 
 **What it buys.** The home-screen install is the one step a volunteer can skip, and skipping it puts their Friday's work
 under the 7-day rule. An app from the App Store has its own storage that Apple does not purge, so the install step and
@@ -340,6 +340,19 @@ sync is still not on offer.
 the shell is on disk and offline needs no service worker. The same code talks to the same server. No feature lives only
 in the wrapper; a volunteer on the web must never be second class, or NFR-DEP-01 is dead in all but name.
 
+**How it differs from the web build.** One build flag, `SERVER_URL`, makes the native build; no Capacitor code ships to
+the browser. The page's origin is `capacitor://localhost`, so:
+
+- API calls go to `SERVER_URL`, and the server lets that one origin in by CORS, with the bearer header. Photos already
+  come through `fetch` with the header, so they need nothing more.
+- Links people copy, print or mail (join links, the MCP address) are built from `SERVER_URL`, not the page's origin.
+- No service worker, no manifest, no install prompt.
+- WKWebView cannot download, open a window, or print. A file goes to the share sheet instead (`lib/share.ts`), and print
+  goes through a small plugin in `MainViewController.swift`.
+
+Invite and join links open in Safari and make the account there; the person then signs in to the app. Universal links
+would open them in the app, and are not built.
+
 **How it ships.** Unlisted App Store distribution: a normal App Review with a note asking for unlisted, plus a separate
 request form. Both are needed. The app is hidden from search and charts and installs from a link. The switch to unlisted
 is permanent for that app record. Every client release then passes review, a day or two of latency, and a phone can lag
@@ -349,8 +362,8 @@ a release behind, so the server keeps sync compatible with the previous store bu
 offline client with camera access is more than that, but the call is Apple's, and the first submission is the test.
 Android is untouched: the web client stays the only route there.
 
-**Gate.** Build it only if first feedback (M10) shows volunteers failing to install, or losing work to the 7-day rule.
-Neither has happened.
+**Gate.** Waived. It was to wait for first feedback (M10) to show volunteers failing to install, or losing work to the
+7-day rule.
 
 ## Inventory
 
@@ -839,8 +852,8 @@ The real-phone-in-a-real-locker test (M7), and everything waiting on label stock
 - A sync framework. See above.
 - A client-side query engine. 500 items fits in memory.
 - Postgres, for now. Revisit if concurrent writes become real.
-- A native rewrite. NFR-DEP-01 rules it out. A store wrapper around the same client is a Could; see
-  [Store wrapper](#store-wrapper).
+- A native rewrite. NFR-DEP-01 rules it out. A store wrapper around the same client is a Could, and a prototype is
+  built; see [Store wrapper](#store-wrapper).
 - Background sync as a design assumption. iOS will not honour it.
 - Automatic conflict resolution. Where time cannot settle it, a person does.
 
