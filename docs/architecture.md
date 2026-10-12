@@ -601,6 +601,28 @@ the way a sticker does. What M0 settles is narrower and worth stating exactly: d
 WebAssembly route works on iOS. NFR-USE-01's 5 seconds covers the whole scan-to-confirmed-move loop, most of which is a
 person handling a tent, and no bench test reaches that.
 
+### Native scanner
+
+Not built. The iPhone app ([Store wrapper](#store-wrapper)) scans with the same WebAssembly decoder as the web.
+
+**Gate.** Build it only if one of these happens:
+
+- The app misses the 2 s bar on a real iPhone (M11).
+- The unlit-locker test fails, and a torch would fix it. The web camera API on iOS gives no reliable torch control.
+- App Review rejects the app under guideline 4.2, and a native feature would answer it.
+
+**What it is.** A plugin in the app, beside the print and link plugins, that scans with AVFoundation's metadata output.
+That runs on iOS 15, the app's floor, and on the baseline phone. VisionKit's data scanner needs iOS 16 or later. The
+plugin shows the camera with the target box, keeps the session alive across scans, limits detection to the box
+(`rectOfInterest`), offers the torch, and hands each code to the page. The page treats it as a typed code, through
+`parseCode`, so what happens after a scan does not change.
+
+**What stays the same.** The web keeps its scanner, so no feature lives only in the app. The app falls back to the web
+scanner if the plugin is missing or the camera fails.
+
+**What it costs.** Two scanners to keep working, and more Swift for whoever inherits the code. Measure it against the M0
+table before keeping it.
+
 ## Codes and labels
 
 Codes are code-first, not item-first (FR-TAG-02). We print sheets of unassigned codes, stick them on gear, and bind each
