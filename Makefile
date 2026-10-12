@@ -43,11 +43,12 @@ serve: client-build
 
 check: lint test client-test
 
-# The iPhone app (NFR-DEP-11): the client built for it, copied into ios/. SERVER_URL is the
+# The iPhone app (NFR-DEP-11): the client built for it, copied into ios/. IOS_SERVER_URL is the
 # server's public address, path included, e.g. https://example.org/gear. See docs/deploy.md.
+# Not SERVER_URL: that one makes any client build a native one, so it must never sit in the shell.
 ios:
-	@test -n "$(SERVER_URL)" || { echo "set SERVER_URL to the server's address, e.g. https://example.org/gear"; exit 1; }
-	cd client && SERVER_URL=$(SERVER_URL) GIT_SHA=$(GIT_SHA) npm run build
+	@test -n "$(IOS_SERVER_URL)" || { echo "set IOS_SERVER_URL to the server's address, e.g. https://example.org/gear"; exit 1; }
+	cd client && SERVER_URL=$(IOS_SERVER_URL) GIT_SHA=$(GIT_SHA) npm run build
 	cd client && npx cap sync ios
 
 # --- deployment ------------------------------------------------------------

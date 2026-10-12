@@ -402,19 +402,20 @@ away from straight back onto `latest`.
 
 A prototype that wraps the same client (NFR-DEP-11). The native project is in `ios/`. You need a Mac with Xcode.
 
-`SERVER_URL` is the address of your server, path included, for example `https://example.org/gear`. The app carries its
-own copy of the client, so it has to be told where the API is. It is fixed when you build: a new address means a new
-build.
+`IOS_SERVER_URL` is the address of your server, path included, for example `https://example.org/gear`. The app carries
+its own copy of the client, so it has to be told where the API is. It is fixed when you build: a new address means a new
+build. To set it once, export `IOS_SERVER_URL` in `.envrc`. Never export `SERVER_URL`: it turns every client build, test
+and dev server into the app build.
 
 ```sh
-make ios SERVER_URL=https://example.org/gear
+make ios IOS_SERVER_URL=https://example.org/gear
 ```
 
 That builds the client for the app and copies it into `ios/`. Then open `ios/App/App.xcodeproj` in Xcode, pick a
 simulator, and press Run.
 
 To try it against a server on your Mac, run the server with `make serve` or `uv run gear-serve --db gear.db`, and build
-with `SERVER_URL=http://127.0.0.1:8000`. Plain HTTP works only for 127.0.0.1, in the simulator. A real iPhone needs
+with `IOS_SERVER_URL=http://127.0.0.1:8000`. Plain HTTP works only for 127.0.0.1, in the simulator. A real iPhone needs
 HTTPS.
 
 The simulator has a test camera only. To check the scanner, use a real iPhone.
