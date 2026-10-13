@@ -648,6 +648,9 @@ can then move house without reprinting the inventory. The path is the random cod
 when signed out and the item in the app when signed in. The address is the group's site address, a setting in the app;
 the app appends `/g/<code>` to it to make the URL.
 
+Beside the QR, the label prints that address's host alone, such as `example.org`, reading top to bottom along the
+label's height. A finder who cannot scan can still find the group's site, and through it the group (FR-TAG-16).
+
 ### Code lifecycle
 
 Code identifiers must not be guessable (NFR-SEC-04), so they are random, not sequential. A code has three states:
@@ -664,12 +667,12 @@ off the gear, and the printed code is free to go on something else. Unlike a rep
 the item. Deleting an item (FR-INV-32) releases every code on it.
 
 **Keep the URL short.** Length costs physical module size, which is what survives a scuffed sticker in a dim locker. In
-a 0.95in printed box including the quiet zone, at error correction M:
+the label's 1.25in printed box including the quiet zone, at error correction M:
 
 | Encoded                                                         | QR version | Module pitch |
 | --------------------------------------------------------------- | ---------- | ------------ |
-| `https://www.varju.ca/alex/gear-m0/i.html?c=XXXXXXXXXX` (52 ch) | 4, 33x33   | 0.59 mm      |
-| `varju.ca/g/XXXXXXXXXX` (22 ch)                                 | 2, 25x25   | 0.73 mm      |
+| `https://www.varju.ca/alex/gear-m0/i.html?c=XXXXXXXXXX` (52 ch) | 4, 33x33   | 0.77 mm      |
+| `varju.ca/g/XXXXXXXXXX` (22 ch)                                 | 2, 25x25   | 0.96 mm      |
 
 24% larger modules, for nothing but a shorter path. Decode margin is cheap at design time and impossible to retrofit
 once the stickers are on the gear, so the public route is a short path on a short domain (FR-TAG-13).
@@ -678,9 +681,9 @@ Size changes in steps, though, not smoothly. What matters is which side of a ste
 
 | Encoded length | QR version | Module pitch |
 | -------------- | ---------- | ------------ |
-| up to 26 ch    | 2, 25x25   | 0.73 mm      |
-| 27 to 42 ch    | 3, 29x29   | 0.65 mm      |
-| 43 ch and up   | 4, 33x33   | 0.59 mm      |
+| up to 26 ch    | 2, 25x25   | 0.96 mm      |
+| 27 to 42 ch    | 3, 29x29   | 0.86 mm      |
+| 43 ch and up   | 4, 33x33   | 0.77 mm      |
 
 That settles a question worth not reopening. `10thrichmond.ca` is 15 characters, so 25x25 was never within reach: even
 `10thrichmond.ca/g/XXXXXXXXXX` is 28. The app is served under `/gear`, and `10thrichmond.ca/gear/g/XXXXXXXXXX` is 33 —
@@ -703,8 +706,8 @@ not.
 
 | Encoded                             | QR version | Module pitch |
 | ----------------------------------- | ---------- | ------------ |
-| `10thrichmond.ca/gear/g/XXXXXXXXXX` | 3, 29x29   | 0.65 mm      |
-| `10THRICHMOND.CA/GEAR/G/XXXXXXXXXX` | 2, 25x25   | 0.73 mm      |
+| `10thrichmond.ca/gear/g/XXXXXXXXXX` | 3, 29x29   | 0.86 mm      |
+| `10THRICHMOND.CA/GEAR/G/XXXXXXXXXX` | 2, 25x25   | 0.96 mm      |
 
 The same 33 characters, the same code, the same 50 bits, and 12% larger modules. In that mode 38 characters fit at
 25x25, so there are five to spare. A denser alphabet goes the other way: base62 saves a character and loses the mode,
@@ -712,8 +715,8 @@ because mixed case forces byte mode back on, and stays at 29x29 with no gain.
 
 The costs are a redirect from the capitalised path to the canonical lowercase one, kept for as long as the stickers
 exist, and a sticker that reads in capitals. Settled in September 2026: the stickers stay lowercase at 29x29. A redirect
-that has to outlive 400 labels is a standing obligation on whoever inherits this, and 0.65 mm modules already cleared
-M0's bar. Recorded so the question is not reopened by the next person who reads a QR specification.
+that has to outlive 400 labels is a standing obligation on whoever inherits this, and 0.86 mm modules are well above the
+0.65 mm that cleared M0's bar. Recorded so the question is not reopened by the next person who reads a QR specification.
 
 ## Found gear
 

@@ -11,7 +11,7 @@ interface Props {
   shell: Shell;
 }
 
-/** A sheet of unassigned codes for Avery 6576 stock. Admin only (S-BOOT-02). */
+/** A sheet of unassigned codes on 32-up label sheets. Admin only (S-BOOT-02). */
 export function SettingsCodes({ store, api, shell }: Props) {
   useStore(store);
 

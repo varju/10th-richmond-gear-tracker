@@ -1619,7 +1619,7 @@ def delete_category(category_id: str) -> dict[str, Any]:
 
 
 def print_codes(sheets: StrictInt = 1) -> dict[str, Any]:
-    """A PDF of fresh unassigned codes, laid out for Avery 6576 (FR-TAG-02). Admins only.
+    """A PDF of fresh unassigned codes, laid out for 32-up label sheets (FR-TAG-02). Admins only.
 
     `sheets` is 1 to 10, 32 codes to a sheet. The group name, site address and
     contact must be set first (FR-PUB-01): a code is a public page the moment
@@ -1634,7 +1634,7 @@ def print_codes(sheets: StrictInt = 1) -> dict[str, Any]:
         if not group.get("name") or not group.get("code_url") or not group.get("contact"):
             raise Conflict("set the group name, site address and contact in Settings first")
         made = codes.create_codes(conn, who.user_id, sheets * labels.LABELS_PER_SHEET)
-        pdf = labels.sheet(made, str(group["name"]), str(group["code_url"]))
+        pdf = labels.sheet(made, str(group["code_url"]))
         return {"codes": made, "pdf_base64": base64.b64encode(pdf).decode("ascii")}
 
 

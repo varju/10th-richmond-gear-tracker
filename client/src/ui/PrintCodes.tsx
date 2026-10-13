@@ -12,7 +12,7 @@ interface Props {
 }
 
 /**
- * A PDF of unassigned codes for Avery 6576 stock (S-BOOT-02). The one thing
+ * A PDF of unassigned codes on 32-up label sheets (S-BOOT-02). The one thing
  * in these screens that needs the server: the PDF is built there. It goes
  * through the API like every other call, so it finds the server wherever the
  * app is served from.

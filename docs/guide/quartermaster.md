@@ -93,8 +93,8 @@ and `gear-admin import`.
 
 ## Print a sheet of codes
 
-In Settings, open Print QR codes, set how many sheets, and tap Print QR codes. A PDF opens for Avery 6576 labels. The
-codes are unassigned until someone scans one and binds it to gear.
+In Settings, open Print QR codes, set how many sheets, and tap Print QR codes. A PDF opens for US Letter sheets of 32
+labels, each 1.75 x 1.25 in. The codes are unassigned until someone scans one and binds it to gear.
 
 ## Invite someone
 

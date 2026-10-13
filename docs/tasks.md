@@ -17,7 +17,8 @@ Passed indoors on two iPhones: worst single acquisition 1.58 s against a 2 s bar
 - [ ] Repeat in an unlit locker, and with gloves on
 - [ ] Add those numbers to architecture.md
 
-Deferred until we have Avery 6576 stock. Not blocked on us, and not holding anything up:
+Deferred until the first sheet is printed on real stock (32 labels of 1.75 x 1.25 in). Not blocked on us, and not
+holding anything up:
 
 - [ ] Confirm the sheet registers on real stock, and record the margins for FR-TAG-02
 - [ ] Test through a scuffed sticker and a wet one
@@ -26,7 +27,7 @@ Deferred until we have Avery 6576 stock. Not blocked on us, and not holding anyt
 
 Built. What is left waits on other work:
 
-- [ ] Check the printed sheet against real Avery 6576 stock and fix `labels.py` if the margins are off (FR-TAG-02)
+- [ ] Check the printed sheet against the real stock and fix `labels.py` if the margins are off (FR-TAG-02)
 
 ## M9 — Go live
 

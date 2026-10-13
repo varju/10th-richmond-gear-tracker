@@ -698,7 +698,7 @@ def create_app(
             # public page with no way to reach us is no use to a finder (FR-PUB-01).
             raise Conflict("set the group name, site address and contact in Settings first")
         made = codes.create_codes(conn, who.user_id, body.sheets * labels.LABELS_PER_SHEET)
-        pdf = labels.sheet(made, group["name"], group["code_url"])
+        pdf = labels.sheet(made, group["code_url"])
         return Response(
             content=pdf,
             media_type="application/pdf",
