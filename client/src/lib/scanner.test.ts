@@ -4,8 +4,10 @@ import {
   click,
   cropFor,
   Debounce,
+  AWAY_MS,
   ENDED_WAIT_MS,
   STABLE_MS,
+  UNMUTE_WAIT_MS,
   startScanner,
   unlockSound,
   vibrate,
@@ -154,39 +156,98 @@ test("pause freezes the video and resume un-freezes it, without reopening the ca
 
 /** A camera whose streams can be counted: each getUserMedia call hands out a new stream with one track. */
 function fakeCamera() {
-  const tracks: { stop: ReturnType<typeof vi.fn>; ended: () => void }[] = [];
+  const tracks: {
+    stop: ReturnType<typeof vi.fn>;
+    ended: () => void;
+    expire: () => void;
+    mute: () => void;
+    unmute: () => void;
+  }[] = [];
   const open = () => tracks.filter((t) => !t.stop.mock.calls.length).length;
   const getUserMedia = vi.fn(async () => {
     const target = new EventTarget();
-    const track = Object.assign(target, { stop: vi.fn() });
-    tracks.push({ stop: track.stop, ended: () => target.dispatchEvent(new Event("ended")) });
+    const track = Object.assign(target, { stop: vi.fn(), readyState: "live", muted: false });
+    const expire = () => {
+      track.readyState = "ended";
+    };
+    tracks.push({
+      stop: track.stop,
+      expire,
+      ended: () => (expire(), target.dispatchEvent(new Event("ended"))),
+      mute: () => {
+        track.muted = true;
+        target.dispatchEvent(new Event("mute"));
+      },
+      unmute: () => {
+        track.muted = false;
+        target.dispatchEvent(new Event("unmute"));
+      },
+    });
     return Object.assign(new MediaStream(), { getTracks: () => [track] });
   });
   Object.defineProperty(navigator, "mediaDevices", { value: { getUserMedia }, configurable: true });
   return { getUserMedia, tracks, open };
 }
 
-test("leaving the app releases the camera, and coming back opens it again", async () => {
+/** A long trip away: iOS ends the tracks while the app is in the background, and says nothing until it is back. */
+function awayLong(camera: ReturnType<typeof fakeCamera>) {
+  setVisibility("hidden");
+  camera.tracks.forEach((t) => t.expire());
+  setVisibility("visible");
+}
+
+test("a short trip away keeps the stream and picks it up again", async () => {
   const camera = fakeCamera();
   const video = document.createElement("video");
+  const playSpy = vi.spyOn(video, "play");
   const scanner = startScanner(video, () => {});
-  await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
+  await vi.waitFor(() => expect(playSpy).toHaveBeenCalledTimes(1));
+  video.style.opacity = ""; // as if the first frame had shown
 
   setVisibility("hidden");
-  expect(camera.open()).toBe(0);
-  expect(video.srcObject).toBeNull();
-
   setVisibility("visible");
-  await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
-  expect(camera.getUserMedia).toHaveBeenCalledTimes(2);
+  expect(camera.getUserMedia).toHaveBeenCalledTimes(1);
   expect(camera.open()).toBe(1);
+  expect(playSpy).toHaveBeenCalledTimes(2);
+  expect(video.style.opacity).toBe(""); // not hidden again: nothing to settle
 
   scanner.stop();
   expect(camera.open()).toBe(0);
   setVisibility("hidden");
   setVisibility("visible");
   await new Promise((r) => setTimeout(r, 10));
-  expect(camera.getUserMedia).toHaveBeenCalledTimes(2); // no listener left after stop
+  expect(playSpy).toHaveBeenCalledTimes(2); // no listener left after stop
+});
+
+test("a long trip away, with the track ended, opens the camera again", async () => {
+  const camera = fakeCamera();
+  const video = document.createElement("video");
+  const scanner = startScanner(video, () => {});
+  await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
+  awayLong(camera);
+  await vi.waitFor(() => expect(camera.getUserMedia).toHaveBeenCalledTimes(2));
+  await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
+  expect(camera.open()).toBe(1);
+  scanner.stop();
+  expect(camera.open()).toBe(0);
+});
+
+test("a hidden page does not decode, though its track is still live", async () => {
+  fakeCamera();
+  const video = document.createElement("video");
+  const scanner = startScanner(video, () => {});
+  await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
+  const rafSpy = vi.spyOn(window, "requestAnimationFrame");
+  const cancelSpy = vi.spyOn(window, "cancelAnimationFrame");
+  setVisibility("hidden");
+  expect(cancelSpy).toHaveBeenCalled();
+  await new Promise((r) => setTimeout(r, 50));
+  expect(rafSpy).not.toHaveBeenCalled();
+  setVisibility("visible");
+  expect(rafSpy).toHaveBeenCalled();
+  scanner.stop();
+  rafSpy.mockRestore();
+  cancelSpy.mockRestore();
 });
 
 test("a fast hide and show leaves one stream open, and stop during a reopen leaves none", async () => {
@@ -201,8 +262,7 @@ test("a fast hide and show leaves one stream open, and stop during a reopen leav
   await new Promise((r) => setTimeout(r, 10));
   expect(camera.open()).toBe(1);
 
-  setVisibility("hidden");
-  setVisibility("visible"); // reopen in flight
+  awayLong(camera); // reopen in flight
   scanner.stop();
   await new Promise((r) => setTimeout(r, 10));
   expect(camera.open()).toBe(0);
@@ -241,21 +301,38 @@ test("a camera error on coming back is reported", async () => {
   const scanner = startScanner(video, () => {}, { onError });
   await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
   camera.getUserMedia.mockRejectedValueOnce(new DOMException("x", "NotReadableError"));
-  setVisibility("hidden");
-  setVisibility("visible");
+  awayLong(camera);
   await vi.waitFor(() => expect(onError).toHaveBeenCalledWith(expect.stringMatching(/in use/)));
   scanner.stop();
 });
 
-test("coming back with the frame frozen keeps it paused until resume", async () => {
+test("a short trip away with the frame frozen comes back frozen", async () => {
   fakeCamera();
   const video = document.createElement("video");
   const playSpy = vi.spyOn(video, "play");
   const scanner = startScanner(video, () => {});
   await vi.waitFor(() => expect(playSpy).toHaveBeenCalledTimes(1));
   scanner.pause();
+  const rafSpy = vi.spyOn(window, "requestAnimationFrame");
   setVisibility("hidden");
   setVisibility("visible");
+  expect(playSpy).toHaveBeenCalledTimes(1);
+  expect(rafSpy).not.toHaveBeenCalled();
+  scanner.resume();
+  expect(playSpy).toHaveBeenCalledTimes(2);
+  expect(rafSpy).toHaveBeenCalled();
+  scanner.stop();
+  rafSpy.mockRestore();
+});
+
+test("a reopen with the frame frozen plays behind the card but does not decode until resume", async () => {
+  const camera = fakeCamera();
+  const video = document.createElement("video");
+  const playSpy = vi.spyOn(video, "play");
+  const scanner = startScanner(video, () => {});
+  await vi.waitFor(() => expect(playSpy).toHaveBeenCalledTimes(1));
+  scanner.pause();
+  awayLong(camera);
   await vi.waitFor(() => expect(playSpy).toHaveBeenCalledTimes(2)); // a live picture behind the card, not black
   const rafSpy = vi.spyOn(window, "requestAnimationFrame");
   await new Promise((r) => setTimeout(r, 10));
@@ -266,8 +343,8 @@ test("coming back with the frame frozen keeps it paused until resume", async () 
   rafSpy.mockRestore();
 });
 
-test("the video stays see-through until a frame at the settled size is shown, and again after a release", async () => {
-  fakeCamera();
+test("the video stays see-through until frames at the settled size are shown, and again after a reopen", async () => {
+  const camera = fakeCamera();
   const video = document.createElement("video");
   const frames: VideoFrameRequestCallback[] = [];
   video.requestVideoFrameCallback = (cb) => frames.push(cb);
@@ -282,14 +359,15 @@ test("the video stays see-through until a frame at the settled size is shown, an
   await vi.waitFor(() => expect(frames).toHaveLength(1));
   present(720, 1280); // a first frame the wrong way round
   expect(video.style.opacity).toBe("0");
-  present(1280, 720);
+  present(1280, 720); // first open: the settled size is enough
   expect(video.style.opacity).toBe("");
 
-  setVisibility("hidden");
+  awayLong(camera);
   expect(video.style.opacity).toBe("0");
-  setVisibility("visible");
   await vi.waitFor(() => expect(frames).toHaveLength(1));
-  expect(video.style.opacity).toBe("0");
+  present(1280, 720);
+  present(1280, 720);
+  expect(video.style.opacity).toBe("0"); // after a reopen WebKit may not have sized the layer yet
   present(1280, 720);
   expect(video.style.opacity).toBe("");
   scanner.stop();
@@ -394,8 +472,7 @@ test("a reopen that fails because the app was left meanwhile is not reported", a
   await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
   let reject: (e: unknown) => void = () => {};
   camera.getUserMedia.mockImplementationOnce(() => new Promise((_, r) => (reject = r)));
-  setVisibility("hidden");
-  setVisibility("visible");
+  awayLong(camera);
   await vi.waitFor(() => expect(camera.getUserMedia).toHaveBeenCalledTimes(2));
   setVisibility("hidden", false); // not yet announced
   reject(new DOMException("x", "NotReadableError"));
@@ -404,8 +481,8 @@ test("a reopen that fails because the app was left meanwhile is not reported", a
   scanner.stop();
 });
 
-test("a frame read from before the app was left is dropped", async () => {
-  fakeCamera();
+test("a frame read from before a reopen, or landing while hidden, is dropped", async () => {
+  const camera = fakeCamera();
   const video = document.createElement("video");
   Object.defineProperty(video, "readyState", { value: 4, configurable: true });
   Object.defineProperty(video, "videoWidth", { value: 1280, configurable: true });
@@ -420,16 +497,23 @@ test("a frame read from before the app was left is dropped", async () => {
   const scanner = startScanner(video, onCode, { onError });
   try {
     await vi.waitFor(() => expect(decoder.pending).toHaveLength(1));
-    setVisibility("hidden");
-    setVisibility("visible");
+    awayLong(camera);
     decoder.pending.shift()?.("AAAAAAAAAA"); // the old frame lands after the reopen
     await settle();
     expect(onCode).not.toHaveBeenCalled();
 
     await vi.waitFor(() => expect(decoder.pending.length).toBeGreaterThan(0));
-    setVisibility("hidden");
-    setVisibility("visible");
+    awayLong(camera);
     decoder.pending.shift()?.(new Error("old frame")); // and an old failure is dropped too
+    await settle();
+    expect(onError).not.toHaveBeenCalled();
+
+    await vi.waitFor(() => expect(decoder.pending.length).toBeGreaterThan(0));
+    setVisibility("hidden");
+    decoder.pending.shift()?.("CCCCCCCCCC"); // lands while the app is away
+    await settle();
+    expect(onCode).not.toHaveBeenCalled();
+    setVisibility("visible");
     await settle();
     expect(onError).not.toHaveBeenCalled();
 
@@ -458,12 +542,12 @@ test("a read before the picture settled still shows the frozen frame", async () 
 });
 
 test("the loadeddata wait is removed on release", async () => {
-  fakeCamera();
+  const camera = fakeCamera();
   const video = document.createElement("video");
   const removeSpy = vi.spyOn(video, "removeEventListener");
   const scanner = startScanner(video, () => {});
   await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
-  setVisibility("hidden");
+  awayLong(camera);
   expect(removeSpy).toHaveBeenCalledWith("loadeddata", expect.any(Function));
   scanner.stop();
 });
@@ -519,8 +603,7 @@ test("a refusal raised while the app is being left does not stop the camera reop
   await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
   let reject: (e: unknown) => void = () => {};
   camera.getUserMedia.mockImplementationOnce(() => new Promise((_, r) => (reject = r)));
-  setVisibility("hidden");
-  setVisibility("visible");
+  awayLong(camera);
   await vi.waitFor(() => expect(camera.getUserMedia).toHaveBeenCalledTimes(2));
   setVisibility("hidden", false);
   reject(new DOMException("x", "NotAllowedError"));
@@ -534,15 +617,14 @@ test("a refusal raised while the app is being left does not stop the camera reop
 });
 
 test("a pause that interrupts a reopen's play is not a failure", async () => {
-  fakeCamera();
+  const camera = fakeCamera();
   const video = document.createElement("video");
   const onError = vi.fn();
   const onReady = vi.fn();
   const scanner = startScanner(video, () => {}, { onError, onReady });
   await vi.waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
   vi.spyOn(video, "play").mockRejectedValueOnce(new DOMException("x", "AbortError"));
-  setVisibility("hidden");
-  setVisibility("visible");
+  awayLong(camera);
   scanner.pause();
   await vi.waitFor(() => expect(onReady).toHaveBeenCalledTimes(2));
   expect(onError).not.toHaveBeenCalled();
@@ -565,14 +647,196 @@ test("a video that will not play is not reported as a refused camera, and is ret
 });
 
 test("a pending frame wait is cancelled on release", async () => {
-  fakeCamera();
+  const camera = fakeCamera();
   const video = document.createElement("video");
   video.requestVideoFrameCallback = () => 7;
   const cancel = vi.fn();
   video.cancelVideoFrameCallback = cancel;
   const scanner = startScanner(video, () => {});
   await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
-  setVisibility("hidden");
+  awayLong(camera);
   expect(cancel).toHaveBeenCalledWith(7);
+  scanner.stop();
+});
+
+/** Back from a trip away with the track still live but muted, as iOS can leave it. */
+async function backMuted() {
+  const camera = fakeCamera();
+  const video = document.createElement("video");
+  const playSpy = vi.spyOn(video, "play");
+  const scanner = startScanner(video, () => {});
+  await vi.waitFor(() => expect(playSpy).toHaveBeenCalledTimes(1));
+  video.style.opacity = ""; // as if the first frame had shown
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  setVisibility("hidden");
+  camera.tracks[0]?.mute();
+  setVisibility("visible");
+  return { camera, video, playSpy, scanner };
+}
+
+test("a muted track on return is hidden, then shown when it unmutes, not reopened", async () => {
+  const { camera, video, scanner } = await backMuted();
+  try {
+    expect(video.style.opacity).toBe("0"); // black, so not shown
+    camera.tracks[0]?.unmute();
+    video.dispatchEvent(new Event("loadeddata")); // the fallback wait, with no requestVideoFrameCallback here
+    expect(video.style.opacity).toBe("");
+    await vi.advanceTimersByTimeAsync(UNMUTE_WAIT_MS * 2);
+    expect(camera.getUserMedia).toHaveBeenCalledTimes(1);
+  } finally {
+    vi.useRealTimers();
+    scanner.stop();
+  }
+});
+
+test("a track still muted after the wait is replaced by a new one", async () => {
+  const { camera, video, scanner } = await backMuted();
+  try {
+    await vi.advanceTimersByTimeAsync(UNMUTE_WAIT_MS);
+    expect(camera.getUserMedia).toHaveBeenCalledTimes(2);
+  } finally {
+    vi.useRealTimers();
+  }
+  await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
+  expect(camera.open()).toBe(1);
+  scanner.stop();
+});
+
+test("a track that mutes while in use is hidden and given the same wait", async () => {
+  const camera = fakeCamera();
+  const video = document.createElement("video");
+  const scanner = startScanner(video, () => {});
+  await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
+  video.style.opacity = "";
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    camera.tracks[0]?.mute(); // a call, or Siri
+    expect(video.style.opacity).toBe("0");
+    await vi.advanceTimersByTimeAsync(UNMUTE_WAIT_MS);
+    expect(camera.getUserMedia).toHaveBeenCalledTimes(2);
+  } finally {
+    vi.useRealTimers();
+  }
+  await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
+  expect(camera.open()).toBe(1);
+  scanner.stop();
+});
+
+test("leaving during the unmute wait opens nothing while away, and stop ends the wait", async () => {
+  const { camera, video, scanner } = await backMuted();
+  try {
+    setVisibility("hidden");
+    await vi.advanceTimersByTimeAsync(UNMUTE_WAIT_MS * 2);
+    expect(camera.getUserMedia).toHaveBeenCalledTimes(1); // released, but not reopened while hidden
+    expect(camera.open()).toBe(0);
+    setVisibility("visible");
+    await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
+    expect(camera.getUserMedia).toHaveBeenCalledTimes(2);
+
+    camera.tracks[1]?.mute();
+    scanner.stop();
+    await vi.advanceTimersByTimeAsync(UNMUTE_WAIT_MS * 2);
+    expect(camera.getUserMedia).toHaveBeenCalledTimes(2);
+    expect(camera.open()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("leaving abandons an open that has not finished; the return starts a fresh one", async () => {
+  const camera = fakeCamera();
+  let reject: (e: unknown) => void = () => {};
+  camera.getUserMedia.mockImplementationOnce(() => new Promise((_, r) => (reject = r))); // iOS never answers
+  const video = document.createElement("video");
+  const onError = vi.fn();
+  const scanner = startScanner(video, () => {}, { onError });
+  setVisibility("hidden");
+  setVisibility("visible");
+  await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
+  expect(camera.getUserMedia).toHaveBeenCalledTimes(2);
+
+  reject(new DOMException("x", "NotAllowedError")); // the abandoned open fails late
+  await settle();
+  expect(onError).not.toHaveBeenCalled();
+  awayLong(camera);
+  await vi.waitFor(() => expect(camera.getUserMedia).toHaveBeenCalledTimes(3)); // not given up
+  scanner.stop();
+});
+
+test("a frame read before a short trip away is dropped when it lands after the return", async () => {
+  fakeCamera();
+  const video = document.createElement("video");
+  Object.defineProperty(video, "readyState", { value: 4, configurable: true });
+  Object.defineProperty(video, "videoWidth", { value: 1280, configurable: true });
+  Object.defineProperty(video, "videoHeight", { value: 720, configurable: true });
+  const fakeCtx = { drawImage() {}, getImageData: () => ({}) };
+  const getContext = vi
+    .spyOn(HTMLCanvasElement.prototype, "getContext")
+    .mockReturnValue(fakeCtx as unknown as CanvasRenderingContext2D);
+  decoder.pending.length = 0;
+  const onCode = vi.fn();
+  const scanner = startScanner(video, onCode);
+  try {
+    await vi.waitFor(() => expect(decoder.pending).toHaveLength(1));
+    setVisibility("hidden");
+    setVisibility("visible");
+    decoder.pending.shift()?.("AAAAAAAAAA");
+    await settle();
+    expect(onCode).not.toHaveBeenCalled();
+  } finally {
+    scanner.stop();
+    getContext.mockRestore();
+  }
+});
+
+test("leaving pauses the video, and a longer absence frees the camera", async () => {
+  const camera = fakeCamera();
+  const video = document.createElement("video");
+  const scanner = startScanner(video, () => {});
+  await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
+  const pauseSpy = vi.spyOn(video, "pause");
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    setVisibility("hidden");
+    expect(pauseSpy).toHaveBeenCalled();
+    expect(camera.open()).toBe(1);
+    await vi.advanceTimersByTimeAsync(AWAY_MS);
+    expect(camera.open()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
+  setVisibility("visible");
+  await vi.waitFor(() => expect(camera.open()).toBe(1));
+  scanner.stop();
+});
+
+test("the away timer firing as the page comes back does not free the camera", async () => {
+  const camera = fakeCamera();
+  const video = document.createElement("video");
+  const scanner = startScanner(video, () => {});
+  await vi.waitFor(() => expect(video.srcObject).not.toBeNull());
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    setVisibility("hidden");
+    setVisibility("visible", false); // iOS: visible again, the event not yet run, the suspended timer due
+    await vi.advanceTimersByTimeAsync(AWAY_MS);
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(camera.open()).toBe(1);
+    expect(camera.getUserMedia).toHaveBeenCalledTimes(1);
+  } finally {
+    vi.useRealTimers();
+  }
+  scanner.stop();
+});
+
+test("picking the stream up again on return says the camera is ready", async () => {
+  fakeCamera();
+  const video = document.createElement("video");
+  const onReady = vi.fn();
+  const scanner = startScanner(video, () => {}, { onReady });
+  await vi.waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
+  setVisibility("hidden");
+  setVisibility("visible");
+  expect(onReady).toHaveBeenCalledTimes(2);
   scanner.stop();
 });

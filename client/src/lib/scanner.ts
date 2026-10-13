@@ -155,10 +155,16 @@ export function cameraError(e: unknown): string {
 
 /** Frames to wait for one at the stream's settled size before showing the video anyway. */
 const SETTLE_FRAMES = 10;
+/** Frames to wait past the first at the settled size after a reopen or unmute: WebKit sizes the layer a beat later. */
+const AFTER_SETTLE = 2;
 /** How long to wait after a track ends before reopening: iOS can end it just before the page says it is hidden. */
 export const ENDED_WAIT_MS = 500;
+/** How long a muted track may take to unmute before the camera is opened again. */
+export const UNMUTE_WAIT_MS = 1000;
 /** A track that ends this soon after the last reopen for an end is reported, not reopened again. */
 export const STABLE_MS = 60_000;
+/** How long the page may be hidden before the camera is released, so it does not stay lit in the background. */
+export const AWAY_MS = 5000;
 
 /** getUserMedia errors a retry will not fix. After one, the camera is not tried again on this screen. */
 const PERMANENT = new Set(["NotAllowedError", "NotFoundError", "OverconstrainedError"]);
@@ -168,8 +174,10 @@ const errorName = (e: unknown) => (e instanceof Error ? e.name : "");
 /**
  * Start the camera into `video` and call `onCode` for each code seen. Call `stop()` before the screen goes away.
  *
- * iOS stops the capture when the app is left, so the camera is released while the page is hidden and opened again
- * when it comes back. A track that ends on its own is reopened, unless it last did so under `STABLE_MS` ago.
+ * While the page is hidden the video is paused and nothing is decoded. The stream is kept for a short trip away
+ * and released after `AWAY_MS`; iOS suspends timers, so there the stream is kept until iOS ends it. On return a
+ * live stream is picked up, and anything else is opened again. A track that mutes is given `UNMUTE_WAIT_MS` to
+ * come back; a track that ends is reopened, unless it last did so under `STABLE_MS` ago.
  */
 export function startScanner(
   video: HTMLVideoElement,
@@ -182,10 +190,13 @@ export function startScanner(
   let running = false; // the camera has opened at least once
   let frame = 0;
   let decoding = false;
-  let current: object | null = null; // the open in flight or live; a stale open or frame compares and backs out
+  let current: object | null = null; // the open in flight or live; a stale open compares and backs out
+  let epoch = 0; // bumped on every hide and release; a decode from an older epoch is dropped
   let gaveUp = false;
   let endedAt = -Infinity; // when a track end last caused a reopen
   let endedTimer: ReturnType<typeof setTimeout> | undefined;
+  let muteTimer: ReturnType<typeof setTimeout> | undefined;
+  let awayTimer: ReturnType<typeof setTimeout> | undefined;
   let unshow = () => {};
   const debounce = new Debounce();
   const canvas = document.createElement("canvas");
@@ -205,9 +216,9 @@ export function startScanner(
     canvas.height = Math.round(crop.h * scale);
     ctx.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, canvas.width, canvas.height);
     const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const mine = current;
-    // A frame from before a release is dropped: the person may have aimed elsewhere since.
-    const live = () => !stopped && mine === current;
+    // A frame from before a hide or release is dropped: the person may have aimed elsewhere since.
+    const mine = epoch;
+    const live = () => !stopped && mine === epoch;
     decoding = true;
     readBarcodes(image, { formats: ["QRCode"], tryHarder, maxNumberOfSymbols: 1 })
       .then((results) => {
@@ -224,29 +235,39 @@ export function startScanner(
 
   const loop = () => {
     cancelAnimationFrame(frame);
-    if (stream && !paused && !stopped) frame = requestAnimationFrame(tick);
+    if (stream && !paused && !stopped && visible()) frame = requestAnimationFrame(tick);
+  };
+
+  /** Play and decode, unless the frame is frozen. A rejected play() (a fast pause/resume) is not worth showing. */
+  const play = () => {
+    if (stream && !paused) video.play().catch(() => {});
+    loop();
   };
 
   // WebKit draws the first frames narrower, with black bars, before object-fit: cover takes hold. The viewfinder
   // is black behind the video, so keep the video see-through until a frame at the stream's settled size is shown.
   // Only the picture waits: decoding runs from the start.
   const hideVideo = () => {
+    unshow();
+    unshow = () => {};
     video.style.opacity = "0";
   };
   const showVideo = () => {
     video.style.opacity = "";
   };
-  const showWhenSettled = () => {
+  const showWhenSettled = (extra: number) => {
     if (typeof video.requestVideoFrameCallback !== "function") {
       video.addEventListener("loadeddata", showVideo, { once: true });
       unshow = () => video.removeEventListener("loadeddata", showVideo);
       return;
     }
     let seen = 0;
+    let settledAt = 0; // the frame count when the size first matched
     let handle = 0;
     const wait: VideoFrameRequestCallback = (_now, meta) => {
       seen += 1;
-      if ((meta.width === video.videoWidth && meta.height === video.videoHeight) || seen >= SETTLE_FRAMES) showVideo();
+      if (!settledAt && meta.width === video.videoWidth && meta.height === video.videoHeight) settledAt = seen;
+      if ((settledAt && seen - settledAt >= extra) || seen >= SETTLE_FRAMES) showVideo();
       else handle = video.requestVideoFrameCallback(wait);
     };
     handle = video.requestVideoFrameCallback(wait);
@@ -255,12 +276,16 @@ export function startScanner(
 
   const release = () => {
     current = null;
+    epoch += 1;
     clearTimeout(endedTimer);
+    clearTimeout(muteTimer);
+    clearTimeout(awayTimer);
+    muteTimer = undefined;
     cancelAnimationFrame(frame);
-    unshow();
-    unshow = () => {};
     stream?.getTracks().forEach((t) => {
       t.removeEventListener("ended", onEnded);
+      t.removeEventListener("mute", onMute);
+      t.removeEventListener("unmute", onUnmute);
       t.stop();
     });
     stream = null;
@@ -290,11 +315,15 @@ export function startScanner(
     }
     if (stale()) return got.getTracks().forEach((t) => t.stop());
     stream = got;
-    got.getTracks().forEach((t) => t.addEventListener("ended", onEnded));
+    got.getTracks().forEach((t) => {
+      t.addEventListener("ended", onEnded);
+      t.addEventListener("mute", onMute);
+      t.addEventListener("unmute", onUnmute);
+    });
     video.muted = true;
     video.playsInline = true;
     video.srcObject = got;
-    showWhenSettled();
+    showWhenSettled(running ? AFTER_SETTLE : 0);
     try {
       // Coming back with the card up, the frozen frame went with the old stream. A live picture behind the card
       // beats a black one, so the video plays; the decode loop waits for resume().
@@ -318,6 +347,10 @@ export function startScanner(
     if (stopped || gaveUp || current || !visible()) return;
     void open();
   };
+  const restart = () => {
+    release();
+    reopen();
+  };
 
   function onEnded() {
     release();
@@ -329,10 +362,40 @@ export function startScanner(
     }, ENDED_WAIT_MS);
   }
 
+  // A muted track shows black (a call, Siri, or iOS on return). Hide it and give it a moment, then reopen.
+  // Muted while hidden is left to the return.
+  function onMute() {
+    if (!visible() || muteTimer) return;
+    hideVideo();
+    muteTimer = setTimeout(restart, UNMUTE_WAIT_MS);
+  }
+  function onUnmute() {
+    if (!muteTimer || stream?.getTracks().some((t) => t.muted)) return;
+    clearTimeout(muteTimer);
+    muteTimer = undefined;
+    if (paused) showVideo();
+    else showWhenSettled(AFTER_SETTLE);
+  }
+
   const onVisibility = () => {
-    if (!visible()) return release();
+    if (!visible()) {
+      epoch += 1;
+      cancelAnimationFrame(frame);
+      clearTimeout(endedTimer); // coming back handles an ended track
+      if (!stream) current = null; // abandon an open in flight: iOS may never finish it
+      video.pause();
+      // A timer that fires as the page comes back must not release the stream the return is picking up.
+      clearTimeout(awayTimer);
+      awayTimer = setTimeout(() => !visible() && release(), AWAY_MS);
+      return;
+    }
     endedAt = -Infinity;
-    reopen();
+    clearTimeout(awayTimer);
+    const tracks = stream?.getTracks() ?? [];
+    if (!stream || tracks.some((t) => t.readyState !== "live")) return restart();
+    play();
+    onReady?.();
+    if (tracks.some((t) => t.muted)) onMute();
   };
 
   hideVideo();
@@ -351,14 +414,12 @@ export function startScanner(
       cancelAnimationFrame(frame);
       video.pause();
       // A paused video presents no frames, so the settle wait would never end. The frame a read froze on is real.
-      if (stream) showVideo();
+      if (stream && !muteTimer) showVideo();
     },
     resume() {
       if (!running || stopped || !paused) return;
       paused = false;
-      // A rejected play() (interrupted by a fast pause/resume) is not a failure worth showing.
-      if (stream) video.play().catch(() => {});
-      loop();
+      play();
     },
   };
 }
