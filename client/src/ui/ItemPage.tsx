@@ -334,7 +334,7 @@ export function ItemPage({ store, id }: Props) {
             {it.parent_id && (
               <>
                 <dt>One of</dt>
-                <dd>
+                <dd className="one-of">
                   <button
                     className="link"
                     type="button"

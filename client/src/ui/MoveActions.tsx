@@ -170,8 +170,9 @@ export function MoveActions({ store, it, showEvent = false, mode = null, onMoved
           Return
         </button>
       )}
-      {(canTransfer || outDisagrees || inDisagrees || ((canTake || out) && !typing)) && (
-        <div className="row">
+      {/* Moves and the minor note toggles sit in rows of their own, so a row's buttons share one height. */}
+      {(canTransfer || outDisagrees || inDisagrees) && (
+        <div className="row moves">
           {canTransfer && (
             <button
               type="button"
@@ -196,16 +197,16 @@ export function MoveActions({ store, it, showEvent = false, mode = null, onMoved
               Check out
             </button>
           )}
-          {(canTake || out) && !typing && (
-            <>
-              <button type="button" className="minor" onClick={() => setNote("")}>
-                Add note
-              </button>
-              <button type="button" className="minor" onClick={() => setFault("")}>
-                Report a problem
-              </button>
-            </>
-          )}
+        </div>
+      )}
+      {(canTake || out) && !typing && (
+        <div className="row minors">
+          <button type="button" className="minor" onClick={() => setNote("")}>
+            Add note
+          </button>
+          <button type="button" className="minor" onClick={() => setFault("")}>
+            Report a problem
+          </button>
         </div>
       )}
       {children}

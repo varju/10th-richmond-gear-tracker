@@ -114,6 +114,11 @@ label {
   margin-bottom: 16px;
 }
 
+/* WebKit sizes a date field to its content and ignores width: 100% unless told it may shrink. */
+input[type="date"] {
+  min-width: 0;
+}
+
 label span {
   display: block;
   margin-bottom: 6px;
@@ -418,6 +423,11 @@ label.tight.search {
   grid-column: 1 / -1;
 }
 
+/* A grid item is never narrower than its content by default; a date field's is wider than half a phone. */
+.row > * {
+  min-width: 0;
+}
+
 button.small {
   width: auto;
   min-height: 44px;
@@ -609,6 +619,16 @@ button.link {
   margin: 0;
 }
 
+/* "Tent · #2 · Blue": the name is a link inside the line, as wide as its text, not a full-width button. */
+.facts .one-of button.link {
+  width: auto;
+  min-height: 44px;
+  /* Still a 44 px target, without making the line taller than its neighbours. */
+  margin: -10px 0;
+  font-size: inherit;
+  text-align: start;
+}
+
 .facts .prose {
   white-space: pre-wrap;
 }
@@ -771,6 +791,11 @@ main:has(> .viewfinder) {
 .move-actions {
   display: grid;
   gap: 12px;
+}
+
+/* A move alone in its row, such as Transfer to me, takes the full width. */
+.move-actions > .row > :only-child {
+  grid-column: 1 / -1;
 }
 
 .move-actions .notice,
