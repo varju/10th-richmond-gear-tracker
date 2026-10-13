@@ -5,6 +5,7 @@ import * as act from "../lib/actions";
 import { currentCode } from "../lib/inventory";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
+import { setVisibility } from "../lib/visibilityTestKit";
 import { openStore, printCodes } from "./codeTestKit";
 import { Scan } from "./Scan";
 
@@ -129,4 +130,21 @@ test("the card opening freezes the frame; closing it resumes without reopening t
   expect(screen.queryByRole("heading", { name: "Stove" })).not.toBeInTheDocument();
   expect(playSpy).toHaveBeenCalledTimes(1);
   expect(getUserMedia).toHaveBeenCalledTimes(1); // the camera is opened once, never restarted
+});
+
+test("a camera error clears when the camera works again on return to the app", async () => {
+  const stream = Object.assign(new MediaStream(), { getTracks: () => [] });
+  const getUserMedia = vi
+    .fn()
+    .mockRejectedValueOnce(new DOMException("x", "NotReadableError"))
+    .mockResolvedValue(stream);
+  Object.defineProperty(navigator, "mediaDevices", { value: { getUserMedia }, configurable: true });
+
+  navigate("/scan");
+  render(<Scan store={store} />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("in use");
+  setVisibility("hidden");
+  setVisibility("visible");
+  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  expect(document.querySelector("video")).not.toHaveAttribute("hidden");
 });

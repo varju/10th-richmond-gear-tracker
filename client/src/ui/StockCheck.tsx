@@ -153,6 +153,7 @@ function Walk({ store, check }: { store: Store; check: Check }) {
     const scanner = startScanner(video.current, (text) => void latest.current(text), {
       target: () => target.current,
       onError: setCameraError,
+      onReady: () => setCameraError(null),
     });
     return () => scanner.stop();
   }, [finishing]);

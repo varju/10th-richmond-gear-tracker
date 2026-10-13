@@ -140,7 +140,7 @@ export function Scan({ store }: { store: Store }) {
       (text) => {
         if (!cardOpen.current) void latest.current(text);
       },
-      { target: () => target.current, onError: setCameraError },
+      { target: () => target.current, onError: setCameraError, onReady: () => setCameraError(null) },
     );
     scanner.current = started;
     return () => {

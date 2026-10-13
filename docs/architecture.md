@@ -568,7 +568,8 @@ No browser on iOS implements the BarcodeDetector API, and the experimental flag 
 the decoder is WebAssembly, running frames pulled off a `getUserMedia` video stream.
 
 Keep the camera and the decode loop alive across scans rather than tearing them down per item, so the cost is paid once
-per session and not once per tent.
+per session and not once per tent. The one exception is leaving the app: iOS stops the capture, so the camera is
+released while the page is hidden and reopened when it comes back.
 
 Decode only the part of the frame around the target box, with half again its size as room. The video is shown with
 `object-fit: cover`, so a portrait screen cuts a wide band off each side of the landscape frame; decoding the whole
