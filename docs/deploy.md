@@ -80,9 +80,9 @@ written to files under `GEAR_DATA/logs/`, which the host carries off the machine
 | `error.log`           | Warnings and tracebacks, with the time and the module |
 | `failed-sign-ins.log` | A sign-in that did not open a session                 |
 
-`access.log` and `error.log` turn over at midnight, keeping 30 days as `access.log.2026-09-04` and so on — the same
-window the backups keep. A request that crashes writes both: the access line saying it was a 500, and the traceback in
-`error.log` under the method and path that caused it.
+All three turn over at midnight, keeping 30 days as `access.log.2026-09-04` and so on — the same window the backups
+keep. A request that crashes writes both: the access line saying it was a 500, and the traceback in `error.log` under
+the method and path that caused it.
 
 uvicorn's own startup and shutdown messages stay in `docker logs` only. If the container will not start, that is where
 to look.
@@ -104,9 +104,6 @@ awk '{print $2, $3}' "$GEAR_DATA/logs/failed-sign-ins.log" | sort | uniq -c | so
 
 One address working through many accounts, or many attempts on one account, is worth acting on: deactivate the account,
 or block the address at the proxy. Nothing in the app slows sign-in attempts down yet.
-
-This one rolls over on size, at about a megabyte, keeping one older copy as `failed-sign-ins.log.1`. Nothing slows
-sign-in attempts down, and a flood must not fill the disk the database is on.
 
 Times are the container's own clock, in the timezone `TZ` names. Without it, UTC.
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import os
 import re
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
@@ -15,7 +16,16 @@ from fastapi import Request
 from fastapi.testclient import TestClient
 
 from gear_tracker import accounts, derived, events, inventory_csv
-from gear_tracker.app import ACCESS_LOG, ERROR_LOG, HOUR_MS, access_logger, client_address, create_app, log_to_files
+from gear_tracker.app import (
+    ACCESS_LOG,
+    ERROR_LOG,
+    HOUR_MS,
+    FailedSignIns,
+    access_logger,
+    client_address,
+    create_app,
+    log_to_files,
+)
 from gear_tracker.db import open_db
 from gear_tracker.sync import Principal
 from tests.factories import T0, incoming
@@ -1371,19 +1381,26 @@ def test_the_client_address_is_the_one_the_rate_limits_use(real, failures):
     assert lines_in(failures)[0].split(" ")[1] == "203.0.113.9"
 
 
-def test_the_file_rolls_over_instead_of_growing_without_limit(real, failures, monkeypatch):
-    """Nothing slows sign-in attempts down, so an unbounded file is a way to fill the disk the
-    database is on. The older copy is kept: it holds the start of whatever is going on."""
-    monkeypatch.setattr("gear_tracker.app.FAILED_SIGN_INS_MAX_BYTES", 200)
-    attempt = {"email": "alex@example.org", "password": "wrong", "device_id": "phone-a"}
+def test_the_file_turns_over_at_midnight_and_keeps_a_month(db_path, failures):
+    """The same window as the other logs and the backups (NFR-DATA-05). A day-old file is moved
+    aside under its date when the next attempt arrives, and today's starts fresh."""
+    with open_db(db_path) as conn:
+        accounts.create_admin(conn, "Alex", "alex@example.org", "correct horse")
+    failures.parent.mkdir(parents=True, exist_ok=True)
+    failures.write_text("yesterday's line\n")
+    yesterday = datetime.now().timestamp() - 86_400
+    os.utime(failures, (yesterday, yesterday))
 
-    for _ in range(6):
-        real.post("/auth/sign-in", json=attempt)
+    TestClient(create_app(db_path)).post(
+        "/auth/sign-in", json={"email": "alex@example.org", "password": "wrong", "device_id": "phone-a"}
+    )
 
-    rolled = failures.with_name(f"{failures.name}.1")
-    assert rolled.exists(), "the full file was moved aside"
-    assert lines_in(failures), "a new one was started"
-    assert len(lines_in(rolled) + lines_in(failures)) == 6, "and no attempt was lost between them"
+    [rolled] = [p for p in failures.parent.iterdir() if p != failures]
+    assert rolled.name == f"{failures.name}.{datetime.fromtimestamp(yesterday):%Y-%m-%d}"
+    assert lines_in(rolled) == ["yesterday's line"]
+    assert len(lines_in(failures)) == 1
+    log = FailedSignIns(failures)
+    assert (log.when, log.backupCount) == ("MIDNIGHT", 30)
 
 
 def test_a_log_that_cannot_be_written_does_not_break_signing_in(real, db_path, failures):

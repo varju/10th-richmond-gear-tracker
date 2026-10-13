@@ -96,10 +96,6 @@ FAILED_SIGN_INS = "failed-sign-ins.log"
 KEEP_LOG_DAYS = 30
 """Days of rolled log files kept, the same window as the backups (NFR-DATA-05)."""
 
-FAILED_SIGN_INS_MAX_BYTES = 1_000_000
-"""About 15,000 lines. Nothing slows attempts down, so the file rolls over on size rather than by
-the day like the others: a flood must not fill the disk the database is on. One older copy is kept."""
-
 SECRET_QUERY_KEYS = frozenset({"token", "link"})
 """An invite or reset link lands on /join?token=... (FR-USR-12), a standing join link on
 ?link=... (FR-USR-19). Both are client routes this server answers, so the value reaches the log
@@ -152,23 +148,34 @@ def access_line(request: Request, status: int, started: float) -> None:
     )
 
 
-def record_failed_sign_in(path: Path, request: Request, email: str, reason: str) -> None:
+class FailedSignIns(TimedRotatingFileHandler):
+    """The failed sign-in file, turning over at midnight like the others (NFR-SEC-11).
+
+    One per app, not a process-wide logger like access.log: the server writes it whether or not
+    main() set up the other files. A flood grows access.log faster than this, since every refused
+    sign-in writes a longer line there too, so a size cap here would protect nothing.
+    """
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(path, when="midnight", backupCount=KEEP_LOG_DAYS, encoding="utf-8", delay=True)
+        self.setFormatter(logging.Formatter("%(message)s"))
+
+    def handleError(self, record: logging.LogRecord) -> None:  # noqa: N802 - the stdlib's name
+        # A refused sign-in still has to be refused: a full disk must not turn a 401 into a 500.
+        logging.getLogger(__name__).warning("could not write %s: %s", self.baseFilename, sys.exception())
+
+
+def record_failed_sign_in(log: FailedSignIns, request: Request, email: str, reason: str) -> None:
     """One line per sign-in that did not open a session (NFR-SEC-11).
 
     The access log already says a sign-in was refused. This says which address
     tried which account, which is what tells a forgotten password from someone
     working through a list.
     """
-    try:
-        if path.exists() and path.stat().st_size >= FAILED_SIGN_INS_MAX_BYTES:
-            # Rolled over, not truncated: the older copy holds the start of whatever is going on.
-            path.replace(path.with_name(f"{path.name}.1"))
-        at = datetime.now().astimezone().isoformat(timespec="seconds")
-        with path.open("a", encoding="utf-8") as file:
-            file.write(f"{at} {client_address(request)} {email} {reason}\n")
-    except OSError as exc:
-        # A refused sign-in still has to be refused: a full disk must not turn a 401 into a 500.
-        logging.getLogger(__name__).warning("could not write %s: %s", path, exc)
+    at = datetime.now().astimezone().isoformat(timespec="seconds")
+    log.handle(logging.makeLogRecord({"msg": f"{at} {client_address(request)} {email} {reason}"}))
+    # Closed after each line, so a test's many apps hold no files open. It opens again on the next.
+    log.close()
 
 
 def log_directory(db_path: str | Path) -> Path:
@@ -309,7 +316,7 @@ def create_app(
     app = GearApp(title="Gear Tracker", lifespan=lifespan)
     app.router.routes.append(assistant.route(mcp))
     photo_dir = Path(photos) if photos is not None else Path(db_path).parent / "photos"
-    failed_sign_ins = log_directory(db_path) / FAILED_SIGN_INS
+    failed_sign_ins = FailedSignIns(log_directory(db_path) / FAILED_SIGN_INS)
 
     # In memory, in this process. One uvicorn worker serves the group, so that is the whole picture.
     found_limits = {
