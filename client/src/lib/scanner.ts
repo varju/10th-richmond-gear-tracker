@@ -10,6 +10,7 @@
 import { prepareZXingModule, readBarcodes } from "zxing-wasm/reader";
 import wasmUrl from "zxing-wasm/reader/zxing_reader.wasm?url";
 import { NATIVE } from "./server";
+import { type Box, rectOf } from "./viewport";
 
 prepareZXingModule({
   overrides: {
@@ -23,13 +24,6 @@ export const REPEAT_MS = 1500;
 export const TARGET_ROOM = 1.5;
 
 export interface Size {
-  w: number;
-  h: number;
-}
-
-export interface Box {
-  x: number;
-  y: number;
   w: number;
   h: number;
 }
@@ -376,14 +370,6 @@ const REFUSED: Record<string, string> = {
 };
 
 type Bridge = NonNullable<Window["Capacitor"]>;
-
-/** Where `el` sits on screen: in the window, less how far the visual viewport is panned, as by the keyboard. */
-function rectOf(el: Element | null | undefined): Box | null {
-  if (!el) return null;
-  const r = el.getBoundingClientRect();
-  const pan = window.visualViewport;
-  return { x: r.left - (pan?.offsetLeft ?? 0), y: r.top - (pan?.offsetTop ?? 0), w: r.width, h: r.height };
-}
 
 /**
  * Start the camera and call `onCode` for each code seen. Call `stop()` before the screen goes away.
