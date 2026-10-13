@@ -19,11 +19,13 @@ import { addExtra, isPacked, type Remaining, remaining, type Reservation, reserv
 import { back, navigate, useRoute } from "../lib/router";
 import { confirmRead, READ_MS, type Scanner, startScanner, unlockSound } from "../lib/scanner";
 import type { Store } from "../lib/store";
+import { NATIVE } from "../lib/server";
 import { guard, useUnsaved } from "../lib/unsaved";
 import { useStore } from "../useStore";
 import { PoolActions } from "./ItemPage";
 import { statusLabel } from "./labels";
 import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
+import { useLight, WithLight } from "./Light";
 import { Page } from "./Page";
 
 const FLASH_MS = 2000;
@@ -42,7 +44,8 @@ export const RESCAN_MS = 3000;
  * since the camera is still on the sticker when the card closes. After that a
  * rescan shows it again, so a wrong check-out is undone by scanning it back in.
  */
-export function Scan({ store }: { store: Store }) {
+/** `native`: the iPhone app's scanner, where there is one (lib/scanner.ts). */
+export function Scan({ store, native = NATIVE }: { store: Store; native?: boolean }) {
   useStore(store);
   const route = useRoute();
   const query = route.query;
@@ -50,7 +53,8 @@ export function Scan({ store }: { store: Store }) {
   const modeParam = query.get("mode");
   const mode = modeParam === "out" || modeParam === "in" ? modeParam : null;
   const booked = reservation(store.state, query.get("reservation") ?? "");
-  const video = useRef<HTMLVideoElement>(null);
+  // State, not a ref: the menu replaces the viewfinder, and closing it brings a new video that needs a new scanner.
+  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const target = useRef<HTMLDivElement>(null);
   const [flash, say] = useFlash(FLASH_MS);
   const [confirmed, confirm] = useFlash(CONFIRM_MS);
@@ -58,6 +62,7 @@ export function Scan({ store }: { store: Store }) {
   // the phone cannot buzz (iOS).
   const [read, flashRead] = useFlash(READ_MS);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const { light, ready, gone, toggle } = useLight();
   const [typing, setTyping] = useState(false);
   const [typed, setTyped] = useState("");
   const [cardItem, setCardItem] = useState<string | null>(null);
@@ -134,20 +139,31 @@ export function Scan({ store }: { store: Store }) {
   }, []);
 
   useEffect(() => {
-    if (!video.current) return;
+    if (!video) return;
     const started = startScanner(
-      video.current,
+      video,
       (text) => {
         if (!cardOpen.current) void latest.current(text);
       },
-      { target: () => target.current, onError: setCameraError, onReady: () => setCameraError(null) },
+      {
+        target: () => target.current,
+        onError: setCameraError,
+        onReady: ({ torch }) => {
+          setCameraError(null);
+          ready(started, torch);
+        },
+      },
+      undefined,
+      native,
     );
     scanner.current = started;
+    if (cardOpen.current) started.pause();
     return () => {
       scanner.current = null;
+      gone();
       started.stop();
     };
-  }, []);
+  }, [video, native, ready, gone]);
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -168,28 +184,29 @@ export function Scan({ store }: { store: Store }) {
         card ? undefined : (
           <>
             {booked && <Finish store={store} booked={booked} />}
-            {typing && (
-              <form onSubmit={submit} className="scan-typed">
-                <input
-                  aria-label="Code or URL"
-                  placeholder="Code or URL"
-                  autoFocus
-                  autoCapitalize="characters"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  value={typed}
-                  onChange={(e) => setTyped(e.target.value)}
-                />
-                <button type="submit" className="primary">
-                  Go
+            <WithLight light={light} onToggle={toggle}>
+              {typing ? (
+                <form onSubmit={submit} className="scan-typed">
+                  <input
+                    aria-label="Code or URL"
+                    placeholder="Code or URL"
+                    autoFocus
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    value={typed}
+                    onChange={(e) => setTyped(e.target.value)}
+                  />
+                  <button type="submit" className="primary">
+                    Go
+                  </button>
+                </form>
+              ) : (
+                <button type="button" onClick={() => setTyping(true)}>
+                  Type a code instead
                 </button>
-              </form>
-            )}
-            {!typing && (
-              <button type="button" onClick={() => setTyping(true)}>
-                Type a code instead
-              </button>
-            )}
+              )}
+            </WithLight>
           </>
         )
       }
@@ -218,7 +235,7 @@ export function Scan({ store }: { store: Store }) {
           which changes the crop math mid-session and can lose a sticker the camera has not moved off (FR-OUT-12). */}
       {!forItem && (mode === "in" ? <div className="session" /> : <SessionEvent store={store} booked={booked} />)}
       <div className={read ? `viewfinder ${read}` : "viewfinder"}>
-        <video ref={video} muted playsInline hidden={cameraError !== null} />
+        <video ref={setVideo} muted playsInline hidden={cameraError !== null} />
         {!cameraError && (!card || read) && <div ref={target} className="target" aria-hidden="true" />}
         {cameraError ? (
           <p className="scan-error" role="alert">

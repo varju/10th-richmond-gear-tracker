@@ -340,8 +340,8 @@ A Could (NFR-DEP-11). A prototype is built in `ios/`; it has not shipped.
 - Links that open the app. Join links and sticker URLs can open it directly. A home-screen web app on iOS cannot do
   this; links always open Safari.
 
-Print and password AutoFill are not gains: Safari already has them, and the wrapper only matches it. The scanner is the
-same WebAssembly one, and background sync is still not on offer.
+Print and password AutoFill are not gains: Safari already has them, and the wrapper only matches it. The scanner is
+native ([Native scanner](#native-scanner)), and background sync is still not on offer.
 
 **What it is.** Capacitor around the built client, the bundle shipped inside the app and served from a local scheme, so
 the shell is on disk and offline needs no service worker. The same code talks to the same server. No feature lives only
@@ -604,22 +604,31 @@ person handling a tent, and no bench test reaches that.
 
 ### Native scanner
 
-Not built. The iPhone app ([Store wrapper](#store-wrapper)) scans with the same WebAssembly decoder as the web.
+The iPhone app ([Store wrapper](#store-wrapper)) scans natively, with AVFoundation. Browsers keep the WebAssembly
+scanner, and the app falls back to it if the plugin is missing or the native camera fails to start.
 
-**Gate.** Build it only if one of these happens:
+**Gate.** It was to be built only if one of these happened:
 
 - The app misses the 2 s bar on a real iPhone (M11).
 - The unlit-locker test fails, and a torch would fix it. The web camera API on iOS gives no reliable torch control.
 - App Review rejects the app under guideline 4.2, and a native feature would answer it.
+- What happened: the web view's camera on iOS. It showed a narrow, letterboxed picture for a moment on opening, and a
+  black or lost picture after leaving the app and coming back. Fixes on the web side did not hold.
 
-**What it is.** A plugin in the app, beside the print and link plugins, that scans with AVFoundation's metadata output.
-That runs on every phone the app supports. VisionKit's data scanner also fits the app's floor of iOS 16.4; try both and
-keep the faster. The plugin shows the camera with the target box, keeps the session alive across scans, limits detection
-to the box (`rectOfInterest`), offers the torch, and hands each code to the page. The page treats it as a typed code,
-through `parseCode`, so what happens after a scan does not change.
+**What it is.** `ScannerPlugin.swift`, beside the print and link plugins. A capture session on the back camera with a
+metadata output for QR, its detection limited to the target box with the same room as the web (`rectOfInterest`). The
+session stays up across scans; a pause freezes the picture, stops codes and puts the torch out. It restarts itself after
+the app is left or the session is interrupted, and retries once after an error. A page reload resets it. It offers the
+torch. It drops repeats of a code inside the same window as the web, and the page takes each code exactly as a web
+decode, so what happens after a scan does not change.
 
-**What stays the same.** The web keeps its scanner, so no feature lives only in the app. The app falls back to the web
-scanner if the plugin is missing or the camera fails.
+The picture sits behind the whole web view, at the viewfinder's place, on a navy backdrop that fills the screen. (Inside
+the web view's scroll view it did not show at all.) The page checks the viewfinder's and target's place on screen each
+frame, and sends it when it changes, as on a scroll or a keyboard pan. While scanning, the web view and the page are
+see-through, so the target box, hints and item card stay HTML, on top. A screen whose viewfinder goes away, as under the
+menu, stops the scanner and starts a new one when it comes back.
+
+Later, perhaps: VisionKit's data scanner also fits the app's floor of iOS 16.4; try it and keep the faster.
 
 **What it costs.** Two scanners to keep working, and more Swift for whoever inherits the code. Measure it against the M0
 table before keeping it.

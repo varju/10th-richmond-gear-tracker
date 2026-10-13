@@ -240,6 +240,28 @@ main:has(> .viewfinder) {
   object-fit: cover;
 }
 
+/* The iPhone app draws its camera behind the page (lib/scanner.ts), so the page goes see-through to show it. */
+html.native-scan body,
+html.native-scan .viewfinder {
+  background: transparent;
+}
+
+html.native-scan .viewfinder video {
+  display: none;
+}
+
+/* The light, where the app has one: in the actions, so it never covers the target. */
+.with-light {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+}
+
+.with-light > button:last-child {
+  width: auto;
+  padding: 0 20px;
+}
+
 /* Where to hold the code. CSS only, so it costs nothing and never blocks a tap. */
 .target {
   position: absolute;

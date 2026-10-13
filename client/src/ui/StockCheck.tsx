@@ -13,6 +13,7 @@ import {
 } from "../lib/inventory";
 import { navigate } from "../lib/router";
 import { confirmRead, READ_MS, startScanner, unlockSound } from "../lib/scanner";
+import { NATIVE } from "../lib/server";
 import {
   atHome,
   misplaced,
@@ -25,6 +26,7 @@ import {
 import type { Store } from "../lib/store";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
+import { useLight, WithLight } from "./Light";
 import { useFlash } from "./MoveActions";
 import { Page } from "./Page";
 
@@ -36,11 +38,12 @@ const FLASH_MS = 2000;
  * the walk goes, and again at the end. The session is a device setting, so a
  * closed app comes back to the same shelf.
  */
-export function StockCheck({ store }: { store: Store }) {
+/** `native`: the iPhone app's scanner, where there is one (lib/scanner.ts). */
+export function StockCheck({ store, native = NATIVE }: { store: Store; native?: boolean }) {
   useStore(store);
   const check = store.meta.stock_check;
   if (!check) return <Start store={store} />;
-  return <Walk store={store} check={check} />;
+  return <Walk store={store} check={check} native={native} />;
 }
 
 function Start({ store }: { store: Store }) {
@@ -102,10 +105,12 @@ function Start({ store }: { store: Store }) {
   );
 }
 
-function Walk({ store, check }: { store: Store; check: Check }) {
+function Walk({ store, check, native }: { store: Store; check: Check; native: boolean }) {
   const state = store.state;
-  const video = useRef<HTMLVideoElement>(null);
+  // State, not a ref: the menu replaces the viewfinder, and closing it brings a new video that needs a new scanner.
+  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const target = useRef<HTMLDivElement>(null);
+  const { light, ready, gone, toggle } = useLight();
   const [flash, say] = useFlash(FLASH_MS);
   const [read, flashRead] = useFlash(READ_MS);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -149,14 +154,26 @@ function Walk({ store, check }: { store: Store; check: Check }) {
   }, []);
 
   useEffect(() => {
-    if (!video.current || finishing) return;
-    const scanner = startScanner(video.current, (text) => void latest.current(text), {
-      target: () => target.current,
-      onError: setCameraError,
-      onReady: () => setCameraError(null),
-    });
-    return () => scanner.stop();
-  }, [finishing]);
+    if (!video || finishing) return;
+    const scanner = startScanner(
+      video,
+      (text) => void latest.current(text),
+      {
+        target: () => target.current,
+        onError: setCameraError,
+        onReady: ({ torch }) => {
+          setCameraError(null);
+          ready(scanner, torch);
+        },
+      },
+      undefined,
+      native,
+    );
+    return () => {
+      gone();
+      scanner.stop();
+    };
+  }, [video, finishing, native, ready, gone]);
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -204,27 +221,29 @@ function Walk({ store, check }: { store: Store; check: Check }) {
       back="/"
       actions={
         <>
-          {typing ? (
-            <form onSubmit={submit} className="scan-typed">
-              <input
-                aria-label="Code or URL"
-                placeholder="Code or URL"
-                autoFocus
-                autoCapitalize="characters"
-                autoCorrect="off"
-                spellCheck={false}
-                value={typed}
-                onChange={(e) => setTyped(e.target.value)}
-              />
-              <button type="submit" className="primary">
-                Go
+          <WithLight light={light} onToggle={toggle}>
+            {typing ? (
+              <form onSubmit={submit} className="scan-typed">
+                <input
+                  aria-label="Code or URL"
+                  placeholder="Code or URL"
+                  autoFocus
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  value={typed}
+                  onChange={(e) => setTyped(e.target.value)}
+                />
+                <button type="submit" className="primary">
+                  Go
+                </button>
+              </form>
+            ) : (
+              <button type="button" onClick={() => setTyping(true)}>
+                Type a code instead
               </button>
-            </form>
-          ) : (
-            <button type="button" onClick={() => setTyping(true)}>
-              Type a code instead
-            </button>
-          )}
+            )}
+          </WithLight>
           <button type="button" onClick={() => setFinishing(true)}>
             Finish
           </button>
@@ -235,7 +254,7 @@ function Walk({ store, check }: { store: Store; check: Check }) {
         {where} · {here.length} in place
       </p>
       <div className={read ? "viewfinder read" : "viewfinder"}>
-        <video ref={video} muted playsInline hidden={cameraError !== null} />
+        <video ref={setVideo} muted playsInline hidden={cameraError !== null} />
         {!cameraError && <div ref={target} className="target" aria-hidden="true" />}
         {cameraError ? (
           <p className="scan-error" role="alert">

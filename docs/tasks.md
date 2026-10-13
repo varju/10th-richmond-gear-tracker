@@ -41,7 +41,6 @@ Public pages come before the labelling walk, not after it. From the moment stick
 
 - [ ] Set up signing in Xcode
 - [ ] Ship a TestFlight build and try it on a real iPhone
-- [ ] Time the scanner in the app against the M0 bar of 2 s; if it misses, see
-      [Native scanner](architecture.md#native-scanner)
+- [ ] Time the [native scanner](architecture.md#native-scanner) in the app against the M0 table and its 2 s bar
 - [ ] Submit for App Review, with a note asking for unlisted distribution
 - [ ] Send the unlisted distribution request form

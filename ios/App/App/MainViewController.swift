@@ -1,11 +1,13 @@
 import Capacitor
 import UIKit
 
-/// The web view, plus what WKWebView will not do on its own: `window.print()`, and links that open the app.
+/// The web view, plus what WKWebView will not do on its own: `window.print()`, links that open the app, and a
+/// camera that survives leaving the app (ScannerPlugin.swift).
 class MainViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(PrintPlugin())
         bridge?.registerPluginInstance(LinkPlugin())
+        bridge?.registerPluginInstance(ScannerPlugin())
     }
 }
 

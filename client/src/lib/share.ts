@@ -4,10 +4,14 @@
  */
 import { NATIVE } from "./server";
 
-/** The bridge Capacitor injects into the app's page. Its print call is ios/App/App/MainViewController.swift. */
+/** The bridge Capacitor injects into the app's page. Its plugins are in ios/App/App. */
 declare global {
   interface Window {
-    Capacitor?: { nativePromise(plugin: string, method: string, options: object): Promise<unknown> };
+    Capacitor?: {
+      nativePromise(plugin: string, method: string, options: object): Promise<unknown>;
+      addListener?(plugin: string, event: string, callback: (data: unknown) => void): { remove(): Promise<void> };
+      isPluginAvailable?(plugin: string): boolean;
+    };
   }
 }
 
