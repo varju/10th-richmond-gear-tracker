@@ -7,7 +7,7 @@ async function signIn(page: Page) {
   await page.getByLabel("Email").fill("alice@example.org");
   await page.getByLabel("Password").fill("correct horse");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("button", { name: "Check out" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Scan" })).toBeVisible();
 }
 
 test("installs its shell, then starts offline within budget", async ({ page, context }) => {
@@ -24,7 +24,7 @@ test("installs its shell, then starts offline within budget", async ({ page, con
   await context.setOffline(true);
   const started = Date.now();
   await page.reload();
-  await expect(page.getByRole("button", { name: "Check out" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Scan" })).toBeVisible();
   expect(Date.now() - started).toBeLessThan(3_000);
   await page.getByRole("button", { name: "Menu" }).click();
   await page.getByRole("button", { name: "Settings" }).click();
@@ -107,7 +107,7 @@ test("an item can be checked out and in from its page", async ({ page }) => {
   await signIn(page);
   await page.goto("/");
   // Home holds nothing but the alerts until it is asked something.
-  await expect(page.getByText("Check out or return gear by scanning its code.")).toBeVisible();
+  await expect(page.getByText("Scan a code to check gear out, return it, or look it up.")).toBeVisible();
   await expect(page.getByRole("listitem")).toHaveCount(0);
 
   // The list is behind the menu.
@@ -122,6 +122,8 @@ test("an item can be checked out and in from its page", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Tent 1" })).toBeVisible();
 
   await page.getByRole("button", { name: "Check out" }).click();
+  // No session is running, so the page asks the event first, as a scan does (FR-OUT-05).
+  await page.getByRole("region", { name: "Which event" }).getByRole("button", { name: "No event" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Checked out · Tent 1" })).toBeVisible();
   await expect(page.getByText(/^Out · Alice$/)).toBeVisible();
   await page.getByRole("button", { name: "Return" }).click();

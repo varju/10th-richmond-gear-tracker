@@ -55,7 +55,7 @@ test("lists reservations under way or starting within seven days, ordered by sta
   expect(screen.queryByText("Called Off")).not.toBeInTheDocument();
 
   await userEvent.setup().click(within(ready).getByRole("button", { name: /Fall Camp/ }));
-  expect(location.pathname + location.search).toBe(`/scan?mode=out&reservation=${underWay}`);
+  expect(location.pathname + location.search).toBe(`/scan?reservation=${underWay}`);
 });
 
 test("nothing is shown when there is nothing to pack soon", async () => {
@@ -68,6 +68,8 @@ test("today is still visible unhindered when nothing is coming up", async () => 
   mount();
   expect(screen.queryByRole("region", { name: "Ready to pack" })).not.toBeInTheDocument();
   expect(
-    screen.getByText("Check out or return gear by scanning its code. Search by name for gear with no sticker."),
+    screen.getByText(
+      "Scan a code to check gear out, return it, or look it up. Search by name for gear with no sticker.",
+    ),
   ).toBeInTheDocument();
 });

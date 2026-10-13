@@ -4,18 +4,26 @@ import * as act from "./actions";
 import { openDb } from "./db";
 import { item } from "./inventory";
 import * as mv from "./movement";
+import { eventAsked, SESSION_MS, sessionEvent, setSessionEvent } from "./session";
 import { Store } from "./store";
 
 let store: Store;
+let factory: IDBFactory;
 let clock = 1_000;
 let tent: string;
 
 beforeEach(async () => {
   clock = 1_000;
-  store = await Store.open(await openDb("test", new IDBFactory()), () => clock++);
+  factory = new IDBFactory();
+  store = await Store.open(await openDb("test", factory), () => clock++);
   await store.setMeta({ user: { id: "alice", name: "Alice", role: "user", active: true } });
   tent = await act.createItem(store, { name: "Tent" });
 });
+
+/** The session clock as stored, read afresh as a new tab would. */
+async function storedSessionAt() {
+  return (await Store.open(await openDb("test", factory), () => clock)).meta.session_event_at;
+}
 
 test("check out, then in, with the session event and a note on each", async () => {
   const out = await mv.checkOut(store, tent, { event: "Spring camp", note: "to a patrol" });
@@ -49,6 +57,15 @@ test("a transfer names the check-out it replaces", async () => {
   expect(taken.payload).toMatchObject({ holder_id: "carol", supersedes: first.id });
   expect(item(store.state, tent)?.holder_id).toBe("carol");
   expect(item(store.state, tent)?.conflicts).toBeUndefined();
+});
+
+test("a transfer can name another member; the actor stays whoever tapped (FR-OUT-26)", async () => {
+  const first = await mv.checkOut(store, tent);
+  const handed = await mv.transfer(store, tent, { to: "carol" });
+  expect(handed.actor_id).toBe("alice");
+  expect(handed.payload).toMatchObject({ holder_id: "carol", supersedes: first.id });
+  expect(item(store.state, tent)?.holder_id).toBe("carol");
+  await expect(mv.transfer(store, tent, { to: "carol" })).rejects.toThrow("already have it");
 });
 
 test("a transfer carries the reservation it packs, like a check-out (FR-RES-22)", async () => {
@@ -184,4 +201,62 @@ test("history carries a pool's counts, checked-out, checked-in and recounted lin
     ["checked_in", 2, null],
     ["checked_out", 6, null],
   ]);
+});
+
+test("a move in a running session keeps it going, in the same write; an ended one stays ended (FR-OUT-38)", async () => {
+  await store.setMeta({ session_event: "Spring camp", session_event_at: clock });
+  const out = await mv.checkOut(store, tent, { event: "Spring camp" });
+  expect(store.meta.session_event_at).toBe(out.occurred_at);
+  expect(await storedSessionAt()).toBe(out.occurred_at);
+
+  const back = await mv.checkIn(store, tent);
+  expect(await storedSessionAt()).toBe(back.occurred_at);
+
+  const ended = clock - SESSION_MS;
+  await store.setMeta({ session_event_at: ended });
+  await mv.checkOut(store, tent, { event: "Spring camp" });
+  expect(store.meta.session_event_at).toBe(ended);
+});
+
+test("packing and a recount leave the plain session's clock alone (FR-OUT-38, FR-RES-25)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  await store.setMeta({ session_event: "Spring camp", session_event_at: clock });
+  const at = store.meta.session_event_at;
+  await mv.checkOut(store, tent, { event: "Fall camp", reservation_id: "r1", packing: true });
+  await mv.checkIn(store, tent, { packing: true });
+  await mv.checkOutPool(store, bowls, { count: 2, event: "Fall camp", reservation_id: "r1", packing: true });
+  await mv.recount(store, bowls, 15, "counted on the shelf");
+  expect(store.meta.session_event_at).toBe(at);
+  expect(await storedSessionAt()).toBe(at);
+});
+
+test("the session is judged from what is stored, not this tab's copy (FR-OUT-38)", async () => {
+  await store.setMeta({ session_event: "Spring camp", session_event_at: clock });
+  const other = await Store.open(await openDb("test", factory), () => clock);
+
+  // Ended in another tab: it stays ended, and this tab learns so.
+  const ended = clock - SESSION_MS;
+  await other.setMeta({ session_event_at: ended });
+  await mv.checkOut(store, tent, { event: "Spring camp" });
+  expect(await storedSessionAt()).toBe(ended);
+  expect(store.meta.session_event_at).toBe(ended);
+
+  // Changed in another tab: a move stamped with the old event does not keep the new one going.
+  await other.setMeta({ session_event: "Fall camp", session_event_at: clock });
+  const changed = other.meta.session_event_at;
+  await mv.transfer(store, tent, { to: "bob", event: "Spring camp" });
+  expect(await storedSessionAt()).toBe(changed);
+  expect(store.meta).toMatchObject({ session_event: "Fall camp", session_event_at: changed });
+});
+
+test("a packing link left by an older build is not a plain session: a move does not keep it going (FR-RES-25)", async () => {
+  await store.setMeta({ session_event: "Fall camp", session_event_at: clock, session_reservation_id: "r1" });
+  const at = store.meta.session_event_at!;
+  expect(eventAsked(store.meta, at + 1)).toBe(false);
+  expect(sessionEvent(store.meta, at + 1)).toEqual({});
+  await mv.checkOut(store, tent, { event: "Fall camp" });
+  expect(await storedSessionAt()).toBe(at);
+  await setSessionEvent(store, "Spring camp");
+  expect(store.meta.session_reservation_id).toBeUndefined();
+  expect(sessionEvent(store.meta, store.now())).toEqual({ event: "Spring camp" });
 });

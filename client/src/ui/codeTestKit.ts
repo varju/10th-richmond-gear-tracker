@@ -6,9 +6,10 @@ import { Store } from "../lib/store";
 
 const T0 = 1_756_684_800_000;
 
-export async function openStore(): Promise<Store> {
+/** `ahead` moves the store's clock on, for tests of how long something lasts (e.g. a scanning session). */
+export async function openStore(ahead: () => number = () => 0): Promise<Store> {
   let clock = T0;
-  const store = await Store.open(await openDb("codes", new IDBFactory()), () => clock++);
+  const store = await Store.open(await openDb("codes", new IDBFactory()), () => clock++ + ahead());
   await store.setMeta({ token: "t", user: { id: "alice", name: "Alice", role: "admin", active: true } });
   return store;
 }

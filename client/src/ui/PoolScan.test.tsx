@@ -38,40 +38,35 @@ async function typeCode(text: string) {
 
 const card = () => screen.getByRole("region", { name: "Bowls" });
 
-test("scanning a pool's code in Check out mode opens straight to the count field (FR-OUT-25)", async () => {
-  navigate("/scan?mode=out");
+test("scanning a pool's code offers Check out, Return, and Recount, like its own page (FR-OUT-25)", async () => {
+  await mv.checkOutPool(store, bowls, { count: 4 });
   renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");
   await waitFor(() => expect(card()).toBeInTheDocument());
-  const count = within(card()).getByLabelText("How many");
+  expect(within(card()).getByRole("button", { name: "Check out" })).toBeInTheDocument();
+  expect(within(card()).getByRole("button", { name: "Recount" })).toBeInTheDocument();
+
+  await user.click(within(card()).getByRole("button", { name: "Return" }));
+  expect(within(card()).getByLabelText("How many")).toHaveValue(4);
+  await user.click(within(card()).getByRole("button", { name: "Return" }));
+  await waitFor(() => expect(item(store.state, bowls)?.pool_out).toEqual({}));
+});
+
+test("a pool's first check-out of a session asks the event, then opens the count field at 1 (FR-OUT-05, FR-OUT-25)", async () => {
+  renderInShell(<Scan store={store} />);
+  await typeCode("AAAAAAAAAA");
+  await waitFor(() => expect(card()).toBeInTheDocument());
+  await user.click(within(card()).getByRole("button", { name: "Check out" }));
+  await user.click(
+    within(screen.getByRole("region", { name: "Which event" })).getByRole("button", { name: "No event" }),
+  );
+  const count = await within(card()).findByLabelText("How many");
   expect(count).toHaveValue(1);
   await user.clear(count);
   await user.type(count, "6");
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
   await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
   expect(item(store.state, bowls)?.pool_out).toEqual({ alice: 6 });
-});
-
-test("scanning a pool's code in Return mode opens straight to the count field, prefilled with what is out (FR-OUT-25)", async () => {
-  await mv.checkOutPool(store, bowls, { count: 4 });
-  navigate("/scan?mode=in");
-  renderInShell(<Scan store={store} />);
-  await typeCode("AAAAAAAAAA");
-  await waitFor(() => expect(card()).toBeInTheDocument());
-  expect(within(card()).getByLabelText("How many")).toHaveValue(4);
-  await user.click(within(card()).getByRole("button", { name: "Return" }));
-  await waitFor(() => expect(item(store.state, bowls)?.pool_out).toEqual({}));
-});
-
-test("scanning a pool's code with no mode offers Check out, Return, and Recount, like its own page (FR-INV-34)", async () => {
-  await mv.checkOutPool(store, bowls, { count: 4 });
-  navigate("/scan");
-  renderInShell(<Scan store={store} />);
-  await typeCode("AAAAAAAAAA");
-  await waitFor(() => expect(card()).toBeInTheDocument());
-  expect(within(card()).getByRole("button", { name: "Check out" })).toBeInTheDocument();
-  expect(within(card()).getByRole("button", { name: "Return" })).toBeInTheDocument();
-  expect(within(card()).getByRole("button", { name: "Recount" })).toBeInTheDocument();
 });
 
 async function packing(generics: { item_id: string; quantity: number }[]) {
@@ -83,10 +78,12 @@ async function packing(generics: { item_id: string; quantity: number }[]) {
     generics,
   });
   navigate(`/reservations/${fall}`);
-  navigate(`/scan?mode=out&reservation=${fall}`);
+  navigate(`/scan?reservation=${fall}`);
   renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");
   await waitFor(() => expect(card()).toBeInTheDocument());
+  // A reservation's session has its event already (FR-RES-03): no question.
+  await user.click(within(card()).getByRole("button", { name: "Check out" }));
   const count = within(card()).getByLabelText("How many");
   await user.clear(count);
   await user.type(count, "6");

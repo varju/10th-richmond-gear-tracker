@@ -7,7 +7,7 @@ import * as mv from "../lib/movement";
 import type { Store } from "../lib/store";
 import { openStore } from "./codeTestKit";
 import { MoveActions } from "./MoveActions";
-import { alice, renderInShell, seedUsers } from "./moveTestKit";
+import { alice, renderInShell, seedUsers, inSession } from "./moveTestKit";
 
 // The move buttons, and the note or fault that can ride on a move (FR-OUT-13, FR-REP-01).
 let store: Store;
@@ -17,6 +17,8 @@ beforeEach(async () => {
   store = await openStore();
   await seedUsers(store, [alice]);
   tent = await act.createItem(store, { name: "Tent 1" });
+  // A session is running, so a check-out does not stop to ask the event (FR-OUT-05).
+  await inSession(store);
 });
 
 const user = userEvent.setup();
@@ -29,7 +31,7 @@ test("a move that succeeds still calls onMoved when its fault is raised fine", a
   await user.type(screen.getByLabelText("Problem"), "zipper broken");
   await user.click(screen.getByRole("button", { name: "Check out" }));
 
-  await waitFor(() => expect(onMoved).toHaveBeenCalledWith("Checked out"));
+  await waitFor(() => expect(onMoved).toHaveBeenCalledWith("Checked out", undefined));
   expect(item(store.state, tent)?.status).toBe("out");
   expect(store.pending.at(-1)).toMatchObject({ entity_type: "repair", payload: { description: "zipper broken" } });
   // There is no way to make raiseTicket fail here without mocking it (it only refuses a

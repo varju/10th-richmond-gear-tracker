@@ -16,6 +16,14 @@ export function matchingEvents(events: CalendarEvent[] | undefined, query: strin
     .slice(0, limit);
 }
 
+/** Events running on `day` ("2026-05-01"), soonest first: what a scanning session offers before anything is typed. */
+export function eventsOn(events: CalendarEvent[] | undefined, day: string, limit = 6): CalendarEvent[] {
+  return (events ?? [])
+    .filter((e) => e.starts <= day && day <= e.ends)
+    .sort((a, b) => a.starts.localeCompare(b.starts))
+    .slice(0, limit);
+}
+
 /** "2026-05-01" for a single day, "2026-05-01 – 2026-05-03" for a range. */
 export function eventDates(e: Pick<CalendarEvent, "starts" | "ends">): string {
   return e.starts === e.ends ? e.starts : `${e.starts} – ${e.ends}`;

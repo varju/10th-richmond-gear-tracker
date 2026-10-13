@@ -252,9 +252,9 @@ back arrow calls the browser's own back, and falls back to a named path only whe
 from a sticker's URL. The lists hold their search, filters and sort in the query string and replace the entry as they
 change, so a step back restores the view someone left and typing does not fill the back button with keystrokes.
 
-The phone's home screen holds only what someone at a locker came to do: check out, return, search, and add an item, with
-alerts above them and every other screen in a "More" fold. The two buttons open the scanner in a mode, and a scan that
-disagrees with the mode warns instead of flipping (FR-OUT-06). The full list lives at `/items` instead, because 500 rows
+The phone's home screen holds only what someone at a locker came to do: scan, search, and add an item, with alerts above
+them and every other screen in a "More" fold. Scan has no mode: the card picks the move from the item's state, and
+offers no default when someone else holds it (FR-OUT-06). The full list lives at `/items` instead, because 500 rows
 pushed Scan off the screen and the list is the least of what a locker visit needs (NFR-USE-01, NFR-USE-03).
 
 The Python server serves the built client, so one process is the whole deployment. In development Vite serves the client
@@ -435,8 +435,8 @@ different item later. The server refuses to release a code that is not on anythi
 A pool (FR-INV-34) may carry a code too, on the container that holds the stack rather than on a labelled unit
 (FR-TAG-15): the same `code_bound` event, targeting the pool's own item id. The guard that refuses a code on a generic
 checks for units, not for `generic` alone, so a pool clears it while a plain generic still cannot take one (FR-INV-21).
-Scanning a pool's code during a check-out or return session opens a count field instead of the one-tap card, since a
-pool moves by count, not by holder (FR-OUT-25).
+Scanning a pool's code offers a count field instead of the one-tap card, since a pool moves by count, not by holder
+(FR-OUT-25).
 
 Scanning lands on `/g/<code>`, the same path a sticker's URL has, so a camera app and the in-app scanner take one route.
 Assigned or replaced: open the item. Unassigned: create or bind. Unknown: say so, and suggest a sync, because a freshly
@@ -467,19 +467,29 @@ is an ordinary edit, so anyone signed in may do it; merging stays with an Admin,
 ## Movement
 
 A check-out is `checked_out` with the holder, the session's event name, and nothing else; a check-in is `checked_in`.
-The holder is whoever is signed in. Gear handed to someone without an account is covered by a note (FR-OUT-15), not a
+The holder is whoever is signed in, except on a transfer to another member (FR-OUT-26), where it names them and the
+actor is still the person who tapped. Gear handed to someone without an account is covered by a note (FR-OUT-15), not a
 holder field that would need its own list of people.
 
-The session event (FR-OUT-05) is a device setting in `meta`, stamped onto each check-out as it is recorded. It is not a
-record, so two phones at one camp each type the name once and nothing is shared or reconciled. Packing a reservation
-seeds a second device setting alongside the event: the reservation's id, stamped onto each check-out the same way
-(FR-RES-13). Changing the event by hand clears it, since the two are meant to travel together; the event alone is not
+The session event (FR-OUT-05) is a device setting in `meta`, for plain scanning. Any check-out or transfer, on the scan
+card or the item page, asks for it when no session is running, offering the last one used. `session_event_at` records
+when it was last set or answered. A move moves it on in the same write, if the `meta` read in that transaction says the
+session still runs: for a check-out or transfer, under the event the move stamped; a return, which stamps no event,
+moves on whatever session runs. Packing moves and a recount do not. A session ends four hours after that (FR-OUT-38).
+The check is made when the move is made, not when the screen drew, so an event that ended since asks again rather than
+recording nothing. It is not a record, so two phones at one camp each type the name once and nothing is shared or
+reconciled.
+
+Packing a reservation neither uses nor moves on the device's session (FR-RES-25). A check-out or Take over on its scan
+screen, card or list row, takes the event and `reservation_id` from the reservation itself (FR-RES-03), so a long
+evening of packing never lapses (FR-RES-24) and a plain scan afterwards never counts toward it. A return records
+neither, and a transfer to someone else records no `reservation_id` and adds nothing (FR-RES-23). The event alone is not
 enough to say which reservation a check-out packs, because an event name is free text and can repeat.
 
 Taking gear that is already out is a `checked_out` whose payload names the check-out it `supersedes` (FR-OUT-12). That
 is how replay tells a transfer from a conflict: the conflict rule (FR-OFF-10) fires on two check-outs from different
 devices with no check-in between, unless the later one says it saw the earlier. Someone who scanned an out item and
-tapped "Transfer" saw it; two phones offline in two lockers did not.
+tapped Take over or Transfer to… saw it; two phones offline in two lockers did not.
 
 Replay records a conflict on the item and never clears it; the log is not the place for a verdict. A conflict is open
 while its later check-out is still the item's current movement and nobody has reviewed it. A check-in or a transfer

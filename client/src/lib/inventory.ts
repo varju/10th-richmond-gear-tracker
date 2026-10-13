@@ -157,6 +157,12 @@ export const categoryName = (state: State, id: string | null | undefined): strin
 /** Users arrive in the snapshot as entities; a holder or an actor is one of them. */
 export const userName = (state: State, id: string | null | undefined): string =>
   id ? (state.user?.[id]?.name as string | undefined) ?? "(unknown person)" : "";
+/** Everyone who can hold gear, by name. */
+export const activeUsers = (state: State): { id: string; name: string }[] =>
+  Object.entries(state.user ?? {})
+    .filter(([, u]) => u.active !== false)
+    .map(([id, u]) => ({ id, name: (u.name as string | undefined) ?? id }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
 // --- generics and units -------------------------------------------------------------------
 

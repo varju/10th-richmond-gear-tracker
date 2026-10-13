@@ -52,10 +52,12 @@ import { timeline, type TimelineEntry } from "../lib/timeline";
 import type { Store } from "../lib/store";
 import { localDate, localMinute } from "../lib/time";
 import { guard, useUnsaved } from "../lib/unsaved";
+import type { Session } from "../lib/session";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { HomeFields, ItemFields, SEVERAL } from "./ItemFields";
 import { boughtLabel, plural, statusLabel, userName } from "./labels";
+import { useEventQuestion } from "./EventChoice";
 import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
 import { AddNote, NoteLine, NoteList } from "./Notes";
 import { Page } from "./Page";
@@ -531,8 +533,14 @@ export function describeMovement(state: State, e: HistoryEntry): string {
       : `Checked out ${e.count} by ${who} · ${when}`;
   }
   if (e.type === "checked_in") return `Returned by ${who} · ${when}`;
-  const verb = e.supersedes ? "Transferred to" : "Checked out by";
-  return e.event ? `${verb} ${who} for ${e.event} · ${when}` : `${verb} ${who} · ${when}`;
+  const forEvent = e.event ? ` for ${e.event}` : "";
+  if (e.supersedes) {
+    // A transfer to another member names them, and who handed it over (FR-OUT-26).
+    const handed = e.holder_id !== null && e.holder_id !== e.actor_id;
+    const to = handed ? `${userName(state, e.holder_id)} by ${who}` : who;
+    return `Transferred to ${to}${forEvent} · ${when}`;
+  }
+  return `Checked out by ${who}${forEvent} · ${when}`;
 }
 
 /** Every ticket the item has had, open ones first; closed ones stay (FR-REP-04). */
@@ -1203,20 +1211,20 @@ function PoolPage({
 
 /**
  * Check out, return, and recount a pool, by count (FR-OUT-22, FR-OUT-23,
- * FR-INV-35). Taking more than are in warns, never blocks. `initialMode`
- * skips straight to the count field for the session's mode, the way a scan of
- * a pool's code does (FR-OUT-25), instead of asking which action first.
+ * FR-INV-35). Taking more than are in warns, never blocks. A check-out asks
+ * the session's event first, as any check-out does (FR-OUT-05), unless
+ * `session` is a reservation's packing session (FR-RES-03).
  */
 export function PoolActions({
   store,
   it,
-  initialMode,
+  session,
   onMoved,
   children,
 }: {
   store: Store;
   it: Item;
-  initialMode?: "out" | "in" | null;
+  session?: Session;
   /** What was done, and which way it went: a scan during a packing session grows the reservation on "out". */
   onMoved: (message: string, kind: "out" | "in" | "recount") => void;
   children?: React.ReactNode;
@@ -1227,9 +1235,12 @@ export function PoolActions({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // What the check-out records, as the event question found it when the count field opened.
+  const [recorded, setRecorded] = useState<Session>({});
+  const { askThen, question } = useEventQuestion(store, session);
   const state = store.state;
   const me = store.meta.user?.id;
-  const event = store.meta.session_event;
+  const event = mode === "out" ? recorded.event : undefined;
   const counts = poolCounts(it);
   const mine = counts.out.find((o) => o.holder_id === me)?.count ?? 0;
   // Return needs a holder to pick from only when there is a real choice to make (FR-OUT-23):
@@ -1238,6 +1249,15 @@ export function PoolActions({
   const holderCount = (id: string | null) => counts.out.find((o) => o.holder_id === id)?.count ?? 0;
 
   function begin(next: "out" | "in" | "recount") {
+    if (next === "out")
+      askThen((s) => {
+        setRecorded(s);
+        open("out");
+      });
+    else open(next);
+  }
+
+  function open(next: "out" | "in" | "recount") {
     setMode(next);
     setError(null);
     setReason("");
@@ -1256,14 +1276,6 @@ export function PoolActions({
     setCount(String(holderCount(id) || 1));
   }
 
-  // A scan carries its own mode already (FR-OUT-06); skip straight to that count field once,
-  // rather than asking the person to choose an action they already chose by scanning in that mode.
-  useEffect(() => {
-    if (initialMode) begin(initialMode);
-    // Meant to run once, on mount: the scan card unmounts between scans, so a fresh instance
-    // picks up any later change in mode.
-  }, []);
-
   const n = Number(count.trim());
   const validCount = Number.isInteger(n) && (mode === "recount" ? n >= 0 : n >= 1);
   const overdraw = mode === "out" && validCount && n > counts.in;
@@ -1273,9 +1285,15 @@ export function PoolActions({
     setBusy(true);
     setError(null);
     try {
-      if (mode === "out")
-        await checkOutPool(store, it.id, { count: n, event, reservation_id: store.meta.session_reservation_id });
-      else if (mode === "in") await checkInPool(store, it.id, { count: n, holder_id: holder ?? undefined });
+      if (mode === "out") {
+        await checkOutPool(store, it.id, {
+          count: n,
+          event: recorded.event,
+          reservation_id: recorded.reservation_id,
+          packing: session !== undefined,
+        });
+      } else if (mode === "in")
+        await checkInPool(store, it.id, { count: n, holder_id: holder ?? undefined, packing: session !== undefined });
       else await recount(store, it.id, n, reason);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not record it");
@@ -1298,6 +1316,9 @@ export function PoolActions({
       </div>
     );
   }
+
+  const asking = question(children);
+  if (asking) return asking;
 
   return (
     <div className="move-actions">

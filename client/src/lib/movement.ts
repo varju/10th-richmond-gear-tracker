@@ -8,7 +8,7 @@ import { aliases, isPool, item, type Item, poolCounts } from "./inventory";
 import * as notes from "./notes";
 import type { Log } from "./record";
 import { type Movement, type Note, replayOrder } from "./replay";
-import type { Store } from "./store";
+import type { MoveSession, Store } from "./store";
 
 export interface MoveOptions {
   /** The session's event name (FR-OUT-05). */
@@ -18,6 +18,8 @@ export interface MoveOptions {
   reservation_id?: string;
   /** A note on this movement (FR-OUT-15). */
   note?: string;
+  /** Made while packing a reservation, so it leaves the plain session's clock alone (FR-RES-25). */
+  packing?: boolean;
 }
 
 function actor(store: Store): string {
@@ -34,14 +36,19 @@ function current(store: Store, itemId: string): Item {
   return it;
 }
 
-async function move(store: Store, itemId: string, type: string, payload: Record<string, unknown>, note?: string) {
-  const movement = await store.record({
-    entity_type: "item",
-    entity_id: itemId,
-    type,
-    actor_id: actor(store),
-    payload,
-  });
+/** Every move goes through here. One given `session` keeps a running plain session going (FR-OUT-38). */
+async function move(
+  store: Store,
+  itemId: string,
+  type: string,
+  payload: Record<string, unknown>,
+  note?: string,
+  session?: MoveSession,
+) {
+  const movement = await store.record(
+    { entity_type: "item", entity_id: itemId, type, actor_id: actor(store), payload },
+    session,
+  );
   if (note?.trim()) await addNote(store, itemId, note, movement.id);
   return movement;
 }
@@ -58,6 +65,7 @@ export async function checkOut(store: Store, itemId: string, options: MoveOption
     "checked_out",
     { holder_id: actor(store), event: options.event?.trim() || null, reservation_id: options.reservation_id ?? null },
     options.note,
+    options.packing ? undefined : { event: options.event?.trim() || null },
   );
 }
 
@@ -65,7 +73,7 @@ export async function checkOut(store: Store, itemId: string, options: MoveOption
 export async function checkIn(store: Store, itemId: string, options: MoveOptions = {}) {
   const it = current(store, itemId);
   if (it.status !== "out") throw new Error("already in");
-  const movement = await move(store, itemId, "checked_in", {}, options.note);
+  const movement = await move(store, itemId, "checked_in", {}, options.note, options.packing ? undefined : {});
   await seen(store, itemId);
   return movement;
 }
@@ -86,6 +94,7 @@ export interface PoolCheckInOptions {
   /** Return on someone else's behalf (FR-OUT-23). Defaults to the actor when omitted. */
   holder_id?: string;
   note?: string;
+  packing?: boolean;
 }
 
 /**
@@ -108,6 +117,7 @@ export async function checkOutPool(store: Store, itemId: string, options: PoolCh
       reservation_id: options.reservation_id ?? null,
     },
     options.note,
+    options.packing ? undefined : { event: options.event?.trim() || null },
   );
 }
 
@@ -126,7 +136,7 @@ export async function checkInPool(store: Store, itemId: string, options: PoolChe
   if (options.count > has) throw new Error(`only ${has} out to ${holder}`);
   const payload: Record<string, unknown> = { count: options.count };
   if (holder !== actor(store)) payload.holder_id = holder;
-  return move(store, itemId, "checked_in", payload, options.note);
+  return move(store, itemId, "checked_in", payload, options.note, options.packing ? undefined : {});
 }
 
 /** How many are in right now, with a reason (FR-INV-35). What is already out is untouched; anyone signed in may record one. */
@@ -138,28 +148,37 @@ export async function recount(store: Store, itemId: string, count: number, reaso
   return move(store, itemId, "recounted", { count, reason: why });
 }
 
+export interface TransferOptions extends MoveOptions {
+  /** Who gets it (FR-OUT-26). Defaults to whoever is signed in: a take-over (FR-OUT-12). */
+  to?: string;
+}
+
 /**
- * Take something someone else has (FR-OUT-12). Names the check-out it replaces, so replay knows it
- * is not a conflict. Carries the reservation like a check-out does: gear never returned from the
- * last trip is packed for this one by transfer (FR-RES-22).
+ * Move something that is out to a new holder: the signed-in person by default (FR-OUT-12), or
+ * another member (FR-OUT-26). Names the check-out it replaces, so replay knows it is not a
+ * conflict. Carries the reservation like a check-out does: gear never returned from the last trip
+ * is packed for this one by transfer (FR-RES-22).
  */
-export async function transfer(store: Store, itemId: string, options: MoveOptions = {}) {
+export async function transfer(store: Store, itemId: string, options: TransferOptions = {}) {
   const it = current(store, itemId);
   if (it.retired) throw new Error("retired items cannot be checked out");
   if (it.merged_into) throw new Error("merged into another item");
   const previous = it.movement as Movement | undefined;
   if (it.status !== "out" || !previous) throw new Error("not out; check it out instead");
+  const to = options.to ?? actor(store);
+  if (to === it.holder_id) throw new Error("they already have it");
   return move(
     store,
     itemId,
     "checked_out",
     {
-      holder_id: actor(store),
+      holder_id: to,
       event: options.event?.trim() || null,
       supersedes: previous.id,
       reservation_id: options.reservation_id ?? null,
     },
     options.note,
+    options.packing ? undefined : { event: options.event?.trim() || null },
   );
 }
 

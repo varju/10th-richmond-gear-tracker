@@ -174,7 +174,7 @@ test("duplicate carries the gear and the name over, not the dates (FR-RES-10)", 
   expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 });
 
-test("the page shows the gear, starts the packing session under its event, and can cancel (FR-RES-03)", async () => {
+test("the page shows the gear, opens packing on the scan screen without touching the device session, and can cancel (FR-RES-25)", async () => {
   navigate(`/reservations/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />);
   expect(screen.getByRole("heading", { name: "Fall Camp" })).toBeInTheDocument();
@@ -184,9 +184,10 @@ test("the page shows the gear, starts the packing session under its event, and c
   // Who made it, and when (FR-RES-18): set at replay from the creating event's actor.
   expect(screen.getByText(/^Added by Alice/)).toBeInTheDocument();
 
+  // Packing reads the event from the reservation itself, so nothing is copied into the device's session (FR-RES-25).
   await user.click(screen.getByRole("button", { name: "Check out" }));
-  expect(store.meta.session_event).toBe("Fall Camp");
-  expect(location.pathname + location.search).toBe(`/scan?mode=out&reservation=${fall}`);
+  expect(store.meta.session_event).toBeUndefined();
+  expect(location.pathname + location.search).toBe(`/scan?reservation=${fall}`);
 
   await user.click(screen.getByRole("button", { name: "Cancel reservation" }));
   await user.click(screen.getByRole("button", { name: "Really cancel?" }));

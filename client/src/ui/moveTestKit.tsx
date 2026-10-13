@@ -43,6 +43,11 @@ export async function seedUsers(store: Store, users: User[]): Promise<void> {
   await store.receive(events, 1000 + users.length);
 }
 
+/** A plain scanning session already running with `event`, so a check-out does not ask (FR-OUT-05). */
+export async function inSession(store: Store, event?: string): Promise<void> {
+  await store.setMeta({ session_event: event, session_event_at: store.now() });
+}
+
 /** Render inside a shell whose sync is a spy. */
 export function renderInShell(node: ReactNode, now: () => number = Date.now, api?: Api) {
   const sync = vi.fn(async () => undefined);

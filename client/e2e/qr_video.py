@@ -14,7 +14,7 @@ import sys
 from reportlab.graphics.barcode import qrencoder
 
 WIDTH, HEIGHT = 640, 480
-QR_SIZE = 400
+QR_SIZE = 240  # Inside the target box on a phone-sized viewfinder, the way a person aims it.
 QUIET_MODULES = 4
 FRAMES = 30
 WHITE, BLACK, GREY = 235, 16, 128  # Y for white and black; U and V at neutral.

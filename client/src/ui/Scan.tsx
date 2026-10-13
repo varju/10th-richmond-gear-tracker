@@ -1,6 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { bindCode, seen } from "../lib/actions";
-import { eventDates, matchingEvents } from "../lib/calendar";
+import { matchingEvents } from "../lib/calendar";
 import { parseCode } from "../lib/codes";
 import {
   code as codeOf,
@@ -13,17 +13,19 @@ import {
   poolCounts,
   resolveItem,
 } from "../lib/inventory";
-import { withQuery } from "../lib/listUrl";
 import { checkOut } from "../lib/movement";
 import { addExtra, isPacked, type Remaining, remaining, type Reservation, reservation } from "../lib/reservations";
 import { back, navigate, useRoute } from "../lib/router";
 import { confirmRead, READ_MS, type Scanner, startScanner, unlockSound } from "../lib/scanner";
 import type { Store } from "../lib/store";
 import { NATIVE } from "../lib/server";
+import { type Session, sessionEvent, setSessionEvent } from "../lib/session";
 import { guard, useUnsaved } from "../lib/unsaved";
+import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { PoolActions } from "./ItemPage";
-import { statusLabel } from "./labels";
+import { EventSuggestions } from "./EventChoice";
+import { holdingLabel, statusLabel, userName } from "./labels";
 import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
 import { useLight, WithLight } from "./Light";
 import { Page } from "./Page";
@@ -38,11 +40,12 @@ export const RESCAN_MS = 3000;
  * and the next scan is taken (FR-OUT-03, FR-OUT-06). An unassigned code goes to
  * /g/<code>. With ?for=<itemId> the code is a replacement sticker for that item
  * and is bound here (FR-TAG-04). With ?reservation=<id> the session is seeded
- * with that reservation's gear (FR-RES-02). ?mode=out or ?mode=in sets which
- * move is expected; a scan that disagrees warns instead of switching the mode
- * for you (FR-OUT-12). An item just moved is not shown again for three seconds,
- * since the camera is still on the sticker when the card closes. After that a
- * rescan shows it again, so a wrong check-out is undone by scanning it back in.
+ * with that reservation's gear (FR-RES-02). There is no mode: the card offers
+ * the move that fits the item's state (FR-OUT-06). The first check-out or
+ * transfer of a session asks for the event (FR-OUT-05). An item just moved is not
+ * shown again for three seconds, since the camera is still on the sticker when
+ * the card closes. After that a rescan shows it again, so a wrong check-out is
+ * undone by scanning it and tapping Return.
  */
 /** `native`: the iPhone app's scanner, where there is one (lib/scanner.ts). */
 export function Scan({ store, native = NATIVE }: { store: Store; native?: boolean }) {
@@ -50,8 +53,7 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
   const route = useRoute();
   const query = route.query;
   const forItem = query.get("for");
-  const modeParam = query.get("mode");
-  const mode = modeParam === "out" || modeParam === "in" ? modeParam : null;
+  const { now } = useShell();
   const booked = reservation(store.state, query.get("reservation") ?? "");
   // State, not a ref: the menu replaces the viewfinder, and closing it brings a new video that needs a new scanner.
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
@@ -71,6 +73,9 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
   // When each item was last moved here; a decode within RESCAN_MS of that is the camera still on the sticker.
   const moved = useRef(new Map<string, number>());
   const scanner = useRef<Scanner | null>(null);
+  // The first check-out of a session asks its event (FR-OUT-05); a reservation's session has the reservation's (FR-RES-03).
+  const packing: Session | undefined = booked ? { event: booked.event, reservation_id: booked.id } : undefined;
+  const me = store.meta.user?.id;
 
   // The card opening freezes the frame on the sticker, so a read looks like a read; it
   // un-freezes when the card closes, whether by a move or by Skip.
@@ -80,15 +85,6 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
     if (id !== null) scanner.current?.pause();
     else scanner.current?.resume();
   };
-
-  // Replace, so switching modes does not fill the back button; reservation= is kept as-is.
-  function setMode(next: "out" | "in") {
-    // Switching direction means the person now means the other move for the same gear, so the log must not silence it.
-    moved.current.clear();
-    const params = new URLSearchParams(query);
-    params.set("mode", next);
-    navigate(withQuery(route.path, params), true);
-  }
 
   const handle = useCallback(
     async (text: string) => {
@@ -176,9 +172,7 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
 
   return (
     <Page
-      title={
-        forItem ? "Scan new code" : booked ? "Pack" : mode === "out" ? "Check out" : mode === "in" ? "Return" : "Scan"
-      }
+      title={forItem ? "Scan new code" : booked ? "Pack" : "Scan"}
       back={forItem ? `/items/${forItem}` : booked ? `/reservations/${booked.id}` : "/"}
       actions={
         card ? undefined : (
@@ -211,29 +205,15 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
         )
       }
     >
-      {!forItem && mode !== null && (
-        <div className="mode" role="group" aria-label="Mode">
-          <button
-            type="button"
-            className={mode === "out" ? "primary" : "minor"}
-            aria-pressed={mode === "out"}
-            onClick={() => setMode("out")}
-          >
-            Check out
-          </button>
-          <button
-            type="button"
-            className={mode === "in" ? "primary" : "minor"}
-            aria-pressed={mode === "in"}
-            onClick={() => setMode("in")}
-          >
-            Return
-          </button>
-        </div>
-      )}
-      {/* A same-height placeholder, not a removed row: dropping the row let the viewfinder grow into its space,
-          which changes the crop math mid-session and can lose a sticker the camera has not moved off (FR-OUT-12). */}
-      {!forItem && (mode === "in" ? <div className="session" /> : <SessionEvent store={store} booked={booked} />)}
+      {/* Packing takes the reservation's event, always (FR-RES-03); plain scanning has its own session (FR-OUT-05). */}
+      {!forItem &&
+        (booked ? (
+          <div className="session">
+            <span>{booked.event ? `Event: ${booked.event}` : "No event"}</span>
+          </div>
+        ) : (
+          <SessionEvent store={store} />
+        ))}
       <div className={read ? `viewfinder ${read}` : "viewfinder"}>
         <video ref={setVideo} muted playsInline hidden={cameraError !== null} />
         {!cameraError && (!card || read) && <div ref={target} className="target" aria-hidden="true" />}
@@ -263,7 +243,7 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
             <PoolActions
               store={store}
               it={card}
-              initialMode={mode}
+              session={packing}
               onMoved={(message, kind) => {
                 confirm(message);
                 showCard(null);
@@ -272,57 +252,42 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
                 if (booked && kind === "out") void addExtra(store, booked.id, card.id);
               }}
             >
-              <div className="row">
-                <button type="button" onClick={() => guard(() => navigate(`/items/${card.id}?edit=1`))}>
-                  Edit
-                </button>
-                <button type="button" onClick={() => guard(() => showCard(null))}>
-                  Skip
-                </button>
-              </div>
+              <CardButtons id={card.id} onSkip={() => showCard(null)} />
             </PoolActions>
           </section>
         )}
         {card && !isPool(card) && (
           <section className="move-card" aria-labelledby="move-card-title">
             <h2 id="move-card-title">{displayName(store.state, card)}</h2>
+            <p>{holdingLabel(store.state, card, me, now())}</p>
             {homeLabel(store.state, card) && (
+              // Where it goes back, big, whenever Return is on offer (FR-OUT-10).
               <p className={card.status === "out" ? "move-home" : "muted"}>
                 {card.status === "out" ? `Put it back: ${homeLabel(store.state, card)}` : homeLabel(store.state, card)}
               </p>
             )}
-            <p>{statusLabel(store.state, card)}</p>
             <MoveActions
               store={store}
               it={card}
-              mode={mode}
-              onMoved={(kind) => {
-                confirm(`${kind} · ${displayName(store.state, card)}`);
+              session={packing}
+              onMoved={(kind, to) => {
+                confirm(
+                  `${to ? `Transferred to ${userName(store.state, to)}` : kind} · ${displayName(store.state, card)}`,
+                );
                 showCard(null);
                 moved.current.set(card.id, Date.now());
                 // An extra taken during a reservation session joins its gear list (FR-RES-07).
-                if (booked && kind !== "Returned") void addExtra(store, booked.id, card.id);
+                // Gear handed to someone else is not packed for it (FR-OUT-26).
+                if (booked && kind !== "Returned" && !to) void addExtra(store, booked.id, card.id);
+              }}
+              onSaved={(message) => {
+                confirm(`${message} · ${displayName(store.state, card)}`);
+                showCard(null);
+                // The camera is still on the sticker; the card must not open again at once.
+                moved.current.set(card.id, Date.now());
               }}
             >
-              <div className="row">
-                {card.retired ? (
-                  <button type="button" onClick={() => guard(() => navigate(`/items/${card.id}`))}>
-                    Open item
-                  </button>
-                ) : (
-                  <button type="button" onClick={() => guard(() => navigate(`/items/${card.id}?edit=1`))}>
-                    Edit
-                  </button>
-                )}
-                <button type="button" onClick={() => guard(() => showCard(null))}>
-                  Skip
-                </button>
-              </div>
-              {card.retired && (
-                <button type="button" onClick={() => guard(() => navigate(`/items/${card.id}?edit=1`))}>
-                  Edit
-                </button>
-              )}
+              <CardButtons id={card.id} onSkip={() => showCard(null)} />
             </MoveActions>
           </section>
         )}
@@ -339,6 +304,25 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
         />
       )}
     </Page>
+  );
+}
+
+/** The scan card's way out: the full item, its edit form, or the next scan (FR-OUT-11). */
+function CardButtons({ id, onSkip }: { id: string; onSkip: () => void }) {
+  return (
+    <>
+      <div className="row">
+        <button type="button" onClick={() => guard(() => navigate(`/items/${id}`))}>
+          Open item
+        </button>
+        <button type="button" onClick={() => guard(() => navigate(`/items/${id}?edit=1`))}>
+          Edit
+        </button>
+      </div>
+      <button type="button" onClick={() => guard(onSkip)}>
+        Skip
+      </button>
+    </>
   );
 }
 
@@ -368,7 +352,7 @@ function RemainingList({
   async function take(id: string, name: string) {
     setError(null);
     try {
-      await checkOut(store, id, { event: booked.event, reservation_id: booked.id });
+      await checkOut(store, id, { event: booked.event, reservation_id: booked.id, packing: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not record the move");
       return;
@@ -468,34 +452,18 @@ function Finish({ store, booked }: { store: Store; booked: Reservation }) {
 }
 
 /**
- * The event every check-out records under, until changed or cleared (FR-OUT-05). A setting on this device.
- * A reservation's session takes it from the reservation (FR-RES-03).
+ * The plain scanning session's event, until changed, cleared, or the session ends (FR-OUT-05,
+ * FR-OUT-38). A setting on this device. A move re-checks it when made, so an event shown here that
+ * has since ended asks again rather than recording nothing.
  */
-function SessionEvent({ store, booked }: { store: Store; booked?: Reservation }) {
-  const event = store.meta.session_event;
+function SessionEvent({ store }: { store: Store }) {
+  const { event } = sessionEvent(store.meta, store.now());
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   useUnsaved(editing && draft.trim() !== (event ?? ""), { save: () => apply().then(() => true) });
 
-  // Seed the event once per reservation, not on every render: `booked` is a fresh object each
-  // time, so keying off it directly would stomp an event the person changed mid-session (FR-OUT-05).
-  const seededFor = useRef<string | null>(null);
-  useEffect(() => {
-    if (!booked || seededFor.current === booked.id) return;
-    seededFor.current = booked.id;
-    if (booked.event !== store.meta.session_event || booked.id !== store.meta.session_reservation_id) {
-      void store.setMeta({ session_event: booked.event, session_reservation_id: booked.id });
-    }
-  }, [store, booked?.id, booked?.event]);
-
-  // Changing the event by hand breaks the link to the reservation it was seeded from: a scan
-  // afterwards would otherwise still be counted as packing that reservation. Setting it back to
-  // what it already was is not a change.
   async function apply() {
-    const next = draft.trim() || undefined;
-    await store.setMeta(
-      next === event ? { session_event: next } : { session_event: next, session_reservation_id: undefined },
-    );
+    await setSessionEvent(store, draft.trim() || undefined);
     setEditing(false);
   }
 
@@ -505,15 +473,13 @@ function SessionEvent({ store, booked }: { store: Store; booked?: Reservation })
   }
 
   async function clear() {
-    await store.setMeta({ session_event: undefined, session_reservation_id: undefined });
+    await setSessionEvent(store, undefined);
     setEditing(false);
   }
 
   /** Tapping a calendar suggestion sets the name at once, the same one tap a scan takes (FR-RES-20). */
   async function pick(name: string) {
-    await store.setMeta(
-      name === event ? { session_event: name } : { session_event: name, session_reservation_id: undefined },
-    );
+    await setSessionEvent(store, name);
     setEditing(false);
   }
 
@@ -535,23 +501,7 @@ function SessionEvent({ store, booked }: { store: Store; booked?: Reservation })
         <button type="button" className="minor" onClick={clear}>
           Clear
         </button>
-        {suggestions.length > 0 && (
-          <ul className="rows">
-            {suggestions.map((ev) => (
-              <li key={`${ev.uid}-${ev.starts}`}>
-                <button
-                  type="button"
-                  className="row"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => void pick(ev.summary)}
-                >
-                  <span>{ev.summary}</span>
-                  <span className="muted">{eventDates(ev)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+        {suggestions.length > 0 && <EventSuggestions events={suggestions} onPick={(name) => void pick(name)} />}
       </form>
     );
   }

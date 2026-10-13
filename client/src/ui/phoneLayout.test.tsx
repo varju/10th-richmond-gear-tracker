@@ -38,14 +38,14 @@ test("a move button never shares a row with the shorter note buttons", async () 
   navigate(`/items/${tent}`);
   renderInShell(<ItemPage store={store} id={tent} />);
 
-  const moves = screen.getByRole("button", { name: "Transfer to me" }).parentElement!;
+  const moves = screen.getByRole("button", { name: "Take over" }).parentElement!;
   const actions = moves.closest<HTMLElement>(".move-actions")!;
   const minors = within(actions).getByRole("button", { name: "Add note" }).parentElement!;
   expect(moves).not.toBe(minors);
   expect(moves.querySelectorAll("button.minor")).toHaveLength(0);
   expect([...minors.querySelectorAll("button")].every((b) => b.classList.contains("minor"))).toBe(true);
-  // Alone in its row, the move takes the full width rather than half.
-  expect(getComputedStyle(screen.getByRole("button", { name: "Transfer to me" })).gridColumn).toBe("1 / -1");
+  // Alone in its row, a button takes the full width rather than half.
+  expect(getComputedStyle(screen.getByRole("button", { name: "Transfer to…" })).gridColumn).toBe("1 / -1");
 });
 
 test("a unit's generic link sits inside the line, not as a full-width button", async () => {

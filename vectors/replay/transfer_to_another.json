@@ -1,0 +1,53 @@
+{
+  "name": "a transfer may name a holder other than its actor (FR-OUT-26)",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "type": "checked_out",
+      "payload": {
+        "holder_id": "alice",
+        "event": "Spring camp"
+      }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "type": "checked_out",
+      "payload": {
+        "holder_id": "dave",
+        "event": "Spring camp",
+        "supersedes": "01000000000000000000000001"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-1": {
+        "status": "out",
+        "holder_id": "dave",
+        "since": 2000,
+        "movement": {
+          "id": "01000000000000000000000002",
+          "type": "checked_out",
+          "holder_id": "dave",
+          "event": "Spring camp",
+          "reservation_id": null,
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 2000
+        }
+      }
+    }
+  }
+}

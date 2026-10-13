@@ -4,24 +4,30 @@ Check-out and check-in. This is the loop that has to be faster than walking off 
 
 ## S-MOVE-01 Take gear to camp
 
-A Scouter opens Check out, names the event once, then scans six items. Each scan shows the item; one tap confirms.
+A Scouter taps Scan and scans six items. Each scan shows the item; one tap checks it out. The first check-out asks which
+event, offering tonight's calendar entry; one tap picks it.
 
-- The event is typed once and applies to everything scanned after it
+- The event is asked once and applies to everything scanned after it
+- Skipping the event is one tap
 - Each scan shows the item so it can be checked against what is in hand
 - One tap confirms and the scanner is ready again
 - No signal is needed
 
-Covers: FR-OUT-01, FR-OUT-03, FR-OUT-04, FR-OUT-05, FR-OFF-01
+Covers: FR-OUT-01, FR-OUT-03, FR-OUT-04, FR-OUT-05, FR-OUT-06, FR-OUT-29, FR-OUT-30, FR-OUT-32, FR-OUT-33, FR-OUT-37,
+FR-OUT-38, FR-OFF-01
 
 ## S-MOVE-02 Return gear
 
-A Scouter unpacking the trailer opens Return and scans each item. Each scan checks it in and shows where it goes.
+A Scouter unpacking the trailer taps Scan and scans each item. Gear they took shows its home and one tap returns it.
+Gear someone else took offers Return and Take over side by side, with no default.
 
-- In Return, a scan checks the item in; one already in says so instead
-- The check-in shows the item's home so it can be put away
+- Gear the Scouter holds is returned in one tap
+- The card shows the item's home so it can be put away
+- Gear held by someone else is never moved by a guess
+- Returns never ask for an event
 - Items go back in any order, over any number of sessions
 
-Covers: FR-OUT-06, FR-OUT-08, FR-OUT-10
+Covers: FR-OUT-06, FR-OUT-08, FR-OUT-10, FR-OUT-31, FR-OUT-34, FR-OUT-35, FR-OUT-39
 
 ## S-MOVE-03 Return someone else's gear
 
@@ -44,13 +50,15 @@ Covers: FR-OUT-09, FR-REP-01, FR-REP-05
 
 ## S-MOVE-05 Fix a detail on the way past
 
-A Scouter checking in a stove notices it is stored on the wrong shelf, and corrects its home there and then.
+A Scouter scans a stove on the shelf and notices it is stored in the wrong place. They correct its home from the card,
+and leave a note on a dented pot, without moving either.
 
-- Any field can be edited from the check-in screen
+- Any field can be edited from the scan card
+- A note or a repair ticket needs no move
 - The change is confirmed, not silent
 - The edit is recorded against the item
 
-Covers: FR-OUT-11, FR-USR-05
+Covers: FR-OUT-11, FR-OUT-27, FR-USR-05
 
 ## S-MOVE-06 Gear with no sticker
 
@@ -63,12 +71,12 @@ Covers: FR-OUT-02, FR-OUT-07, FR-INV-07
 
 ## S-MOVE-07 Someone already has it
 
-A Scouter tries to take a stove that is already out. The app names who has it and offers to transfer the holding.
+A Scouter scans a stove that is already out. The card names who has it and since when, and offers Take over.
 
 - The current holder is shown
-- The gear can be transferred rather than double-booked
+- The gear can be taken over rather than double-booked
 
-Covers: FR-OUT-12
+Covers: FR-OUT-12, FR-OUT-35, FR-OUT-39
 
 ## S-MOVE-08 Handed to a youth
 
@@ -100,3 +108,14 @@ leaving it on the out list forever.
 - Scanning it or returning it clears the mark
 
 Covers: FR-INV-19, FR-RPT-01
+
+## S-MOVE-11 Hand it on
+
+A Scouter leaving camp early has the first-aid kit. They scan it and transfer it to the Scouter staying on.
+
+- Any active member can be picked, by typing part of the name
+- Whoever they last handed gear to is at the top
+- The list works with no signal
+- The history shows who handed it to whom
+
+Covers: FR-OUT-26, FR-OUT-28, FR-OUT-36

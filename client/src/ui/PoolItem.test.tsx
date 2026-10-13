@@ -9,7 +9,7 @@ import type { Store } from "../lib/store";
 import { unsaved } from "../lib/unsaved";
 import { openStore, printCodes } from "./codeTestKit";
 import { ItemPage } from "./ItemPage";
-import { alice, carol, renderInShell, seedUsers } from "./moveTestKit";
+import { alice, carol, renderInShell, seedUsers, inSession } from "./moveTestKit";
 
 // A counted stack: its page, its counts, and turning a single item into one (FR-INV-34, FR-INV-36).
 let store: Store;
@@ -17,6 +17,8 @@ let store: Store;
 beforeEach(async () => {
   store = await openStore();
   await seedUsers(store, [alice, carol]);
+  // A session is running, so a check-out does not stop to ask the event (FR-OUT-05).
+  await inSession(store);
 });
 
 afterEach(() => unsaved.cancel());

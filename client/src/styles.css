@@ -721,18 +721,6 @@ main:has(> .viewfinder) {
   flex-direction: column;
 }
 
-.mode {
-  display: flex;
-  gap: 8px;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--rule);
-}
-
-.mode button {
-  flex: 1;
-  width: auto;
-}
-
 .session {
   display: flex;
   align-items: center;
@@ -795,9 +783,40 @@ main:has(> .viewfinder) {
   gap: 12px;
 }
 
-/* A move alone in its row, such as Transfer to me, takes the full width. */
+/* A button alone in its row, such as Transfer to…, takes the full width. */
 .move-actions > .row > :only-child {
   grid-column: 1 / -1;
+}
+
+/* The event question and the transfer list take the card's place for a moment (FR-OUT-05, FR-OUT-26). */
+.event-choice,
+.transfer-picker {
+  display: grid;
+  gap: 12px;
+}
+
+.event-choice p {
+  font-weight: 600;
+}
+
+.event-choice .rows,
+.transfer-picker .rows {
+  margin: 0;
+}
+
+.event-typed {
+  display: flex;
+  gap: 12px;
+}
+
+.event-typed input {
+  flex: 1;
+  width: auto;
+}
+
+.event-typed button {
+  width: auto;
+  padding: 0 16px;
 }
 
 .move-actions .notice,

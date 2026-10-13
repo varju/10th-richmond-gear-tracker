@@ -103,7 +103,7 @@ async function signIn(page: Page) {
   await page.getByLabel("Email").fill("alice@example.org");
   await page.getByLabel("Password").fill("correct horse");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("button", { name: "Check out" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Scan" })).toBeVisible();
 }
 
 test("a scanned sticker checks its item out and back in", async ({ request }) => {
@@ -123,20 +123,20 @@ test("a scanned sticker checks its item out and back in", async ({ request }) =>
   const page = await context.newPage();
   try {
     await signIn(page);
-    await page.goto("/scan?mode=out");
+    await page.goto("/scan");
 
-    // First decode: the wasm loads and the camera starts. Then take the tent.
+    // First decode: the wasm loads and the camera starts. Then take the tent; the first check-out asks the event.
     const card = page.getByRole("heading", { name: ITEM });
     await expect(card).toBeVisible({ timeout: 10_000 });
-    const region = page.getByRole("region");
+    const region = page.getByRole("region", { name: ITEM });
     await region.getByRole("button", { name: "Check out" }).click();
+    await page.getByRole("region", { name: "Which event" }).getByRole("button", { name: "No event" }).click();
     await expect(page.getByRole("status").filter({ hasText: `Checked out · ${ITEM}` })).toBeVisible();
 
-    // The sticker is still in front of the camera; switch to bringing gear back.
-    await page.getByRole("group", { name: "Mode" }).getByRole("button", { name: "Return" }).click();
+    // The sticker is still in front of the camera; once the rescan pause is over, the card offers Return.
     const checkIn = region.getByRole("button", { name: "Return" });
-    await expect(checkIn).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByText(/^Out · /)).toBeVisible();
+    await expect(checkIn).toBeVisible({ timeout: 8_000 });
+    await expect(region.getByText(/^You have this/)).toBeVisible();
     await checkIn.click();
     await expect(page.getByRole("status").filter({ hasText: `Returned · ${ITEM}` })).toBeVisible();
 

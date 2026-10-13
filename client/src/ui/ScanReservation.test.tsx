@@ -20,8 +20,12 @@ let tarp: string;
 let stove: string;
 let fall: string;
 
+/** How far the store's clock has been moved on. */
+let ahead = 0;
+
 beforeEach(async () => {
-  store = await openStore();
+  ahead = 0;
+  store = await openStore(() => ahead);
   await seedUsers(store, [alice, carol]);
   await printCodes(store, ["AAAAAAAAAA", "BBBBBBBBBB"]);
   const cold = await act.createLocation(store, "Cold locker");
@@ -58,48 +62,36 @@ async function typeCode(text: string) {
   await user.click(screen.getByRole("button", { name: "Go" }));
 }
 
-test("the session takes the event and the reservation from the reservation and lists what is left, by home (FR-RES-02, FR-RES-03)", async () => {
-  await store.setMeta({ session_event: "Something else" });
+test("packing takes the event from the reservation, not the device's session, and lists what is left, by home (FR-RES-02, FR-RES-03)", async () => {
+  await store.setMeta({ session_event: "Something else", session_event_at: store.now() });
   renderInShell(<Scan store={store} />);
   expect(await screen.findByText("Event: Fall Camp")).toBeInTheDocument();
-  expect(store.meta.session_event).toBe("Fall Camp");
-  expect(store.meta.session_reservation_id).toBe(fall);
+  // Nobody changes a reservation's event from the packing screen.
+  expect(screen.queryByRole("button", { name: "Change" })).not.toBeInTheDocument();
+  expect(store.meta.session_event).toBe("Something else");
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Pack");
 
   expect(rows().map((b) => b.textContent)).toEqual(["4-person tent #1Cold locker", "TarpWarm locker"]);
   expect(remaining()).toHaveTextContent("0 of 1 × 4-person tent");
 });
 
-test("changing the event mid-session is not stomped back to the reservation's own, and breaks the link (FR-OUT-05, FR-RES-13)", async () => {
+test("packing never runs out like a plain session: hours on, a card check-out still stamps the reservation (FR-RES-24)", async () => {
   renderInShell(<Scan store={store} />);
   await screen.findByText("Event: Fall Camp");
-  expect(store.meta.session_reservation_id).toBe(fall);
-  await user.click(screen.getByRole("button", { name: "Change" }));
-  await user.clear(screen.getByLabelText("Event"));
-  await user.type(screen.getByLabelText("Event"), "Custom Talk");
-  await user.click(screen.getByRole("button", { name: "Set" }));
-  expect(await screen.findByText("Event: Custom Talk")).toBeInTheDocument();
-  // Setting the event by hand breaks the seeded link: a scan afterwards must not count toward
-  // this reservation's packing progress.
-  expect(store.meta.session_reservation_id).toBeUndefined();
-
-  // A scan re-renders the session banner with a fresh `booked` object; the change must survive it.
+  ahead += 5 * 3_600_000;
   await typeCode("AAAAAAAAAA");
-  await user.click(screen.getByRole("button", { name: "Check out" }));
+  await user.click(
+    within(await screen.findByRole("region", { name: "4-person tent #1" })).getByRole("button", { name: "Check out" }),
+  );
+  expect(screen.queryByRole("region", { name: "Which event" })).not.toBeInTheDocument();
   await screen.findByText("Checked out · 4-person tent #1");
-  expect(store.meta.session_event).toBe("Custom Talk");
-  expect(screen.getByText("Event: Custom Talk")).toBeInTheDocument();
-  expect(item(store.state, tent)?.movement?.reservation_id).toBeNull();
-});
+  expect(item(store.state, tent)?.movement).toMatchObject({ event: "Fall Camp", reservation_id: fall });
 
-test("clearing the event by hand also clears the seeded reservation link (FR-RES-13)", async () => {
-  renderInShell(<Scan store={store} />);
-  await screen.findByText("Event: Fall Camp");
-  await user.click(screen.getByRole("button", { name: "Change" }));
-  await user.click(screen.getByRole("button", { name: "Clear" }));
-  expect(await screen.findByText("No event")).toBeInTheDocument();
-  expect(store.meta.session_event).toBeUndefined();
-  expect(store.meta.session_reservation_id).toBeUndefined();
+  // The same as a row of the list.
+  await user.click(within(remaining()).getByRole("button", { name: /^Tarp/ }));
+  await waitFor(() =>
+    expect(item(store.state, tarp)?.movement).toMatchObject({ event: "Fall Camp", reservation_id: fall }),
+  );
 });
 
 test("a scan ticks an item off; an unlisted one is appended with no fuss (FR-RES-07)", async () => {
@@ -135,12 +127,28 @@ test("a line never returned from the last trip names who has it; its tap offers 
   // Not a check-out that fails: the card, with the transfer on it (FR-OUT-12).
   await user.click(within(remaining()).getByRole("button", { name: /^Tarp/ }));
   const card = await screen.findByRole("region", { name: "Tarp" });
-  expect(card).toHaveTextContent("Out · Carol");
-  await user.click(within(card).getByRole("button", { name: "Transfer to me" }));
+  expect(card).toHaveTextContent("Out with Carol");
+  await user.click(within(card).getByRole("button", { name: "Take over" }));
   await screen.findByText("Transferred · Tarp");
   expect(item(store.state, tarp)).toMatchObject({ status: "out", holder_id: "alice" });
   expect(item(store.state, tarp)?.movement).toMatchObject({ event: "Fall Camp", reservation_id: fall });
   expect(rows().map((b) => b.textContent)).toEqual(["4-person tent #1Cold locker"]);
+});
+
+test("handing gear to someone else while packing does not pack it (FR-OUT-26, FR-RES-23)", async () => {
+  await seedUsers(store, [alice, carol]);
+  await mv.checkOut(store, stove, { event: "Spring Camp" });
+  renderInShell(<Scan store={store} />);
+  await screen.findByText("Event: Fall Camp");
+  await typeCode("BBBBBBBBBB");
+  const card = await screen.findByRole("region", { name: "Stove" });
+  await user.click(within(card).getByRole("button", { name: "Transfer to…" }));
+  await user.click(within(screen.getByRole("region", { name: "Transfer to" })).getByRole("button", { name: "Carol" }));
+  await screen.findByText("Transferred to Carol · Stove");
+  expect(item(store.state, stove)).toMatchObject({ holder_id: "carol" });
+  expect(item(store.state, stove)?.movement).toMatchObject({ reservation_id: null });
+  expect(res.reservation(store.state, fall)?.items).toEqual([tarp, tent]);
+  expect(store.pending.some((e) => e.type === "item_added")).toBe(false);
 });
 
 test("packed lines are hidden until Show packed is ticked (FR-RES-21)", async () => {

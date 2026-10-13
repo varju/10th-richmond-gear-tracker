@@ -9,11 +9,12 @@ import * as rep from "../lib/repairs";
 import * as res from "../lib/reservations";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
+import { SESSION_MS } from "../lib/session";
 import { unsaved } from "../lib/unsaved";
 import { openStore } from "./codeTestKit";
 import { ItemPage } from "./ItemPage";
 import { LeaveDialog } from "./LeaveDialog";
-import { alice, carol, renderInShell, seedUsers } from "./moveTestKit";
+import { alice, carol, renderInShell, seedUsers, inSession } from "./moveTestKit";
 
 // Movement from the item page, for gear with no sticker (FR-OUT-02, FR-OUT-07), and the item's history.
 let store: Store;
@@ -51,8 +52,22 @@ const historyList = () =>
     .closest("details")!
     .querySelector("ol.history") as HTMLElement;
 
+test("a check-out from the page asks the event when no session is running, as a scan does (FR-OUT-05, FR-OUT-38)", async () => {
+  await store.setMeta({ session_event: "Spring camp", session_event_at: store.now() - SESSION_MS });
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(actions()).toHaveTextContent("No event");
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+  await user.click(
+    within(screen.getByRole("region", { name: "Which event" })).getByRole("button", { name: "No event" }),
+  );
+  await screen.findByText("Checked out · Tent 1");
+  expect(store.pending.filter((e) => e.type === "checked_out").map((e) => e.payload)).toEqual([
+    { holder_id: "alice", event: null, reservation_id: null },
+  ]);
+});
+
 test("Check out from the page records the session event and syncs (FR-OUT-02)", async () => {
-  await store.setMeta({ session_event: "Spring camp" });
+  await inSession(store, "Spring camp");
   renderInShell(<ItemPage store={store} id={tent} />);
   expect(actions()).toHaveTextContent("Event: Spring camp");
 
@@ -66,14 +81,15 @@ test("Check out from the page records the session event and syncs (FR-OUT-02)", 
   // Now it is out and mine: Return, no transfer.
   expect(screen.getByRole("button", { name: "Return" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Check out" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Transfer to me" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Take over" })).not.toBeInTheDocument();
 });
 
-test("someone else's gear can be checked in or transferred (FR-OUT-07, FR-OUT-12)", async () => {
+test("someone else's gear can be checked in or taken over, neither the default (FR-OUT-07, FR-OUT-12)", async () => {
   await mv.checkOut(store, tent, { event: "Spring camp" });
   await store.setMeta({ user: carol });
   renderInShell(<ItemPage store={store} id={tent} />);
-  expect(screen.getByRole("button", { name: "Transfer to me" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Take over" })).not.toHaveClass("primary");
+  expect(screen.getByRole("button", { name: "Return" })).not.toHaveClass("primary");
 
   await user.click(screen.getByRole("button", { name: "Return" }));
   expect(await screen.findByText("Returned · Tent 1")).toHaveAttribute("role", "status");
@@ -103,12 +119,14 @@ test("history lists movements and notes together, newest first (FR-INV-09)", asy
   await mv.checkOut(store, tent);
   await store.setMeta({ user: alice });
   await mv.transfer(store, tent, { event: "Cub camp" });
+  await mv.transfer(store, tent, { to: "carol" });
   await mv.addNote(store, tent, "pole repaired");
   renderInShell(<ItemPage store={store} id={tent} />);
 
   const rows = [...historyList().querySelectorAll(":scope > li")];
   expect(rows.map((r) => r.textContent)).toEqual([
     "pole repairedAlice · 2025-08-31 17:00EditDelete",
+    "Transferred to Carol by Alice · 2025-08-31 17:00",
     "Transferred to Alice for Cub camp · 2025-08-31 17:00",
     "Checked out by Carol · 2025-08-31 17:00",
     "Returned by Alice · 2025-08-31 17:00muddyAlice · 2025-08-31 17:00EditDelete",

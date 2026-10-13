@@ -24,8 +24,9 @@ Reservations list.
 - The remaining list is always visible, packed lines hidden until asked for
 - Nothing is checked out unless it is scanned, or ticked off the list if it has no sticker
 - A stove never returned from Spring Camp shows who has it; one tap transfers it and ticks it off
+- Handing a lantern on to a patrol leader transfers it to them; it does not count as packed
 
-Covers: FR-RES-02, FR-RES-03, FR-RES-21, FR-RES-22
+Covers: FR-RES-02, FR-RES-03, FR-RES-21, FR-RES-22, FR-RES-23, FR-RES-24, FR-RES-25
 
 ## S-RES-03 Leave something behind
 

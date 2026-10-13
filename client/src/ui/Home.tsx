@@ -11,9 +11,10 @@ import { datesLabel } from "./Reservations";
 import { Alerts } from "./Sections";
 
 /**
- * Home at a locker: what someone came to do, and nothing else. Taking gear out
- * or bringing it back is the usual next move, search is the fallback for gear
- * with no sticker (FR-OUT-02, FR-OUT-07), and a new item is the labelling walk.
+ * Home at a locker: what someone came to do, and nothing else. Scan is the
+ * usual next move, and its card picks check-out or return (FR-OUT-06); search
+ * is the fallback for gear with no sticker (FR-OUT-02, FR-OUT-07), and a new
+ * item is the labelling walk.
  * Everything else lives behind the menu.
  */
 export function Home({ store }: { store: Store }) {
@@ -33,24 +34,15 @@ export function Home({ store }: { store: Store }) {
       title="Gear Tracker"
       actions={
         <>
-          <div className="row">
-            <button className="primary tall" type="button" onClick={() => navigate("/scan?mode=out")}>
-              Check out
-            </button>
-            <button className="tall" type="button" onClick={() => navigate("/scan?mode=in")}>
-              Return
-            </button>
-          </div>
+          <button className="primary tall" type="button" onClick={() => navigate("/scan")}>
+            Scan
+          </button>
           {packing.length > 0 && (
             <section aria-label="Ready to pack">
               <ul className="items">
                 {packing.map((r) => (
                   <li key={r.id}>
-                    <button
-                      className="item"
-                      type="button"
-                      onClick={() => navigate(`/scan?mode=out&reservation=${r.id}`)}
-                    >
+                    <button className="item" type="button" onClick={() => navigate(`/scan?reservation=${r.id}`)}>
                       <span className="item-name">{r.event}</span>
                       <span className="muted small">{datesLabel(r)}</span>
                     </button>
@@ -78,7 +70,9 @@ export function Home({ store }: { store: Store }) {
           <ItemList store={store} list={list} />
         )
       ) : (
-        <p className="muted">Check out or return gear by scanning its code. Search by name for gear with no sticker.</p>
+        <p className="muted">
+          Scan a code to check gear out, return it, or look it up. Search by name for gear with no sticker.
+        </p>
       )}
     </Page>
   );
