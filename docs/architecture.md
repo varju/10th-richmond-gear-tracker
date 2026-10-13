@@ -616,11 +616,13 @@ scanner, and the app falls back to it if the plugin is missing or the native cam
   black or lost picture after leaving the app and coming back. Fixes on the web side did not hold.
 
 **What it is.** `ScannerPlugin.swift`, beside the print and link plugins. A capture session on the back camera with a
-metadata output for QR, its detection limited to the target box with the same room as the web (`rectOfInterest`). The
-session stays up across scans; a pause freezes the picture, stops codes and puts the torch out. It restarts itself after
-the app is left or the session is interrupted, and retries once after an error. A page reload resets it. It offers the
-torch. It drops repeats of a code inside the same window as the web, and the page takes each code exactly as a web
-decode, so what happens after a scan does not change.
+metadata output for QR, its detection limited to the target box with the same room as the web (`rectOfInterest`). It
+uses the phone's multi-lens camera where there is one, so a code too close for the wide lens hands over to the
+ultra-wide (macro), and zooms so a code fills the target at the wide lens's closest focus, with focus and exposure on
+the target. The session stays up across scans; a pause freezes the picture, stops codes and puts the torch out. It
+restarts itself after the app is left or the session is interrupted, and retries once after an error. A page reload
+resets it. It offers the torch. It drops repeats of a code inside the same window as the web, and the page takes each
+code exactly as a web decode, so what happens after a scan does not change.
 
 The picture sits behind the whole web view, at the viewfinder's place, on a navy backdrop that fills the screen. (Inside
 the web view's scroll view it did not show at all.) The page checks the viewfinder's and target's place on screen each

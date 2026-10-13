@@ -100,9 +100,7 @@ class ScannerPlugin: CAPPlugin, CAPBridgedPlugin, AVCaptureMetadataOutputObjects
     /// Once per app run, on `queue`. Returns why it failed, or nil.
     private func configure() -> String? {
         if device != nil { return nil }
-        guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
-            return "nocamera"
-        }
+        guard let camera = Self.backCamera() else { return "nocamera" }
         guard let input = try? AVCaptureDeviceInput(device: camera), session.canAddInput(input),
               session.canAddOutput(output) else { return "failed" }
         session.beginConfiguration()
@@ -112,12 +110,58 @@ class ScannerPlugin: CAPPlugin, CAPBridgedPlugin, AVCaptureMetadataOutputObjects
         output.metadataObjectTypes = [.qr]
         session.commitConfiguration()
         // Stickers are read close up.
-        if camera.isAutoFocusRangeRestrictionSupported, (try? camera.lockForConfiguration()) != nil {
-            camera.autoFocusRangeRestriction = .near
+        if (try? camera.lockForConfiguration()) != nil {
+            if camera.isVirtualDevice {
+                camera.setPrimaryConstituentDeviceSwitchingBehavior(.auto, restrictedSwitchingBehaviorConditions: [])
+            }
+            if camera.isAutoFocusRangeRestrictionSupported { camera.autoFocusRangeRestriction = .near }
+            if camera.isSmoothAutoFocusSupported { camera.isSmoothAutoFocusEnabled = false }
+            camera.videoZoomFactor = Self.wideZoom(camera)
             camera.unlockForConfiguration()
         }
         device = camera
         return nil
+    }
+
+    /// The back camera, a virtual one where the phone has it: that hands over between lenses by itself, including
+    /// to the ultra-wide when a code is too close for the wide lens to focus (macro).
+    private static func backCamera() -> AVCaptureDevice? {
+        let types: [AVCaptureDevice.DeviceType] = [
+            .builtInTripleCamera, .builtInDualWideCamera, .builtInDualCamera, .builtInWideAngleCamera,
+        ]
+        let found = AVCaptureDevice.DiscoverySession(deviceTypes: types, mediaType: .video, position: .back).devices
+        return types.lazy.compactMap { type in found.first { $0.deviceType == type } }.first
+    }
+
+    /// The zoom at which the wide lens, the camera app's 1x, is in use. On a virtual camera whose widest lens is
+    /// the ultra-wide, zoom 1 is the ultra-wide and the wide lens starts at the first switch-over.
+    private static func wideZoom(_ camera: AVCaptureDevice) -> CGFloat {
+        guard camera.constituentDevices.first?.deviceType == .builtInUltraWideCamera else { return 1 }
+        return camera.virtualDeviceSwitchOverVideoZoomFactors.first.map { CGFloat(truncating: $0) } ?? 1
+    }
+
+    /// Printed codes are about this wide, in millimetres.
+    private static let codeSize: CGFloat = 32
+
+    /// Zoom so a code fills the target when the phone is at the wide lens's closest focus, as Apple's barcode
+    /// sample does. Without it a code fills the target only closer than the lens can focus, so it is blurred.
+    /// `fill` is the target's share of the frame's long side.
+    ///
+    /// It starts from the wide lens, so the picture is what people expect and the macro hand-over still works,
+    /// and goes no further than 3x that, and below the next switch-over: the telephoto cannot focus close.
+    private static func zoom(_ camera: AVCaptureDevice, fill: CGFloat) -> CGFloat {
+        let base = wideZoom(camera)
+        var top = min(base * 3, camera.maxAvailableVideoZoomFactor)
+        let switches = camera.virtualDeviceSwitchOverVideoZoomFactors.map { CGFloat(truncating: $0) }
+        if let next = switches.first(where: { $0 > base + 0.1 }) { top = min(top, next - 0.1) }
+        top = max(top, base)
+        let wide = camera.constituentDevices.first { $0.deviceType == .builtInWideAngleCamera } ?? camera
+        let closest = CGFloat(wide.minimumFocusDistance) // mm; -1 when unknown
+        guard closest > 0, fill > 0 else { return base }
+        // At zoom z the frame's long side spans 2·tan(fov/2)/z per unit of distance; the code fills `fill` of it.
+        let halfAngle = CGFloat(camera.activeFormat.videoFieldOfView) * .pi / 360
+        let wanted = 2 * fill * tan(halfAngle) * closest / codeSize
+        return min(max(wanted, base), top)
     }
 
     /// Puts the backdrop and preview below the web view, as a sibling. The web view is the controller's root view,
@@ -283,18 +327,34 @@ class ScannerPlugin: CAPPlugin, CAPBridgedPlugin, AVCaptureMetadataOutputObjects
     }
 
     /// Detect only around the target, with the same room as the web scanner (`TARGET_ROOM`).
+    /// Focus, expose and zoom for it too. Preview and output zoom alike, so the area holds at any zoom.
     private func aim() {
         guard let layer = preview?.previewLayer else { return }
         let whole = CGRect(x: 0, y: 0, width: 1, height: 1)
         var area = whole
+        var centre: CGPoint?
+        var fill: CGFloat = 0
         if let box = target, !box.isEmpty {
             let w = box.width * room
             let h = box.height * room
             let region = CGRect(x: box.midX - w / 2, y: box.midY - h / 2, width: w, height: h)
             area = layer.metadataOutputRectConverted(fromLayerRect: region).intersection(whole)
             if area.isNull || area.isEmpty { area = whole }
+            // Output coordinates run along the sensor, x on its long side, whichever way the screen is turned.
+            fill = layer.metadataOutputRectConverted(fromLayerRect: box).width
+            centre = layer.captureDevicePointConverted(fromLayerPoint: CGPoint(x: box.midX, y: box.midY))
         }
-        queue.async { self.output.rectOfInterest = area }
+        queue.async {
+            self.output.rectOfInterest = area
+            guard let device = self.device, let centre, (try? device.lockForConfiguration()) != nil else { return }
+            defer { device.unlockForConfiguration() }
+            // The point first: setting the mode is what applies it.
+            if device.isFocusPointOfInterestSupported { device.focusPointOfInterest = centre }
+            if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
+            if device.isExposurePointOfInterestSupported { device.exposurePointOfInterest = centre }
+            if device.isExposureModeSupported(.continuousAutoExposure) { device.exposureMode = .continuousAutoExposure }
+            if fill > 0, fill <= 1 { device.videoZoomFactor = Self.zoom(device, fill: fill) }
+        }
     }
 
     /// Turn the picture with the screen. Interface and capture orientations share raw values.
