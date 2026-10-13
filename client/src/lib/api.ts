@@ -32,6 +32,8 @@ export interface User {
 export interface AccountUser extends User {
   email: string;
   has_password: boolean;
+  /** When a lock from wrong passwords ends (NFR-SEC-12); null or absent when not locked. */
+  locked_until?: number | null;
 }
 
 /**
@@ -356,6 +358,8 @@ export function createApi(options: ApiOptions = {}) {
     setRole: (userId: string, role: string) => request<{ user: User }>("POST", `/users/${userId}/role`, { role }),
     deactivate: (userId: string) => request<{ user: User }>("POST", `/users/${userId}/deactivate`),
     reactivate: (userId: string) => request<{ user: User }>("POST", `/users/${userId}/reactivate`),
+    /** End a lock from wrong passwords early (FR-USR-29). */
+    unlock: (userId: string) => request<{ user: User }>("POST", `/users/${userId}/unlock`),
     resetLink: (userId: string, link: string) => request<LinkResult>("POST", `/users/${userId}/reset-link`, { link }),
     devices: (userId: string) => request<{ devices: Device[] }>("GET", `/users/${userId}/devices`),
     revokeDevice: (userId: string, deviceId: string) =>

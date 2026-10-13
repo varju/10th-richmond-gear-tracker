@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test } from "vitest";
 import type { AccountUser } from "../lib/api";
 import { createApi } from "../lib/api";
-import { localDate } from "../lib/time";
+import { localDate, localMinute } from "../lib/time";
 import type { Store } from "../lib/store";
 import { openStore } from "./codeTestKit";
 import { Users } from "./Users";
@@ -63,6 +63,10 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
   }
   if (path === "/users/bea/deactivate") {
     users[1] = { ...users[1]!, active: false, deactivated_at: T0 };
+    return json({ user: users[1] });
+  }
+  if (path === "/users/bea/unlock") {
+    users[1] = { ...users[1]!, locked_until: null };
     return json({ user: users[1] });
   }
   if (path === "/users/bea/edit") {
@@ -380,4 +384,20 @@ test("not for users", async () => {
   mount();
   expect(screen.getByRole("heading", { name: "Not found" })).toBeInTheDocument();
   expect(calls).toEqual([]);
+});
+
+test("a locked account says until when, and an Admin unlocks it (FR-USR-27, FR-USR-29)", async () => {
+  users[1] = { ...users[1]!, locked_until: T0 + 15 * 60_000 };
+  mount();
+  const list = await screen.findByRole("list", { name: "Users" });
+  const bea = within(list).getByRole("button", { name: /Bea/ });
+  expect(bea).toHaveTextContent(`Locked until ${localMinute(T0 + 15 * 60_000)}`);
+  expect(within(list).getByRole("button", { name: /Alice/ })).not.toHaveTextContent("Locked");
+
+  await user.click(bea);
+  await user.click(screen.getByRole("button", { name: "Unlock" }));
+
+  await waitFor(() => expect(bea).not.toHaveTextContent("Locked"));
+  expect(calls).toContain("POST /users/bea/unlock");
+  expect(screen.queryByRole("button", { name: "Unlock" })).not.toBeInTheDocument();
 });

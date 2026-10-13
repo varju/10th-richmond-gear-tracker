@@ -11,7 +11,7 @@ import {
 import * as inv from "../lib/inventory";
 import { siteUrl } from "../lib/server";
 import { printPage } from "../lib/share";
-import { ago, localDate } from "../lib/time";
+import { ago, localDate, localMinute } from "../lib/time";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { DeviceList } from "./Devices";
@@ -44,7 +44,7 @@ function describe(e: unknown): string {
 
 /**
  * Who is in the group, for Admins (FR-USR-04). Invite, change a role, deactivate,
- * hand out a reset link, and cut off one lost device (FR-USR-14). Everything here
+ * hand out a reset link, unlock after wrong passwords (FR-USR-29), and cut off one lost device (FR-USR-14). Everything here
  * is a server call: accounts never reach a device.
  */
 export function Users({ store, api }: Props) {
@@ -695,7 +695,9 @@ function UserRow({
     : user.deactivated_at
       ? `Deactivated ${localDate(user.deactivated_at)}`
       : "Deactivated";
-  const summary = [user.email, user.role === "admin" ? "Admin" : "", status].filter(Boolean).join(" · ");
+  // The server says so only while the lock lasts (NFR-SEC-12).
+  const locked = user.locked_until ? `Locked until ${localMinute(user.locked_until)}` : "";
+  const summary = [user.email, user.role === "admin" ? "Admin" : "", status, locked].filter(Boolean).join(" · ");
 
   return (
     <li>
@@ -754,6 +756,16 @@ function UserRow({
             >
               Reset link
             </button>
+            {user.locked_until && (
+              <button
+                type="button"
+                className="minor"
+                disabled={busy}
+                onClick={() => act(() => api.unlock(user.id), onChanged)}
+              >
+                Unlock
+              </button>
+            )}
           </div>
           {me && <p className="muted small">Another Admin changes your role or ends your access.</p>}
           <h3 className="section small">Devices</h3>

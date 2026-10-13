@@ -75,7 +75,8 @@ on it.
 ## Sign in
 
 Open the invite link an Admin sends you and choose a password. After that, your email and password. Signing in needs a
-connection; using the app does not.
+connection; using the app does not. Five wrong passwords lock your email for 15 minutes; the app says how long is left,
+and an Admin can unlock it sooner.
 
 ## Install it
 

@@ -127,6 +127,11 @@ Open Users, pick the person, and edit their name or email. A renamed person sees
 Open Users, pick the person, and make a reset link. It is one use, mailed if mail is set up, otherwise copied and passed
 on.
 
+## A locked account
+
+Five wrong passwords lock an email for 15 minutes, longer each time it happens again. Every Admin gets an email when it
+happens, at most one an hour. Open Users, pick the person, and tap Unlock to let them try again now.
+
 ## A lost device
 
 Open Users, pick the person, and revoke the device. The account keeps working everywhere else. Anything that device

@@ -15,6 +15,8 @@ interface Props {
 }
 
 const MIN_PASSWORD = 8;
+/** The server's cap (NFR-SEC-21). */
+const MAX_PASSWORD = 256;
 
 /**
  * Where an invite or reset link lands: /join?token=… (FR-USR-12). Set a password,
@@ -64,6 +66,10 @@ export function Join({ store, api, onJoined, onSignOut, native = NATIVE }: Props
       setFault("password");
       return setError(`Use at least ${MIN_PASSWORD} characters.`);
     }
+    if (password.length > MAX_PASSWORD) {
+      setFault("password");
+      return setError(`Use at most ${MAX_PASSWORD} characters.`);
+    }
     if (password !== again) {
       setFault("again");
       return setError("The two passwords differ.");
@@ -83,7 +89,11 @@ export function Join({ store, api, onJoined, onSignOut, native = NATIVE }: Props
       else if (e instanceof ApiError && e.code === "invite_used") setBlocked("invite");
       else if (e instanceof ApiError && e.code === "reset_used") setBlocked("reset");
       else if (e instanceof ApiError && e.status === 409) setBlocked("exists");
-      else if (e instanceof ApiError) setError(e.message);
+      else if (e instanceof ApiError && e.code === "common_password") {
+        // On the server's list of common passwords (NFR-SEC-22).
+        setFault("password");
+        setError("This password is too common. Choose another.");
+      } else if (e instanceof ApiError) setError(e.message);
       else throw e;
     } finally {
       setBusy(false);

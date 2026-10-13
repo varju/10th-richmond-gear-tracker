@@ -37,6 +37,8 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
   if (path !== "/auth/redeem") return json({ error: "not_found", message: path }, 404);
   const body = JSON.parse(String(init?.body)) as { token: string; password: string; device_id: string };
   bodies.push(body);
+  if (body.password === "password123")
+    return json({ error: "common_password", message: "this password is too common; choose another" }, 400);
   if (body.token === "USED_INVITE")
     return json({ error: "invite_used", message: "you already have an account; sign in instead" }, 401);
   if (body.token === "USED_RESET")
@@ -256,4 +258,30 @@ test("a standing link opened while already signed in on this device goes straigh
   navigate("/join?link=GOOD");
   mount();
   await waitFor(() => expect(location.pathname).toBe("/"));
+});
+
+test("a common password is refused, and says so next to the password (NFR-SEC-22)", async () => {
+  navigate("/join?token=GOOD");
+  const onJoined = mount();
+  await user.type(screen.getByLabelText("New password"), "password123");
+  await user.type(screen.getByLabelText("Again"), "password123");
+  await user.click(screen.getByRole("button", { name: "Set password and sign in" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("This password is too common. Choose another.");
+  expect(screen.getByLabelText("New password")).toBeInvalid();
+  expect(onJoined).not.toHaveBeenCalled();
+});
+
+test("a password over the server's cap never reaches it (NFR-SEC-21)", async () => {
+  navigate("/join?token=GOOD");
+  mount();
+  const long = "x".repeat(257);
+  await user.click(screen.getByLabelText("New password"));
+  await user.paste(long);
+  await user.click(screen.getByLabelText("Again"));
+  await user.paste(long);
+  await user.click(screen.getByRole("button", { name: "Set password and sign in" }));
+
+  expect(screen.getByRole("alert")).toHaveTextContent("at most 256 characters");
+  expect(bodies).toEqual([]);
 });
