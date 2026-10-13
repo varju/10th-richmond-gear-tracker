@@ -3,6 +3,7 @@ import { type Api, ApiError, Offline } from "../lib/api";
 import { navigate, useRoute } from "../lib/router";
 import { NATIVE } from "../lib/server";
 import type { Store } from "../lib/store";
+import { useKeyboardForm } from "./keyboardForm";
 
 interface Props {
   store: Store;
@@ -46,6 +47,7 @@ export function Join({ store, api, onJoined, onSignOut, native = NATIVE }: Props
   // what the person can do next, or an email that already has an account (FR-USR-19).
   const [blocked, setBlocked] = useState<"invite" | "reset" | "exists" | null>(null);
   const [busy, setBusy] = useState(false);
+  const form = useKeyboardForm();
   const signedIn = store.meta.user;
 
   const offerSignOut = native && Boolean(onSignOut);
@@ -89,7 +91,7 @@ export function Join({ store, api, onJoined, onSignOut, native = NATIVE }: Props
   }
 
   return (
-    <form className="app" onSubmit={submit} noValidate>
+    <form ref={form} className="app" onSubmit={submit} noValidate>
       <header>
         <h1>Gear Tracker</h1>
       </header>
@@ -139,6 +141,7 @@ export function Join({ store, api, onJoined, onSignOut, native = NATIVE }: Props
                     onChange={(e) => setName(e.target.value)}
                     required
                     autoComplete="name"
+                    enterKeyHint="next"
                     autoFocus
                   />
                 </label>
@@ -150,6 +153,7 @@ export function Join({ store, api, onJoined, onSignOut, native = NATIVE }: Props
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     autoComplete="email"
+                    enterKeyHint="next"
                   />
                 </label>
               </>
@@ -159,6 +163,7 @@ export function Join({ store, api, onJoined, onSignOut, native = NATIVE }: Props
               <input
                 type="password"
                 autoComplete="new-password"
+                enterKeyHint="next"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
@@ -174,6 +179,7 @@ export function Join({ store, api, onJoined, onSignOut, native = NATIVE }: Props
               <input
                 type="password"
                 autoComplete="new-password"
+                enterKeyHint="go"
                 value={again}
                 onChange={(e) => {
                   setAgain(e.target.value);

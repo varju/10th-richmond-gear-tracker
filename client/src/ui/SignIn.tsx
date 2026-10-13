@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { type Api, ApiError, Offline } from "../lib/api";
 import type { Store } from "../lib/store";
+import { useKeyboardForm } from "./keyboardForm";
 import { PrivacyLink } from "./PrivacyLink";
 
 interface Props {
@@ -16,6 +17,7 @@ export function SignIn({ store, api, onSignedIn, notice }: Props) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const form = useKeyboardForm();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -35,7 +37,7 @@ export function SignIn({ store, api, onSignedIn, notice }: Props) {
   }
 
   return (
-    <form className="app" onSubmit={submit}>
+    <form ref={form} className="app" onSubmit={submit}>
       <header>
         <h1>Gear Tracker</h1>
       </header>
@@ -50,6 +52,7 @@ export function SignIn({ store, api, onSignedIn, notice }: Props) {
           <input
             type="email"
             autoComplete="username"
+            enterKeyHint="next"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -60,6 +63,7 @@ export function SignIn({ store, api, onSignedIn, notice }: Props) {
           <input
             type="password"
             autoComplete="current-password"
+            enterKeyHint="go"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
