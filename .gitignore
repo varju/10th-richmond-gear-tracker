@@ -21,6 +21,8 @@ logs/
 Makefile.local
 # Holds the Admin and mail passwords.
 seed.toml
+# The App Review sign-in.
+app-review.txt
 .direnv/
 .DS_Store
 
