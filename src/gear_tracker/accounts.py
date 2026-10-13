@@ -547,11 +547,11 @@ def revoke_join_link(conn: sqlite3.Connection, who: Principal, link_id: str, now
     conn.execute("UPDATE join_links SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", (now, link_id))
 
 
-def _guard_last_admin(conn: sqlite3.Connection, user_id: str) -> None:
+def _guard_last_admin(conn: sqlite3.Connection, user_id: str, message: str = "this is the last Admin") -> None:
     """FR-USR-03. Nobody locks the group out."""
     user = get_user(conn, user_id)
     if user["role"] == "admin" and user["active"] and active_admins(conn) == 1:
-        raise Conflict("this is the last Admin")
+        raise Conflict(message)
 
 
 def _change_email(conn: sqlite3.Connection, user_id: str, email: str) -> None:
@@ -605,9 +605,8 @@ def set_role(conn: sqlite3.Connection, who: Principal, user_id: str, role: Role,
 
 
 def deactivate(conn: sqlite3.Connection, who: Principal, user_id: str, now: int | None = None) -> None:
-    """Access ends at the server now (NFR-SEC-07). Sessions stay, so a final push can still land (FR-OFF-06).
-
-    The guard and the write are one transaction, for the same reason as set_role's demotion.
+    """Access ends at the server now (NFR-SEC-07). Device sessions stay, so a final push can still land
+    (FR-OFF-06); assistant tokens end (see _deactivate).
     """
     _require_admin(who)
     if user_id == who.user_id:
@@ -615,37 +614,52 @@ def deactivate(conn: sqlite3.Connection, who: Principal, user_id: str, now: int 
         # can take back. Another Admin ends an account; to leave the group, delete your own from
         # Settings (deactivate_self), which says what it does first.
         raise Conflict("you cannot deactivate your own account; another Admin must do it")
-    now = now_ms() if now is None else now
-    conn.execute("BEGIN IMMEDIATE")
-    try:
-        _guard_last_admin(conn, user_id)
-        _change(conn, who.user_id, user_id, "active", False, now)
-        conn.execute("COMMIT")
-    except BaseException:
-        conn.execute("ROLLBACK")
-        raise
+    _deactivate(conn, who.user_id, user_id, now_ms() if now is None else now)
 
 
 def deactivate_self(conn: sqlite3.Connection, who: Principal, token: str, now: int | None = None) -> None:
     """Delete my account (FR-USR-25): the same deactivation an Admin does, asked for by the person.
 
-    Their name stays on every record. This device and their assistants are signed out now. Their
+    Their name stays on every record. This device is signed out now, with their assistants. Their
     other devices keep one final push (FR-OFF-06), then sign out at their next sync. An Admin can
     reactivate them.
     """
-    now = now_ms() if now is None else now
+    _deactivate(
+        conn,
+        who.user_id,
+        who.user_id,
+        now_ms() if now is None else now,
+        last_admin="you are the last Admin; make someone else an Admin first",
+        token=token,
+    )
+
+
+def _deactivate(
+    conn: sqlite3.Connection,
+    actor_id: str,
+    user_id: str,
+    now: int,
+    last_admin: str = "this is the last Admin",
+    token: str | None = None,
+) -> None:
+    """Every deactivation, whoever asks. The guard and the write are one transaction, for the same
+    reason as set_role's demotion.
+
+    Assistant tokens end now: they never hold unsent work (FR-OFF-06 is for phones), and
+    reactivation then brings back the same devices whoever deactivated. `token` is the caller's
+    own session, ended with them.
+    """
     conn.execute("BEGIN IMMEDIATE")
     try:
-        user = get_user(conn, who.user_id)
-        if not user["active"]:
+        if token is not None and not get_user(conn, user_id)["active"]:
+            # Asked by the person: a second ask is from a session that should be gone.
             raise Deactivated("this account has been deactivated")
-        if user["role"] == "admin" and active_admins(conn) == 1:
-            raise Conflict("you are the last Admin; make someone else an Admin first")
-        _change(conn, who.user_id, who.user_id, "active", False, now)
+        _guard_last_admin(conn, user_id, last_admin)
+        _change(conn, actor_id, user_id, "active", False, now)
         conn.execute(
             "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL"
-            " AND (token_hash = ? OR device_id LIKE ?)",
-            (now, who.user_id, _hash_token(token), ASSISTANT_PREFIX + "%"),
+            " AND (token_hash = ? OR substr(device_id, 1, ?) = ?)",
+            (now, user_id, _hash_token(token) if token else None, len(ASSISTANT_PREFIX), ASSISTANT_PREFIX),
         )
         conn.execute("COMMIT")
     except BaseException:

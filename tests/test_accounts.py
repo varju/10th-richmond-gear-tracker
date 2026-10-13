@@ -367,6 +367,26 @@ def test_an_admin_restores_a_deleted_account(db, admin):
     assert accounts.get_user(db, user_id)["active"] is True
 
 
+@pytest.mark.parametrize("by", ["admin", "self"])
+def test_every_deactivation_ends_assistants_and_reactivation_matches(db, admin, by):
+    """Whoever deactivates, assistants end now and phones keep their final push; reactivation is the same after."""
+    user_id, who, phone, laptop, assistant = _bea(db, admin)
+    # Not an assistant, though it looks like one to a case-blind match.
+    shouty = accounts.sign_in(db, SignIn(email="bea@example.org", password="battery staple", device_id="MCP-phone"))
+
+    if by == "admin":
+        accounts.deactivate(db, admin, user_id, now=T0 + 1)
+    else:
+        accounts.deactivate_self(db, who, phone.token, now=T0 + 1)
+    accounts.reactivate(db, admin, user_id, now=T0 + 2)
+
+    assert accounts.authenticate(db, assistant.token) is None
+    assert accounts.authenticate(db, laptop.token) is not None
+    assert accounts.authenticate(db, shouty.token) is not None
+    left = {d["device_id"] for d in accounts.list_devices(db, admin, user_id)}
+    assert left == {"laptop-b", "MCP-phone"} | ({"phone-b"} if by == "admin" else set())
+
+
 def test_an_admin_cannot_drop_their_own_role(db, admin):
     """FR-USR-22. Not even with another Admin standing by: the mistake is one nobody can undo alone."""
     bea_id, _ = invite(db, admin, role="admin")

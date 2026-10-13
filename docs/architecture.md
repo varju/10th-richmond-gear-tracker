@@ -785,14 +785,14 @@ device. Twenty phones hold the inventory; they do not need to hold twenty email 
 Sessions never expire (FR-USR-07). Sign-in is exchanged once for a long-lived token per device; the app never needs to
 reach an identity provider from a locker (FR-USR-08). The token is stored hashed. A deactivated account's sessions are
 kept, marked inactive, so a queued push can still land (FR-OFF-06). The first push that lands revokes the session;
-nothing else is accepted after that.
+nothing else is accepted after that. Its assistant tokens end at once: they never hold unsent work.
 
 Invite and reset links are one-time tokens (FR-USR-12). They die after seven days unused; sessions do not expire, links
 do. Redeeming a reset revokes the sessions the old password opened.
 
 Deleting your own account (`POST /me/deactivate`, FR-USR-25) is the same deactivation an Admin does, with the person as
-the actor. It also revokes the calling session and the person's assistant tokens at once. Their other devices keep the
-final push of FR-OFF-06, then sign out at their next sync.
+the actor. It also revokes the calling session at once. Their other devices keep the final push of FR-OFF-06, then sign
+out at their next sync.
 
 The link is always shown for the Admin to pass on. A group that fills in an SMTP account gets it mailed as well
 (FR-USR-15): one mailbox at whatever provider the group already uses, an app password rather than the real one, in a

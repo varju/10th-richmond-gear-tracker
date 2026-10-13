@@ -19,8 +19,6 @@ export interface Shell {
   /** Same, but marks `manualBusy` for the button that started it. */
   syncNow: () => Promise<SyncOutcome | undefined>;
   signOut: () => Promise<void>;
-  /** After the server deactivated this account at the person's request (FR-USR-25): sign out and say so. */
-  accountDeleted?: () => Promise<void>;
   /** For the few screens that talk to the server directly, such as photos. Absent means offline. */
   api?: Api;
   /** Absent before sign-in: the public sticker page runs with no app around it. */

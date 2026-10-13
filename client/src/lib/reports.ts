@@ -34,6 +34,14 @@ export interface OutReport {
 export const outCount = (state: State): number =>
   movable(state).filter((it) => it.status === "out" && !it.missing).length;
 
+/** How many lines of What is out are under this person: the same rules as whatIsOut, without building it. */
+export const heldBy = (state: State, holderId: string): number =>
+  items(state).filter((it) =>
+    isPool(it)
+      ? poolCounts(it).out.some((o) => o.holder_id === holderId)
+      : it.status === "out" && !it.missing && it.holder_id === holderId,
+  ).length;
+
 export const daysOut = (it: Item, now: number): number => Math.floor(Math.max(0, now - (it.since ?? now)) / DAY_MS);
 
 /** Out longer than the group-wide period. No period set means nothing is overdue. */

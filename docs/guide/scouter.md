@@ -90,8 +90,9 @@ the old device never sent is gone.
 
 ## Delete your account
 
-Settings, Delete my account. You are signed out everywhere and cannot sign in again. Your name stays on what you did; an
-Admin can restore your access. It needs a connection.
+Settings, Delete my account. You are signed out and cannot sign in again. Other devices sign out the next time they
+connect, after sending anything they had not sent. Your name stays on what you did; an Admin can restore your access. It
+needs a connection.
 
 ## Email alerts
 

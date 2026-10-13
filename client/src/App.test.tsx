@@ -36,6 +36,9 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
   if (path === "/sync/pull") return json({ events: [], cursor: 2, log_id: "log-one" });
   if (path === "/sync/push") return json({ accepted: [], rejected: [], log_id: "log-one" });
   if (path === "/me/deactivate") return json({});
+  if (path === "/auth/redeem")
+    return json({ token: "tok2", user: { id: "u2", name: "Bea", role: "user", active: true } });
+  if (path === "/auth/sign-out") return json({});
   if (path.startsWith("/public/codes/"))
     return json({
       item: { name: "Tent" },
@@ -185,4 +188,45 @@ test("deleting your account lands on the sign-in screen and says so (FR-USR-25)"
   expect(calls).not.toContain("/auth/sign-out");
   expect(store.meta.token).toBeUndefined();
   expect(location.pathname).toBe("/");
+});
+
+async function deleteAccount() {
+  await store.setMeta({
+    token: "tok",
+    user: { id: "u1", name: "Alice", role: "admin", active: true },
+    cursor: 2,
+    log_id: "log-one",
+  });
+  navigate("/settings/account");
+  mount();
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Delete my account…" }));
+  await user.click(screen.getByRole("button", { name: "Really delete? You cannot sign in again" }));
+  expect(await screen.findByText("Your account is deleted. An Admin can restore it.")).toBeInTheDocument();
+  return user;
+}
+
+test("the deleted-account message goes once someone signs in with a link and later signs out", async () => {
+  const user = await deleteAccount();
+  navigate("/join?token=GOOD");
+  await user.type(await screen.findByLabelText("New password"), "battery staple");
+  await user.type(screen.getByLabelText("Again"), "battery staple");
+  await user.click(screen.getByRole("button", { name: "Set password and sign in" }));
+  await user.click(await screen.findByRole("button", { name: "Menu" }));
+  await user.click(screen.getByRole("button", { name: "Sign out" }));
+
+  expect(await screen.findByLabelText("Password")).toBeInTheDocument();
+  expect(screen.queryByText("Your account is deleted. An Admin can restore it.")).not.toBeInTheDocument();
+});
+
+test("the deleted-account message goes once someone signs in again", async () => {
+  const user = await deleteAccount();
+  await user.type(screen.getByLabelText("Email"), "bea@example.org");
+  await user.type(screen.getByLabelText("Password"), "pw");
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  await user.click(await screen.findByRole("button", { name: "Menu" }));
+  await user.click(screen.getByRole("button", { name: "Sign out" }));
+
+  expect(await screen.findByLabelText("Password")).toBeInTheDocument();
+  expect(screen.queryByText("Your account is deleted. An Admin can restore it.")).not.toBeInTheDocument();
 });

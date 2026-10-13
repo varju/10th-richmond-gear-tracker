@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { type Api, ApiError, Offline } from "../lib/api";
-import { whatIsOut } from "../lib/reports";
+import { heldBy } from "../lib/reports";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { Page } from "./Page";
@@ -8,7 +8,6 @@ import { Page } from "./Page";
 interface Props {
   store: Store;
   api: Api;
-  now: () => number;
   /** Clears this device's sign-in, the way signing out does. */
   onDeleted: () => Promise<void>;
 }
@@ -17,14 +16,14 @@ interface Props {
  * Delete my account (FR-USR-25). It deactivates the account; nothing is erased.
  * Two taps, and it needs the network, like everything about accounts.
  */
-export function SettingsAccount({ store, api, now, onDeleted }: Props) {
+export function SettingsAccount({ store, api, onDeleted }: Props) {
   useStore(store);
   const [asked, setAsked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const me = store.meta.user?.id;
   const pending = store.pending.length;
-  const out = whatIsOut(store.state, now()).holders.find((h) => h.id === me)?.items.length ?? 0;
+  const out = me ? heldBy(store.state, me) : 0;
 
   async function remove() {
     if (!asked) {
@@ -34,21 +33,37 @@ export function SettingsAccount({ store, api, now, onDeleted }: Props) {
     setBusy(true);
     setError(null);
     try {
+      if (!(await askServer())) return;
+      try {
+        await onDeleted();
+      } catch {
+        setError("Your account is deleted. This device signs out the next time it syncs.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** True once the account is gone, including when an earlier try already did it and its reply was lost. */
+  async function askServer(): Promise<boolean> {
+    try {
       await api.deleteMyAccount();
-      await onDeleted();
+      return true;
     } catch (e) {
+      if (e instanceof ApiError && (e.status === 401 || e.code === "deactivated")) return true;
       if (e instanceof Offline) setError("Deleting your account needs a connection. Try again when you have signal.");
       else if (e instanceof ApiError) setError(e.message);
-      else throw e;
-      setBusy(false);
+      else setError("Something went wrong. Try again.");
+      return false;
     }
   }
 
   return (
     <Page title="Delete my account" back="/settings">
       <p>
-        This signs you out on every device, and you cannot sign in again. Your name stays on the group's records:
-        check-outs, notes, tickets and photos. An Admin can restore your access.
+        This signs you out here, and you cannot sign in again. Your other devices sign out the next time they connect;
+        anything they have not sent yet is sent first. Your name stays on the group's records: check-outs, notes,
+        tickets and photos. An Admin can restore your access.
       </p>
       {out > 0 && (
         <p className="notice" role="note">

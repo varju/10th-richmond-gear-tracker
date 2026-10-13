@@ -161,6 +161,7 @@ export function App({ store, api, now = Date.now }: Props) {
     } catch (e) {
       if (!(e instanceof Offline)) throw e;
     }
+    setFarewell(null);
     await store.setMeta({ token: undefined, user: undefined });
   }
 
@@ -172,6 +173,7 @@ export function App({ store, api, now = Date.now }: Props) {
   }
 
   function joined() {
+    setFarewell(null);
     navigate("/", true);
     void runSync();
   }
@@ -197,7 +199,7 @@ export function App({ store, api, now = Date.now }: Props) {
     );
   }
 
-  const shell: Shell = { busy, manualBusy, outcome, now, sync: runSync, syncNow, signOut, accountDeleted, api, store };
+  const shell: Shell = { busy, manualBusy, outcome, now, sync: runSync, syncNow, signOut, api, store };
   const pending = store.pending;
   const stale = pending.filter((e) => e.occurred_at < now() - STALE_PENDING_MS);
   return (
@@ -218,14 +220,21 @@ export function App({ store, api, now = Date.now }: Props) {
           <div className="desk">
             <Sections store={store} layout="sidebar" />
             <div className="desk-main">
-              <Screen store={store} api={api} route={route} shell={shell} wide />
+              <Screen store={store} api={api} route={route} shell={shell} onAccountDeleted={accountDeleted} wide />
             </div>
           </div>
         ) : (
           <>
             {/* Installing matters on the phone that goes to the locker, and only there. */}
             {route.segments.length === 0 && <InstallPrompt />}
-            <Screen store={store} api={api} route={route} shell={shell} wide={false} />
+            <Screen
+              store={store}
+              api={api}
+              route={route}
+              shell={shell}
+              onAccountDeleted={accountDeleted}
+              wide={false}
+            />
           </>
         )}
         <LeaveDialog />
@@ -240,12 +249,15 @@ function Screen({
   route,
   shell,
   wide,
+  onAccountDeleted,
 }: {
   store: Store;
   api: Api;
   route: Route;
   shell: Shell;
   wide: boolean;
+  /** Signs out after the server deactivated this account at the person's request (FR-USR-25). */
+  onAccountDeleted: () => Promise<void>;
 }) {
   const [head, second, third] = route.segments;
   switch (head) {
@@ -305,10 +317,7 @@ function Screen({
       if (second === "notifications") return <Notifications store={store} api={api} />;
       if (second === "refused") return <SettingsRefused store={store} />;
       if (second === "assistant") return <SettingsAssistant api={api} />;
-      if (second === "account")
-        return (
-          <SettingsAccount store={store} api={api} now={shell.now} onDeleted={shell.accountDeleted ?? shell.signOut} />
-        );
+      if (second === "account") return <SettingsAccount store={store} api={api} onDeleted={onAccountDeleted} />;
       return <Settings store={store} shell={shell} />;
     case "join":
       // Signed in already. Join says what to do; it needs no shell.
