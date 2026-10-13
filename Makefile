@@ -56,7 +56,8 @@ ios:
 # then native to that machine and never crosses architectures. See docs/deploy.md.
 
 IMAGE ?= gear-tracker
-TAG   ?= $(shell git describe --tags --always --dirty)
+# ios-* tags mark iPhone app uploads, not server releases.
+TAG   ?= $(shell git describe --tags --always --dirty --exclude 'ios-*')
 # The commit the client is built from, baked in and shown in Settings.
 GIT_SHA ?= $(shell git rev-parse --short HEAD)
 # The path the app is served from. Baked into the client at build time.
