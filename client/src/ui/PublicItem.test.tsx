@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { createApi } from "../lib/api";
+import { BASE } from "../lib/router";
 import { PublicItem } from "./PublicItem";
 
 const T0 = 1_756_684_800_000;
@@ -124,8 +125,10 @@ test("too many reports, or no signal, is said in words", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("No connection. Try again when you have one.");
 });
 
-test("a stranger can read the privacy policy (FR-PUB-07)", async () => {
+test("a stranger can read the privacy policy, in a new window (FR-PUB-07)", async () => {
   await mount(async () => answer(tent));
 
-  expect(await screen.findByRole("link", { name: "Privacy" })).toHaveAttribute("href", `${location.origin}/privacy`);
+  const link = await screen.findByRole("link", { name: "Privacy" });
+  expect(link).toHaveAttribute("href", `${location.origin}${BASE}/privacy`);
+  expect(link).toHaveAttribute("target", "_blank");
 });

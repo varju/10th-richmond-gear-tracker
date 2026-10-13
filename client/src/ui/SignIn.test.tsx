@@ -10,5 +10,8 @@ test("the sign-in screen links to the privacy policy, under the app's path (FR-P
   const api = createApi({ fetch: async () => new Response("{}"), now: () => 0 });
   render(<SignIn store={store} api={api} onSignedIn={() => {}} />);
 
-  expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", `${location.origin}${BASE}/privacy`);
+  const link = screen.getByRole("link", { name: "Privacy" });
+  expect(link).toHaveAttribute("href", `${location.origin}${BASE}/privacy`);
+  expect(link).toHaveAttribute("target", "_blank");
+  expect(link).toHaveAttribute("rel", "noopener");
 });

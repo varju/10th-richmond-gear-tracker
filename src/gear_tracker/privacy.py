@@ -5,6 +5,7 @@ the app, opens it as a link, with no script and no service worker. The text is t
 every group. The group's name and contact are filled in from its settings when it is asked for.
 """
 
+import re
 from html import escape
 
 UPDATED = "12 October 2026"
@@ -22,14 +23,27 @@ a { color: #fff; }
 """
 
 
-def page(group: str, contact: str | None) -> str:
-    """The whole page. `group` is the group's name, `contact` the address its mail is sent from."""
+def linked(contact: str) -> str:
+    """A link when we can tell what the contact is, and plain text when we cannot, as the client's Contact does."""
+    text = escape(contact)
+    if re.match(r"https?://", contact, re.IGNORECASE):
+        return f'<a href="{escape(contact, quote=True)}">{text}</a>'
+    if re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", contact):
+        return f'<a href="mailto:{escape(contact, quote=True)}">{text}</a>'
+    return text
+
+
+def page(group: str, mail_from: str | None, contact: str = "") -> str:
+    """The whole page. `mail_from` is the address the group's mail is sent from; `contact` is the
+    group's own contact setting, the one the public page shows (FR-PUB-01)."""
     who = escape(group) if group else "the group"
     subject = escape(group) if group else "The group"
+    ways = []
+    if mail_from:
+        ways.append(f'email <a href="mailto:{escape(mail_from, quote=True)}">{escape(mail_from)}</a>')
     if contact:
-        ask = f'email <a href="mailto:{escape(contact, quote=True)}">{escape(contact)}</a>'
-    else:
-        ask = "contact the group's leaders"
+        ways.append(f"contact the group at {linked(contact)}")
+    ask = ", or ".join(ways) or "contact the group's leaders"
     title = f"Privacy · {escape(group)}" if group else "Privacy · Gear Tracker"
     return f"""<!doctype html>
 <html lang="en">
@@ -60,8 +74,8 @@ by email.</li>
 <p>We keep these records for as long as {who} uses Gear Tracker. They are the history of the group's equipment.</p>
 
 <h2>Photos</h2>
-<p>We keep photos as they arrive. If your phone saved where a photo was taken, that location may be kept with it. To
-stop this, turn off location for your phone's camera.</p>
+<p>The app re-saves most photos smaller before sending them, which drops where they were taken. A photo it cannot
+re-save is kept as it arrived, and may include where it was taken if your phone saved that.</p>
 
 <h2>On your phone</h2>
 <p>The app keeps a copy of the group's records on your phone, so it works with no signal. This includes members' names,
@@ -69,9 +83,9 @@ notes and found-gear reports.</p>
 <p>When you scan a code, the camera only reads the code. No picture is saved or sent.</p>
 
 <h2>Logs and backups</h2>
-<p>The server logs each request: the time, the IP address, the page asked for, and the email address of whoever was
-signed in. A failed sign-in is logged with the IP address and the email address tried. Logs are kept for 30 days.</p>
-<p>The whole database is backed up each night. Each backup is kept for 30 days.</p>
+<p>The server keeps short-term logs of each request and of failed sign-ins, with the IP address and email address, to
+keep it working and secure. They are deleted after a while.</p>
+<p>The database is backed up regularly, and old backups are deleted.</p>
 
 <h2>Who can see it</h2>
 <ul>

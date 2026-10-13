@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
-import { navigate } from "../lib/router";
+import { BASE, navigate } from "../lib/router";
 import type { Shell } from "../shell";
 import type { Store } from "../lib/store";
 import { openStore } from "./codeTestKit";
@@ -151,5 +151,7 @@ test("a role dropped on the server takes the admin sections away on the next syn
 
 test("the foot links to the privacy policy (FR-PUB-07)", () => {
   mount();
-  expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", `${location.origin}/privacy`);
+  const link = screen.getByRole("link", { name: "Privacy" });
+  expect(link).toHaveAttribute("href", `${location.origin}${BASE}/privacy`);
+  expect(link).toHaveAttribute("target", "_blank");
 });

@@ -8,7 +8,6 @@ import logging
 import os
 import re
 from datetime import datetime
-from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
 import pytest
@@ -20,6 +19,7 @@ from gear_tracker.app import (
     ACCESS_LOG,
     ERROR_LOG,
     HOUR_MS,
+    DailyLog,
     FailedSignIns,
     access_logger,
     client_address,
@@ -1301,11 +1301,10 @@ def test_the_access_log_stays_out_of_the_error_log(log_files, client):
 
 def test_the_files_roll_over_daily_and_keep_a_month(log_files):
     """Rotation is the handler's, not ours. This pins the settings it was given."""
-    ours = [h for h in logging.getLogger().handlers + access_logger.handlers if isinstance(h, TimedRotatingFileHandler)]
+    ours = [h for h in logging.getLogger().handlers + access_logger.handlers if isinstance(h, DailyLog)]
     assert sorted(Path(h.baseFilename).name for h in ours) == [ACCESS_LOG, ERROR_LOG]
     for handler in ours:
-        assert handler.when == "MIDNIGHT"
-        assert handler.backupCount == 30
+        assert (handler.when, handler.backupCount) == ("MIDNIGHT", 30)
 
 
 # --- the failed sign-in log (NFR-SEC-11) ------------------------------------------------------
@@ -1381,9 +1380,8 @@ def test_the_client_address_is_the_one_the_rate_limits_use(real, failures):
     assert lines_in(failures)[0].split(" ")[1] == "203.0.113.9"
 
 
-def test_the_file_turns_over_at_midnight_and_keeps_a_month(db_path, failures):
-    """The same window as the other logs and the backups (NFR-DATA-05). A day-old file is moved
-    aside under its date when the next attempt arrives, and today's starts fresh."""
+def test_the_file_turns_over_at_midnight(db_path, failures):
+    """A day-old file is moved aside under its date when the next attempt arrives, and today's starts fresh."""
     with open_db(db_path) as conn:
         accounts.create_admin(conn, "Alex", "alex@example.org", "correct horse")
     failures.parent.mkdir(parents=True, exist_ok=True)
@@ -1403,6 +1401,19 @@ def test_the_file_turns_over_at_midnight_and_keeps_a_month(db_path, failures):
     assert (log.when, log.backupCount) == ("MIDNIGHT", 30)
 
 
+def test_a_flood_stops_at_a_days_cap_instead_of_filling_the_disk(real, failures, monkeypatch):
+    """Nothing slows sign-in attempts down. The access log still has every one."""
+    monkeypatch.setattr("gear_tracker.app.FAILED_SIGN_INS_MAX_BYTES", 200)
+    attempt = {"email": "alex@example.org", "password": "wrong", "device_id": "phone-a"}
+
+    for _ in range(10):
+        assert real.post("/auth/sign-in", json=attempt).status_code == 401
+
+    written = failures.read_text()
+    assert 200 <= len(written) < 300, "it stops at the first line past the cap"
+    assert [p.name for p in failures.parent.iterdir()] == [failures.name], "nothing rolled aside"
+
+
 def test_a_log_that_cannot_be_written_does_not_break_signing_in(real, db_path, failures):
     """A full disk, or a read-only mount. The sign-in was refused and stays refused."""
     failures.mkdir()  # a directory where the file goes: opening it to append raises OSError
@@ -1417,9 +1428,9 @@ def test_a_log_that_cannot_be_written_does_not_break_signing_in(real, db_path, f
 # --- the privacy policy (FR-PUB-07) -----------------------------------------------------------
 
 
-def set_group(db_path, name):
+def set_group(db_path, name, **more):
     with open_db(db_path) as conn:
-        events.append_server(conn, "alice", "setting", "group", "created", {"name": name})
+        events.append_server(conn, "alice", "setting", "group", "created", {"name": name, **more})
 
 
 def test_the_privacy_policy_opens_signed_out_and_names_the_group_and_its_mail(site, db_path):
@@ -1452,3 +1463,23 @@ def test_the_policy_reads_without_a_group_name_and_escapes_one(site, db_path):
     set_group(db_path, "<b>Scouts</b>")
 
     assert "&lt;b&gt;Scouts&lt;/b&gt; uses Gear Tracker" in site.get("/privacy").text
+
+
+def test_the_policy_shows_the_groups_own_contact_too(site, db_path):
+    """The contact the public page shows (FR-PUB-01). A phone number is plain text."""
+    set_group(db_path, "10th Richmond", contact="604-555-0100")
+    with open_db(db_path) as conn:
+        mail.save(conn, mail.MailSettings(host="smtp.example.org", from_address="gear@example.org"))
+
+    page = site.get("/privacy").text
+
+    assert 'email <a href="mailto:gear@example.org">gear@example.org</a>, or contact the group at 604-555-0100.' in page
+
+
+def test_with_only_the_groups_contact_the_policy_uses_it(site, db_path):
+    set_group(db_path, "10th Richmond", contact="https://example.org/contact")
+
+    page = site.get("/privacy").text
+
+    assert 'contact the group at <a href="https://example.org/contact">https://example.org/contact</a>.' in page
+    assert "leaders" not in page
