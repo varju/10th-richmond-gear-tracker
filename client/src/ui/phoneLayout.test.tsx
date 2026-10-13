@@ -67,4 +67,6 @@ test("the repair history's date range may shrink to half a phone each", async ()
   expect(label.parentElement).toHaveClass("row");
   expect(getComputedStyle(label).minWidth).toMatch(/^0(px)?$/);
   expect(getComputedStyle(to).minWidth).toMatch(/^0(px)?$/);
+  // iOS keeps a native date field at its own width unless it drops the native look.
+  expect(getComputedStyle(to).appearance).toBe("none");
 });

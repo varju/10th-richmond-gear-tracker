@@ -114,9 +114,11 @@ label {
   margin-bottom: 16px;
 }
 
-/* WebKit sizes a date field to its content and ignores width: 100% unless told it may shrink. */
+/* iOS WebKit draws a date field at its native width, whatever width or max-width says.
+   Without its native look it takes the width it is given. */
 input[type="date"] {
   min-width: 0;
+  appearance: none;
 }
 
 label span {
