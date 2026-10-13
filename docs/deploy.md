@@ -423,6 +423,9 @@ HTTPS.
 
 The simulator has a test camera only. To check the scanner, use a real iPhone.
 
+The name under the home-screen icon is the `APP_DISPLAY_NAME` build setting, "Gear Tracker" by default. Set your own the
+way you set the bundle id, for example `xcodebuild ... APP_DISPLAY_NAME='10th Gear'`.
+
 ### Linking the app to your site
 
 Once the app and the site name each other:
