@@ -407,8 +407,8 @@ phone's Safari.
 
 `IOS_SERVER_URL` is the address of your server, path included, for example `https://example.org/gear`. The app carries
 its own copy of the client, so it has to be told where the API is. It is fixed when you build: a new address means a new
-build. To set it once, export `IOS_SERVER_URL` in `.envrc`. Never export `SERVER_URL`: it turns every client build, test
-and dev server into the app build.
+build. To set it once, put `IOS_SERVER_URL ?= ...` in `Makefile.local`, which `make` reads if it exists. Never export
+`SERVER_URL`: it turns every client build, test and dev server into the app build.
 
 ```sh
 make ios IOS_SERVER_URL=https://example.org/gear
