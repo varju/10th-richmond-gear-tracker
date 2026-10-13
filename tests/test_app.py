@@ -409,6 +409,27 @@ def test_deactivated_over_http(real):
     assert r.status_code == 403
 
 
+def test_delete_my_account_over_http(real):
+    """FR-USR-25. The last Admin is refused; anyone else is signed out and cannot sign back in."""
+    admin = sign_in(real)
+    r = real.post("/me/deactivate", headers=admin)
+    assert r.status_code == 409
+    assert r.json()["message"] == "you are the last Admin; make someone else an Admin first"
+
+    invited = real.post("/users/invite", json={"name": "Bea", "email": "bea@example.org"}, headers=admin).json()
+    real.post("/auth/redeem", json={"token": invited["token"], "password": "battery staple", "device_id": "phone-b"})
+    bea = sign_in(real, email="bea@example.org", password="battery staple", device="laptop-b")
+
+    assert real.post("/me/deactivate", headers=bea).status_code == 200
+    assert real.get("/sync/bootstrap", headers=bea).status_code == 401
+    r = real.post("/auth/sign-in", json={"email": "bea@example.org", "password": "battery staple", "device_id": "p"})
+    assert r.status_code == 403
+    assert real.post("/me/deactivate").status_code == 401
+
+    assert real.post(f"/users/{invited['user_id']}/reactivate", headers=admin).status_code == 200
+    sign_in(real, email="bea@example.org", password="battery staple", device="phone-c")
+
+
 def test_sign_out(real):
     auth = sign_in(real)
     assert real.post("/auth/sign-out", headers=auth).status_code == 200

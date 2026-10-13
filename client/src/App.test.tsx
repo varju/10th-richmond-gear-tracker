@@ -35,6 +35,7 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
     });
   if (path === "/sync/pull") return json({ events: [], cursor: 2, log_id: "log-one" });
   if (path === "/sync/push") return json({ accepted: [], rejected: [], log_id: "log-one" });
+  if (path === "/me/deactivate") return json({});
   if (path.startsWith("/public/codes/"))
     return json({
       item: { name: "Tent" },
@@ -163,4 +164,25 @@ test("any other path while signed out is the sign-in form", async () => {
   navigate("/items/a");
   mount();
   expect(await screen.findByLabelText("Password")).toBeInTheDocument();
+});
+
+test("deleting your account lands on the sign-in screen and says so (FR-USR-25)", async () => {
+  await store.setMeta({
+    token: "tok",
+    user: { id: "u1", name: "Alice", role: "admin", active: true },
+    cursor: 2,
+    log_id: "log-one",
+  });
+  navigate("/settings/account");
+  mount();
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Delete my account…" }));
+  await user.click(screen.getByRole("button", { name: "Really delete? You cannot sign in again" }));
+
+  expect(await screen.findByRole("status")).toHaveTextContent("Your account is deleted. An Admin can restore it.");
+  expect(screen.getByLabelText("Password")).toBeInTheDocument();
+  expect(calls).toContain("/me/deactivate");
+  expect(calls).not.toContain("/auth/sign-out");
+  expect(store.meta.token).toBeUndefined();
+  expect(location.pathname).toBe("/");
 });

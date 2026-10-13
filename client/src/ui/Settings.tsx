@@ -69,6 +69,9 @@ export function Settings({ store, shell }: Props) {
         <button className="link" type="button" onClick={() => navigate("/settings/assistant")}>
           AI assistant
         </button>
+        <button className="link" type="button" onClick={() => navigate("/settings/account")}>
+          Delete my account
+        </button>
       </nav>
       <p className="muted small">
         Source:{" "}

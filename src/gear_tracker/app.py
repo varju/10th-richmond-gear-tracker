@@ -593,6 +593,12 @@ def create_app(
         """
         return stamped({"devices": accounts.revoke_device(conn, who, user_id, device_id)})
 
+    @app.post("/me/deactivate")
+    def deactivate_self(request: Request, conn: Db, who: Who) -> dict[str, Any]:
+        """Delete my account (FR-USR-25). Anyone signed in, for themself only."""
+        accounts.deactivate_self(conn, who, bearer(request) or "")
+        return stamped({})
+
     # --- notifications (anyone signed in) ---------------------------------------------------
 
     @app.get("/me/notifications")

@@ -88,6 +88,11 @@ is only a shortcut: open the browser menu and tap Add to Home screen if you want
 Sign in on the new device and the whole inventory is there. Revoke the old one under Settings, Your devices. Anything
 the old device never sent is gone.
 
+## Delete your account
+
+Settings, Delete my account. You are signed out everywhere and cannot sign in again. Your name stays on what you did; an
+Admin can restore your access. It needs a connection.
+
 ## Email alerts
 
 Open Notifications in Settings and tick what you want to hear about: gear reported found, a new repair ticket, someone

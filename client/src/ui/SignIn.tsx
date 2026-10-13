@@ -6,9 +6,11 @@ interface Props {
   store: Store;
   api: Api;
   onSignedIn: () => void;
+  /** A word from whatever signed this device out, such as deleting the account. */
+  notice?: string | null;
 }
 
-export function SignIn({ store, api, onSignedIn }: Props) {
+export function SignIn({ store, api, onSignedIn, notice }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +39,11 @@ export function SignIn({ store, api, onSignedIn }: Props) {
         <h1>Gear Tracker</h1>
       </header>
       <main>
+        {notice && (
+          <p className="notice" role="status">
+            {notice}
+          </p>
+        )}
         <label>
           <span>Email</span>
           <input

@@ -790,6 +790,10 @@ nothing else is accepted after that.
 Invite and reset links are one-time tokens (FR-USR-12). They die after seven days unused; sessions do not expire, links
 do. Redeeming a reset revokes the sessions the old password opened.
 
+Deleting your own account (`POST /me/deactivate`, FR-USR-25) is the same deactivation an Admin does, with the person as
+the actor. It also revokes the calling session and the person's assistant tokens at once. Their other devices keep the
+final push of FR-OFF-06, then sign out at their next sync.
+
 The link is always shown for the Admin to pass on. A group that fills in an SMTP account gets it mailed as well
 (FR-USR-15): one mailbox at whatever provider the group already uses, an app password rather than the real one, in a
 server-only table beside the credentials (NFR-SEC-10). Mailing is never fatal — a refused message leaves the invite made

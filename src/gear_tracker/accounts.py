@@ -612,13 +612,41 @@ def deactivate(conn: sqlite3.Connection, who: Principal, user_id: str, now: int 
     _require_admin(who)
     if user_id == who.user_id:
         # FR-USR-23, and FR-USR-22's reason: signing yourself out of the app is not something you
-        # can take back. Another Admin ends an account; sign out to leave a device.
+        # can take back. Another Admin ends an account; to leave the group, delete your own from
+        # Settings (deactivate_self), which says what it does first.
         raise Conflict("you cannot deactivate your own account; another Admin must do it")
     now = now_ms() if now is None else now
     conn.execute("BEGIN IMMEDIATE")
     try:
         _guard_last_admin(conn, user_id)
         _change(conn, who.user_id, user_id, "active", False, now)
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+
+
+def deactivate_self(conn: sqlite3.Connection, who: Principal, token: str, now: int | None = None) -> None:
+    """Delete my account (FR-USR-25): the same deactivation an Admin does, asked for by the person.
+
+    Their name stays on every record. This device and their assistants are signed out now. Their
+    other devices keep one final push (FR-OFF-06), then sign out at their next sync. An Admin can
+    reactivate them.
+    """
+    now = now_ms() if now is None else now
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        user = get_user(conn, who.user_id)
+        if not user["active"]:
+            raise Deactivated("this account has been deactivated")
+        if user["role"] == "admin" and active_admins(conn) == 1:
+            raise Conflict("you are the last Admin; make someone else an Admin first")
+        _change(conn, who.user_id, who.user_id, "active", False, now)
+        conn.execute(
+            "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL"
+            " AND (token_hash = ? OR device_id LIKE ?)",
+            (now, who.user_id, _hash_token(token), ASSISTANT_PREFIX + "%"),
+        )
         conn.execute("COMMIT")
     except BaseException:
         conn.execute("ROLLBACK")

@@ -42,6 +42,7 @@ import { Reservations } from "./ui/Reservations";
 import { Scan } from "./ui/Scan";
 import { Sections } from "./ui/Sections";
 import { Settings } from "./ui/Settings";
+import { SettingsAccount } from "./ui/SettingsAccount";
 import { SettingsAssistant } from "./ui/SettingsAssistant";
 import { SettingsCalendars } from "./ui/SettingsCalendars";
 import { SettingsCategories } from "./ui/SettingsCategories";
@@ -74,6 +75,8 @@ export function App({ store, api, now = Date.now }: Props) {
   const [outcome, setOutcome] = useState<SyncOutcome | null>(null);
   const [interruptSeen, setInterruptSeen] = useState(false);
   const [signInWanted, setSignInWanted] = useState(false);
+  // Shown once on the sign-in screen after someone deletes their own account.
+  const [farewell, setFarewell] = useState<string | null>(null);
   const inFlight = useRef(false);
 
   // One sync at a time; a second request while one runs is dropped, not queued.
@@ -161,6 +164,13 @@ export function App({ store, api, now = Date.now }: Props) {
     await store.setMeta({ token: undefined, user: undefined });
   }
 
+  async function accountDeleted() {
+    // The server already ended this session; there is nothing to sign out of.
+    setFarewell("Your account is deleted. An Admin can restore it.");
+    navigate("/", true);
+    await store.setMeta({ token: undefined, user: undefined });
+  }
+
   function joined() {
     navigate("/", true);
     void runSync();
@@ -174,10 +184,20 @@ export function App({ store, api, now = Date.now }: Props) {
       return <PublicItem api={api} code={second} onSignIn={() => setSignInWanted(true)} />;
     // An invite or reset link (FR-USR-12). Once redeemed, the device is signed in and starts at home.
     if (head === "join") return <Join store={store} api={api} onJoined={() => joined()} />;
-    return <SignIn store={store} api={api} onSignedIn={runSync} />;
+    return (
+      <SignIn
+        store={store}
+        api={api}
+        notice={farewell}
+        onSignedIn={() => {
+          setFarewell(null);
+          void runSync();
+        }}
+      />
+    );
   }
 
-  const shell: Shell = { busy, manualBusy, outcome, now, sync: runSync, syncNow, signOut, api, store };
+  const shell: Shell = { busy, manualBusy, outcome, now, sync: runSync, syncNow, signOut, accountDeleted, api, store };
   const pending = store.pending;
   const stale = pending.filter((e) => e.occurred_at < now() - STALE_PENDING_MS);
   return (
@@ -285,6 +305,10 @@ function Screen({
       if (second === "notifications") return <Notifications store={store} api={api} />;
       if (second === "refused") return <SettingsRefused store={store} />;
       if (second === "assistant") return <SettingsAssistant api={api} />;
+      if (second === "account")
+        return (
+          <SettingsAccount store={store} api={api} now={shell.now} onDeleted={shell.accountDeleted ?? shell.signOut} />
+        );
       return <Settings store={store} shell={shell} />;
     case "join":
       // Signed in already. Join says what to do; it needs no shell.

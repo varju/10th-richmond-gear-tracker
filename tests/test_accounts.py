@@ -5,7 +5,7 @@ from __future__ import annotations
 import pydantic
 import pytest
 
-from gear_tracker import accounts
+from gear_tracker import accounts, views
 from gear_tracker.accounts import Invite, Redeem, SignIn
 from gear_tracker.db import connect
 from gear_tracker.derived import snapshot
@@ -288,6 +288,83 @@ def test_reactivation_restores_access(db, admin):
     assert reactivated is not None and reactivated.active is True
     assert accounts.get_user(db, user_id)["active"] is True
     assert not accounts.get_user(db, user_id)["deactivated_at"]
+
+
+def _bea(db, admin, role="user"):
+    """Bea, signed in on a phone, a laptop, and an assistant."""
+    user_id, token = invite(db, admin, role=role)
+    phone = join(db, token, device="phone-b")
+    laptop = accounts.sign_in(db, SignIn(email="bea@example.org", password="battery staple", device_id="laptop-b"))
+    who = accounts.authenticate(db, phone.token)
+    assert who is not None
+    _, assistant = accounts.connect_assistant(db, who, now=T0)
+    return user_id, who, phone, laptop, assistant
+
+
+def test_deleting_my_account_deactivates_it_and_signs_me_out(db, admin):
+    """FR-USR-25."""
+    user_id, who, phone, laptop, assistant = _bea(db, admin)
+
+    accounts.deactivate_self(db, who, phone.token, now=T0 + 1)
+
+    assert accounts.authenticate(db, phone.token) is None, "this device is signed out now"
+    assert accounts.authenticate(db, assistant.token) is None, "and so are their assistants"
+    other = accounts.authenticate(db, laptop.token)
+    assert other is not None and other.active is False, "another device gets its final push (FR-OFF-06)"
+    with pytest.raises(Deactivated):
+        pull(db, other, cursor=0, now=T0)
+    with pytest.raises(Deactivated):
+        accounts.sign_in(db, SignIn(email="bea@example.org", password="battery staple", device_id="p"), now=T0)
+
+    history = [e for e in in_replay_order(db) if e.entity_id == user_id]
+    assert history[-1].actor_id == user_id
+    assert history[-1].payload == {"field": "active", "value": False, "old": True}
+    assert snapshot(db)["user"][user_id]["name"] == "Bea", "their name stays on the records"
+
+
+def test_deleting_my_account_keeps_my_gear_out_under_my_name(db, admin):
+    """FR-USR-25. Gear still out is allowed; What's out still says who has it."""
+    user_id, who, phone, _, _ = _bea(db, admin)
+    made = incoming(actor_id=user_id, device_id="phone-b", device_seq=1, type="created", payload={"name": "Tent"})
+    out = incoming(
+        actor_id=user_id, device_id="phone-b", device_seq=2, type="checked_out", payload={"holder_id": user_id}
+    )
+    push(db, who, {"device_id": "phone-b", "client_time": T0, "events": [made, out]}, now=T0)
+
+    accounts.deactivate_self(db, who, phone.token, now=T0 + 1)
+
+    [holder] = views.what_is_out(snapshot(db), T0 + 2)["holders"]
+    assert holder["holder"] == "Bea"
+    assert [i["name"] for i in holder["items"]] == ["Tent"]
+
+
+def test_the_last_admin_cannot_delete_their_account(db, admin):
+    """FR-USR-25, FR-USR-03."""
+    session = accounts.sign_in(db, SignIn(email="alex@example.org", password="correct horse", device_id="phone-a"))
+    alex = accounts.authenticate(db, session.token)
+    assert alex is not None
+
+    with pytest.raises(Conflict, match="make someone else an Admin first"):
+        accounts.deactivate_self(db, alex, session.token, now=T0)
+    assert accounts.get_user(db, admin.user_id)["active"] is True
+    assert accounts.authenticate(db, session.token) is not None, "still signed in"
+
+    # With a second Admin, an Admin can leave.
+    _bea(db, admin, role="admin")
+    accounts.deactivate_self(db, alex, session.token, now=T0 + 1)
+    assert accounts.get_user(db, admin.user_id)["active"] is False
+
+
+def test_an_admin_restores_a_deleted_account(db, admin):
+    user_id, who, phone, _, _ = _bea(db, admin)
+    accounts.deactivate_self(db, who, phone.token, now=T0 + 1)
+    with pytest.raises(Deactivated):
+        accounts.deactivate_self(db, who, phone.token, now=T0 + 2)
+
+    accounts.reactivate(db, admin, user_id, now=T0 + 2)
+
+    accounts.sign_in(db, SignIn(email="bea@example.org", password="battery staple", device_id="phone-c"))
+    assert accounts.get_user(db, user_id)["active"] is True
 
 
 def test_an_admin_cannot_drop_their_own_role(db, admin):

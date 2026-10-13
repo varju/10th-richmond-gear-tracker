@@ -336,6 +336,8 @@ export function createApi(options: ApiOptions = {}) {
     signIn: (email: string, password: string, device_id: string) =>
       request<Session>("POST", "/auth/sign-in", { email, password, device_id }),
     signOut: () => request<Record<string, never>>("POST", "/auth/sign-out"),
+    /** Deactivate your own account (FR-USR-25). This device is signed out with it. */
+    deleteMyAccount: () => request<Record<string, never>>("POST", "/me/deactivate"),
     /** Mint a token for an assistant (FR-MCP-01). Any signed-in person; no Admin involved. */
     connectAssistant: () => request<AssistantToken>("POST", "/assistant/connect"),
     /** Use an invite or reset link (FR-USR-12): set a password, open this device's session. */
