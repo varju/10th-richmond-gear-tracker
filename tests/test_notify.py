@@ -7,6 +7,7 @@ triggering call returns.
 
 from __future__ import annotations
 
+import contextlib
 import email
 import socket
 import time
@@ -20,6 +21,7 @@ from fastapi.testclient import TestClient
 from gear_tracker import accounts, assistant, events, mail, notify
 from gear_tracker.app import create_app
 from gear_tracker.db import open_db
+from gear_tracker.errors import ApiError
 from gear_tracker.sync import Principal
 from tests.factories import T0, incoming
 
@@ -303,6 +305,102 @@ def test_a_password_reset_is_not_a_new_account(db_path, smtp):
         who = Principal(user_id=admin_id, device_id="admin-device", role="admin")
         token = accounts.reset_link(conn, who, admin_id)
         accounts.redeem(conn, accounts.Redeem(token=token, password="a new password", device_id="phone-a"))
+
+    time.sleep(0.2)
+    assert smtp.messages == []
+
+
+# --- an account locked (FR-USR-26) ---------------------------------------------------------------
+
+
+def _lock_setup(db_path, smtp) -> None:
+    """Two Admins, neither subscribed to anything, and a User. Only Admins hear about a lock."""
+    with open_db(db_path) as conn:
+        mail.save(conn, settings(smtp))
+        events.append_server(
+            conn,
+            "seed",
+            "setting",
+            "group",
+            "created",
+            {"name": "10th Richmond", "code_url": "https://example.org/gear"},
+        )
+        admin_id = accounts.install_admin(conn, "Alex", "alex@example.org", "correct horse")
+        who = Principal(user_id=admin_id, device_id="admin-device", role="admin")
+        accounts.invite(conn, who, accounts.Invite(name="Dana", email="dana@example.org", role="admin"))
+        accounts.invite(conn, who, accounts.Invite(name="Bea", email="bea@example.org"))
+
+
+def _guess(db_path, email, times, now=T0):
+    with open_db(db_path) as conn:
+        for _ in range(times):
+            # Every one of these is refused; the mail is the point.
+            with contextlib.suppress(ApiError):
+                accounts.sign_in(
+                    conn, accounts.SignIn(email=email, password="wrong guess", device_id="p"), now, "203.0.113.7"
+                )
+
+
+def test_a_lock_mails_every_admin_once(db_path, smtp):
+    _lock_setup(db_path, smtp)
+    _guess(db_path, "bea@example.org", 7)
+
+    wait_for(smtp, 2)
+    time.sleep(0.2)
+    assert sorted(m["To"] for m in smtp.messages) == ["alex@example.org", "dana@example.org"]
+    message = smtp.messages[0]
+    assert message["Subject"] == "10th Richmond Gear Tracker: account locked"
+    body = cast(bytes, message.get_payload(decode=True)).decode()
+    assert "Bea's account (bea@example.org) is locked for 15 minutes" in body
+    assert "203.0.113.7" in body
+    assert "https://example.org/gear/settings/users" in body
+
+
+def test_a_second_lock_within_the_hour_is_not_mailed(db_path, smtp):
+    _lock_setup(db_path, smtp)
+    _guess(db_path, "bea@example.org", 5)
+    wait_for(smtp, 2)
+    _guess(db_path, "alex@example.org", 5, now=T0 + 15 * 60_000)
+    _guess(db_path, "dana@example.org", 5, now=T0 + 30 * 60_000)
+
+    time.sleep(0.2)
+    assert len(smtp.messages) == 2
+
+
+def test_the_next_lock_mail_counts_the_ones_not_mailed(db_path, smtp):
+    _lock_setup(db_path, smtp)
+    _guess(db_path, "bea@example.org", 5)
+    wait_for(smtp, 2)
+    _guess(db_path, "alex@example.org", 5, now=T0 + 15 * 60_000)
+    _guess(db_path, "dana@example.org", 5, now=T0 + 30 * 60_000)
+    time.sleep(0.2)
+    _guess(db_path, "bea@example.org", 5, now=T0 + 61 * 60_000)
+
+    wait_for(smtp, 4)
+    body = cast(bytes, smtp.messages[-1].get_payload(decode=True)).decode()
+    assert "locked for 30 minutes" in body
+    assert "2 more locks were not mailed since the last of these." in body
+
+
+def test_a_lock_mail_nobody_got_does_not_spend_the_hour(db_path, smtp):
+    _lock_setup(db_path, smtp)
+    with open_db(db_path) as conn:
+        mail.save(conn, settings(smtp, port=_free_port()))
+    _guess(db_path, "bea@example.org", 5)
+    time.sleep(0.5)
+    with open_db(db_path) as conn:
+        mail.save(conn, settings(smtp))
+    _guess(db_path, "alex@example.org", 5, now=T0 + 15 * 60_000)
+
+    wait_for(smtp, 2)
+    body = cast(bytes, smtp.messages[0].get_payload(decode=True)).decode()
+    assert "Alex's account" in body
+    assert "1 more lock was not mailed since the last of these." in body
+
+
+def test_an_email_with_no_account_mails_nobody(db_path, smtp):
+    _lock_setup(db_path, smtp)
+    _guess(db_path, "nobody@example.org", 5)
 
     time.sleep(0.2)
     assert smtp.messages == []

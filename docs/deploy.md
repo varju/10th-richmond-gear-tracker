@@ -96,14 +96,33 @@ A sign-in that does not open a session is appended to `GEAR_DATA/logs/failed-sig
 ```
 
 The reason is `unauthorized` for a wrong password or an email with no account, `deactivated` for a right password on an
-account that has been turned off. Who is trying what, most attempts first:
+account that has been turned off, `locked` for an email locked by wrong passwords, and `rate_limited` for an address
+over its limit. Who is trying what, most attempts first:
 
 ```sh
 awk '{print $2, $3}' "$GEAR_DATA/logs/failed-sign-ins.log" | sort | uniq -c | sort -rn | head
 ```
 
-One address working through many accounts, or many attempts on one account, is worth acting on: deactivate the account,
-or block the address at the proxy. Nothing in the app limits sign-in attempts or the size of the logs yet.
+The app limits guessing by itself:
+
+| What                             | Limit                                                               |
+| -------------------------------- | ------------------------------------------------------------------- |
+| Wrong passwords for an email     | 5 lock it for 15 minutes; each further lock doubles, up to 24 hours |
+| Failed sign-ins from one address | 30 in 15 minutes, across all emails                                 |
+
+A lock is by email, so an email with no account locks the same way and a lock says nothing about who has an account. It
+stops new sign-ins only; signed-in devices keep working. It is stored in the database, so a restart does not lift it.
+The right password, a reset link, or an unlock starts the count again. Every active Admin is mailed when an account
+locks, at most once an hour, if mail is set up.
+
+An Admin unlocks an account from Settings > Users. If every Admin is locked out, the keyboard does it:
+
+```sh
+docker exec -it gear-tracker gear-admin --db /data/gear.db unlock --email you@example.com
+```
+
+One address working through many accounts is still worth acting on: block it at the proxy. Nothing limits the size of
+the logs yet.
 
 Times are the container's own clock, in the timezone `TZ` names. Without it, UTC.
 
@@ -126,7 +145,8 @@ location /gear/ {
   proxy_pass http://gear:8000;
   # Photos are uploaded whole. The app refuses anything over 5 MB; the proxy must not refuse first.
   client_max_body_size 6m;
-  # The found-report rate limit keys on this (FR-PUB-04); without it every report looks like it came from nginx.
+  # The found-report and sign-in rate limits key on this (FR-PUB-04, NFR-SEC-18); without it every request looks like
+  # it came from nginx, and 30 sign-ins in 15 minutes is the whole group's.
   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 }
 location = /gear {
@@ -191,7 +211,8 @@ docker exec -it gear-tracker gear-admin --db /data/gear.db \
   create-admin --name "Your Name" --email you@example.com --password-stdin
 ```
 
-If every Admin later loses their password, the way back in is the keyboard either way:
+If every Admin later loses their password, the way back in is the keyboard either way (for a lock, see
+[Failed sign-ins](#failed-sign-ins)):
 
 ```sh
 docker exec -it gear-tracker gear-admin --db /data/gear.db reset-link --email you@example.com

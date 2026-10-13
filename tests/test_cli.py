@@ -11,7 +11,7 @@ from gear_tracker import accounts, derived
 from gear_tracker.accounts import Invite, Redeem, SignIn
 from gear_tracker.cli import main
 from gear_tracker.db import open_db
-from gear_tracker.errors import Unauthorized
+from gear_tracker.errors import Locked, Unauthorized
 from gear_tracker.events import append_server, in_replay_order
 from gear_tracker.sync import Principal
 
@@ -225,3 +225,57 @@ def test_rebuild_backfills_a_derived_field_added_after_the_fact(tmp_path, monkey
         rebuilt = derived.get_entity(conn, "user", user_id)
         assert rebuilt is not None
         assert rebuilt["deactivated_at"] == deactivated_at
+
+
+def test_unlock_ends_a_lock_from_the_keyboard(tmp_path, monkeypatch, capsys):
+    """For when every Admin is locked out (FR-USR-28)."""
+    db = with_admin(tmp_path, monkeypatch, capsys)
+    with open_db(db) as conn:
+        for _ in range(5):
+            with pytest.raises((Unauthorized, Locked)):
+                accounts.sign_in(conn, SignIn(email="alex@example.org", password="wrong guess", device_id="p"))
+
+    code, out, err = run(monkeypatch, capsys, "--db", str(db), "unlock", "--email", "Alex@example.org")
+    assert code == 0, err
+    assert out.strip() == "alex@example.org is unlocked"
+    with open_db(db) as conn:
+        accounts.sign_in(conn, SignIn(email="alex@example.org", password="correct horse", device_id="p"))
+
+    code, out, _ = run(monkeypatch, capsys, "--db", str(db), "unlock", "--email", "alex@example.org")
+    assert code == 0
+    assert out.strip() == "alex@example.org was not locked"
+
+
+def test_create_admin_refuses_a_common_password(tmp_path, monkeypatch, capsys):
+    code, _, err = run(
+        monkeypatch,
+        capsys,
+        "--db",
+        str(tmp_path / "c.db"),
+        "create-admin",
+        "--name",
+        "Alex",
+        "--email",
+        "alex@example.org",
+        "--password-stdin",
+        stdin="password123\n",
+    )
+    assert code == 1
+    assert "too common" in err
+
+
+def test_unlock_says_a_count_with_no_lock_was_not_locked(tmp_path, monkeypatch, capsys):
+    db = with_admin(tmp_path, monkeypatch, capsys)
+    with open_db(db) as conn, pytest.raises(Unauthorized):
+        accounts.sign_in(conn, SignIn(email="alex@example.org", password="wrong guess", device_id="p"))
+
+    code, out, _ = run(monkeypatch, capsys, "--db", str(db), "unlock", "--email", "alex@example.org")
+    assert code == 0
+    assert out.strip() == "alex@example.org was not locked"
+
+
+def test_unlock_refuses_what_is_not_an_email(tmp_path, monkeypatch, capsys):
+    db = with_admin(tmp_path, monkeypatch, capsys)
+    code, _, err = run(monkeypatch, capsys, "--db", str(db), "unlock", "--email", "nobody")
+    assert code == 1
+    assert "not an email address" in err

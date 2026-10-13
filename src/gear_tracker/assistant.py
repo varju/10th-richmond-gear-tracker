@@ -1281,12 +1281,18 @@ def _user_brief(u: dict[str, Any]) -> dict[str, Any]:
 
 
 def list_users() -> dict[str, Any]:
-    """Every account: name, email, role, and whether it is active (FR-USR-04). Admins only."""
+    """Every account: name, email, role, whether it is active (FR-USR-04), and when a sign-in lock
+    ends (`locked_until`, ms, or null when not locked). Admins only."""
     with _open() as (conn, who):
         accounts._require_admin(who)
         return {
             "users": [
-                {**_user_brief(u), "email": u.get("email"), "has_password": u.get("has_password")}
+                {
+                    **_user_brief(u),
+                    "email": u.get("email"),
+                    "has_password": u.get("has_password"),
+                    "locked_until": u.get("locked_until"),
+                }
                 for u in accounts.list_users(conn)
             ]
         }
@@ -1317,6 +1323,13 @@ def set_user_active(user_id: str, active: StrictBool) -> dict[str, Any]:
             accounts.reactivate(conn, who, user_id)
         else:
             accounts.deactivate(conn, who, user_id)
+        return {"user": _user_brief(accounts.get_user(conn, user_id))}
+
+
+def unlock_user(user_id: str) -> dict[str, Any]:
+    """End a sign-in lock early, after too many wrong passwords (FR-USR-29). Admins only."""
+    with _open() as (conn, who):
+        accounts.unlock(conn, who, user_id)
         return {"user": _user_brief(accounts.get_user(conn, user_id))}
 
 
@@ -1702,6 +1715,7 @@ TOOLS = [
     reset_link,
     update_user,
     set_user_active,
+    unlock_user,
     set_user_role,
     list_devices,
     revoke_device,

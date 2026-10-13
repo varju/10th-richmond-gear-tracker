@@ -49,3 +49,21 @@ def test_idle_keys_are_forgotten():
     limit.allow("b", 50_000)
     limit.allow("c", MINUTE)
     assert set(limit._hits) == {"b", "c"}
+
+
+def test_wait_ms_says_when_the_next_hit_is_allowed():
+    limit = RateLimit(2, MINUTE)
+    assert limit.wait_ms("a", 0) == 0
+    limit.allow("a", 0)
+    limit.allow("a", 10_000)
+    assert limit.wait_ms("a", 20_000) == 40_000
+    assert limit.wait_ms("a", MINUTE) == 0
+
+
+def test_a_refund_gives_back_one_hit():
+    limit = RateLimit(1, MINUTE)
+    assert limit.allow("a", 0)
+    assert not limit.allow("a", 1)
+    limit.refund("a", 0)
+    assert limit.allow("a", 2)
+    limit.refund("b", 0)  # nothing to give back is fine

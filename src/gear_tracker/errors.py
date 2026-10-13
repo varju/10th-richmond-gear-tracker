@@ -34,6 +34,12 @@ class ResetUsed(Unauthorized):
     code = "reset_used"
 
 
+class CommonPassword(BadRequest):
+    """A new password on the common-password list (NFR-SEC-22)."""
+
+    code = "common_password"
+
+
 class Forbidden(ApiError):
     status = 403
     code = "forbidden"
@@ -61,6 +67,12 @@ class Conflict(ApiError):
 class TooMany(ApiError):
     status = 429
     code = "rate_limited"
+
+
+class Locked(TooMany):
+    """Too many wrong passwords for this email (NFR-SEC-12). Says how long until it may try again."""
+
+    code = "locked"
 
 
 class Rebootstrap(ApiError):

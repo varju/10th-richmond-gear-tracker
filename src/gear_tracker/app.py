@@ -45,7 +45,17 @@ from gear_tracker import (
     sync,
 )
 from gear_tracker.db import connect
-from gear_tracker.errors import ApiError, BadRequest, Conflict, Deactivated, NotFound, TooLarge, TooMany, Unauthorized
+from gear_tracker.errors import (
+    ApiError,
+    BadRequest,
+    Conflict,
+    Deactivated,
+    Locked,
+    NotFound,
+    TooLarge,
+    TooMany,
+    Unauthorized,
+)
 from gear_tracker.events import PHOTO_ENTITIES, PHOTO_TYPES, PUBLIC_ACTOR, Strict, now_ms
 from gear_tracker.ratelimit import RateLimit
 from gear_tracker.sync import Principal, _require_active
@@ -74,6 +84,10 @@ JOIN_PER_ADDRESS = (5, HOUR_MS)
 JOIN_IN_ALL = (30, HOUR_MS)
 """Joining is unauthenticated too (FR-USR-19), so it gets the same shape of limit as a found report:
 per address, and in total. There is no per-code limit; a standing link has no code to key on."""
+
+SIGN_IN_PER_ADDRESS = (30, 15 * 60_000)
+"""Wrong passwords and locked refusals from one address, across every account (NFR-SEC-18). The per-email
+lock is in accounts.py."""
 
 HEALTH_PATH = "/health"
 """Where the container's health check asks (Dockerfile). Kept out of the access log: a line a
@@ -329,6 +343,7 @@ def create_app(
         "address": RateLimit(*JOIN_PER_ADDRESS),
         "all": RateLimit(*JOIN_IN_ALL),
     }
+    sign_in_limit = RateLimit(*SIGN_IN_PER_ADDRESS)
 
     def db() -> Iterator[sqlite3.Connection]:
         conn = connect(db_path)
@@ -507,8 +522,24 @@ def create_app(
 
     @app.post("/auth/sign-in")
     def sign_in(request: Request, conn: Db, body: accounts.SignIn) -> dict[str, Any]:
+        """Only refused attempts count toward the address's limit, so a hall on one Wi-Fi can all sign in
+        (NFR-SEC-18). The attempt is counted before the password is checked, so parallel guesses cannot
+        all pass, and given back when it turns out not to be a wrong password or a lock."""
+        now = now_ms()
+        address = client_address(request)
         try:
-            return session_response(accounts.sign_in(conn, body))
+            if not sign_in_limit.allow(address, now):
+                wait = accounts.wait_text(sign_in_limit.wait_ms(address, now))
+                raise TooMany(f"Too many attempts from this network. Try again in {wait}.")
+            try:
+                session = accounts.sign_in(conn, body, now, address)
+            except Unauthorized, Locked:
+                raise
+            except BaseException:
+                sign_in_limit.refund(address, now)
+                raise
+            sign_in_limit.refund(address, now)
+            return session_response(session)
         except ApiError as exc:
             # Lowercased, the way the lookup is, so counting attempts per account is a sort.
             record_failed_sign_in(failed_sign_ins, request, body.email.lower(), exc.code)
@@ -581,6 +612,12 @@ def create_app(
     @app.post("/users/{user_id}/reactivate")
     def reactivate(conn: Db, who: Who, user_id: str) -> dict[str, Any]:
         accounts.reactivate(conn, who, user_id)
+        return stamped({"user": accounts.get_user(conn, user_id)})
+
+    @app.post("/users/{user_id}/unlock")
+    def unlock(conn: Db, who: Who, user_id: str) -> dict[str, Any]:
+        """End a sign-in lock early (FR-USR-29)."""
+        accounts.unlock(conn, who, user_id)
         return stamped({"user": accounts.get_user(conn, user_id)})
 
     @app.post("/users/{user_id}/reset-link")

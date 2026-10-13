@@ -1307,6 +1307,83 @@ def test_the_files_roll_over_daily_and_keep_a_month(log_files):
         assert (handler.when, handler.backupCount) == ("MIDNIGHT", 30)
 
 
+# --- guessing passwords (NFR-SEC-12, NFR-SEC-18, FR-USR-29) ----------------------------------------
+
+
+def wrong(client, email="alex@example.org"):
+    return client.post("/auth/sign-in", json={"email": email, "password": "wrong guess", "device_id": "phone-a"})
+
+
+def test_a_locked_account_is_a_429_the_client_can_tell_apart(real):
+    codes = [wrong(real).status_code for _ in range(5)]
+    assert codes == [401, 401, 401, 401, 429]
+    r = real.post("/auth/sign-in", json={"email": "alex@example.org", "password": "correct horse", "device_id": "p"})
+    assert r.status_code == 429
+    assert r.json()["error"] == "locked"
+    assert r.json()["message"] == "Too many attempts. Try again in 15 minutes."
+
+
+def test_one_address_gets_thirty_attempts_in_fifteen_minutes(real):
+    # A different email each time, so no lock gets in the way: this is the address's limit.
+    codes = [wrong(real, f"guess{n}@example.org").status_code for n in range(31)]
+    assert codes[:30] == [401] * 30
+    assert codes[30] == 429
+    assert wrong(client_at(real, "203.0.113.9"), "guess@example.org").status_code == 401
+
+
+def test_the_address_limit_is_checked_before_any_hashing(real, counting):
+    for n in range(30):
+        wrong(real, f"guess{n}@example.org")
+    before = counting.verified
+    r = sign_in_raw(real)
+    assert counting.verified == before
+    assert r.status_code == 429
+    assert r.json()["error"] == "rate_limited"
+    assert r.json()["message"] == "Too many attempts from this network. Try again in 15 minutes."
+
+
+def test_right_passwords_do_not_count_toward_the_address_limit(real):
+    """A hall full of people on one Wi-Fi all signing in."""
+    assert [sign_in_raw(real).status_code for _ in range(35)] == [200] * 35
+    assert [wrong(real, f"guess{n}@example.org").status_code for n in range(31)] == [401] * 30 + [429]
+
+
+def sign_in_raw(client, email="alex@example.org", password="correct horse"):
+    return client.post("/auth/sign-in", json={"email": email, "password": password, "device_id": "phone-a"})
+
+
+def test_a_long_password_is_refused_before_it_is_hashed(real):
+    r = sign_in_raw(real, password="x" * 257)
+    assert r.status_code == 400
+    assert r.json()["message"].startswith("password:")
+
+
+def test_an_admin_unlocks_an_account_and_the_list_shows_it(real):
+    auth = sign_in(real)
+    invited = real.post("/users/invite", headers=auth, json={"name": "Bea", "email": "bea@example.org"}).json()
+    for _ in range(5):
+        wrong(real, "bea@example.org")
+    bea = next(u for u in real.get("/users", headers=auth).json()["users"] if u["id"] == invited["user_id"])
+    assert bea["locked_until"] is not None
+
+    r = real.post(f"/users/{invited['user_id']}/unlock", headers=auth)
+    assert r.status_code == 200, r.text
+    bea = next(u for u in real.get("/users", headers=auth).json()["users"] if u["id"] == invited["user_id"])
+    assert bea["locked_until"] is None
+
+
+def test_only_an_admin_unlocks(client):
+    assert client.post("/users/someone/unlock", headers=as_alice()).status_code == 403
+
+
+def test_a_common_password_is_refused_with_its_own_code(real):
+    auth = sign_in(real)
+    invited = real.post("/users/invite", headers=auth, json={"name": "Bea", "email": "bea@example.org"}).json()
+    r = real.post("/auth/redeem", json={"token": invited["token"], "password": "password123", "device_id": "p"})
+    assert r.status_code == 400
+    assert r.json()["error"] == "common_password"
+
+
 # --- the failed sign-in log (NFR-SEC-11) ------------------------------------------------------
 
 
@@ -1454,3 +1531,11 @@ def test_the_policy_reads_without_a_group_name_and_escapes_one(site, db_path):
     set_group(db_path, "<b>Scouts</b>")
 
     assert "&lt;b&gt;Scouts&lt;/b&gt; uses Gear Tracker" in site.get("/privacy").text
+
+
+def test_a_lock_is_recorded_as_locked(real, failures):
+    for _ in range(6):
+        wrong(real)
+
+    reasons = [line.split(" ")[3] for line in lines_in(failures)]
+    assert reasons == ["unauthorized"] * 4 + ["locked"] * 2

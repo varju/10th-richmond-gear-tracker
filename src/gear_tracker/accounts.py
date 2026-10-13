@@ -10,16 +10,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import secrets
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
 
-from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
-from pydantic import ConfigDict, EmailStr, StringConstraints
+import pydantic
+from pydantic import ConfigDict, EmailStr, StringConstraints, TypeAdapter
 
-from gear_tracker import derived, events, notify
+from gear_tracker import derived, events, notify, passwords
 from gear_tracker.errors import (
     ApiError,
     BadRequest,
@@ -27,6 +28,7 @@ from gear_tracker.errors import (
     Deactivated,
     Forbidden,
     InviteUsed,
+    Locked,
     NotFound,
     ResetUsed,
     Unauthorized,
@@ -36,8 +38,9 @@ from gear_tracker.sync import Principal
 from gear_tracker.ulid import new_ulid
 
 Role = Literal["admin", "user"]
-Password = Annotated[str, StringConstraints(min_length=8)]
+Password = Annotated[str, StringConstraints(min_length=passwords.MIN_LENGTH, max_length=passwords.MAX_LENGTH)]
 Email = Annotated[EmailStr, StringConstraints(max_length=254)]
+_email: TypeAdapter[str] = TypeAdapter(Email)
 
 DAY_MS = 24 * 3_600_000
 
@@ -47,7 +50,16 @@ LINK_TTL_MS = 7 * DAY_MS
 ASSISTANT_PREFIX = "mcp-"
 """What makes a device_id an assistant's, not an ordinary device's (FR-MCP-02). The client reads the same prefix."""
 
-_hasher = PasswordHasher()
+MINUTE_MS = 60_000
+
+LOCK_AFTER = 5
+FIRST_LOCK_MS = 15 * MINUTE_MS
+LONGEST_LOCK_MS = DAY_MS
+"""Five wrong passwords for one email lock it for 15 minutes; each further lock doubles that, up to a day
+(NFR-SEC-12, NFR-SEC-13). Nothing locks for good: the group may have nobody at the keyboard."""
+
+FORGET_LOCK_MS = 7 * DAY_MS
+"""A count with no wrong password for a week is dropped, so made-up emails do not pile up."""
 
 
 # --- request bodies ----------------------------------------------------------------
@@ -55,7 +67,7 @@ _hasher = PasswordHasher()
 
 class SignIn(Strict):
     email: Email
-    password: str
+    password: Annotated[str, StringConstraints(max_length=passwords.MAX_LENGTH)]
     device_id: NonEmpty
 
 
@@ -205,16 +217,27 @@ def email_or_none(conn: sqlite3.Connection, user_id: str) -> str | None:
         return None
 
 
-def list_users(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+def list_users(conn: sqlite3.Connection, now: int | None = None) -> list[dict[str, Any]]:
+    """`locked_until` is when a lock ends (NFR-SEC-12), or None when the account is not locked."""
+    now = now_ms() if now is None else now
     rows = conn.execute(
         """
-        SELECT e.entity_id AS id, e.state, a.email, a.password_hash IS NOT NULL AS has_password
+        SELECT e.entity_id AS id, e.state, a.email, a.password_hash IS NOT NULL AS has_password,
+               CASE WHEN l.locked_until > ? THEN l.locked_until END AS locked_until
         FROM entities e JOIN accounts a ON a.user_id = e.entity_id
+        LEFT JOIN sign_in_locks l ON l.email = a.email
         WHERE e.entity_type = 'user' ORDER BY a.email
-        """
+        """,
+        (now,),
     )
     return [
-        {"id": r["id"], **json.loads(r["state"]), "email": r["email"], "has_password": bool(r["has_password"])}
+        {
+            "id": r["id"],
+            **json.loads(r["state"]),
+            "email": r["email"],
+            "has_password": bool(r["has_password"]),
+            "locked_until": r["locked_until"],
+        }
         for r in rows
     ]
 
@@ -295,11 +318,12 @@ def create_admin(conn: sqlite3.Connection, name: str, email: str, password: str,
 def install_admin(conn: sqlite3.Connection, name: str, email: str, password: str, now: int | None = None) -> str:
     """An Admin made at the server with a password already set: the command line, or the seed file."""
     now = now_ms() if now is None else now
+    passwords.check_new(password)
     user_id = new_ulid(now)
     try:
         conn.execute(
             "INSERT INTO accounts (user_id, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
-            (user_id, email.lower(), _hasher.hash(password), now),
+            (user_id, email.lower(), passwords.hash(password), now),
         )
     except sqlite3.IntegrityError:
         raise Conflict("an account with that email already exists") from None
@@ -328,18 +352,156 @@ def grant_admin(conn: sqlite3.Connection, email: str, now: int | None = None) ->
 # --- signing in and out -----------------------------------------------------------------
 
 
-def sign_in(conn: sqlite3.Connection, body: SignIn, now: int | None = None) -> Session:
-    now = now_ms() if now is None else now
-    row = conn.execute("SELECT user_id, password_hash FROM accounts WHERE email = ?", (body.email.lower(),)).fetchone()
-    if row is None or row["password_hash"] is None:
-        raise Unauthorized("wrong email or password")
+def wait_text(ms: int) -> str:
+    """ "15 minutes", "1 minute", "2 hours": how long until a lock ends, rounded up."""
+    minutes = max(1, math.ceil(ms / MINUTE_MS))
+    if minutes < 60:
+        return f"{minutes} minute{'' if minutes == 1 else 's'}"
+    hours = math.ceil(minutes / 60)
+    return f"{hours} hour{'' if hours == 1 else 's'}"
+
+
+def _locked(wait_ms: int) -> Locked:
+    return Locked(f"Too many attempts. Try again in {wait_text(wait_ms)}.")
+
+
+def normal_email(email: str) -> str:
+    """An email the way sign-in keys it: validated and normalised like a request body, then lowercased."""
     try:
-        _hasher.verify(row["password_hash"], body.password)
-    except VerifyMismatchError:
-        raise Unauthorized("wrong email or password") from None
+        return str(_email.validate_python(email)).lower()
+    except pydantic.ValidationError:
+        raise BadRequest(f"not an email address: {email}") from None
+
+
+def _lock_until(conn: sqlite3.Connection, email: str, now: int) -> int | None:
+    """When this email's lock ends, or None when it is not locked."""
+    row = conn.execute("SELECT locked_until FROM sign_in_locks WHERE email = ?", (email,)).fetchone()
+    if row is not None and row["locked_until"] is not None and row["locked_until"] > now:
+        return row["locked_until"]
+    return None
+
+
+def _immediate[T](conn: sqlite3.Connection, work: Callable[[], T]) -> T:
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        out = work()
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+    return out
+
+
+def _reserve(conn: sqlite3.Connection, email: str, now: int) -> int | None:
+    """Count this attempt as wrong before its password is checked, in one transaction with the lock
+    check, so attempts in parallel cannot all pass the check and get more than five tries. Refuses
+    when locked. Returns when the lock ends if this attempt is the one that locked it; a right
+    password then clears it (`_succeed`)."""
+
+    def work() -> int | None:
+        conn.execute("DELETE FROM sign_in_locks WHERE last_failed_at < ?", (now - FORGET_LOCK_MS,))
+        until = _lock_until(conn, email, now)
+        if until is not None:
+            raise _locked(until - now)
+        row = conn.execute("SELECT failures, locks FROM sign_in_locks WHERE email = ?", (email,)).fetchone()
+        failures = max(row["failures"] if row else 0, 0) + 1
+        locks = row["locks"] if row else 0
+        locked_until = None
+        if failures >= LOCK_AFTER:
+            locks += 1
+            failures = 0
+            locked_until = now + min(FIRST_LOCK_MS * 2 ** (locks - 1), LONGEST_LOCK_MS)
+        conn.execute(
+            """
+            INSERT INTO sign_in_locks (email, failures, locks, locked_until, last_failed_at) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (email) DO UPDATE SET
+                failures = excluded.failures,
+                locks = excluded.locks,
+                locked_until = coalesce(excluded.locked_until, locked_until),
+                last_failed_at = excluded.last_failed_at
+            """,
+            (email, failures, locks, locked_until, now),
+        )
+        return locked_until
+
+    return _immediate(conn, work)
+
+
+def _unreserve(conn: sqlite3.Connection, email: str, locked_by_me: int | None) -> None:
+    """Take back a reservation whose password was never checked, such as when the server was busy.
+
+    Adds and subtracts rather than setting, so refunds landing in either order give the same count.
+    The count can dip below zero while a lock's own refund is still to come; `_reserve` reads it as zero.
+    """
+
+    def work() -> None:
+        if locked_by_me is not None:
+            conn.execute(
+                "UPDATE sign_in_locks SET locks = locks - 1, failures = failures + ?, locked_until = NULL"
+                " WHERE email = ? AND locked_until = ?",
+                (LOCK_AFTER - 1, email, locked_by_me),
+            )
+        else:
+            conn.execute("UPDATE sign_in_locks SET failures = failures - 1 WHERE email = ?", (email,))
+
+    _immediate(conn, work)
+
+
+def _succeed(conn: sqlite3.Connection, email: str, locked_by_me: int | None, now: int) -> None:
+    """A right password clears the count, unless another attempt locked the email while this one
+    was being checked: that lock stands."""
+
+    def work() -> None:
+        until = _lock_until(conn, email, now)
+        if until is not None and until != locked_by_me:
+            raise _locked(until - now)
+        conn.execute("DELETE FROM sign_in_locks WHERE email = ?", (email,))
+
+    _immediate(conn, work)
+
+
+def _clear_lock(conn: sqlite3.Connection, email: str, now: int) -> bool:
+    """Forget the count and any lock. Says whether it was locked."""
+    locked = _lock_until(conn, email, now) is not None
+    conn.execute("DELETE FROM sign_in_locks WHERE email = ?", (email,))
+    return locked
+
+
+def sign_in(conn: sqlite3.Connection, body: SignIn, now: int | None = None, address: str | None = None) -> Session:
+    """A lock is checked first, before any hashing (NFR-SEC-15). Counting is by email, not account,
+    so an unknown email gets the same answers in the same time as a known one (NFR-SEC-19).
+    `address` is only for the Admins' mail when this locks an account (FR-USR-26).
+    """
+    now = now_ms() if now is None else now
+    email = body.email.lower()
+    locked_until = _reserve(conn, email, now)
+    try:
+        row = conn.execute("SELECT user_id, password_hash FROM accounts WHERE email = ?", (email,)).fetchone()
+        right = passwords.verify(row["password_hash"] if row else None, body.password)
+    except BaseException:
+        _unreserve(conn, email, locked_until)
+        raise
+    if not right:
+        if locked_until is None:
+            raise Unauthorized("wrong email or password")
+        # Known email or not, the same call: the mail's reads run on its own thread, not here.
+        notify.account_locked(conn, email, wait_text(locked_until - now), address, now)
+        raise _locked(locked_until - now)
+    _succeed(conn, email, locked_until, now)
     if not get_user(conn, row["user_id"])["active"]:
         raise Deactivated("this account has been deactivated")
     return _open_session(conn, row["user_id"], body.device_id, now)
+
+
+def unlock(conn: sqlite3.Connection, who: Principal, user_id: str, now: int | None = None) -> None:
+    """End a lock early (FR-USR-29). Admins only. The count goes too, so the next lock is 15 minutes again."""
+    _require_admin(who)
+    _clear_lock(conn, email_of(conn, user_id), now_ms() if now is None else now)
+
+
+def unlock_email(conn: sqlite3.Connection, email: str, now: int | None = None) -> bool:
+    """The same from the server's keyboard (FR-USR-28), for any email, account or not. Says whether it was locked."""
+    return _clear_lock(conn, normal_email(email), now_ms() if now is None else now)
 
 
 def _already_used(kind: str) -> ApiError:
@@ -357,12 +519,16 @@ def redeem(conn: sqlite3.Connection, body: Redeem, now: int | None = None) -> Se
     """Use an invite or reset link: set the password, open a session. The link is spent either way.
 
     The check and the spend are one transaction, so two concurrent redeems of
-    the same token cannot both pass: the loser's UPDATE matches no row.
+    the same token cannot both pass: the loser's UPDATE matches no row. The
+    password is hashed before that transaction, so a wait for a free hashing
+    slot never holds the write lock; a quick check first keeps a bad link from
+    costing a hash.
     """
     now = now_ms() if now is None else now
+    passwords.check_new(body.password)
     token_hash = _hash_token(body.token)
-    conn.execute("BEGIN IMMEDIATE")
-    try:
+
+    def usable() -> sqlite3.Row:
         link = conn.execute("SELECT * FROM links WHERE token_hash = ?", (token_hash,)).fetchone()
         if link is None or link["created_at"] + LINK_TTL_MS < now:
             raise Unauthorized("this link is not valid")
@@ -370,13 +536,20 @@ def redeem(conn: sqlite3.Connection, body: Redeem, now: int | None = None) -> Se
             raise _already_used(link["kind"])
         if not get_user(conn, link["user_id"])["active"]:
             raise Deactivated("this account has been deactivated")
+        return link
+
+    usable()
+    password_hash = passwords.hash(body.password)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        link = usable()
         spent = conn.execute("UPDATE links SET used_at = ? WHERE token_hash = ? AND used_at IS NULL", (now, token_hash))
         if spent.rowcount == 0:
             # Lost the race: another redeem of the same token committed first.
             raise _already_used(link["kind"])
-        conn.execute(
-            "UPDATE accounts SET password_hash = ? WHERE user_id = ?", (_hasher.hash(body.password), link["user_id"])
-        )
+        conn.execute("UPDATE accounts SET password_hash = ? WHERE user_id = ?", (password_hash, link["user_id"]))
+        # A new password is a fresh start: whatever guessing locked the old one is beside the point.
+        _clear_lock(conn, email_of(conn, link["user_id"]), now)
         if link["kind"] == "reset":
             # Whoever had the old password does not keep the sessions it opened.
             conn.execute(
@@ -402,15 +575,18 @@ def join(conn: sqlite3.Connection, body: Join, now: int | None = None) -> Sessio
     a made-up token learns nothing (the same rule FR-USR-12 gives redeem).
     """
     now = now_ms() if now is None else now
+    passwords.check_new(body.password)
     link = conn.execute("SELECT * FROM join_links WHERE token_hash = ?", (_hash_token(body.link),)).fetchone()
     if link is None or link["revoked_at"] is not None or (link["expires_at"] is not None and link["expires_at"] <= now):
         raise Unauthorized("this link is not valid")
+    # Hashed first: a busy server refuses it, and an account made before that would be left with no password.
+    password_hash = passwords.hash(body.password)
     try:
         # The Admin who made the link is the actor, so the audit log (FR-USR-05) says who let them in.
         user_id = _create_user(conn, link["created_by"], body.name, body.email, "user", now)
     except Conflict:
         raise Conflict("an account with that email already exists; sign in instead") from None
-    conn.execute("UPDATE accounts SET password_hash = ? WHERE user_id = ?", (_hasher.hash(body.password), user_id))
+    conn.execute("UPDATE accounts SET password_hash = ? WHERE user_id = ?", (password_hash, user_id))
     session = _open_session(conn, user_id, body.device_id, now)
     notify.user_joined(conn, user_id)
     return session

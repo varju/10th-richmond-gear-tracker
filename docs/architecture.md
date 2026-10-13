@@ -787,6 +787,16 @@ reach an identity provider from a locker (FR-USR-08). The token is stored hashed
 kept, marked inactive, so a queued push can still land (FR-OFF-06). The first push that lands revokes the session;
 nothing else is accepted after that. Its assistant tokens end at once: they never hold unsent work.
 
+Guessing is slowed at sign-in. Wrong passwords are counted per email in a server-only table, `sign_in_locks`, keyed by
+the email as typed, not by account: five lock it, and an email with no account locks the same way, so a lock says
+nothing about who exists (NFR-SEC-12). An unknown email, or one with no password yet, is checked against a dummy hash
+for the same reason (NFR-SEC-19). Each attempt is counted as wrong, in one transaction with the lock check, before any
+hashing; a right password then clears the count. So guesses sent in parallel get no more tries than ones sent in turn
+(NFR-SEC-26). The lock mail does its reads on its own thread, so a known email's lock takes no longer than an unknown
+one's, and goes at most once an hour (FR-USR-30). One address gets 30 wrong or locked sign-ins in 15 minutes, in memory
+like the found-report limits (NFR-SEC-18). At most three argon2 calls run at once, so a burst cannot take every thread
+(NFR-SEC-20). A new password is checked against a bundled list of common ones, with no network call (NFR-SEC-22).
+
 Invite and reset links are one-time tokens (FR-USR-12). They die after seven days unused; sessions do not expire, links
 do. Redeeming a reset revokes the sessions the old password opened.
 
@@ -808,7 +818,8 @@ phone's own lock (NFR-SEC-06). Invite and reset links open `/join` in the app, w
 phone in.
 
 The first Admin is made at the keyboard with `gear-admin create-admin` (FR-USR-13). `gear-admin reset-link` is the way
-back in when every Admin has lost their password; the keyboard is the credential.
+back in when every Admin has lost their password, and `gear-admin unlock` when every Admin is locked out; the keyboard
+is the credential.
 
 User changes come only through the accounts API, never as events pushed from a device. That is where the last-Admin rule
 (FR-USR-03) and the role check live, and it is why they hold. Events the server originates carry `device_id = "server"`

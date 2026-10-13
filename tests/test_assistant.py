@@ -967,6 +967,26 @@ def test_a_user_can_see_their_own_devices_but_not_anyone_elses(tools):
         assistant.list_devices("01ZZZZZZZZZZZZZZZZZZZZZZZZ")
 
 
+def test_an_admin_sees_and_ends_a_sign_in_lock(admin_tools, db_path):
+    """FR-USR-29, through the assistant (FR-MCP-10)."""
+    bea_id = assistant.invite_user("Bea", "bea@example.org", "user")["user_id"]
+    with open_db(db_path) as conn:
+        for _ in range(5):
+            with pytest.raises(ApiError):
+                accounts.sign_in(conn, accounts.SignIn(email="bea@example.org", password="wrong guess", device_id="p"))
+    listed = {u["user_id"]: u for u in assistant.list_users()["users"]}
+    assert listed[bea_id]["locked_until"] is not None
+
+    assert assistant.unlock_user(bea_id)["user"]["user_id"] == bea_id
+    listed = {u["user_id"]: u for u in assistant.list_users()["users"]}
+    assert listed[bea_id]["locked_until"] is None
+
+
+def test_a_user_cannot_unlock_through_the_assistant(tools, admin_id):
+    with pytest.raises(Forbidden):
+        assistant.unlock_user(admin_id)
+
+
 def test_an_admin_invites_promotes_and_deactivates_people(admin_tools, admin_id):
     invited = assistant.invite_user("Bea", "bea@example.org", "user")
     assert invited["token"]

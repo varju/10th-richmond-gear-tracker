@@ -88,6 +88,7 @@ def test_invite_then_redeem_then_sign_in(db, admin):
         "active": True,
         "email": "bea@example.org",
         "has_password": False,
+        "locked_until": None,
         "added_at": T0,
         "modified_at": T0,
     }

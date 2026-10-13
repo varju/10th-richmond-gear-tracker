@@ -103,6 +103,21 @@ manage and no Scouts Canada youth-data obligations to meet.
 | NFR-SEC-08 | Should   | Personal data is stored in Canada, or the group is told where it is stored.                                                                                                                                 |
 | NFR-SEC-09 | Should   | Dependencies are scanned for known vulnerabilities on every build.                                                                                                                                          |
 | NFR-SEC-11 | Should   | Failed sign-ins are recorded to a file in the data directory, with the time, the address, and the email tried.                                                                                              |
+| NFR-SEC-12 | Should   | After 5 wrong passwords in a row for one email, sign-in with that email is refused for 15 minutes, whether or not an account has it.                                                                        |
+| NFR-SEC-13 | Should   | Each further lock of the same email doubles the wait, up to 24 hours.                                                                                                                                       |
+| NFR-SEC-14 | Should   | The right password clears the email's wrong-password count, so its next lock is 15 minutes again (NFR-SEC-13).                                                                                              |
+| NFR-SEC-15 | Should   | A lock is checked before the password, so a locked sign-in costs no hashing.                                                                                                                                |
+| NFR-SEC-16 | Should   | A locked sign-in says how long until it may be tried again.                                                                                                                                                 |
+| NFR-SEC-17 | Should   | A lock refuses new sign-ins only. Devices already signed in keep working.                                                                                                                                   |
+| NFR-SEC-18 | Should   | One address may make at most 30 wrong or locked sign-ins in 15 minutes, across all emails.                                                                                                                  |
+| NFR-SEC-19 | Should   | A sign-in with an unknown email, or one with no password yet, takes as long as a wrong password.                                                                                                            |
+| NFR-SEC-20 | Should   | At most 3 password hashes or checks run at once.                                                                                                                                                            |
+| NFR-SEC-21 | Should   | A password is at most 256 characters, at sign-in and when set.                                                                                                                                              |
+| NFR-SEC-22 | Should   | A new password on a bundled list of the 100,000 most common is refused, with no network call.                                                                                                               |
+| NFR-SEC-23 | Should   | A new password from a reset link clears the email's wrong-password count.                                                                                                                                   |
+| NFR-SEC-24 | Should   | An Admin's unlock (FR-USR-29) clears the email's wrong-password count.                                                                                                                                      |
+| NFR-SEC-25 | Should   | The command line's unlock (FR-USR-28) clears the email's wrong-password count.                                                                                                                              |
+| NFR-SEC-26 | Should   | Sign-ins for one email checked at the same time get no more tries before a lock than ones made in turn.                                                                                                     |
 
 ## 6. Maintainability (MAINT)
 
