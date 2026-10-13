@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { type Api, ApiError, Offline } from "../lib/api";
+import { privacyUrl } from "../lib/server";
 import type { Store } from "../lib/store";
 
 interface Props {
@@ -69,6 +70,9 @@ export function SignIn({ store, api, onSignedIn, notice }: Props) {
             {error}
           </p>
         )}
+        <p className="muted small">
+          <a href={privacyUrl()}>Privacy</a>
+        </p>
       </main>
       <div className="actions">
         <button className="primary" type="submit" disabled={busy}>

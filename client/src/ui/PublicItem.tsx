@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { type Api, ApiError, Offline, type PublicCode } from "../lib/api";
+import { privacyUrl } from "../lib/server";
 import { Contact } from "./Contact";
 import { Page } from "./Page";
 
@@ -134,6 +135,9 @@ function Shell({ title, actions, children }: { title: string; actions?: React.Re
     <div className="app">
       <Page title={title} actions={actions}>
         {children}
+        <p className="muted small">
+          <a href={privacyUrl()}>Privacy</a>
+        </p>
       </Page>
     </div>
   );

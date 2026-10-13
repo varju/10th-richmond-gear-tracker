@@ -148,3 +148,8 @@ test("a role dropped on the server takes the admin sections away on the next syn
     "Delete my account",
   ]);
 });
+
+test("the foot links to the privacy policy (FR-PUB-07)", () => {
+  mount();
+  expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", `${location.origin}/privacy`);
+});

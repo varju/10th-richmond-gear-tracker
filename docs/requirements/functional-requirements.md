@@ -164,13 +164,14 @@ The core workflow. It happens in an unheated locker or an outdoor yard, on a pho
 
 ## 7. Public pages (PUB)
 
-Reachable by scanning a label, with no sign-in.
+Reachable by scanning a label or following a link, with no sign-in.
 
 | ID        | Priority | Requirement                                                                                                                                                   |
 | --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | FR-PUB-01 | Must     | Scanning while signed out shows the group name and how to reach us, not the item's name. No member names, prices, or history.                                 |
 | FR-PUB-02 | Must     | Anyone can report the item found, with a note and optional contact detail.                                                                                    |
 | FR-PUB-03 | Must     | Found reports reach the Quartermaster in the app, as something to act on.                                                                                     |
+| FR-PUB-07 | Must     | A privacy policy, naming the group and how to reach it, opens with no sign-in.                                                                                |
 | FR-PUB-04 | Should   | Public submissions are rate-limited and spam-protected.                                                                                                       |
 | FR-PUB-05 | Won't    | Withdrawn: raise a repair ticket from the public page. Members raise tickets when signed in (FR-REP-02); the public route is for found gear only (FR-PUB-02). |
 | FR-PUB-06 | Won't    | Public check-in and check-out. We will not record gear movement by unidentified people.                                                                       |

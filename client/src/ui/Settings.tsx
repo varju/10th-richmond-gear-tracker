@@ -1,5 +1,6 @@
 import type { Shell } from "../shell";
 import { navigate } from "../lib/router";
+import { privacyUrl } from "../lib/server";
 import type { Store } from "../lib/store";
 import { syncLabel } from "./labels";
 import { Page } from "./Page";
@@ -73,6 +74,9 @@ export function Settings({ store, shell }: Props) {
           Delete my account
         </button>
       </nav>
+      <p className="muted small">
+        <a href={privacyUrl()}>Privacy</a>
+      </p>
       <p className="muted small">
         Source:{" "}
         {__GIT_SHA__ === "dev" ? (

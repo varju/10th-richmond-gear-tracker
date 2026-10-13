@@ -123,3 +123,9 @@ test("too many reports, or no signal, is said in words", async () => {
   await user.click(screen.getByRole("button", { name: "Send" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("No connection. Try again when you have one.");
 });
+
+test("a stranger can read the privacy policy (FR-PUB-07)", async () => {
+  await mount(async () => answer(tent));
+
+  expect(await screen.findByRole("link", { name: "Privacy" })).toHaveAttribute("href", `${location.origin}/privacy`);
+});

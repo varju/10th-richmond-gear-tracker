@@ -862,6 +862,11 @@ the moment it goes on gear, and one with no way back to us is no use to whoever 
 
 Rate-limited, because it is the one door anyone can knock on.
 
+The privacy policy, `/privacy` (FR-PUB-07), is the one other page with no sign-in. It reads no records. The server
+writes it as plain HTML rather than a client route, so it opens from an outside link with no script and no service
+worker. The text is in `privacy.py`, the same for every group; the group's name and its mail From address are filled in
+on each request.
+
 ## Testing
 
 Real dependencies, no mocks. SQLite is fast enough that a fake would cost more than it saves: a full migration into a

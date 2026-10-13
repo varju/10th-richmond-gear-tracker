@@ -41,6 +41,7 @@ from gear_tracker import (
     localtime,
     mail,
     notify,
+    privacy,
     sync,
 )
 from gear_tracker.db import connect
@@ -809,6 +810,13 @@ def create_app(
             raise NotFound("not one of our codes")
         group = derived.get_entity(conn, "setting", "group") or {}
         return stamped({"group": {"name": group.get("name", ""), "contact": group.get("contact", "")}})
+
+    @app.get("/privacy", include_in_schema=False)
+    def privacy_policy(conn: Db) -> HTMLResponse:
+        """The privacy policy, with no sign-in (FR-PUB-07). The contact is the address the group's mail is sent from."""
+        settings = mail.get(conn)
+        text = privacy.page(group_name(conn), settings["from_address"] if settings else None)
+        return HTMLResponse(text, headers={"Cache-Control": "no-cache"})
 
     @app.post("/public/codes/{code}/found")
     def report_found(request: Request, conn: Db, code: str, body: FoundBody) -> dict[str, Any]:

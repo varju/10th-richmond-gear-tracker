@@ -12,3 +12,6 @@ export const API_BASE = NATIVE ? __SERVER_URL__ : BASE;
 
 /** The address a person opens in a browser, for links we show, print or mail. No trailing slash. */
 export const siteUrl = (): string => (NATIVE ? __SERVER_URL__ : `${location.origin}${BASE}`);
+
+/** The privacy policy (FR-PUB-07). A page the server writes, so the app opens it in the browser. */
+export const privacyUrl = (): string => `${siteUrl()}/privacy`;

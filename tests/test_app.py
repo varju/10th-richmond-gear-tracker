@@ -15,7 +15,7 @@ import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
 
-from gear_tracker import accounts, derived, events, inventory_csv
+from gear_tracker import accounts, derived, events, inventory_csv, mail
 from gear_tracker.app import (
     ACCESS_LOG,
     ERROR_LOG,
@@ -1412,3 +1412,43 @@ def test_a_log_that_cannot_be_written_does_not_break_signing_in(real, db_path, f
     )
 
     assert refused.status_code == 401
+
+
+# --- the privacy policy (FR-PUB-07) -----------------------------------------------------------
+
+
+def set_group(db_path, name):
+    with open_db(db_path) as conn:
+        events.append_server(conn, "alice", "setting", "group", "created", {"name": name})
+
+
+def test_the_privacy_policy_opens_signed_out_and_names_the_group_and_its_mail(site, db_path):
+    """Served by the server, ahead of the client's catch-all: an outside link has no script to run it."""
+    set_group(db_path, "10th Richmond")
+    with open_db(db_path) as conn:
+        mail.save(conn, mail.MailSettings(host="smtp.example.org", from_address="gear@example.org"))
+
+    page = site.get("/privacy")
+
+    assert page.status_code == 200
+    assert page.headers["content-type"].startswith("text/html")
+    assert "<h1>app</h1>" not in page.text
+    assert "10th Richmond uses Gear Tracker" in page.text
+    assert 'href="mailto:gear@example.org"' in page.text
+
+
+def test_with_no_mail_set_up_the_policy_says_to_ask_the_leaders(site, db_path):
+    set_group(db_path, "10th Richmond")
+
+    page = site.get("/privacy").text
+
+    assert "mailto:" not in page
+    assert "contact the group's leaders" in page
+
+
+def test_the_policy_reads_without_a_group_name_and_escapes_one(site, db_path):
+    assert "The group uses Gear Tracker" in site.get("/privacy").text
+
+    set_group(db_path, "<b>Scouts</b>")
+
+    assert "&lt;b&gt;Scouts&lt;/b&gt; uses Gear Tracker" in site.get("/privacy").text
