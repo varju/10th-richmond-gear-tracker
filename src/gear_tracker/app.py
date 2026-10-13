@@ -97,9 +97,6 @@ FAILED_SIGN_INS = "failed-sign-ins.log"
 KEEP_LOG_DAYS = 30
 """Days of rolled log files kept, the same window as the backups (NFR-DATA-05)."""
 
-FAILED_SIGN_INS_MAX_BYTES = 1_000_000
-"""About 15,000 lines: past this, a day's failed sign-ins stop being written (FailedSignIns)."""
-
 SECRET_QUERY_KEYS = frozenset({"token", "link"})
 """An invite or reset link lands on /join?token=... (FR-USR-12), a standing join link on
 ?link=... (FR-USR-19). Both are client routes this server answers, so the value reaches the log
@@ -164,23 +161,12 @@ class FailedSignIns(DailyLog):
     """The failed sign-in file (NFR-SEC-11). One per app, so the server writes it whether or not
     main() set up the other files.
 
-    Nothing slows sign-in attempts down, so a day's file stops growing at FAILED_SIGN_INS_MAX_BYTES:
-    a flood must not fill the disk the database is on. The access log still has every attempt.
+    No size cap: every refused sign-in also writes a longer line to access.log, so a cap here would
+    not keep a flood off the disk.
     """
 
     def __init__(self, path: Path) -> None:
         super().__init__(path, delay=True)
-
-    def emit(self, record: logging.LogRecord) -> None:
-        try:
-            if self.shouldRollover(record):
-                self.doRollover()
-            path = Path(self.baseFilename)
-            if path.is_file() and path.stat().st_size >= FAILED_SIGN_INS_MAX_BYTES:
-                return
-            logging.FileHandler.emit(self, record)
-        except Exception:
-            self.handleError(record)
 
     def handleError(self, record: logging.LogRecord) -> None:  # noqa: N802 - the stdlib's name
         # A refused sign-in still has to be refused: a full disk must not turn a 401 into a 500.
@@ -827,12 +813,9 @@ def create_app(
 
     @app.get("/privacy", include_in_schema=False)
     def privacy_policy(conn: Db) -> HTMLResponse:
-        """The privacy policy, with no sign-in (FR-PUB-07), naming the group's mail address and its own contact."""
+        """The privacy policy, with no sign-in (FR-PUB-07). The contact is the address the group's mail is sent from."""
         settings = mail.get(conn)
-        group = derived.get_entity(conn, "setting", "group") or {}
-        text = privacy.page(
-            group.get("name") or "", settings["from_address"] if settings else None, group.get("contact") or ""
-        )
+        text = privacy.page(group_name(conn), settings["from_address"] if settings else None)
         return HTMLResponse(text, headers={"Cache-Control": "no-cache"})
 
     @app.post("/public/codes/{code}/found")

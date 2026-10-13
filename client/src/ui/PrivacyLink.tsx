@@ -1,8 +1,8 @@
 import { privacyUrl } from "../lib/server";
 
 /**
- * The privacy policy (FR-PUB-07), in a new window. In place, it would replace a home-screen app
- * with no way back, and offline it would be an error. The iPhone app hands a new window to Safari.
+ * The privacy policy (FR-PUB-07), in a new window, so the app's own window stays where it was. In
+ * place, it would replace a home-screen app with no way back. The iPhone app hands it to Safari.
  */
 export function PrivacyLink() {
   return (

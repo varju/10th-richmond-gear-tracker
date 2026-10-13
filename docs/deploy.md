@@ -103,10 +103,7 @@ awk '{print $2, $3}' "$GEAR_DATA/logs/failed-sign-ins.log" | sort | uniq -c | so
 ```
 
 One address working through many accounts, or many attempts on one account, is worth acting on: deactivate the account,
-or block the address at the proxy. Nothing in the app slows sign-in attempts down yet.
-
-Nothing slows sign-in attempts down, so a flood must not fill the disk the database is on. Once a day's file reaches
-about a megabyte, further failed sign-ins that day are not written to it. `access.log` still has each one as a 401.
+or block the address at the proxy. Nothing in the app limits sign-in attempts or the size of the logs yet.
 
 Times are the container's own clock, in the timezone `TZ` names. Without it, UTC.
 
@@ -427,8 +424,8 @@ The name under the home-screen icon is the `APP_DISPLAY_NAME` build setting, "Ge
 way you set the bundle id, for example `xcodebuild ... APP_DISPLAY_NAME='10th Gear'`.
 
 The privacy policy URL the App Store asks for is `/privacy` on your site, for example `https://example.org/gear/privacy`
-(FR-PUB-07). The server writes it with no sign-in, and fills in the group's name, the mail **Send from** address and the
-group's contact from Settings. With neither set, it tells people to contact the group's leaders.
+(FR-PUB-07). The server writes it with no sign-in, and fills in the group's name and the mail **Send from** address from
+Settings. With no mail set up, it tells people to contact the group's leaders.
 
 ### Linking the app to your site
 

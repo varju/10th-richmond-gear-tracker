@@ -2,10 +2,9 @@
 
 Served by the server, not the client: an app store's reviewer, or anyone who never installed
 the app, opens it as a link, with no script and no service worker. The text is the same for
-every group. The group's name and contact are filled in from its settings when it is asked for.
+every group. The group's name and mail address are filled in from its settings when it is asked for.
 """
 
-import re
 from html import escape
 
 UPDATED = "12 October 2026"
@@ -23,27 +22,14 @@ a { color: #fff; }
 """
 
 
-def linked(contact: str) -> str:
-    """A link when we can tell what the contact is, and plain text when we cannot, as the client's Contact does."""
-    text = escape(contact)
-    if re.match(r"https?://", contact, re.IGNORECASE):
-        return f'<a href="{escape(contact, quote=True)}">{text}</a>'
-    if re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", contact):
-        return f'<a href="mailto:{escape(contact, quote=True)}">{text}</a>'
-    return text
-
-
-def page(group: str, mail_from: str | None, contact: str = "") -> str:
-    """The whole page. `mail_from` is the address the group's mail is sent from; `contact` is the
-    group's own contact setting, the one the public page shows (FR-PUB-01)."""
+def page(group: str, mail_from: str | None) -> str:
+    """The whole page. `mail_from` is the address the group's mail is sent from."""
     who = escape(group) if group else "the group"
     subject = escape(group) if group else "The group"
-    ways = []
     if mail_from:
-        ways.append(f'email <a href="mailto:{escape(mail_from, quote=True)}">{escape(mail_from)}</a>')
-    if contact:
-        ways.append(f"contact the group at {linked(contact)}")
-    ask = ", or ".join(ways) or "contact the group's leaders"
+        ask = f'email <a href="mailto:{escape(mail_from, quote=True)}">{escape(mail_from)}</a>'
+    else:
+        ask = "contact the group's leaders"
     title = f"Privacy · {escape(group)}" if group else "Privacy · Gear Tracker"
     return f"""<!doctype html>
 <html lang="en">

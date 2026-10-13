@@ -864,8 +864,8 @@ Rate-limited, because it is the one door anyone can knock on.
 
 The privacy policy, `/privacy` (FR-PUB-07), is the one other page with no sign-in. It reads no records. The server
 writes it as plain HTML rather than a client route, so it opens from an outside link with no script and no service
-worker. The text is in `privacy.py`, the same for every group; the group's name, its mail From address and its contact
-are filled in on each request.
+worker. The text is in `privacy.py`, the same for every group; the group's name and its mail From address are filled in
+on each request.
 
 ## Testing
 
