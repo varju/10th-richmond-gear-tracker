@@ -645,3 +645,69 @@ test("only an Admin may delete, and only an item that is in (FR-INV-32)", async 
   await user.click(screen.getByRole("button", { name: "Edit" }));
   expect(screen.queryByRole("button", { name: "Delete for good…" })).not.toBeInTheDocument();
 });
+
+test("the item page corrects the event it is out under, appended, offline (FR-OUT-41, FR-RES-27)", async () => {
+  await res.createReservation(store, {
+    event: "Fall camp",
+    starts: "2026-11-01",
+    ends: "2026-11-02",
+    items: [],
+    generics: [],
+  });
+  const out = await mv.checkOut(store, tent, { event: "Spring camp" });
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(screen.getByText("Event").nextElementSibling).toHaveTextContent("Spring camp");
+
+  await user.click(screen.getByRole("button", { name: "Change event" }));
+  const picker = screen.getByRole("region", { name: "Correct event" });
+  await user.type(within(picker).getByLabelText("Event"), "fall");
+  await user.click(within(picker).getByRole("button", { name: /Fall camp.*Used before/ }));
+  expect(await screen.findByRole("button", { name: "Change event" })).toBeInTheDocument();
+  expect(screen.getByText("Event").nextElementSibling).toHaveTextContent("Fall camp");
+
+  await user.click(screen.getByRole("button", { name: "Change event" }));
+  await user.click(
+    within(screen.getByRole("region", { name: "Correct event" })).getByRole("button", { name: "No event" }),
+  );
+  await screen.findByRole("button", { name: "Change event" });
+  expect(store.pending.filter((e) => e.type === "event_corrected").map((e) => e.payload)).toEqual([
+    { movement_id: out.id, event: "Fall camp", reservation_id: null },
+    { movement_id: out.id, event: null, reservation_id: null },
+  ]);
+  expect(store.pending.find((e) => e.id === out.id)?.payload.event).toBe("Spring camp");
+  expect(screen.getByText("Event").nextElementSibling).toHaveTextContent("None");
+});
+
+test("the correction hides the event already recorded, and offers Last used only while a session runs (FR-OUT-41)", async () => {
+  await store.setMeta({ session_event: "Cub camp", session_event_at: store.now() - SESSION_MS });
+  const stove = await act.createItem(store, { name: "Stove" });
+  await mv.checkOut(store, stove, { event: "Scout camp" });
+  await mv.checkOut(store, tent, { event: "Spring camp" });
+  renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Change event" }));
+  const picker = () => screen.getByRole("region", { name: "Correct event" });
+  expect(picker()).not.toHaveTextContent("Last used");
+  await user.type(within(picker()).getByLabelText("Event"), "camp");
+  expect(within(picker()).queryByRole("button", { name: /Spring camp/ })).not.toBeInTheDocument();
+  expect(within(picker()).getByRole("button", { name: /Scout camp/ })).toBeInTheDocument();
+  await user.click(within(picker()).getByRole("button", { name: "Cancel" }));
+
+  await inSession(store, "Cub camp");
+  await user.click(screen.getByRole("button", { name: "Change event" }));
+  expect(within(picker()).getByRole("button", { name: /Cub camp.*Last used/ })).toBeInTheDocument();
+});
+
+test("a move packed for a reservation links to it instead of offering a correction (FR-OUT-41)", async () => {
+  const r = await res.createReservation(store, {
+    event: "Fall camp",
+    starts: "2026-11-01",
+    ends: "2026-11-02",
+    items: [],
+    generics: [],
+  });
+  await mv.checkOut(store, tent, { event: "Fall camp", reservation_id: r, packing: true });
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(screen.queryByRole("button", { name: "Change event" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Fall camp" }));
+  expect(location.pathname).toBe(`/reservations/${r}`);
+});

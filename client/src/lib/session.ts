@@ -5,6 +5,7 @@
  * takes its event from the reservation instead, and never ends or extends this way (FR-RES-24, FR-RES-25). Times are the
  * store's clock, the one every move is stamped with.
  */
+import { eventNameKey } from "./calendar";
 import type { Meta, Store } from "./store";
 
 export const SESSION_MS = 4 * 3_600_000;
@@ -30,7 +31,33 @@ export function sessionEvent(meta: Meta, now: number): Session {
   return eventAsked(meta, now) ? { event: meta.session_event } : {};
 }
 
-/** Set or clear (undefined) the session event, as answered now. Drops any reservation link an older build left. */
-export async function setSessionEvent(store: Store, name: string | undefined): Promise<void> {
-  await store.setMeta({ session_event: name, session_reservation_id: undefined, session_event_at: store.now() });
+/**
+ * Set or clear (undefined) the session event, as answered now. Drops any reservation link an older
+ * build left. A new answer starts the session afresh. The same answer keeps its start. A `change`
+ * to a running session keeps its start too, and remembers the event it replaces, so the moves made
+ * under that one can be offered for correcting until the question is answered (FR-OUT-40).
+ */
+export async function setSessionEvent(store: Store, name: string | undefined, change = false): Promise<void> {
+  const now = store.now();
+  const event = name?.trim() || undefined;
+  const { meta } = store;
+  const running = eventAsked(meta, now);
+  const same = running && eventNameKey(meta.session_event ?? "") === eventNameKey(event ?? "");
+  const keep = same || (running && change);
+  // What a change replaces, kept until its question is answered. A fresh start has none.
+  let prior = keep ? meta.session_prior_events : undefined;
+  const old = meta.session_event ?? null;
+  if (keep && !same && !prior?.includes(old)) prior = [...(prior ?? []), old];
+  await store.setMeta({
+    session_event: event,
+    session_reservation_id: undefined,
+    session_event_at: now,
+    session_started_at: keep ? meta.session_started_at : now,
+    session_prior_events: prior,
+  });
+}
+
+/** Only new moves count from here: the earlier ones keep the event they were made under (FR-OUT-40). */
+export async function restartSession(store: Store): Promise<void> {
+  await store.setMeta({ session_started_at: store.now(), session_prior_events: undefined });
 }

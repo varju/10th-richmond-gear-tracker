@@ -746,6 +746,15 @@ main:has(> .viewfinder) {
   padding: 0 16px;
 }
 
+/* The question after a change (FR-OUT-40): the question on its own line, the answers under it. */
+.session-ask {
+  flex-wrap: wrap;
+}
+
+.session-ask span {
+  flex-basis: 100%;
+}
+
 /* The card sits over the lower part of the viewfinder; the video keeps running behind it. */
 .move-card {
   position: absolute;

@@ -7,7 +7,9 @@ import { seen } from "./actions";
 import { aliases, isPool, item, type Item, poolCounts } from "./inventory";
 import * as notes from "./notes";
 import type { Log } from "./record";
-import { type Movement, type Note, replayOrder } from "./replay";
+import { eventNameKey, tidyName } from "./calendar";
+import { type Movement, type Note, type ReplayEvent, replayOrder, type State } from "./replay";
+import { eventAsked, setSessionEvent } from "./session";
 import type { MoveSession, Store } from "./store";
 
 export interface MoveOptions {
@@ -219,6 +221,147 @@ export async function correctEvent(
   });
 }
 
+/** What a movement is read under now: the event, the reservation it packs, and since when. */
+export interface Reading {
+  event: string | null;
+  reservation_id: string | null;
+  /** When it took this reading: the correction's time, or the movement's own. */
+  at: number;
+}
+
+/**
+ * Each corrected movement's reading: its last `event_corrected` in replay order wins, the rule
+ * replay uses for the current movement (FR-RES-17).
+ */
+export function corrections(events: ReplayEvent[]): Map<string, Reading> {
+  const last = new Map<string, Reading>();
+  for (const e of events.filter((e) => e.type === "event_corrected").sort(replayOrder)) {
+    last.set(e.payload.movement_id as string, {
+      event: (e.payload.event as string | null | undefined) ?? null,
+      reservation_id: (e.payload.reservation_id as string | null | undefined) ?? null,
+      at: e.effective_at,
+    });
+  }
+  return last;
+}
+
+const CORRECTIONS = "corrections";
+
+/** Every correction this device holds, worked out once per change to the store. */
+export const knownCorrections = (store: Store) => store.memo(CORRECTIONS, () => corrections(store.known));
+
+/** A movement's reading: its last correction, else what it recorded. */
+export function reading(e: ReplayEvent, corrected: Map<string, Reading>): Reading {
+  return (
+    corrected.get(e.id) ?? {
+      event: (e.payload.event as string | null | undefined) ?? null,
+      reservation_id: (e.payload.reservation_id as string | null | undefined) ?? null,
+      at: e.effective_at,
+    }
+  );
+}
+
+/**
+ * Event names used before, most recent first, one per name, case and spacing aside (FR-RES-27):
+ * reservations not cancelled, the event each item is out under, and each check-out in `log` as it
+ * now reads (`corrected`). A corrected name ranks by the correction's time; one corrected away is
+ * not offered again.
+ */
+export function usedEventNames(state: State, log: ReplayEvent[], corrected: Map<string, Reading>): string[] {
+  const named: [string, number][] = [];
+  const add = (name: unknown, at: unknown) => {
+    if (typeof name === "string" && name.trim()) named.push([tidyName(name), typeof at === "number" ? at : 0]);
+  };
+  for (const r of Object.values(state.reservation ?? {})) {
+    if (!r.cancelled) add(r.event, r.modified_at ?? r.added_at);
+  }
+  for (const it of Object.values(state.item ?? {})) {
+    const m = it.movement as Movement | null | undefined;
+    if (m) add(m.event, corrected.get(m.id)?.at ?? m.at);
+  }
+  for (const e of log) {
+    if (e.type !== "checked_out") continue;
+    const r = reading(e, corrected);
+    add(r.event, r.at);
+  }
+  const names = new Map<string, string>();
+  for (const [name] of named.sort((a, b) => b[1] - a[1])) {
+    if (!names.has(eventNameKey(name))) names.set(eventNameKey(name), name);
+  }
+  return [...names.values()];
+}
+
+const USED_NAMES = "used event names";
+
+/** The names used before on this device (FR-RES-27), worked out once per change to the store. */
+export const knownEventNames = (store: Store) =>
+  store.memo(USED_NAMES, () => usedEventNames(store.state, store.known, knownCorrections(store)));
+
+/** Names compared as the same event, case and spacing aside; blank is No event. */
+const sameKey = (name: string | null | undefined) => eventNameKey(name ?? "");
+
+/** One move a plain session made (FR-OUT-40). */
+export interface SessionMove {
+  itemId: string;
+  movementId: string;
+}
+
+const SESSION_MOVES = "session moves";
+
+/**
+ * The moves an unanswered change of the plain session's event offers to correct (FR-OUT-40): every
+ * check-out and transfer this device recorded for the signed-in person since the session started,
+ * still read under one of the events it had before the change and packing no reservation. A move
+ * corrected since to anything else, here or elsewhere, drops out; one returned since stays, since its
+ * event is still history. Nothing once the session has ended, or for one an older build started.
+ * The start is the device clock, which a sync never moves: only effective_at carries the offset.
+ */
+export function sessionMoves(store: Store): SessionMove[] {
+  const { meta } = store;
+  const started = meta.session_started_at;
+  const prior = meta.session_prior_events;
+  if (!meta.user || started === undefined || !prior?.length || !eventAsked(meta, store.now())) return [];
+  return store.memo(SESSION_MOVES, () => {
+    const now = sameKey(meta.session_event);
+    const before = new Set(prior.map(sameKey));
+    const corrected = knownCorrections(store);
+    return store
+      .eventsBy(meta.user!.id)
+      .filter((e) => e.type === "checked_out" && e.device_id === meta.device_id && e.occurred_at >= started)
+      .filter((e) => {
+        const r = reading(e, corrected);
+        return r.reservation_id == null && sameKey(r.event) !== now && before.has(sameKey(r.event));
+      })
+      .sort(replayOrder)
+      .map((e) => ({ itemId: e.entity_id, movementId: e.id }));
+  });
+}
+
+/**
+ * Change the running session's event from the Scan screen (FR-OUT-40). Keeps its start, and the
+ * event it replaces while that leaves moves to offer; with none, there is no question to follow.
+ */
+export async function changeSessionEvent(store: Store, name: string | undefined) {
+  await setSessionEvent(store, name, true);
+  if (store.meta.session_prior_events && sessionMoves(store).length === 0) {
+    await store.setMeta({ session_prior_events: undefined });
+  }
+}
+
+/**
+ * Put the session's earlier moves under its event, one appended correction each, and close the
+ * question (FR-OUT-40). Found afresh, so a second tap or a retry corrects only what is still left.
+ * Only moves that pack nothing are offered, so no reservation link is written over. Refused once
+ * the session has ended.
+ */
+export async function correctSessionMoves(store: Store) {
+  // An ended session's question is gone from the screen; a tap that raced the end changes nothing.
+  if (!eventAsked(store.meta, store.now())) throw new Error("The session has ended. Nothing was changed.");
+  const event = store.meta.session_event ?? null;
+  for (const m of sessionMoves(store)) await correctEvent(store, m.itemId, m.movementId, event);
+  await store.setMeta({ session_prior_events: undefined });
+}
+
 export interface HistoryEntry {
   id: string;
   type: "checked_out" | "checked_in" | "recounted";
@@ -245,12 +388,7 @@ export function history(log: Log, itemId: string): HistoryEntry[] {
     .flatMap((id) => log.eventsFor("item", id))
     .sort(replayOrder);
   // The last correction wins, the same rule replay uses for the current movement (FR-RES-17).
-  const corrected = new Map<string, string | null>();
-  for (const e of events) {
-    if (e.type === "event_corrected") {
-      corrected.set(e.payload.movement_id as string, (e.payload.event as string | null) ?? null);
-    }
-  }
+  const corrected = corrections(events);
   return events
     .filter((e) => e.type === "checked_out" || e.type === "checked_in" || e.type === "recounted")
     .map((e) => ({
@@ -258,7 +396,7 @@ export function history(log: Log, itemId: string): HistoryEntry[] {
       type: e.type as HistoryEntry["type"],
       actor_id: e.actor_id,
       holder_id: (e.payload.holder_id as string | undefined) ?? null,
-      event: corrected.has(e.id) ? corrected.get(e.id)! : (e.payload.event as string | undefined) ?? null,
+      event: reading(e, corrected).event,
       supersedes: (e.payload.supersedes as string | undefined) ?? null,
       at: e.effective_at,
       notes: notes.filter((n) => n.movement_id === e.id),

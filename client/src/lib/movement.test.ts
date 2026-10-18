@@ -4,7 +4,7 @@ import * as act from "./actions";
 import { openDb } from "./db";
 import { item } from "./inventory";
 import * as mv from "./movement";
-import { eventAsked, SESSION_MS, sessionEvent, setSessionEvent } from "./session";
+import { eventAsked, restartSession, SESSION_MS, sessionEvent, setSessionEvent } from "./session";
 import { Store } from "./store";
 
 let store: Store;
@@ -259,4 +259,78 @@ test("a packing link left by an older build is not a plain session: a move does 
   await setSessionEvent(store, "Spring camp");
   expect(store.meta.session_reservation_id).toBeUndefined();
   expect(sessionEvent(store.meta, store.now())).toEqual({ event: "Spring camp" });
+});
+
+test("a change offers this device's session check-outs still under the old event (FR-OUT-40)", async () => {
+  const [stove, pot, lamp, axe] = await Promise.all(
+    ["Stove", "Pot", "Lamp", "Axe"].map((name) => act.createItem(store, { name })),
+  );
+  const pool = await act.createPool(store, { name: "Plates" }, 10);
+  // Before the session started: not one of its moves.
+  await mv.checkOut(store, axe!, { event: "Spring camp" });
+  await setSessionEvent(store, " Spring camp ");
+  // Stored trimmed, the same as the moves stamp it.
+  expect(store.meta.session_event).toBe("Spring camp");
+  const session = { event: "Spring camp" };
+  await mv.checkOut(store, tent, session);
+  // Returned since: its event is still history, so it is offered.
+  await mv.checkOut(store, pot!, session);
+  await mv.checkIn(store, pot!);
+  await mv.checkOutPool(store, pool, { ...session, count: 2 });
+  await mv.checkInPool(store, pool, { count: 2 });
+  // Packed for a reservation, at the move or by a link since (FR-RES-17): left alone.
+  await mv.checkOut(store, lamp!, { ...session, reservation_id: "r1", packing: true });
+  const linked = await mv.checkOut(store, stove!, session);
+  await mv.correctEvent(store, stove!, linked.id, "Spring camp", "r2");
+
+  // Under the session's own event, nothing to offer.
+  expect(mv.sessionMoves(store)).toEqual([]);
+  await mv.changeSessionEvent(store, "Cub camp");
+  expect(mv.sessionMoves(store).map((m) => m.itemId)).toEqual([tent, pot, pool]);
+
+  await mv.correctSessionMoves(store);
+  // A second tap finds nothing left to correct.
+  await mv.correctSessionMoves(store);
+  expect(store.pending.filter((e) => e.type === "event_corrected")).toHaveLength(4);
+  expect(item(store.state, tent)?.movement).toMatchObject({ event: "Cub camp", reservation_id: null });
+  expect(mv.history(store, pot!).map((e) => e.event)).toEqual([null, "Cub camp"]);
+  expect(item(store.state, stove!)?.movement).toMatchObject({ event: "Spring camp", reservation_id: "r2" });
+  expect(store.meta.session_prior_events).toBeUndefined();
+
+  // Only new ones: the earlier moves keep their event. Names compare case and spacing aside.
+  await mv.changeSessionEvent(store, "scout  CAMP");
+  expect(mv.sessionMoves(store)).toHaveLength(3);
+  await store.setMeta({ session_event: "Cub camp " });
+  expect(mv.sessionMoves(store)).toEqual([]);
+  await store.setMeta({ session_event: "scout  CAMP" });
+  await restartSession(store);
+  expect(mv.sessionMoves(store)).toEqual([]);
+
+  // An ended session offers nothing.
+  await mv.changeSessionEvent(store, "Fall camp");
+  await store.setMeta({ session_event_at: clock - SESSION_MS });
+  expect(mv.sessionMoves(store)).toEqual([]);
+});
+
+test("a move corrected since to another event stands; a change finding nothing clears its question (FR-OUT-40)", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  await setSessionEvent(store, "Spring camp");
+  const session = { event: "Spring camp" };
+  await mv.checkOut(store, tent, session);
+  const fixed = await mv.checkOut(store, stove, session);
+  await mv.changeSessionEvent(store, "Cub camp");
+  // Corrected on the item page, or on another device.
+  await mv.correctEvent(store, stove, fixed.id, "Fall camp");
+  expect(mv.sessionMoves(store).map((m) => m.itemId)).toEqual([tent]);
+  await mv.correctSessionMoves(store);
+  expect(mv.history(store, stove)[0]!.event).toBe("Fall camp");
+
+  // The same name, case and spacing aside, is no change: nothing is offered.
+  await mv.changeSessionEvent(store, " cub  CAMP ");
+  expect(store.meta.session_prior_events).toBeUndefined();
+
+  // A change that finds nothing to offer leaves no prior event behind for a later one.
+  await restartSession(store);
+  await mv.changeSessionEvent(store, "Scout camp");
+  expect(store.meta.session_prior_events).toBeUndefined();
 });

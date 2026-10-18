@@ -70,3 +70,31 @@ test("an event that cannot be saved says so, moves nothing, and leaves the butto
   expect(screen.getByRole("button", { name: "Move" })).toBeInTheDocument();
   expect(runs).toBe(0);
 });
+
+test("typing finds names used before, and one row per calendar event (FR-RES-26, FR-RES-27)", async () => {
+  const today = new Date().toISOString().slice(0, 10);
+  await store.setMeta({
+    calendar_events: ["a", "b", "c"].map((uid) => ({
+      uid,
+      summary: "Apple Day",
+      starts: today,
+      ends: today,
+      all_day: true,
+    })),
+  });
+  await store.record({
+    entity_type: "reservation",
+    entity_id: "r1",
+    type: "created",
+    actor_id: "alice",
+    payload: { event: "Apple pressing", starts: today, ends: today, items: [], generics: [] },
+  });
+  renderInShell(<Harness store={store} />);
+  await user.click(screen.getByRole("button", { name: "Move" }));
+  await user.type(within(ask()).getByLabelText("Event"), "apple");
+  expect(
+    within(ask())
+      .getAllByRole("button", { name: /Apple/ })
+      .map((b) => b.textContent),
+  ).toEqual([`Apple Day${today}`, "Apple pressingUsed before"]);
+});

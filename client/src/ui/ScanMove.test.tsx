@@ -263,9 +263,11 @@ test("the session event is set once and persists on the device (FR-OUT-05)", asy
   expect(screen.getByText("No event")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Change" }));
   await user.type(screen.getByLabelText("Event"), "Spring camp");
-  await user.click(screen.getByRole("button", { name: "Set" }));
+  await user.click(screen.getByRole("button", { name: "Create" }));
   expect(await screen.findByText("Event: Spring camp")).toBeInTheDocument();
   expect(store.meta.session_event).toBe("Spring camp");
+  // Nothing moved yet, so nothing to ask about (FR-OUT-40).
+  expect(screen.queryByRole("group", { name: "Earlier moves" })).not.toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Change" }));
   await user.click(screen.getByRole("button", { name: "Clear" }));
@@ -277,6 +279,92 @@ test("the session event is set once and persists on the device (FR-OUT-05)", asy
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
   expect(await screen.findByText("Checked out · Tent 1")).toBeInTheDocument();
   expect(screen.queryByRole("region", { name: "Which event" })).not.toBeInTheDocument();
+});
+
+/** Check out Tent 1 and Stove under the first answer, Cub camp. */
+async function twoUnderCubCamp() {
+  const stove = await act.createItem(store, { name: "Stove" });
+  await act.bindCode(store, "CCCCCCCCCC", stove);
+  renderInShell(<Scan store={store} />);
+  await typeCode("AAAAAAAAAA");
+  await user.click(within(card()).getByRole("button", { name: "Check out" }));
+  const ask = screen.getByRole("region", { name: "Which event" });
+  await user.type(within(ask).getByLabelText("Event"), "Cub camp");
+  await user.click(within(ask).getByRole("button", { name: "Create" }));
+  await screen.findByText("Checked out · Tent 1");
+  await typeCode("CCCCCCCCCC");
+  await user.click(within(screen.getByRole("region", { name: "Stove" })).getByRole("button", { name: "Check out" }));
+  await screen.findByText("Checked out · Stove");
+  return stove;
+}
+
+async function changeTo(name: string) {
+  await user.click(screen.getByRole("button", { name: "Change" }));
+  await user.clear(screen.getByLabelText("Event"));
+  await user.type(screen.getByLabelText("Event"), name);
+  await user.click(screen.getByRole("button", { name: "Create" }));
+}
+
+const earlier = () => screen.findByRole("group", { name: "Earlier moves" });
+
+test("changing the event offers to correct the session's earlier moves; yes appends one correction each (FR-OUT-40)", async () => {
+  const stove = await twoUnderCubCamp();
+  await changeTo("Scout camp");
+  expect(await earlier()).toHaveTextContent("Also change the 2 items already moved?");
+  await user.click(within(await earlier()).getByRole("button", { name: "Change them" }));
+  await waitFor(() => expect(screen.queryByRole("group", { name: "Earlier moves" })).not.toBeInTheDocument());
+  expect(screen.getByText("Event: Scout camp")).toBeInTheDocument();
+  expect(pending("event_corrected").map((e) => [e.entity_id, e.payload.event, e.payload.reservation_id])).toEqual([
+    [tent, "Scout camp", null],
+    [stove, "Scout camp", null],
+  ]);
+  expect(item(store.state, tent)?.movement?.event).toBe("Scout camp");
+
+  // Those moves are now under the new event; clearing it asks about them again.
+  await user.click(screen.getByRole("button", { name: "Change" }));
+  await user.click(screen.getByRole("button", { name: "Clear" }));
+  expect(await earlier()).toHaveTextContent("Also change the 2 items already moved?");
+});
+
+test("the question outlives leaving the screen, and a double tap corrects each move once (FR-OUT-40)", async () => {
+  await twoUnderCubCamp();
+  await changeTo("Scout camp");
+  await earlier();
+  cleanup();
+  renderInShell(<Scan store={store} />);
+  await user.dblClick(within(await earlier()).getByRole("button", { name: "Change them" }));
+  await waitFor(() => expect(screen.queryByRole("group", { name: "Earlier moves" })).not.toBeInTheDocument());
+  expect(pending("event_corrected")).toHaveLength(2);
+});
+
+test("the question counts items, not moves (FR-OUT-40)", async () => {
+  await twoUnderCubCamp();
+  await mv.checkIn(store, tent);
+  await mv.checkOut(store, tent, { event: "Cub camp" });
+  await changeTo("Scout camp");
+  expect(await earlier()).toHaveTextContent("Also change the 2 items already moved?");
+  await user.click(within(await earlier()).getByRole("button", { name: "Change them" }));
+  await waitFor(() => expect(pending("event_corrected")).toHaveLength(3));
+});
+
+test("a tap that races the session's end changes nothing and says so (FR-OUT-40)", async () => {
+  await twoUnderCubCamp();
+  await changeTo("Scout camp");
+  const ask = await earlier();
+  ahead += SESSION_MS;
+  await user.click(within(ask).getByRole("button", { name: "Change them" }));
+  expect(await screen.findByText("The session has ended. Nothing was changed.")).toHaveAttribute("role", "alert");
+  expect(pending("event_corrected")).toHaveLength(0);
+  expect(screen.queryByRole("group", { name: "Earlier moves" })).not.toBeInTheDocument();
+});
+
+test("Only new ones leaves the earlier moves as they were (FR-OUT-40)", async () => {
+  await twoUnderCubCamp();
+  await changeTo("Scout camp");
+  await user.click(within(await earlier()).getByRole("button", { name: "Only new ones" }));
+  expect(screen.getByText("Event: Scout camp")).toBeInTheDocument();
+  expect(pending("event_corrected")).toHaveLength(0);
+  expect(item(store.state, tent)?.movement?.event).toBe("Cub camp");
 });
 
 test("the event is asked once a visit, offers today's calendar events, and Cancel moves nothing (FR-OUT-05, FR-RES-20)", async () => {

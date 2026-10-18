@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
-import type { CalendarEvent } from "../lib/api";
-import { eventDates, matchingEvents } from "../lib/calendar";
+import type { EventSuggestion } from "../lib/calendar";
 import { homeLabel, nameOf, rows, type Row } from "../lib/inventory";
 import {
   conflicts,
@@ -16,6 +15,7 @@ import type { Store } from "../lib/store";
 import { guard, useUnsaved } from "../lib/unsaved";
 import { useWide } from "../lib/wide";
 import { useStore } from "../useStore";
+import { EventSuggestions, typedEvents } from "./EventChoice";
 import { Page } from "./Page";
 
 interface Props {
@@ -100,11 +100,15 @@ export function ReservationForm({ store, id, from }: Props) {
 
   const back = id ? `/reservations/${id}` : "/reservations";
   const near = nearby(state, values, id);
-  const eventSuggestions = eventOpen ? matchingEvents(store.meta.calendar_events, values.event) : [];
+  const eventSuggestions = eventOpen ? typedEvents(store, values.event) : [];
 
-  /** Fills the name and, since picking one is meant to save typing the dates too, the range (FR-RES-20). */
-  function pickEvent(picked: CalendarEvent) {
-    set({ event: picked.summary, starts: picked.starts, ends: picked.ends });
+  /**
+   * Fills the name and, since picking one is meant to save typing the dates too, the range (FR-RES-20).
+   * A name used before has no dates, so it leaves them alone (FR-RES-27).
+   */
+  function pickEvent(picked: EventSuggestion) {
+    const { starts, ends } = picked;
+    set(starts && ends ? { event: picked.summary, starts, ends } : { event: picked.summary });
     setEventOpen(false);
   }
 
@@ -261,23 +265,7 @@ export function ReservationForm({ store, id, from }: Props) {
           required
         />
       </label>
-      {eventSuggestions.length > 0 && (
-        <ul className="rows">
-          {eventSuggestions.map((ev) => (
-            <li key={`${ev.uid}-${ev.starts}`}>
-              <button
-                type="button"
-                className="row"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => pickEvent(ev)}
-              >
-                <span>{ev.summary}</span>
-                <span className="muted">{eventDates(ev)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      {eventSuggestions.length > 0 && <EventSuggestions events={eventSuggestions} onPick={pickEvent} />}
       <div className="row">
         <label className="tight">
           <span>Starts</span>

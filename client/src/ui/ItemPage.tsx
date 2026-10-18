@@ -41,23 +41,23 @@ import {
   unitsOf,
 } from "../lib/inventory";
 import { itemReservations } from "../lib/itemReservations";
-import { checkInPool, checkOutPool, type HistoryEntry, recount } from "../lib/movement";
+import { checkInPool, checkOutPool, correctEvent, type HistoryEntry, recount } from "../lib/movement";
 import { openRepairs, raiseTicket, type Repair, repairsFor, stateLabel } from "../lib/repairs";
 import { type Log, useRecord } from "../lib/record";
-import type { Note, State } from "../lib/replay";
+import type { Movement, Note, State } from "../lib/replay";
 import { isOverdue } from "../lib/reports";
-import { todayIso } from "../lib/reservations";
+import { reservation, todayIso } from "../lib/reservations";
 import { back, navigate, useRoute } from "../lib/router";
 import { timeline, type TimelineEntry } from "../lib/timeline";
 import type { Store } from "../lib/store";
 import { localDate, localMinute } from "../lib/time";
 import { guard, useUnsaved } from "../lib/unsaved";
-import type { Session } from "../lib/session";
+import { type Session, sessionEvent } from "../lib/session";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { HomeFields, ItemFields, SEVERAL } from "./ItemFields";
 import { boughtLabel, plural, statusLabel, userName } from "./labels";
-import { useEventQuestion } from "./EventChoice";
+import { EventPicker, useEventQuestion } from "./EventChoice";
 import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
 import { AddNote, NoteLine, NoteList } from "./Notes";
 import { Page } from "./Page";
@@ -308,6 +308,14 @@ export function ItemPage({ store, id }: Props) {
           <dl className="facts">
             <dt>Status</dt>
             <dd>{statusLabel(state, it) + (isOverdue(state, it, now()) ? " · Overdue" : "")}</dd>
+            {it.status === "out" && it.movement && (
+              <>
+                <dt>Event</dt>
+                <dd>
+                  <OutEvent store={store} it={it} />
+                </dd>
+              </>
+            )}
             {reserved.length > 0 && (
               <>
                 <dt>Reserved</dt>
@@ -405,6 +413,63 @@ export function ItemPage({ store, id }: Props) {
         </div>
       </div>
     </Page>
+  );
+}
+
+/**
+ * The event the item is out under, put right from here (FR-OUT-41) with the event question's
+ * choices. Appended like a note edit (FR-OUT-16). A move packed for a reservation takes its event
+ * from there, so it links to the reservation instead.
+ */
+function OutEvent({ store, it }: { store: Store; it: Item }) {
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const m = it.movement as Movement;
+  const event = typeof m.event === "string" ? m.event : null;
+  const linked = typeof m.reservation_id === "string" ? reservation(store.state, m.reservation_id) : undefined;
+
+  async function pick(name: string | undefined) {
+    setBusy(true);
+    setError(null);
+    try {
+      if ((name ?? null) !== event) await correctEvent(store, it.id, m.id, name ?? null);
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not change the event");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (typeof m.reservation_id === "string") {
+    return (
+      <button className="link" type="button" onClick={() => guard(() => navigate(`/reservations/${m.reservation_id}`))}>
+        {event ?? linked?.event ?? "Reservation"}
+      </button>
+    );
+  }
+  if (editing) {
+    return (
+      <EventPicker
+        store={store}
+        label="Correct event"
+        busy={busy}
+        error={error}
+        lastUsed={sessionEvent(store.meta, store.now()).event}
+        hide={event}
+        onPick={(name) => void pick(name)}
+        onCancel={() => setEditing(false)}
+      />
+    );
+  }
+  return (
+    <>
+      {event ?? "None"}{" "}
+      <button type="button" className="minor" onClick={() => setEditing(true)}>
+        Change event
+      </button>
+    </>
   );
 }
 

@@ -480,6 +480,14 @@ The check is made when the move is made, not when the screen drew, so an event t
 recording nothing. It is not a record, so two phones at one camp each type the name once and nothing is shared or
 reconciled.
 
+Changing the event mid-session can be a fix or a switch, so the phone asks which (FR-OUT-40). `session_started_at` marks
+when the session was first answered; a change keeps it and adds the event it replaces to `session_prior_events`. The
+question offers this device's check-outs and transfers by the signed-in person since the start that are still read,
+after corrections, under a prior event and packing no reservation. One returned since is still offered; one corrected
+since to anything else is not. A change that finds nothing clears the prior events. The question is derived, not stored,
+so leaving the screen does not lose it. Yes appends an `event_corrected` on each; either answer clears the prior events,
+and Only new ones also moves the start on to now.
+
 Packing a reservation neither uses nor moves on the device's session (FR-RES-25). A check-out or Take over on its scan
 screen, card or list row, takes the event and `reservation_id` from the reservation itself (FR-RES-03), so a long
 evening of packing never lapses (FR-RES-24) and a plain scan afterwards never counts toward it. A return records
@@ -504,7 +512,8 @@ Notes ride on the item, not the movement, as `note_added` events. One that belon
 The one thing on a movement that can be put right is the event it was recorded under, by an appended `event_corrected`
 naming it (FR-RES-17). Replay carries the item's last movement only, so a correction to that one lands in state and
 decides what the item is out under; a correction to an older one is read back from the log, where the history is. The
-check-out itself is never rewritten, the same rule as a note (FR-OUT-16).
+check-out itself is never rewritten, the same rule as a note (FR-OUT-16). The item page corrects the movement that has
+the item out (FR-OUT-41), unless it packs a reservation, which sets its event.
 
 The access history on an item page (FR-INV-09) is read from a log: the server's, when there is signal, and otherwise the
 90 days of events the device holds (NFR-DATA-03). One render path draws either, so the rows do not change shape when the

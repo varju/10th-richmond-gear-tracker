@@ -1,6 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { bindCode, seen } from "../lib/actions";
-import { matchingEvents } from "../lib/calendar";
 import { parseCode } from "../lib/codes";
 import {
   code as codeOf,
@@ -13,19 +12,19 @@ import {
   poolCounts,
   resolveItem,
 } from "../lib/inventory";
-import { checkOut } from "../lib/movement";
+import { changeSessionEvent, checkOut, correctSessionMoves, sessionMoves } from "../lib/movement";
 import { addExtra, isPacked, type Remaining, remaining, type Reservation, reservation } from "../lib/reservations";
 import { back, navigate, useRoute } from "../lib/router";
 import { confirmRead, READ_MS, type Scanner, startScanner, unlockSound } from "../lib/scanner";
 import type { Store } from "../lib/store";
 import { NATIVE } from "../lib/server";
-import { type Session, sessionEvent, setSessionEvent } from "../lib/session";
+import { restartSession, type Session, sessionEvent } from "../lib/session";
 import { guard, useUnsaved } from "../lib/unsaved";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { PoolActions } from "./ItemPage";
-import { EventSuggestions } from "./EventChoice";
-import { holdingLabel, statusLabel, userName } from "./labels";
+import { EventSuggestions, typedEvents } from "./EventChoice";
+import { holdingLabel, plural, statusLabel, userName } from "./labels";
 import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
 import { useLight, WithLight } from "./Light";
 import { Page } from "./Page";
@@ -454,39 +453,67 @@ function Finish({ store, booked }: { store: Store; booked: Reservation }) {
 /**
  * The plain scanning session's event, until changed, cleared, or the session ends (FR-OUT-05,
  * FR-OUT-38). A setting on this device. A move re-checks it when made, so an event shown here that
- * has since ended asks again rather than recording nothing.
+ * has since ended asks again rather than recording nothing. A change asks whether the session's
+ * earlier moves take it too (FR-OUT-40); switching mid-session can be deliberate, so it never does
+ * that unasked.
  */
 function SessionEvent({ store }: { store: Store }) {
   const { event } = sessionEvent(store.meta, store.now());
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-  useUnsaved(editing && draft.trim() !== (event ?? ""), { save: () => apply().then(() => true) });
+  const [error, setError] = useState<string | null>(null);
+  // The first tap on an answer wins, so a double tap records nothing twice.
+  const answering = useRef(false);
+  useUnsaved(editing && draft.trim() !== (event ?? ""), { save: () => change(draft.trim() || undefined) });
+  // Derived, not held here: leaving with the question open brings it back on return. It goes once
+  // the session ends.
+  const earlier = editing ? [] : sessionMoves(store);
 
-  async function apply() {
-    await setSessionEvent(store, draft.trim() || undefined);
-    setEditing(false);
+  async function change(next: string | undefined): Promise<boolean> {
+    try {
+      await changeSessionEvent(store, next);
+      setEditing(false);
+      setError(null);
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not change the event");
+      return false;
+    }
   }
 
-  function set(e: FormEvent) {
+  function create(e: FormEvent) {
     e.preventDefault();
-    void apply();
+    void change(draft.trim() || undefined);
   }
 
-  async function clear() {
-    await setSessionEvent(store, undefined);
-    setEditing(false);
+  async function answer(go: () => Promise<void>) {
+    if (answering.current) return;
+    answering.current = true;
+    try {
+      await go();
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not change them");
+    } finally {
+      answering.current = false;
+    }
   }
 
-  /** Tapping a calendar suggestion sets the name at once, the same one tap a scan takes (FR-RES-20). */
-  async function pick(name: string) {
-    await setSessionEvent(store, name);
-    setEditing(false);
-  }
-
-  if (editing) {
-    const suggestions = matchingEvents(store.meta.calendar_events, draft);
-    return (
-      <form className="session" onSubmit={set}>
+  const n = new Set(earlier.map((m) => m.itemId)).size;
+  const suggestions = editing ? typedEvents(store, draft) : [];
+  const bar =
+    n > 0 ? (
+      <div className="session session-ask" role="group" aria-label="Earlier moves">
+        <span>Also change the {plural(n, "item")} already moved?</span>
+        <button type="button" className="minor primary" onClick={() => void answer(() => correctSessionMoves(store))}>
+          Change {n === 1 ? "it" : "them"}
+        </button>
+        <button type="button" className="minor" onClick={() => void answer(() => restartSession(store))}>
+          Only new ones
+        </button>
+      </div>
+    ) : editing ? (
+      <form className="session" onSubmit={create}>
         <input
           aria-label="Event"
           placeholder="Event, e.g. Spring camp"
@@ -496,28 +523,37 @@ function SessionEvent({ store }: { store: Store }) {
           onChange={(e) => setDraft(e.target.value)}
         />
         <button type="submit" className="minor primary">
-          Set
+          Create
         </button>
-        <button type="button" className="minor" onClick={clear}>
+        <button type="button" className="minor" onClick={() => void change(undefined)}>
           Clear
         </button>
-        {suggestions.length > 0 && <EventSuggestions events={suggestions} onPick={(name) => void pick(name)} />}
+        {/* Tapping a suggestion sets the name at once, the same one tap a scan takes (FR-RES-20). */}
+        {suggestions.length > 0 && <EventSuggestions events={suggestions} onPick={(ev) => void change(ev.summary)} />}
       </form>
+    ) : (
+      <div className="session">
+        <span>{event ? `Event: ${event}` : "No event"}</span>
+        <button
+          type="button"
+          className="minor"
+          onClick={() => {
+            setDraft(event ?? "");
+            setEditing(true);
+          }}
+        >
+          Change
+        </button>
+      </div>
     );
-  }
   return (
-    <div className="session">
-      <span>{event ? `Event: ${event}` : "No event"}</span>
-      <button
-        type="button"
-        className="minor"
-        onClick={() => {
-          setDraft(event ?? "");
-          setEditing(true);
-        }}
-      >
-        Change
-      </button>
-    </div>
+    <>
+      {bar}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </>
   );
 }
