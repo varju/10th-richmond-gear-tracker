@@ -43,3 +43,16 @@ Public pages come before the labelling walk, not after it. From the moment stick
 - [ ] Time the [native scanner](architecture.md#native-scanner) in the app against the M0 table and its 2 s bar
 - [ ] Submit for App Review, with a note asking for unlisted distribution
 - [ ] Send the unlisted distribution request form
+
+## Reservations follow-ups
+
+- [ ] **Reservation from an event.** Today the only per-event view is the Out report sorted by reservation, and it shows
+      only gear still out. Add a Should: the Reservations screen lists events with gear out under them and no
+      reservation (hand-typed or calendar). One tap creates a reservation with that name, the calendar dates or first
+      check-out to today, and links each item out under it (as FR-RES-17). The reservation page then becomes the event's
+      view.
+- [ ] **"It's with us" beside its item on wide screens.** `.items li > button.small` puts the action under the row at
+      every width (`styles.css`). On wide screens, put it at the end of the row instead. No requirement change.
+- [ ] **Show what is not packed yet, on the reservation page.** Today only the pack list (Check out, FR-RES-21) hides
+      packed lines, and opening it starts packing. Add a Should: the reservation page marks each line packed or not
+      (`remaining()` in `reservations.ts`) and offers a "Not packed" filter.
