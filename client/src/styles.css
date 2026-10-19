@@ -486,6 +486,25 @@ button.item {
   margin: 8px 0 12px 12px;
 }
 
+/* At a desk there is room beside the row, so the action sits at its end. */
+@media (min-width: 900px) {
+  .items li.with-action {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .items li.with-action > button.item {
+    flex: 1;
+    border-bottom: 0;
+  }
+
+  .items li.with-action > button.small {
+    margin: 0 12px 0 0;
+  }
+}
+
 .filters {
   margin-bottom: 12px;
 }

@@ -1,4 +1,6 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
@@ -14,6 +16,7 @@ import { alice, renderInShell, seedUsers } from "./moveTestKit";
 import { ReservationForm } from "./ReservationForm";
 import { ReservationPage } from "./ReservationPage";
 import { Reservations } from "./Reservations";
+import { desk } from "./widthTestKit";
 
 // Planning a camp (S-RES-01) and naming the clash with another one (S-RES-05).
 const T0 = 1_756_684_800_000; // 2025-09-01
@@ -248,6 +251,26 @@ test("gear that is out under nothing is claimed from the page in one tap (FR-RES
   await waitFor(() => expect(res.reservation(store.state, fall)?.items).toEqual([t1, stove]));
   expect(inv.item(store.state, stove)?.movement).toMatchObject({ event: "Fall Camp" });
   expect(store.pending.filter((e) => e.type === "checked_out" || e.type === "checked_in")).toHaveLength(2);
+});
+
+test("at a desk, It's with us sits at the end of its row; on a phone, under it", async () => {
+  const sheet = document.createElement("style");
+  sheet.textContent = readFileSync(join(import.meta.dirname, "../styles.css"), "utf8");
+  document.head.append(sheet);
+  try {
+    await mv.checkOut(store, t1);
+    navigate(`/reservations/${fall}`);
+    const row = () => {
+      cleanup();
+      renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
+      return screen.getByLabelText("It's with us: 4-person tent #1").closest("li")!;
+    };
+    expect(getComputedStyle(row()).display).not.toBe("flex");
+    desk();
+    expect(getComputedStyle(row()).display).toBe("flex");
+  } finally {
+    sheet.remove();
+  }
 });
 
 test("a camp within seven days of another sharing gear gets a muted hint, not a block (FR-RES-19)", async () => {

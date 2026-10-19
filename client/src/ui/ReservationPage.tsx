@@ -139,9 +139,10 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
             // Out, but not for this camp: it may have left before the plan did.
             const elsewhere = it?.status === "out" && it.movement?.event !== r.event;
             const note = near[itemId];
+            const claim = !r.cancelled && elsewhere;
             return (
               <Fragment key={itemId}>
-                <li>
+                <li className={claim ? "with-action" : undefined}>
                   <button className="item" type="button" onClick={() => navigate(`/items/${itemId}`)}>
                     <span className="item-name">{it ? displayName(state, it) : "(unknown item)"}</span>
                     {it && (
@@ -150,7 +151,7 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
                       </span>
                     )}
                   </button>
-                  {!r.cancelled && elsewhere && (
+                  {claim && (
                     <button
                       className="small"
                       type="button"

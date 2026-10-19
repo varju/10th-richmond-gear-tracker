@@ -51,8 +51,6 @@ Public pages come before the labelling walk, not after it. From the moment stick
       reservation (hand-typed or calendar). One tap creates a reservation with that name, the calendar dates or first
       check-out to today, and links each item out under it (as FR-RES-17). The reservation page then becomes the event's
       view.
-- [ ] **"It's with us" beside its item on wide screens.** `.items li > button.small` puts the action under the row at
-      every width (`styles.css`). On wide screens, put it at the end of the row instead. No requirement change.
 - [ ] **Show what is not packed yet, on the reservation page.** Today only the pack list (Check out, FR-RES-21) hides
       packed lines, and opening it starts packing. Add a Should: the reservation page marks each line packed or not
       (`remaining()` in `reservations.ts`) and offers a "Not packed" filter.
