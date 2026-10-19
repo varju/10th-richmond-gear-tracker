@@ -1,4 +1,13 @@
-import { past, type Reservation, todayIso, upcoming } from "../lib/reservations";
+import { useState } from "react";
+import {
+  past,
+  type Reservation,
+  reserveFromEvent,
+  todayIso,
+  type Unplanned,
+  unplanned,
+  upcoming,
+} from "../lib/reservations";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useShell } from "../shell";
@@ -34,6 +43,67 @@ function Rows({ list }: { list: Reservation[] }) {
   );
 }
 
+/** Events with gear out and no reservation; one tap makes one from the gear (FR-RES-28, FR-RES-31). */
+function UnplannedRows({ store, list, now }: { store: Store; list: Unplanned[]; now: () => number }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function reserve(key: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const made = await reserveFromEvent(store, key, now());
+      if (made.kind === "gone") {
+        setError("That gear is no longer out.");
+        return;
+      }
+      // Whatever did not link is still on the list, with It's with us to try again.
+      const query = new URLSearchParams();
+      if (made.unlinked.length) query.set("unlinked", made.unlinked.join(","));
+      if (made.error) query.set("why", made.error);
+      const search = query.toString() ? `?${query}` : "";
+      navigate(`/reservations/${made.id}${search}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not make the reservation");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <h2 className="section">Out with no reservation</h2>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <ul className="names">
+        {list.map((u) => (
+          <li key={u.key} className="row">
+            <span className="name">
+              {u.event}
+              <br />
+              <span className="muted small">
+                {datesLabel(u)} · {plural(u.items.length, "item")} out
+              </span>
+            </span>
+            <button
+              className="small"
+              type="button"
+              disabled={busy}
+              onClick={() => void reserve(u.key)}
+              aria-label={`Reserve ${u.event}`}
+            >
+              Reserve
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
 /** The camps ahead, and the way to plan a new one (S-RES-01). */
 export function Reservations({ store }: { store: Store }) {
   useStore(store);
@@ -41,6 +111,7 @@ export function Reservations({ store }: { store: Store }) {
   const today = todayIso(now());
   const ahead = upcoming(store.state, today);
   const gone = past(store.state, today);
+  const loose = unplanned(store, now());
 
   return (
     <Page
@@ -53,6 +124,7 @@ export function Reservations({ store }: { store: Store }) {
       }
     >
       {ahead.length === 0 ? <p>Nothing planned.</p> : <Rows list={ahead} />}
+      {loose.length > 0 && <UnplannedRows store={store} list={loose} now={now} />}
       {gone.length > 0 && (
         <details className="filters">
           <summary>Past ({gone.length})</summary>

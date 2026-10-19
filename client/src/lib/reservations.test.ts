@@ -537,3 +537,164 @@ test("remaining does not count a retired unit as packed", async () => {
   const r = res.reservation(store.state, id)!;
   expect(res.remaining(store.state, r).generics[0]).toMatchObject({ quantity: 2, done: 1 });
 });
+
+const rows = (now = clock) =>
+  res.unplanned(store, now).map((u) => [u.event, u.starts, u.ends, u.items.map(shown)] as const);
+
+const calendar = (starts: string, ends: string) =>
+  store.setMeta({ calendar_events: [{ uid: "a", summary: "Apple day", starts, ends, all_day: true }] });
+
+test("gear out under an event with no reservation is offered, one row per event (FR-RES-28)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2026, 9, 9, 18); // 2026-10-09 in Vancouver
+  await mv.checkOut(store, f.t1, { event: "Apple Day" });
+  clock = Date.UTC(2026, 9, 10, 18);
+  await mv.checkOut(store, f.stove, { event: "  apple   day " });
+  await mv.checkOut(store, f.tarp, { event: "Fall Camp" });
+  await mv.checkOut(store, f.t2); // no event: nothing to name a reservation after
+  const now = Date.UTC(2026, 9, 12, 18);
+
+  // Last year's camp of the same name ended long before this gear went out, so it does not count.
+  await res.createReservation(store, { ...fall, starts: "2025-10-02", ends: "2025-10-04", items: [], generics: [] });
+  expect(rows(now)).toEqual([
+    // The spelling of the first check-out; first check-out to today.
+    ["Apple Day", "2026-10-09", "2026-10-12", ["4-person tent #1", "Stove"]],
+    ["Fall Camp", "2026-10-10", "2026-10-12", ["Tarp"]],
+  ]);
+
+  // A reservation of that name over the day the gear went out, or up to seven days after it, takes it off the list.
+  await res.createReservation(store, { ...fall, starts: "2026-10-18", ends: "2026-10-20", items: [], generics: [] });
+  expect(rows(now).map((r) => r[0])).toEqual(["Apple Day", "Fall Camp"]);
+  await res.createReservation(store, { ...fall, starts: "2026-10-17", ends: "2026-10-20", items: [], generics: [] });
+  expect(rows(now).map((r) => r[0])).toEqual(["Apple Day"]);
+});
+
+test("a calendar event of that name gives the dates if it covers the first day out or starts within a week of it (FR-RES-32)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2026, 9, 9, 18);
+  await mv.checkOut(store, f.t1, { event: "Apple Day" });
+  const now = Date.UTC(2026, 9, 12, 18);
+
+  await calendar("2026-10-08", "2026-10-13");
+  expect(rows(now)[0]!).toEqual(["Apple day", "2026-10-08", "2026-10-13", ["4-person tent #1"]]);
+  // Never ends before today: the gear is still out.
+  await calendar("2026-10-09", "2026-10-10");
+  expect(rows(now)[0]!.slice(1, 3)).toEqual(["2026-10-09", "2026-10-12"]);
+  // Picked up early for it.
+  await calendar("2026-10-15", "2026-10-16");
+  expect(rows(now)[0]!.slice(1, 3)).toEqual(["2026-10-15", "2026-10-16"]);
+  await calendar("2026-10-17", "2026-10-18");
+  expect(rows(now)[0]!.slice(0, 3)).toEqual(["Apple Day", "2026-10-09", "2026-10-12"]);
+});
+
+test("gear still out from last year under the same name is its own row (FR-RES-28)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2025, 9, 3, 18);
+  await mv.checkOut(store, f.t1, { event: "Fall Camp" });
+  clock = Date.UTC(2025, 9, 10, 18); // seven days on: the same trip
+  await mv.checkOut(store, f.t2, { event: "Fall Camp" });
+  clock = Date.UTC(2026, 9, 10, 18);
+  await mv.checkOut(store, f.tarp, { event: "Fall Camp" });
+
+  expect(rows(Date.UTC(2026, 9, 12, 18))).toEqual([
+    ["Fall Camp", "2025-10-03", "2026-10-12", ["4-person tent #1", "4-person tent #2"]],
+    ["Fall Camp", "2026-10-10", "2026-10-12", ["Tarp"]],
+  ]);
+});
+
+test("a transfer does not move the day the gear went out (FR-RES-28)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2026, 9, 1, 18);
+  await mv.checkOut(store, f.t1, { event: "Apple Day" });
+  clock = Date.UTC(2026, 9, 10, 18);
+  await mv.transfer(store, f.t1, { to: "bob", event: "Apple Day" });
+  expect(rows()[0]!.slice(1, 2)).toEqual(["2026-10-01"]);
+
+  // Back in and out again starts a new time out.
+  await mv.checkIn(store, f.t1);
+  clock = Date.UTC(2026, 9, 11, 18);
+  await mv.checkOut(store, f.t1, { event: "Apple Day" });
+  expect(rows()[0]!.slice(1, 2)).toEqual(["2026-10-11"]);
+});
+
+test("gear packing a reservation, and pools, are not offered (FR-RES-28)", async () => {
+  const f = await fixture();
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  const camp = await res.createReservation(store, { ...fall, items: [f.t1], generics: [] });
+  await mv.checkOut(store, f.t1, { event: "Fall Camp", reservation_id: camp });
+  await res.cancelReservation(store, camp);
+  await mv.checkOut(store, f.stove, { event: "Cub camp", reservation_id: camp });
+  const other = await res.createReservation(store, { ...fall, event: "Hike", items: [f.tarp], generics: [] });
+  await mv.checkOut(store, f.tarp, { event: "Somewhere", reservation_id: other });
+  await res.checkOutPoolLine(store, { ...fall, id: other, items: [], generics: [] }, bowls, 3);
+
+  // A cancelled reservation packs nothing, so its gear is offered under its event.
+  expect(rows().map((r) => [r[0], r[3]])).toEqual([
+    ["Cub camp", ["Stove"]],
+    ["Fall Camp", ["4-person tent #1"]],
+  ]);
+});
+
+test("one tap makes the reservation and links each item to it, moving nothing (FR-RES-31)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2026, 9, 10, 18);
+  const out = await mv.checkOut(store, f.t1, { event: "Apple Day" });
+  await mv.checkOut(store, f.stove, { event: "apple day" });
+  const before = store.pending.length;
+
+  const now = Date.UTC(2026, 9, 11, 18);
+  const key = res.unplanned(store, now)[0]!.key;
+  const made = await res.reserveFromEvent(store, key, now);
+  if (made.kind !== "made") throw new Error("not made");
+  expect(made.unlinked).toEqual([]);
+  expect(res.reservation(store.state, made.id)).toMatchObject({
+    event: "Apple Day",
+    starts: "2026-10-10",
+    ends: "2026-10-11",
+    items: [f.t1, f.stove],
+    generics: [],
+  });
+  expect(store.pending.slice(before).map((e) => [e.type, e.entity_id])).toEqual([
+    ["created", made.id],
+    ["event_corrected", f.t1],
+    ["event_corrected", f.stove],
+  ]);
+  expect(store.pending.find((e) => e.type === "event_corrected" && e.entity_id === f.t1)?.payload).toEqual({
+    movement_id: out.id,
+    event: "Apple Day",
+    reservation_id: made.id,
+  });
+  expect(res.isPacked(res.remaining(store.state, res.reservation(store.state, made.id)!))).toBe(true);
+  expect(res.unplanned(store, now)).toEqual([]);
+  expect(await res.reserveFromEvent(store, key, now)).toEqual({ kind: "gone" });
+});
+
+test("an item that fails to link stays on the new reservation, unpacked, and is named (FR-RES-31)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2026, 9, 10, 18);
+  await mv.checkOut(store, f.t1, { event: "Apple Day" });
+  await mv.checkOut(store, f.stove, { event: "Apple Day" });
+
+  // Returned on another tap while the reservation was being made.
+  const making = res.reserveFromEvent(store, res.unplanned(store, clock)[0]!.key, clock);
+  await mv.checkIn(store, f.stove);
+  const made = await making;
+  if (made.kind !== "made") throw new Error("not made");
+  expect(made.unlinked).toEqual([f.stove]);
+  // One linked, so the page names the rest rather than giving a reason.
+  expect(made.error).toBeUndefined();
+  const r = res.reservation(store.state, made.id)!;
+  expect(r.items).toEqual([f.t1, f.stove]);
+  expect(res.remaining(store.state, r).items.map(shown)).toEqual(["Stove"]);
+});
+
+test("when nothing links, the first reason comes back (FR-RES-31)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2026, 9, 10, 18);
+  await mv.checkOut(store, f.t1, { event: "Apple Day" });
+  await mv.checkOut(store, f.stove, { event: "Apple Day" });
+  const making = res.reserveFromEvent(store, res.unplanned(store, clock)[0]!.key, clock);
+  // Signed out once the reservation was recorded, before any link.
+  delete store.meta.user;
+  expect(await making).toMatchObject({ kind: "made", unlinked: [f.t1, f.stove], error: "not signed in" });
+});

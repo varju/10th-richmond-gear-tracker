@@ -25,6 +25,9 @@ list under the viewfinder shows what is still to pack, with a "Show packed" togg
 went. Tap Finish, which names anything you did not scan. The camp's own page also marks each line packed or not; tick
 Not packed to see only what is left.
 
+Took gear under an event nobody reserved? Reservations lists it under Out with no reservation. Tap Reserve, and the
+event gets a reservation holding that gear.
+
 ## Find gear
 
 Type a name in the Search box at the top of the home screen. To browse the whole list, open the menu and tap All items,

@@ -21,6 +21,7 @@ import {
   resolveItem,
   unitsOf,
 } from "./inventory";
+import { eventNameKey, tidyName } from "./calendar";
 import { correctEvent } from "./movement";
 import type { Fields, Movement, PoolReservations, State } from "./replay";
 import type { Store } from "./store";
@@ -425,6 +426,139 @@ export async function linkOut(store: Store, id: string, itemId: string): Promise
     await correctEvent(store, it.id, movement.id, r.event, r.id);
   }
   await addExtra(store, id, it.id);
+}
+
+/** An event with gear out under it and no reservation to show it (FR-RES-28). */
+export interface Unplanned {
+  /** The event's eventNameKey and its first day out: one row, even when a name repeats. */
+  key: string;
+  event: string;
+  starts: string;
+  ends: string;
+  items: Item[];
+}
+
+/**
+ * The day the item's current time out began (FR-RES-28). A transfer moves `since` on, so this is
+ * read from the log: the first check-out after the last check-in. Older than the log reaches, the
+ * current movement's own day.
+ */
+function outSince(store: Store, it: Item, m: Movement): string {
+  const moves = store.eventsFor("item", it.id).filter((e) => e.type === "checked_out" || e.type === "checked_in");
+  const lastIn = moves.map((e) => e.type).lastIndexOf("checked_in");
+  const first = moves[lastIn + 1];
+  return todayIso(first?.type === "checked_out" ? first.effective_at : m.at);
+}
+
+interface Batch {
+  key: string;
+  event: string;
+  first: string;
+  items: Item[];
+}
+
+const UNPLANNED = "unplanned events";
+
+/**
+ * Gear out under an event name that no live reservation of that name accounts for. A reservation
+ * accounts for gear packing it, and for gear that went out on its dates or in the seven days before
+ * them: It's with us there links it (FR-RES-17). Pools are left out: their movement is only the
+ * last count taken, and replay ties a count to a reservation only at check-out. Within a name, a
+ * gap of more than seven days between days out starts a new batch, so gear still out from last
+ * year is not dated with this year's (FR-RES-33).
+ */
+function batches(store: Store): Batch[] {
+  return store.memo(UNPLANNED, () => {
+    const state = store.state;
+    const live = reservations(state);
+    const liveIds = new Set(live.map((r) => r.id));
+    const byName = new Map<string, { it: Item; day: string; event: string }[]>();
+    for (const it of movable(state)) {
+      const m = it.movement as Movement | undefined;
+      if (it.status !== "out" || it.merged_into || !m || typeof m.event !== "string" || !tidyName(m.event)) continue;
+      if (typeof m.reservation_id === "string" && liveIds.has(m.reservation_id)) continue;
+      const key = eventNameKey(m.event);
+      const day = outSince(store, it, m);
+      if (live.some((r) => eventNameKey(r.event) === key && shiftIso(r.starts, -7) <= day && day <= r.ends)) continue;
+      byName.set(key, [...(byName.get(key) ?? []), { it, day, event: tidyName(m.event) }]);
+    }
+
+    const found: Batch[] = [];
+    for (const [name, out] of byName) {
+      let batch: Batch | undefined;
+      let last = "";
+      for (const o of out.sort((a, b) => a.day.localeCompare(b.day))) {
+        if (!batch || o.day > shiftIso(last, 7)) {
+          batch = { key: `${name}\n${o.day}`, event: o.event, first: o.day, items: [] };
+          found.push(batch);
+        }
+        batch.items.push(o.it);
+        last = o.day;
+      }
+    }
+    for (const b of found) b.items.sort((x, y) => displayName(state, x).localeCompare(displayName(state, y)));
+    return found;
+  });
+}
+
+/**
+ * Events with gear out under them and no reservation to show it (FR-RES-28), one row per batch.
+ * Dates are a calendar event of that name that covers the first day out or starts within seven
+ * days of it, else first day out to today, and never end before today: the gear is still out
+ * (FR-RES-32). Soonest first.
+ */
+export function unplanned(store: Store, now: number): Unplanned[] {
+  const today = todayIso(now);
+  return batches(store)
+    .map((b) => {
+      const name = b.key.split("\n")[0];
+      const listed = (store.meta.calendar_events ?? [])
+        .filter((e) => eventNameKey(e.summary) === name && e.ends >= b.first && e.starts <= shiftIso(b.first, 7))
+        .sort((x, y) => x.starts.localeCompare(y.starts))[0];
+      const ends = listed?.ends ?? b.first;
+      return {
+        key: b.key,
+        event: listed ? tidyName(listed.summary) : b.event,
+        starts: listed?.starts ?? b.first,
+        ends: today > ends ? today : ends,
+        items: b.items,
+      };
+    })
+    .sort((a, b) => a.starts.localeCompare(b.starts) || a.event.localeCompare(b.event));
+}
+
+export type ReserveOutcome =
+  | { kind: "gone" }
+  /** `unlinked` failed to link; `error` is the first reason, set only when none linked. */
+  | { kind: "made"; id: string; unlinked: string[]; error?: string };
+
+/**
+ * One tap: a reservation for an event that has none, holding the gear out under it, each item
+ * linked as FR-RES-17 does (FR-RES-31). Read again from state, so gear back since the list was
+ * drawn is left off. An item that fails to link stays on the list, unpacked, and is returned so
+ * the reservation page can say so. Gone when there is nothing left to reserve.
+ */
+export async function reserveFromEvent(store: Store, key: string, now: number): Promise<ReserveOutcome> {
+  const u = unplanned(store, now).find((x) => x.key === key);
+  if (!u) return { kind: "gone" };
+  const id = await createReservation(store, {
+    event: u.event,
+    starts: u.starts,
+    ends: u.ends,
+    items: u.items.map((it) => it.id),
+    generics: [],
+  });
+  const unlinked: string[] = [];
+  let error: string | undefined;
+  for (const it of u.items) {
+    try {
+      await linkOut(store, id, it.id);
+    } catch (e) {
+      unlinked.push(it.id);
+      error ??= e instanceof Error ? e.message : "Could not link it";
+    }
+  }
+  return unlinked.length === u.items.length ? { kind: "made", id, unlinked, error } : { kind: "made", id, unlinked };
 }
 
 /**

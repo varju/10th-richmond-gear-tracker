@@ -46,11 +46,6 @@ Public pages come before the labelling walk, not after it. From the moment stick
 
 ## Reservations follow-ups
 
-- [ ] **Reservation from an event.** Today the only per-event view is the Out report sorted by reservation, and it shows
-      only gear still out. Add a Should: the Reservations screen lists events with gear out under them and no
-      reservation (hand-typed or calendar). One tap creates a reservation with that name, the calendar dates or first
-      check-out to today, and links each item out under it (as FR-RES-17). The reservation page then becomes the event's
-      view.
 - [ ] **Consider calling reservations "events".** People think in events (Apple Day, Fall camp), and the event question
       already uses the word. Decide first, then rename the UI words, help and docs only. Keep `reservation` in code,
       event types, payloads (`reservation_id`), the API, and FR-RES IDs: older app builds sync on those names. Keep

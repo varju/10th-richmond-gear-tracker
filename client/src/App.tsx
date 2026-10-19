@@ -301,7 +301,15 @@ function Screen({
     case "reservations":
       if (second === "new") return <ReservationForm store={store} from={route.query.get("from")} />;
       if (second && third === "edit") return <ReservationForm store={store} id={second} />;
-      if (second) return <ReservationPage store={store} id={second} />;
+      if (second)
+        return (
+          <ReservationPage
+            store={store}
+            id={second}
+            unlinked={route.query.get("unlinked")}
+            why={route.query.get("why")}
+          />
+        );
       return <Reservations store={store} />;
     case "settings":
       if (second === "users") return <Users store={store} api={api} />;

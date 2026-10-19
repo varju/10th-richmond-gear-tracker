@@ -1,5 +1,5 @@
 import { Fragment, useState } from "react";
-import { displayName, homeLabel, isPool, item, nameOf, resolveItem } from "../lib/inventory";
+import { displayName, homeLabel, isPool, type Item, item, nameOf, resolveItem } from "../lib/inventory";
 import {
   cancelReservation,
   checkOutPoolLine,
@@ -71,7 +71,19 @@ function addedByLabel(state: State, r: Reservation): string {
 }
 
 /** One camp: what it needs, and the way to start packing it (S-RES-01, S-RES-02). */
-export function ReservationPage({ store, id }: { store: Store; id: string }) {
+export function ReservationPage({
+  store,
+  id,
+  unlinked,
+  why,
+}: {
+  store: Store;
+  id: string;
+  /** Comma-separated item ids a reservation made from an event could not link (FR-RES-31). */
+  unlinked?: string | null;
+  /** Why, when none of them linked. */
+  why?: string | null;
+}) {
   useStore(store);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +121,11 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
   const items = filtering ? r.items.filter(keep) : r.items;
   const generics = filtering ? rem.generics.filter((g) => g.done < g.quantity) : rem.generics;
   const addedBy = addedByLabel(state, r);
+  // Still out and not packing this camp: linking failed, and It's with us is the way to retry.
+  const notLinked = (unlinked ?? "")
+    .split(",")
+    .map((itemId) => item(state, itemId))
+    .filter((it): it is Item => it?.status === "out" && it.movement?.reservation_id !== r.id);
   // One column when the second would be empty.
   const twoCol = wide && others.length > 0;
 
@@ -147,6 +164,12 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
           {error}
         </p>
       )}
+      {notLinked.length > 0 && (
+        <p className="error" role="alert">
+          {why ||
+            `Not linked: ${notLinked.map((it) => displayName(state, it)).join(", ")}. Tap It's with us to try again.`}
+        </p>
+      )}
       {r.items.length === 0 && r.generics.length === 0 && <p className="muted">No gear listed.</p>}
       {!r.cancelled && (anyPacked || notPacked) && (
         <label className="check">
@@ -159,8 +182,8 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
         <ul className="items">
           {items.map((itemId) => {
             const it = item(state, itemId);
-            // Out, but not for this camp: it may have left before the plan did.
-            const elsewhere = it?.status === "out" && it.movement?.event !== r.event;
+            // Out, but not packing this camp: it may have left before the plan did.
+            const elsewhere = it?.status === "out" && it.movement?.reservation_id !== r.id;
             const note = near[itemId];
             const claim = !r.cancelled && elsewhere;
             return (
