@@ -51,9 +51,6 @@ Public pages come before the labelling walk, not after it. From the moment stick
       reservation (hand-typed or calendar). One tap creates a reservation with that name, the calendar dates or first
       check-out to today, and links each item out under it (as FR-RES-17). The reservation page then becomes the event's
       view.
-- [ ] **Show what is not packed yet, on the reservation page.** Today only the pack list (Check out, FR-RES-21) hides
-      packed lines, and opening it starts packing. Add a Should: the reservation page marks each line packed or not
-      (`remaining()` in `reservations.ts`) and offers a "Not packed" filter.
 - [ ] **Consider calling reservations "events".** People think in events (Apple Day, Fall camp), and the event question
       already uses the word. Decide first, then rename the UI words, help and docs only. Keep `reservation` in code,
       event types, payloads (`reservation_id`), the API, and FR-RES IDs: older app builds sync on those names. Keep

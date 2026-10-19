@@ -1,5 +1,5 @@
 import { Fragment, useState } from "react";
-import { displayName, homeLabel, isPool, item, nameOf } from "../lib/inventory";
+import { displayName, homeLabel, isPool, item, nameOf, resolveItem } from "../lib/inventory";
 import {
   cancelReservation,
   checkOutPoolLine,
@@ -76,6 +76,7 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pick, setPick] = useState("");
+  const [notPacked, setNotPacked] = useState(false);
   const wide = useWide();
   const state = store.state;
   const r = reservation(state, id);
@@ -92,6 +93,21 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
   const near = r.cancelled ? {} : nearby(state, r, r.id);
   const others = r.cancelled ? [] : outElsewhere(state, r);
   const rem = remaining(state, r);
+  // Each line says whether it is packed, read off the lines remaining() counts, and the filter
+  // hides those that are (FR-RES-29, FR-RES-30). A cancelled plan packs nothing, so says nothing.
+  const packed = new Set(rem.packed.map((it) => it.id));
+  const unpacked = new Set(rem.items.map((it) => it.id));
+  const packMark = (itemId: string) => {
+    if (r.cancelled) return "";
+    const id = resolveItem(state, itemId);
+    return packed.has(id) ? "Packed" : unpacked.has(id) ? "Not packed" : "";
+  };
+  const anyPacked = packed.size > 0 || rem.generics.some((g) => g.done >= g.quantity);
+  const filtering = notPacked && !r.cancelled;
+  // A line with no record on this device is not packed either, so it stays.
+  const keep = (itemId: string) => unpacked.has(resolveItem(state, itemId)) || !state.item?.[itemId];
+  const items = filtering ? r.items.filter(keep) : r.items;
+  const generics = filtering ? rem.generics.filter((g) => g.done < g.quantity) : rem.generics;
   const addedBy = addedByLabel(state, r);
   // One column when the second would be empty.
   const twoCol = wide && others.length > 0;
@@ -132,9 +148,16 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
         </p>
       )}
       {r.items.length === 0 && r.generics.length === 0 && <p className="muted">No gear listed.</p>}
-      {r.items.length > 0 && (
+      {!r.cancelled && (anyPacked || notPacked) && (
+        <label className="check">
+          <input type="checkbox" checked={notPacked} onChange={(e) => setNotPacked(e.target.checked)} />
+          <span>Not packed</span>
+        </label>
+      )}
+      {filtering && items.length === 0 && generics.length === 0 && <p className="muted">Everything is packed.</p>}
+      {items.length > 0 && (
         <ul className="items">
-          {r.items.map((itemId) => {
+          {items.map((itemId) => {
             const it = item(state, itemId);
             // Out, but not for this camp: it may have left before the plan did.
             const elsewhere = it?.status === "out" && it.movement?.event !== r.event;
@@ -147,7 +170,7 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
                     <span className="item-name">{it ? displayName(state, it) : "(unknown item)"}</span>
                     {it && (
                       <span className="muted small">
-                        {[homeLabel(state, it), statusLabel(state, it)].filter(Boolean).join(" · ")}
+                        {[packMark(itemId), homeLabel(state, it), statusLabel(state, it)].filter(Boolean).join(" · ")}
                       </span>
                     )}
                   </button>
@@ -168,9 +191,9 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
           })}
         </ul>
       )}
-      {rem.generics.length > 0 && (
+      {generics.length > 0 && (
         <ul className="names">
-          {rem.generics.map((g) => {
+          {generics.map((g) => {
             const pool = isPool(g.generic);
             const note = near[g.generic.id];
             return (
@@ -178,7 +201,7 @@ export function ReservationPage({ store, id }: { store: Store; id: string }) {
                 <li className="row">
                   <span className="name">
                     {g.quantity} × {nameOf(state, g.generic.id)}
-                    {pool && ` — ${g.done} out`}
+                    {!r.cancelled && ` — ${g.done} packed`}
                   </span>
                   {pool && !r.cancelled && g.done < g.quantity && !g.generic.retired && (
                     <PoolCheckout store={store} r={r} itemId={g.generic.id} max={g.quantity - g.done} />
