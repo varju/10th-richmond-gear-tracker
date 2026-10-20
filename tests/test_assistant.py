@@ -344,8 +344,8 @@ def test_create_reservation_refuses_true_for_a_generic_lines_quantity():
         _arg_model("create_reservation").model_validate(
             {
                 "event": "Camp",
-                "starts": "2026-01-01",
-                "ends": "2026-01-02",
+                "starts": "2099-01-01",
+                "ends": "2099-01-02",
                 "generics": [{"item_id": "x", "quantity": True}],
             }
         )
@@ -741,7 +741,7 @@ class _EventDates(TypedDict):
     ends: str
 
 
-FALL: _EventDates = {"event": "Fall Camp", "starts": "2026-10-02", "ends": "2026-10-04"}
+FALL: _EventDates = {"event": "Fall Camp", "starts": "2099-10-02", "ends": "2099-10-04"}
 
 
 def test_a_reservation_is_created_edited_and_cancelled(db_path, tools):
@@ -760,9 +760,9 @@ def test_a_reservation_is_created_edited_and_cancelled(db_path, tools):
     assert assistant.get_reservation(reservation_id)["items"] == 1
     assert assistant.get_reservation(reservation_id)["generic_lines"] == []
 
-    renamed = assistant.update_reservation(reservation_id, event="Fall camp 2026", ends="2026-10-05")
+    renamed = assistant.update_reservation(reservation_id, event="Fall camp 2026", ends="2099-10-05")
     assert set(renamed["changed"]) == {"event", "ends"}
-    assert entity(db_path, "reservation", reservation_id)["ends"] == "2026-10-05"
+    assert entity(db_path, "reservation", reservation_id)["ends"] == "2099-10-05"
 
     assistant.cancel_reservation(reservation_id)
     assert entity(db_path, "reservation", reservation_id)["cancelled"] is True
@@ -790,7 +790,7 @@ def test_a_clash_is_named_and_nothing_is_saved(db_path, tools):
     first = assistant.create_reservation(**FALL, items=[tools["stove"]])["reservation_id"]
 
     refused = assistant.create_reservation(
-        event="Cub camp", starts="2026-10-04", ends="2026-10-05", items=[tools["stove"]]
+        event="Cub camp", starts="2099-10-04", ends="2099-10-05", items=[tools["stove"]]
     )
     assert refused["saved"] is False
     assert refused["clashes"] == [
@@ -804,8 +804,8 @@ def test_a_generic_over_stock_clashes_on_the_way_in(tools):
     assistant.create_reservation(**FALL, generics=[assistant.GenericLine(item_id=tools["tents"], quantity=2)])
     fits = assistant.create_reservation(
         event="Cub camp",
-        starts="2026-10-03",
-        ends="2026-10-05",
+        starts="2099-10-03",
+        ends="2099-10-05",
         generics=[assistant.GenericLine(item_id=tools["tents"], quantity=1)],
     )
     assert fits["saved"] is True
@@ -820,37 +820,37 @@ def test_get_item_lists_its_upcoming_reservations(tools):
     named = assistant.create_reservation(**FALL, items=[tools["stove"]])["reservation_id"]
     by_generic = assistant.create_reservation(
         event="Spring camp",
-        starts="2026-11-01",
-        ends="2026-11-03",
+        starts="2099-11-01",
+        ends="2099-11-03",
         generics=[assistant.GenericLine(item_id=tools["tents"], quantity=1)],
     )["reservation_id"]
     cancelled = assistant.create_reservation(
-        event="Cub camp", starts="2026-12-01", ends="2026-12-03", items=[tools["stove"]]
+        event="Cub camp", starts="2099-12-01", ends="2099-12-03", items=[tools["stove"]]
     )["reservation_id"]
     assistant.cancel_reservation(cancelled)
     assistant.create_reservation(event="Last spring", starts="2020-04-01", ends="2020-04-03", items=[tools["stove"]])
 
     assert assistant.get_item(tools["stove"])["reservations"] == [
-        {"reservation_id": named, "event": "Fall Camp", "starts": "2026-10-02", "ends": "2026-10-04"}
+        {"reservation_id": named, "event": "Fall Camp", "starts": "2099-10-02", "ends": "2099-10-04"}
     ]
 
     # A generic's line reserves the type, not one particular unit: every unit sees it.
     assert [r["reservation_id"] for r in assistant.get_item(tools["t1"])["reservations"]] == [by_generic]
     assert [r["reservation_id"] for r in assistant.get_item(tools["t2"])["reservations"]] == [by_generic]
     assert assistant.get_item(tools["tents"])["reservations"] == [
-        {"reservation_id": by_generic, "event": "Spring camp", "starts": "2026-11-01", "ends": "2026-11-03"}
+        {"reservation_id": by_generic, "event": "Spring camp", "starts": "2099-11-01", "ends": "2099-11-03"}
     ]
 
 
 def test_moving_the_dates_onto_another_camp_is_refused(tools):
     assistant.create_reservation(**FALL, items=[tools["stove"]])
     later = assistant.create_reservation(
-        event="Cub camp", starts="2026-11-01", ends="2026-11-02", items=[tools["stove"]]
+        event="Cub camp", starts="2099-11-01", ends="2099-11-02", items=[tools["stove"]]
     )["reservation_id"]
 
-    refused = assistant.update_reservation(later, starts="2026-10-03", ends="2026-10-03")
+    refused = assistant.update_reservation(later, starts="2099-10-03", ends="2099-10-03")
     assert refused["saved"] is False and refused["clashes"][0]["event"] == "Fall Camp"
-    assert assistant.get_reservation(later)["starts"] == "2026-11-01"
+    assert assistant.get_reservation(later)["starts"] == "2099-11-01"
 
 
 def test_duplicating_a_reservation_copies_its_gear_onto_new_days(tools):
@@ -862,13 +862,13 @@ def test_duplicating_a_reservation_copies_its_gear_onto_new_days(tools):
         generics=[assistant.GenericLine(item_id=tools["tents"], quantity=2)],
     )["reservation_id"]
 
-    copy = assistant.duplicate_reservation(last_year, "Fall Camp 2026", "2026-10-02", "2026-10-04")
+    copy = assistant.duplicate_reservation(last_year, "Fall Camp 2026", "2099-10-02", "2099-10-04")
     assert copy["saved"] is True and copy["copied_from"] == last_year
     made = assistant.get_reservation(copy["reservation_id"])
     assert [row["name"] for row in made["to_pack"]] == ["Camp stove"]
     assert made["generic_lines"][0]["quantity"] == 2
 
-    again = assistant.duplicate_reservation(last_year, "Cub camp", "2026-10-03", "2026-10-03")
+    again = assistant.duplicate_reservation(last_year, "Cub camp", "2099-10-03", "2099-10-03")
     assert again["saved"] is False
 
 
@@ -911,7 +911,7 @@ def test_reservations_are_listed_upcoming_or_all(tools):
 
 def test_a_reservation_that_ends_before_it_starts_is_refused(tools):
     with pytest.raises(BadRequest):
-        assistant.create_reservation(event="Backwards", starts="2026-10-04", ends="2026-10-02")
+        assistant.create_reservation(event="Backwards", starts="2099-10-04", ends="2099-10-02")
 
 
 def test_a_quantity_and_a_named_item_are_not_interchangeable(tools):
