@@ -41,8 +41,6 @@ Public pages come before the labelling walk, not after it. From the moment stick
 ## M11 — iPhone app
 
 - [ ] Time the [native scanner](architecture.md#native-scanner) in the app against the M0 table and its 2 s bar
-- [ ] Submit for App Review, with a note asking for unlisted distribution
-- [ ] Send the unlisted distribution request form
 
 ## Reservations follow-ups
 

@@ -363,10 +363,10 @@ until the page asks; `lib/links.ts` takes off the `SERVER_URL` prefix and goes t
 app waits for the page to load. Without the site's half, the links open in Safari, and the person signs in to the app
 afterwards.
 
-**How it ships.** Unlisted App Store distribution: a normal App Review with a note asking for unlisted, plus a separate
-request form. Both are needed. The app is hidden from search and charts and installs from a link. The switch to unlisted
-is permanent for that app record. Every client release then passes review, a day or two of latency, and a phone can lag
-a release behind, so the server keeps sync compatible with the previous store build.
+**How it ships.** Unlisted App Store distribution: a request form, approved before App Review, then a normal App Review.
+Review rejects the app while the request is pending. The app is hidden from search and charts and installs from a link.
+The switch to unlisted is permanent for that app record. Every client release then passes review, a day or two of
+latency, and a phone can lag a release behind, so the server keeps sync compatible with the previous store build.
 
 **What can kill it.** Guideline 4.2, minimum functionality: Apple rejects apps that repackage a website. A bundled
 offline client with camera access is more than that, but the call is Apple's, and the first submission is the test.

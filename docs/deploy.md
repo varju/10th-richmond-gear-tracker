@@ -506,4 +506,6 @@ takes the link behind `geartracker-debug:`, then asks to open the app:
 xcrun simctl openurl booted 'geartracker-debug:https://example.org/gear/g/ABCDEFGH23'
 ```
 
-Signing, TestFlight and the App Store are not set up yet; see [tasks.md](tasks.md).
+Each group ships the app from its own Apple developer account. Send Apple's unlisted distribution request before the
+first App Review, and wait for its approval: App Review rejects an app for one group under guideline 3.2 while it is set
+to public distribution. After approval, resubmit; the switch to unlisted is already made in App Store Connect.
