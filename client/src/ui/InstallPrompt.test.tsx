@@ -49,7 +49,7 @@ test("an iPhone is sent to the group's app when it has one (NFR-DEP-12)", () => 
   userAgent(IPHONE);
   render(<InstallPrompt appUrl={APP} />);
   expect(screen.getByRole("link", { name: "App Store" })).toHaveAttribute("href", APP);
-  expect(screen.getByText(/There’s an iPhone app/).parentElement).toHaveTextContent("Sync first: it opens signed out.");
+  expect(screen.getByText("There’s an iPhone app.")).toBeInTheDocument();
   expect(screen.queryByText(/Add to your home screen/)).not.toBeInTheDocument();
 });
 

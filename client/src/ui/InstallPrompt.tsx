@@ -45,9 +45,7 @@ export function InstallPrompt({ appUrl }: { appUrl?: string | null }) {
   if (app) {
     return (
       <aside className="notice notice-row">
-        <span>
-          <strong>There’s an iPhone app.</strong> Sync first: it opens signed out.
-        </span>
+        <span>There’s an iPhone app.</span>
         <a href={appUrl}>App Store</a>
         <button type="button" className="minor" onClick={later}>
           Not now
