@@ -41,20 +41,17 @@ export function InstallPrompt({ appUrl }: { appUrl?: string | null }) {
     setDismissed(true);
   }
 
+  // Small on purpose: the App Store page says Open when the app is already there, which no web page can know.
   if (app) {
     return (
-      <aside className="notice">
-        <strong>Get the iPhone app.</strong>{" "}
-        {installed
-          ? "Its scanner uses the phone’s camera directly, so the picture does not go black after you switch apps."
-          : "The browser clears a tab’s storage after seven days without a visit, and unsent records go with it. The app keeps its own."}
-        <p className="muted">
-          It opens signed out and empty. Sync anything unsent here first, then sign in to the app.
-        </p>
-        <p>
-          <a href={appUrl}>Get it from the App Store</a>
-        </p>
-        <button onClick={later}>Not now</button>
+      <aside className="notice notice-row">
+        <span>
+          <strong>There’s an iPhone app.</strong> Sync first: it opens signed out.
+        </span>
+        <a href={appUrl}>App Store</a>
+        <button type="button" className="minor" onClick={later}>
+          Not now
+        </button>
       </aside>
     );
   }

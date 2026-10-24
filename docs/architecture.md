@@ -317,11 +317,12 @@ would lose the evening's work, which is exactly the failure NFR-DATA-01 forbids.
   the Safari tab. The prompt says so, and only iOS sees it. On an iPhone, in any browser, it points to the group's App
   Store app instead, when the group setting holds that app's link (`iphone_app_url`, NFR-DEP-12); an iPad keeps the
   home-screen prompt. An iPhone already running it from the home screen is offered the app too, for its scanner (see
-  [Native scanner](#native-scanner)), not its storage. Only the signed-in shell shows either, so a finder never does
-  (NFR-DEP-13). Android has no time-based clearing, and its installed app shares the browser's storage, so an Android
-  phone is never asked; installing there is a shortcut, not a defence. The icon is named for the group: the server
-  rewrites `name` and `short_name` in the built manifest from the group setting, because a build cannot know whose gear
-  it is.
+  [Native scanner](#native-scanner)), not its storage. A web page cannot tell whether the app is installed, and Safari's
+  own app banner did not show for this unlisted app, so the prompt is one line linking to the App Store page, which says
+  Open when the app is already there. Only the signed-in shell shows either, so a finder never does (NFR-DEP-13).
+  Android has no time-based clearing, and its installed app shares the browser's storage, so an Android phone is never
+  asked; installing there is a shortcut, not a defence. The icon is named for the group: the server rewrites `name` and
+  `short_name` in the built manifest from the group setting, because a build cannot know whose gear it is.
 - **Ask for persistent storage** via `navigator.storage.persist()` (NFR-DATA-11). Chromium grants it to a site that is
   installed, bookmarked, or used often; otherwise it keeps the data until the phone runs low on space, then clears the
   least recently used sites first. iOS refuses every site. A refusal is not shown: the unsent count is already on every

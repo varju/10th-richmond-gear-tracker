@@ -184,7 +184,7 @@ test("a member on an iPhone is pointed to the group's app at home (NFR-DEP-12)",
   await iphoneWithApp();
   await store.setMeta({ token: "tok", user: { id: "u1", name: "Alice", role: "admin", active: true } });
   mount();
-  expect(await screen.findByRole("link", { name: "Get it from the App Store" })).toHaveAttribute("href", APP);
+  expect(await screen.findByRole("link", { name: "App Store" })).toHaveAttribute("href", APP);
 });
 
 test("a finder on an iPhone sees no install or app suggestion, here or at sign-in (NFR-DEP-13)", async () => {
@@ -192,7 +192,7 @@ test("a finder on an iPhone sees no install or app suggestion, here or at sign-i
   navigate("/g/AAAAAAAAAA");
   mount();
   expect(await screen.findByRole("heading", { name: "10th Richmond" })).toBeInTheDocument();
-  const suggestion = () => screen.queryByText(/Get the iPhone app|Add to your home screen|App Store/);
+  const suggestion = () => screen.queryByText(/iPhone app|Add to your home screen|App Store/);
   expect(suggestion()).not.toBeInTheDocument();
 
   await userEvent.click(screen.getByRole("button", { name: "Sign in" }));

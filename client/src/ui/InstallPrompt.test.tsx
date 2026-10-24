@@ -48,9 +48,8 @@ test("a desktop is not asked either", () => {
 test("an iPhone is sent to the group's app when it has one (NFR-DEP-12)", () => {
   userAgent(IPHONE);
   render(<InstallPrompt appUrl={APP} />);
-  expect(screen.getByRole("link", { name: "Get it from the App Store" })).toHaveAttribute("href", APP);
-  expect(screen.getByText(/Get the iPhone app/).parentElement).toHaveTextContent("The browser clears a tab’s storage");
-  expect(screen.getByText(/Sync anything unsent here first/)).toHaveTextContent("sign in to the app");
+  expect(screen.getByRole("link", { name: "App Store" })).toHaveAttribute("href", APP);
+  expect(screen.getByText(/There’s an iPhone app/).parentElement).toHaveTextContent("Sync first: it opens signed out.");
   expect(screen.queryByText(/Add to your home screen/)).not.toBeInTheDocument();
 });
 
@@ -58,7 +57,7 @@ test("the app suggestion has Not now, like the home-screen one", async () => {
   userAgent(IPHONE);
   render(<InstallPrompt appUrl={APP} />);
   await userEvent.click(screen.getByRole("button", { name: "Not now" }));
-  expect(screen.queryByText(/Get the iPhone app/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/There’s an iPhone app/)).not.toBeInTheDocument();
 });
 
 test("an iPad keeps the home-screen hint: the app is for iPhone only", () => {
@@ -82,17 +81,15 @@ test("an iPhone with no app link, or a bad one, keeps the home-screen hint", () 
 test("the link's scheme may be in capitals, as the server allows", () => {
   userAgent(IPHONE);
   render(<InstallPrompt appUrl="HTTPS://apps.example.com/app/id1" />);
-  expect(screen.getByRole("link", { name: "Get it from the App Store" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "App Store" })).toBeInTheDocument();
 });
 
-test("an iPhone running from the home screen is offered the app, for its scanner, not its storage", () => {
+test("an iPhone running from the home screen is offered the app too", () => {
   userAgent(IPHONE);
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("standalone"), media: query }));
   render(<InstallPrompt appUrl={APP} />);
-  expect(screen.getByRole("link", { name: "Get it from the App Store" })).toHaveAttribute("href", APP);
-  expect(screen.getByText(/Get the iPhone app/).parentElement).toHaveTextContent("Its scanner uses the phone’s camera");
-  expect(screen.queryByText(/clears a tab’s storage/)).not.toBeInTheDocument();
-  expect(screen.getByText(/Sync anything unsent here first/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "App Store" })).toHaveAttribute("href", APP);
+  expect(screen.getByText(/There’s an iPhone app/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Not now" })).toBeInTheDocument();
 });
 
@@ -110,5 +107,5 @@ test("a Not now given to the home-screen hint does not hide the app's link", () 
 
   // The group adds its app later; the next visit home shows it.
   render(<InstallPrompt appUrl={APP} />);
-  expect(screen.getByRole("link", { name: "Get it from the App Store" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "App Store" })).toBeInTheDocument();
 });
