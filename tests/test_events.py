@@ -7,7 +7,7 @@ import sqlite3
 import pytest
 
 from gear_tracker.db import connect
-from gear_tracker.events import ENTITY_TYPES, Rejected, append, get, in_replay_order, since, validate
+from gear_tracker.events import ENTITY_TYPES, Rejected, append, get, in_replay_order, is_https, since, validate
 from gear_tracker.ulid import new_ulid
 from tests.factories import T0, incoming
 
@@ -293,6 +293,61 @@ def test_a_found_report_can_only_be_resolved():
     ):
         with pytest.raises(Rejected, match="can only be resolved"):
             validate(incoming(entity_type="found_report", entity_id="f-1", payload=payload))
+
+
+# The same table is in client/src/lib/install.test.ts: one rule, two languages.
+HTTPS_LINKS = (
+    "https://apps.example.com/app/id1",
+    "HTTPS://apps.example.com/x",
+    "https://a.example.com?x=1",
+    "https://a",
+)
+NOT_HTTPS_LINKS = (
+    "https:///apps.example.com/x",
+    "https://a b.example.com",
+    "https://a.example.com/x y",
+    "https://a.example.com\n",
+    "https:",
+    "https:/",
+    "https://",
+    "https:apps.example.com/x",
+    "https:/apps.example.com/x",
+    "http://apps.example.com/x",
+    " https://apps.example.com/x",
+)
+
+
+@pytest.mark.parametrize("link", HTTPS_LINKS)
+def test_an_https_link(link):
+    assert is_https(link)
+
+
+@pytest.mark.parametrize("link", NOT_HTTPS_LINKS)
+def test_not_an_https_link(link):
+    assert not is_https(link)
+
+
+def test_the_iphone_app_link_is_an_https_address():
+    """Members' phones open it (NFR-DEP-12). An older app sends a group setting without it, which still passes."""
+    validate(created("setting", {"name": "10th Richmond", "code_url": "https://example.org/gear"}))
+    validate(created("setting", {"iphone_app_url": "https://apps.example.com/app/id1"}))
+    with pytest.raises(Rejected, match="iphone_app_url: must be an https:// address"):
+        validate(created("setting", {"iphone_app_url": "javascript:alert(1)"}))
+
+    def change(value):
+        payload = {"field": "iphone_app_url", "value": value, "old": None}
+        return incoming(entity_type="setting", entity_id="group", payload=payload)
+
+    validate(change("https://apps.example.com/app/id1"))
+    validate(change("HTTPS://apps.example.com/app/id1"))
+    validate(change(None))
+    bad_links = ("http://apps.example.com/app/id1", "https:apps.example.com/x", "https:/apps.example.com/x", "https://")
+    for bad in (*bad_links, "", 7):
+        with pytest.raises(Rejected, match="iphone_app_url: "):
+            validate(change(bad))
+    for bad in bad_links:
+        with pytest.raises(Rejected, match="iphone_app_url: must be an https:// address"):
+            validate(created("setting", {"iphone_app_url": bad}))
 
 
 def test_a_photo_goes_on_an_item_or_a_ticket_and_nothing_else():

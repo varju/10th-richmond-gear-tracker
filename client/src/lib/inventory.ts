@@ -101,6 +101,8 @@ export interface GroupSetting {
   contact?: string;
   /** Out longer than this is flagged (FR-OUT-14). Unset means never. */
   overdue_days?: number | null;
+  /** Where an iPhone's browser sends you to get the app (NFR-DEP-12). Unset keeps the home-screen prompt. */
+  iphone_app_url?: string | null;
 }
 
 /** Codes are 10 characters of Crockford base32, upper case. Matches codes.py on the server. */

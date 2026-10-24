@@ -29,6 +29,9 @@ code_url = "https://example.org/gear"
 contact = "604-555-0100"
 # Flag gear that has been out this long. Omit the line to never flag.
 overdue_days = 30
+# Optional. Your iPhone app's App Store link, once it is live. An iPhone's
+# browser points to it. Omit the line to leave what an Admin set.
+# iphone_app_url = "https://apps.apple.com/app/id0000000000"
 
 # Optional. Leave the section out and the app shows invite and reset links for
 # an Admin to copy instead of mailing them (FR-USR-12). Most providers want an

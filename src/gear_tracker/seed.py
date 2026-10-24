@@ -21,10 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from gear_tracker import accounts, derived, events, mail
 from gear_tracker.errors import BadRequest
-from gear_tracker.events import NonEmpty
-
-GROUP_FIELDS = ("name", "code_url", "contact", "overdue_days")
-"""What the file may set on the group setting. The app owns everything else."""
+from gear_tracker.events import HttpsUrlOrBlank, NonEmpty
 
 
 class Section(BaseModel):
@@ -46,6 +43,8 @@ class Group(Section):
     contact: str = ""
     # Omitted means never flag (FR-OUT-14).
     overdue_days: Annotated[int, Field(ge=1)] | None = None
+    # The group's iPhone app (NFR-DEP-12). Omitted leaves what an Admin set; "" clears it.
+    iphone_app_url: HttpsUrlOrBlank = None
 
 
 class Mail(mail.MailSettings):
@@ -111,12 +110,14 @@ def _group(conn: sqlite3.Connection, actor_id: str, group: Group, now: int) -> l
         "contact": _text(group.contact),
         "overdue_days": group.overdue_days,
     }
+    if "iphone_app_url" in group.model_fields_set:
+        wanted["iphone_app_url"] = group.iphone_app_url
     stored = derived.get_entity(conn, "setting", "group")
     if stored is None:
         events.append_server(conn, actor_id, "setting", "group", "created", wanted, now)
         return ["created the group setting"]
     done = []
-    for field in GROUP_FIELDS:
+    for field in wanted:
         old = stored.get(field)
         if old == wanted[field]:
             continue

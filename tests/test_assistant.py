@@ -1140,7 +1140,13 @@ def test_an_admin_sets_up_mail_and_sends_a_test(admin_tools, smtp):
 
 
 def test_an_admin_changes_group_settings(admin_tools):
-    assert assistant.get_group() == {"name": "", "code_url": "", "contact": "", "overdue_days": None}
+    assert assistant.get_group() == {
+        "name": "",
+        "code_url": "",
+        "contact": "",
+        "overdue_days": None,
+        "iphone_app_url": "",
+    }
 
     saved = assistant.set_group(
         assistant.GroupFields(name="10th Richmond", code_url="https://example.org/gear", contact="qm@example.org")
@@ -1150,11 +1156,24 @@ def test_an_admin_changes_group_settings(admin_tools):
         "code_url": "https://example.org/gear",
         "contact": "qm@example.org",
         "overdue_days": None,
+        "iphone_app_url": "",
     }
 
     changed = assistant.set_group(assistant.GroupFields(overdue_days=14))
     assert changed["overdue_days"] == 14
     assert changed["name"] == "10th Richmond"  # untouched
+
+    linked = assistant.set_group(assistant.GroupFields(iphone_app_url="https://apps.example.com/app/id1"))
+    assert linked["iphone_app_url"] == "https://apps.example.com/app/id1"
+    with pytest.raises(pydantic.ValidationError, match="must be an https:// address"):
+        assistant.GroupFields(iphone_app_url="http://apps.example.com/app/id1")
+    # What get_group says for no link, set_group takes back.
+    cleared = assistant.set_group(assistant.GroupFields(iphone_app_url=""))
+    assert cleared["iphone_app_url"] == ""
+    # Trimmed first, as the other text fields are; blank is no link.
+    spaced = assistant.set_group(assistant.GroupFields(iphone_app_url=" https://apps.example.com/x "))
+    assert spaced["iphone_app_url"] == "https://apps.example.com/x"
+    assert assistant.set_group(assistant.GroupFields(iphone_app_url=" "))["iphone_app_url"] == ""
 
 
 def test_an_admin_manages_calendar_feeds(admin_tools):

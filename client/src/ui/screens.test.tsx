@@ -540,6 +540,29 @@ test("the overdue period is one group setting; blank means never (FR-OUT-14)", a
   await waitFor(() => expect(inv.group(store.state).overdue_days ?? null).toBeNull());
 });
 
+test("an Admin sets the iPhone app link; it must be https, and blank clears it (NFR-DEP-12)", async () => {
+  navigate("/settings/group");
+  mount();
+  const user = userEvent.setup();
+  const link = screen.getByLabelText("iPhone app link");
+  // What the server refuses, the form refuses, so a save never bounces.
+  for (const bad of ["http://apps.example.com/app/id1", "https:apps.example.com/x", "https:/apps.example.com/x"]) {
+    await user.clear(link);
+    await user.type(link, bad);
+    expect(screen.getByRole("alert")).toHaveTextContent("The link must start with https://");
+    expect(screen.getByRole("button", { name: "Save group" })).toBeDisabled();
+  }
+
+  await user.clear(link);
+  await user.type(link, "https://apps.example.com/app/id1");
+  await user.click(screen.getByRole("button", { name: "Save group" }));
+  await waitFor(() => expect(inv.group(store.state).iphone_app_url).toBe("https://apps.example.com/app/id1"));
+
+  await user.clear(link);
+  await user.click(screen.getByRole("button", { name: "Save group" }));
+  await waitFor(() => expect(inv.group(store.state).iphone_app_url ?? null).toBeNull());
+});
+
 test("the menu reaches every section, users included", async () => {
   await fixture();
   mount();

@@ -314,10 +314,14 @@ would lose the evening's work, which is exactly the failure NFR-DATA-01 forbids.
 - **Install to the home screen** (NFR-DEP-06). Home-screen apps are exempt from the 7-day rule. This is why that
   requirement is a Must and not a nicety. Install before recording anything: on iOS the installed app has its own
   cookies, local storage and IndexedDB, so it opens signed out and empty and cannot rescue what is already sitting in
-  the Safari tab. The prompt says so, and only iOS sees it. Android has no time-based clearing, and its installed app
-  shares the browser's storage, so an Android phone is never asked; installing there is a shortcut, not a defence. The
-  icon is named for the group: the server rewrites `name` and `short_name` in the built manifest from the group setting,
-  because a build cannot know whose gear it is.
+  the Safari tab. The prompt says so, and only iOS sees it. On an iPhone, in any browser, it points to the group's App
+  Store app instead, when the group setting holds that app's link (`iphone_app_url`, NFR-DEP-12); an iPad keeps the
+  home-screen prompt. An iPhone already running it from the home screen is offered the app too, for its scanner (see
+  [Native scanner](#native-scanner)), not its storage. Only the signed-in shell shows either, so a finder never does
+  (NFR-DEP-13). Android has no time-based clearing, and its installed app shares the browser's storage, so an Android
+  phone is never asked; installing there is a shortcut, not a defence. The icon is named for the group: the server
+  rewrites `name` and `short_name` in the built manifest from the group setting, because a build cannot know whose gear
+  it is.
 - **Ask for persistent storage** via `navigator.storage.persist()` (NFR-DATA-11). Chromium grants it to a site that is
   installed, bookmarked, or used often; otherwise it keeps the data until the phone runs low on space, then clears the
   least recently used sites first. iOS refuses every site. A refusal is not shown: the unsent count is already on every
@@ -329,7 +333,7 @@ A lost record is a missing movement, not a broken database; the next scan of the
 
 ### Store wrapper
 
-A Could (NFR-DEP-11). A prototype is built in `ios/`; it has not shipped.
+A Could (NFR-DEP-11). Built in `ios/`, and released as an unlisted App Store app.
 
 **What it buys.**
 

@@ -63,7 +63,7 @@ from gear_tracker import accounts, calendars, codes, derived, inventory_csv, lab
 from gear_tracker import conflicts as clashes
 from gear_tracker.db import connect
 from gear_tracker.errors import ApiError, BadRequest, Conflict, NotFound
-from gear_tracker.events import REPAIR_STATES, now_ms
+from gear_tracker.events import REPAIR_STATES, HttpsUrlOrBlank, now_ms
 from gear_tracker.ratelimit import RateLimit
 from gear_tracker.sync import Principal
 from gear_tracker.ulid import new_ulid
@@ -1453,7 +1453,7 @@ def send_test_mail() -> dict[str, Any]:
 
 
 def get_group() -> dict[str, Any]:
-    """The group's name, site address, contact, and how many days out counts as overdue."""
+    """The group's name, site address, contact, how many days out counts as overdue, and its iPhone app's link."""
     with _open() as (conn, _who):
         group = views.entity(_state(conn), "setting", "group") or {}
         return {
@@ -1461,6 +1461,7 @@ def get_group() -> dict[str, Any]:
             "code_url": group.get("code_url") or "",
             "contact": group.get("contact") or "",
             "overdue_days": group.get("overdue_days"),
+            "iphone_app_url": group.get("iphone_app_url") or "",
         }
 
 
@@ -1473,10 +1474,13 @@ class GroupFields(BaseModel):
     code_url: str | None = None
     contact: str | None = None
     overdue_days: Annotated[StrictInt, Field(ge=1)] | None = None
+    # Where an iPhone's browser is sent to get the app (NFR-DEP-12). Blank or null clears it.
+    iphone_app_url: HttpsUrlOrBlank = None
 
 
 def set_group(fields: GroupFields) -> dict[str, Any]:
-    """Change the group's name, site address, contact, or overdue threshold (FR-USR-15, FR-PUB-01, FR-TAG-02).
+    """Change the group's name, site address, contact, overdue threshold, or iPhone app link (FR-USR-15,
+    FR-PUB-01, FR-TAG-02, NFR-DEP-12).
 
     The server refuses anyone but an Admin, the same way it refuses a device
     that pushes a setting event.

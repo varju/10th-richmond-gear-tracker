@@ -9,6 +9,7 @@ Timestamps are integer milliseconds since the Unix epoch, UTC.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import time
 from collections.abc import Iterator
@@ -18,6 +19,7 @@ from typing import Annotated, Any, Literal, get_args
 from pydantic import (
     AfterValidator,
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     Field,
     StringConstraints,
@@ -70,8 +72,32 @@ def _not_derived(value: str) -> str:
     return value
 
 
+HTTPS_LINK = re.compile(r"https://[^\x00-\x20/?#]+(?:[/?#][^\x00-\x20]*)?", re.IGNORECASE)
+"""https://, in any case, a host, and no spaces or control characters. lib/install.ts isHttpsLink is the same pattern:
+two URL parsers would disagree at the edges, and an edit the client allows would bounce."""
+
+
+def is_https(value: Any) -> bool:
+    return isinstance(value, str) and HTTPS_LINK.fullmatch(value) is not None
+
+
+def _https(value: str) -> str:
+    if not is_https(value):
+        raise ValueError("must be an https:// address")
+    return value
+
+
+def _blank_is_none(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    return value.strip() or None
+
+
 Ulid = Annotated[str, AfterValidator(_ulid)]
 NonEmpty = Annotated[str, StringConstraints(min_length=1)]
+HttpsUrl = Annotated[str, AfterValidator(_https)]
+HttpsUrlOrBlank = Annotated[HttpsUrl | None, BeforeValidator(_blank_is_none)]
+"""As a person types it into a form or a file: trimmed, and blank is None, no link."""
 
 
 class Strict(BaseModel):
@@ -240,11 +266,18 @@ class ItemCreated(Payload):
         return self
 
 
+class GroupSetting(Payload):
+    """Only the iPhone app's link is shape checked: members' phones open it (NFR-DEP-12). Null is no app."""
+
+    iphone_app_url: HttpsUrl | None = None
+
+
 CREATED_PAYLOADS: dict[str, type[Payload]] = {
     "item": ItemCreated,
     "repair": RepairTicket,
     "reservation": ReservationDetails,
     "found_report": FoundReport,
+    "setting": GroupSetting,
 }
 """Entities whose `created` has a shape. The rest take any fields."""
 
@@ -327,6 +360,12 @@ class FieldChanged(_Incoming):
         if self.entity_type == "found_report" and (field != "resolved" or not isinstance(value, bool)):
             # The report is the finder's words. A member marks it dealt with, and changes nothing else.
             raise ValueError("a found report can only be resolved")
+        if self.entity_type == "setting" and field in GroupSetting.model_fields:
+            # The same check as created. Untyped fields stay untyped: older apps write them freely.
+            try:
+                GroupSetting.model_validate({field: value})
+            except ValidationError as exc:
+                raise ValueError(_first_error(exc)) from None
         return self
 
 

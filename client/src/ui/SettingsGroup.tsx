@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { setGroup } from "../lib/actions";
+import { isHttpsLink } from "../lib/install";
 import { group } from "../lib/inventory";
 import type { Store } from "../lib/store";
 import { useUnsaved } from "../lib/unsaved";
@@ -10,7 +11,7 @@ interface Props {
   store: Store;
 }
 
-/** Group name, address, contact, and the overdue period. Admin only (FR-SET-*). */
+/** Group name, address, contact, the overdue period, and the iPhone app's link. Admin only (FR-SET-*). */
 export function SettingsGroup({ store }: Props) {
   useStore(store);
 
@@ -33,28 +34,45 @@ function GroupForm({ store }: { store: Store }) {
   // Drafts sit over the current value, so a bootstrap that lands after the
   // page opens fills the fields, and only typing makes them dirty.
   const current = group(store.state);
-  const [draft, setDraft] = useState<{ name?: string; code_url?: string; contact?: string; overdue_days?: string }>({});
+  const [draft, setDraft] = useState<{
+    name?: string;
+    code_url?: string;
+    contact?: string;
+    overdue_days?: string;
+    iphone_app_url?: string;
+  }>({});
   const [saved, setSaved] = useState(false);
   const name = draft.name ?? current.name ?? "";
   const codeUrl = draft.code_url ?? current.code_url ?? "";
   const contact = draft.contact ?? current.contact ?? "";
   const currentDays = typeof current.overdue_days === "number" ? String(current.overdue_days) : "";
   const overdueDays = draft.overdue_days ?? currentDays;
+  const appUrl = draft.iphone_app_url ?? current.iphone_app_url ?? "";
+  // The server refuses anything else (NFR-DEP-12); saying so here keeps the event from bouncing.
+  const appUrlBad = appUrl.trim() !== "" && !isHttpsLink(appUrl.trim());
   const dirty =
     name !== (current.name ?? "") ||
     codeUrl !== (current.code_url ?? "") ||
     contact !== (current.contact ?? "") ||
-    overdueDays.trim() !== currentDays;
+    overdueDays.trim() !== currentDays ||
+    appUrl !== (current.iphone_app_url ?? "");
   const setName = (v: string) => setDraft((d) => ({ ...d, name: v }));
   const setCodeUrl = (v: string) => setDraft((d) => ({ ...d, code_url: v }));
   const setContact = (v: string) => setDraft((d) => ({ ...d, contact: v }));
   const setOverdueDays = (v: string) => setDraft((d) => ({ ...d, overdue_days: v }));
-  useUnsaved(dirty, { save: () => save().then(() => true) });
+  const setAppUrl = (v: string) => setDraft((d) => ({ ...d, iphone_app_url: v }));
+  useUnsaved(dirty, { save: () => save().then(() => true), canSave: !appUrlBad });
 
   async function save() {
     // Blank means never flag (FR-OUT-14).
     const days = Number.parseInt(overdueDays, 10);
-    await setGroup(store, { name, code_url: codeUrl, contact, overdue_days: days > 0 ? days : null });
+    await setGroup(store, {
+      name,
+      code_url: codeUrl,
+      contact,
+      overdue_days: days > 0 ? days : null,
+      iphone_app_url: appUrl,
+    });
     setDraft({});
     setSaved(true);
   }
@@ -99,7 +117,27 @@ function GroupForm({ store }: { store: Store }) {
           autoComplete="off"
         />
       </label>
-      <button className="small" type="button" onClick={save} disabled={!dirty}>
+      <label>
+        <span>iPhone app link</span>
+        <input
+          type="url"
+          value={appUrl}
+          onChange={(e) => setAppUrl(e.target.value)}
+          placeholder="https://apps.apple.com/app/id…"
+          autoComplete="off"
+          aria-invalid={appUrlBad || undefined}
+        />
+      </label>
+      {appUrlBad && (
+        <p className="error" role="alert">
+          The link must start with https://
+        </p>
+      )}
+      <p className="muted small">
+        If the group has its own iPhone app, an iPhone’s browser points to it. Leave blank to keep the “Add to Home
+        Screen” hint.
+      </p>
+      <button className="small" type="button" onClick={save} disabled={!dirty || appUrlBad}>
         Save group
       </button>
       {saved && !dirty && <span className="muted small"> Saved</span>}

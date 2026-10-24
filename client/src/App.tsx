@@ -226,7 +226,7 @@ export function App({ store, api, now = Date.now }: Props) {
         ) : (
           <>
             {/* Installing matters on the phone that goes to the locker, and only there. */}
-            {route.segments.length === 0 && <InstallPrompt />}
+            {route.segments.length === 0 && <InstallPrompt appUrl={group(store.state).iphone_app_url} />}
             <Screen
               store={store}
               api={api}

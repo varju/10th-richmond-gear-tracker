@@ -509,3 +509,8 @@ xcrun simctl openurl booted 'geartracker-debug:https://example.org/gear/g/ABCDEF
 Each group ships the app from its own Apple developer account. Send Apple's unlisted distribution request before the
 first App Review, and wait for its approval: App Review rejects an app for one group under guideline 3.2 while it is set
 to public distribution. After approval, resubmit; the switch to unlisted is already made in App Store Connect.
+
+Once the app is live, give the server its link, so an iPhone's browser points to the app instead of being told to add
+the site to its home screen. Set `iphone_app_url` in the `[group]` section of `seed.toml`, or **iPhone app link** in
+Settings, General. It must be an `https://` address. A seed file without the line leaves whatever an Admin set;
+`iphone_app_url = ""` clears it. An iPhone that already runs the site from its home screen is offered the app too.

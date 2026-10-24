@@ -146,6 +146,39 @@ def test_a_field_changed_in_the_app_goes_back(db, tmp_path):
     assert group(db)["contact"] == "604-555-0100"
 
 
+def test_the_iphone_app_link_is_left_alone_when_the_file_omits_it(db, tmp_path):
+    """An Admin may set it in the app instead (NFR-DEP-12)."""
+    apply(db, tmp_path)
+    assert "iphone_app_url" not in group(db)
+    user_id = accounts.user_id_of(db, "alex@example.org")
+    assert user_id is not None
+    link = "https://apps.example.com/app/id1"
+    events.append_server(
+        db, user_id, "setting", "group", "field_changed", {"field": "iphone_app_url", "value": link, "old": None}
+    )
+
+    assert apply(db, tmp_path) == []
+    assert group(db)["iphone_app_url"] == link
+
+
+def test_the_file_sets_and_clears_the_iphone_app_link(db, tmp_path):
+    link = 'overdue_days = 30\niphone_app_url = "https://apps.example.com/app/id1"'
+    apply(db, tmp_path, FILE.replace("overdue_days = 30", link))
+    assert group(db)["iphone_app_url"] == "https://apps.example.com/app/id1"
+
+    cleared = FILE.replace("overdue_days = 30", 'overdue_days = 30\niphone_app_url = ""')
+    assert apply(db, tmp_path, cleared) == ["set group.iphone_app_url"]
+    assert group(db)["iphone_app_url"] is None
+
+
+def test_the_iphone_app_link_must_be_https(tmp_path):
+    spaced = FILE.replace("overdue_days = 30", 'overdue_days = 30\niphone_app_url = " https://apps.example.com/x "')
+    assert seed.read(written(tmp_path, spaced)).group.iphone_app_url == "https://apps.example.com/x"
+    text = FILE.replace("overdue_days = 30", 'overdue_days = 30\niphone_app_url = "http://apps.example.com/app/id1"')
+    with pytest.raises(BadRequest, match="iphone_app_url: must be an https:// address"):
+        seed.read(written(tmp_path, text))
+
+
 def test_an_admin_with_that_email_is_left_alone(db, tmp_path):
     apply(db, tmp_path)
     user_id = accounts.user_id_of(db, "alex@example.org")

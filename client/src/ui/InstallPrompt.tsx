@@ -1,34 +1,62 @@
 import { useState } from "react";
-import { isInstalled, isIos } from "../lib/install";
+import { isHttpsLink, isInstalled, isIos, isIphone } from "../lib/install";
+import { NATIVE } from "../lib/server";
 
 const SNOOZE_KEY = "install-snoozed-until";
+// Its own key: a Not now given to the home-screen hint must not hide the app's link.
+const APP_SNOOZE_KEY = "app-snoozed-until";
 const SNOOZE_MS = 24 * 3_600_000;
 
-function snoozed(): boolean {
+function snoozed(key: string): boolean {
   try {
-    return Number(localStorage.getItem(SNOOZE_KEY)) > Date.now();
+    return Number(localStorage.getItem(key)) > Date.now();
   } catch {
     return false;
   }
 }
 
 /**
- * Why we nag, and only on iOS: Safari loses a tab's storage after 7 days
+ * Why we nag, and only on iOS: the browser loses a tab's storage after 7 days
  * unvisited; an installed app does not (NFR-DEP-06). Android has no such rule,
- * so it is never asked.
+ * so it is never asked. An iPhone is sent to the group's app when it has one,
+ * from the home screen too (NFR-DEP-12). Only the signed-in shell renders
+ * this, so a finder never sees it (NFR-DEP-13).
  */
-export function InstallPrompt() {
-  const [hidden, setHidden] = useState(() => !isIos() || isInstalled() || snoozed());
+export function InstallPrompt({ appUrl }: { appUrl?: string | null }) {
+  const [dismissed, setDismissed] = useState(false);
+  // The server checks the link too; this keeps a bad one from becoming a live link.
+  const app = isIphone() && appUrl != null && isHttpsLink(appUrl);
+  const key = app ? APP_SNOOZE_KEY : SNOOZE_KEY;
 
-  if (hidden) return null;
+  // From the home screen, storage is safe; only the app is still worth offering.
+  const installed = isInstalled();
+  if (dismissed || !isIos() || NATIVE || (installed && !app) || snoozed(key)) return null;
 
   function later() {
     try {
-      localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_MS));
+      localStorage.setItem(key, String(Date.now() + SNOOZE_MS));
     } catch {
       // Private mode. The prompt will just come back.
     }
-    setHidden(true);
+    setDismissed(true);
+  }
+
+  if (app) {
+    return (
+      <aside className="notice">
+        <strong>Get the iPhone app.</strong>{" "}
+        {installed
+          ? "Its scanner uses the phone’s camera directly, so the picture does not go black after you switch apps."
+          : "The browser clears a tab’s storage after seven days without a visit, and unsent records go with it. The app keeps its own."}
+        <p className="muted">
+          It opens signed out and empty. Sync anything unsent here first, then sign in to the app.
+        </p>
+        <p>
+          <a href={appUrl}>Get it from the App Store</a>
+        </p>
+        <button onClick={later}>Not now</button>
+      </aside>
+    );
   }
 
   return (

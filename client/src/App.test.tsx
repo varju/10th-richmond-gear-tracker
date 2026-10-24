@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { IDBFactory } from "fake-indexeddb";
-import { beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "./App";
 import { createApi } from "./lib/api";
 import { DAY_MS } from "./lib/clock";
@@ -46,6 +46,8 @@ const fetchFake = async (input: string | URL | Request, init?: RequestInit): Pro
     });
   return json({ error: "not_found", message: path }, 404);
 };
+
+afterEach(() => vi.unstubAllGlobals());
 
 beforeEach(async () => {
   calls = [];
@@ -163,6 +165,39 @@ test("a sticker scanned while signed out shows the public page, not the sign-in 
   // A member who lands on one of our own stickers takes the way in.
   await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
   expect(screen.getByLabelText("Password")).toBeInTheDocument();
+});
+
+const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile Safari";
+const APP = "https://apps.example.com/app/id1";
+
+/** A phone that has synced a group with an iPhone app (NFR-DEP-12). */
+async function iphoneWithApp() {
+  vi.stubGlobal("navigator", { ...navigator, userAgent: IPHONE });
+  await store.bootstrap(
+    { item: { a: { name: "Tent" } }, setting: { group: { name: "10th Richmond", iphone_app_url: APP } } },
+    2,
+    "log-one",
+  );
+}
+
+test("a member on an iPhone is pointed to the group's app at home (NFR-DEP-12)", async () => {
+  await iphoneWithApp();
+  await store.setMeta({ token: "tok", user: { id: "u1", name: "Alice", role: "admin", active: true } });
+  mount();
+  expect(await screen.findByRole("link", { name: "Get it from the App Store" })).toHaveAttribute("href", APP);
+});
+
+test("a finder on an iPhone sees no install or app suggestion, here or at sign-in (NFR-DEP-13)", async () => {
+  await iphoneWithApp();
+  navigate("/g/AAAAAAAAAA");
+  mount();
+  expect(await screen.findByRole("heading", { name: "10th Richmond" })).toBeInTheDocument();
+  const suggestion = () => screen.queryByText(/Get the iPhone app|Add to your home screen|App Store/);
+  expect(suggestion()).not.toBeInTheDocument();
+
+  await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  expect(screen.getByLabelText("Password")).toBeInTheDocument();
+  expect(suggestion()).not.toBeInTheDocument();
 });
 
 test("any other path while signed out is the sign-in form", async () => {
