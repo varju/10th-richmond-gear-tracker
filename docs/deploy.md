@@ -7,6 +7,7 @@ pipeline. A volunteer can do this in an evening (NFR-DEP-07).
 
 - A machine at home running Docker, reachable on your network (NFR-DEP-03, NFR-DEP-04).
 - A checkout of this repository on your laptop. Docker builds on the server, so the laptop needs nothing but the client.
+- Optional: [Trivy](https://trivy.dev) on the laptop, to check the image for known vulnerabilities before it runs.
 
 ## Point Docker at the server
 
@@ -48,6 +49,10 @@ make deploy
 That builds the image and starts the container. Both happen on the server: the build runs there, so the image is native
 to that machine and never has to cross architectures from a laptop. A cold build takes about two minutes; after that
 only what changed rebuilds.
+
+With Trivy installed, the deploy stops before starting the container if the image has a high or critical vulnerability
+that already has a fix. `make scan` runs the same check alone. A fix usually means rebuilding on a newer base image,
+which every build pulls.
 
 Migrations run on start, so a deploy is one step and a restart is safe (NFR-MAINT-07).
 
@@ -364,8 +369,8 @@ Three stages, so the running image carries none of the build:
 
 1. Node builds the client. Only `dist/` leaves the stage.
 2. `uv sync --locked` builds a virtual environment from `uv.lock`. Nothing is compiled; the dependencies ship as wheels.
-3. The runtime stage is `python:3.14-slim` plus that environment, the source, the migrations, and the built client.
-   About 180 MB.
+3. The runtime stage is `python:3.14-slim`, without pip, plus that environment, the source, the migrations, and the
+   built client. About 180 MB.
 
 The container holds no state. Delete it, run `make deploy` again, and the database it reopens is the one under
 `GEAR_DATA`.

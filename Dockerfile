@@ -33,6 +33,8 @@ COPY src/ ./src/
 RUN uv sync --locked --no-dev
 
 FROM python:3.14-slim
+# Nothing here runs pip, and it carries its own copies of packages with advisories.
+RUN python -m pip uninstall --yes --root-user-action=ignore pip
 ARG BASE_PATH=/
 ARG GIT_SHA=dev
 # Recorded so `docker inspect` can say what path a running image was built for.

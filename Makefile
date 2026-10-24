@@ -1,6 +1,6 @@
 DB ?= gear.db
 
-.PHONY: setup test lint fmt migrate audit check client-install client-test client-build e2e serve ios image deploy logs start-over
+.PHONY: setup test lint fmt migrate audit check client-install client-test client-build e2e serve ios image scan deploy logs start-over
 
 setup:
 	./bin/setup
@@ -75,11 +75,19 @@ GEAR_DATA   ?=
 # compose reads it from the environment, so a command-line GEAR_DATA reaches it too.
 export GEAR_DATA
 
+# --pull, or the server keeps building on whatever base image it cached first,
+# and Debian's fixes never arrive.
 image:
-	docker build --build-arg BASE_PATH=$(GEAR_BASE) --build-arg GIT_SHA=$(GIT_SHA) --tag $(IMAGE):$(TAG) --tag $(IMAGE):latest .
+	docker build --pull --build-arg BASE_PATH=$(GEAR_BASE) --build-arg GIT_SHA=$(GIT_SHA) --tag $(IMAGE):$(TAG) --tag $(IMAGE):latest .
 	@echo "built $(IMAGE):$(TAG), serving from $(GEAR_BASE)"
 
+# High and critical advisories in the image that already have a fix. Trivy runs
+# on the laptop and reads the image from the server.
+scan:
+	trivy image --quiet --table-mode detailed --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 $(IMAGE):$(TAG)
+
 deploy: image
+	@if command -v trivy >/dev/null; then $(MAKE) --no-print-directory scan; else echo "trivy is not installed: deploying unscanned"; fi
 	GEAR_TAG=$(TAG) $(GEAR_DEPLOY)
 
 logs:
