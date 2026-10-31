@@ -1504,9 +1504,12 @@ h3.section.small {
   margin-top: 0;
 }
 
+.guide {
+  max-width: 60ch;
+}
+
 .guide p {
   margin: 0 0 12px;
-  max-width: 60ch;
 }
 
 /* The open guide on paper: its tab becomes the title, links that go nowhere are dropped. */
@@ -1531,6 +1534,7 @@ h3.section.small {
   }
 
   .guide {
+    max-width: none;
     font-size: 11pt;
   }
 
@@ -1548,7 +1552,6 @@ h3.section.small {
   }
 
   .guide p {
-    max-width: none;
     orphans: 3;
     widows: 3;
   }
