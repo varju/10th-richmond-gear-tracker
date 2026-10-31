@@ -1691,15 +1691,12 @@ def test_an_admin_reads_the_audit_log_and_a_user_cannot(tools, db_path, admin):
         assistant.read_audit_log(type="nonsense")
 
 
-def test_a_user_cannot_fold_a_generic_that_still_files_a_deleted_unit(db_path, tools, admin):
+def test_a_user_folds_a_generic_whose_other_units_were_deleted(db_path, tools, admin):
     with assistant.acting_as(admin, db_path):
         assistant.delete_item(tools["t2"])
         assistant.delete_item(tools["t3"])
-    with pytest.raises(BadRequest, match="an Admin can do this"):
-        assistant.make_single(tools["tents"])
-    assert entity(db_path, "item", tools["t1"])["parent_id"] == tools["tents"]  # nothing half-written
-    with assistant.acting_as(admin, db_path):
-        assert assistant.make_single(tools["tents"])["item_id"] == tools["t1"]
+    assert assistant.make_single(tools["tents"])["item_id"] == tools["t1"]
+    assert entity(db_path, "item", tools["tents"])["merged_into"] == tools["t1"]
 
 
 def test_an_oversized_photo_is_refused_before_it_is_decoded(tools):

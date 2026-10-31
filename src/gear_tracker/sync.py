@@ -160,8 +160,11 @@ def _is_pool(conn: sqlite3.Connection, item_id: Any) -> bool:
 
 
 def _has_units(conn: sqlite3.Connection, generic_id: str) -> bool:
+    """As views.units_of and unitsOf: a deleted unit, or one merged into another record, is not under it."""
     row = conn.execute(
-        "SELECT 1 FROM entities WHERE entity_type = 'item' AND json_extract(state, '$.parent_id') = ? LIMIT 1",
+        "SELECT 1 FROM entities WHERE entity_type = 'item' AND json_extract(state, '$.parent_id') = ?"
+        " AND NOT coalesce(json_extract(state, '$.deleted'), 0) AND json_extract(state, '$.merged_into') IS NULL"
+        " LIMIT 1",
         (generic_id,),
     ).fetchone()
     return row is not None

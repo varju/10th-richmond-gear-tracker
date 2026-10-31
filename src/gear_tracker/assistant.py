@@ -1112,20 +1112,6 @@ def _carried(state: dict[str, Any], it: dict[str, Any], *, purchase: bool = True
     return _created_payload(fields)
 
 
-def _hidden_units(state: dict[str, Any], generic_id: str) -> bool:
-    """Units the lists leave out, deleted or merged away, but the server's fold rule still counts. A User's
-    fold of a generic that has them is refused partway, so the tool refuses it before writing anything."""
-    return any(
-        it.get("parent_id") == generic_id and (it.get("deleted") or it.get("merged_into"))
-        for it in views.table(state, "item")
-    )
-
-
-def _refuse_hidden_units(state: dict[str, Any], who: Principal, generic_id: str) -> None:
-    if who.role != "admin" and _hidden_units(state, generic_id):
-        raise BadRequest("a deleted or merged unit is still filed under it; an Admin can do this")
-
-
 def _make_generic_drafts(state: dict[str, Any], it: dict[str, Any], number: str) -> tuple[str, list[dict[str, Any]]]:
     """makeGeneric in actions.ts: a new generic takes the item's name, description and home, and the
     item becomes its unit with this number (FR-INV-26)."""
@@ -1225,7 +1211,6 @@ def make_single(generic_id: str) -> dict[str, Any]:
         units = views.units_of(state, generic["id"])
         if len(units) > 1:
             raise BadRequest("needs no more than one unit")
-        _refuse_hidden_units(state, who, generic["id"])
         categories = _sorted_categories(state, views.categories_of(state, generic))
         if not units:
             item_id = new_ulid()
@@ -1276,7 +1261,6 @@ def make_pool(item_id: str, quantity: Annotated[StrictInt, Field(ge=1)]) -> dict
                 raise BadRequest("already several")
             if views.units_of(state, it["id"]):
                 raise BadRequest("remove its units first")
-            _refuse_hidden_units(state, who, it["id"])
         elif it.get("status") != "in":
             raise BadRequest("return it first")
         pool_id = new_ulid()

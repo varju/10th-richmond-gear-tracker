@@ -479,6 +479,11 @@ def test_anyone_folds_one_thing_into_a_new_shape(db):
     assert reasons(db, USER, fold("tarps", "tent-2", 9)) == ["items are merged by an Admin (FR-INV-13)"]
     # Nor is one single item into another.
     assert reasons(db, USER, fold("tent-2", "tarp-1", 10)) == ["items are merged by an Admin (FR-INV-13)"]
+    # A deleted unit is not under it any more, as on every list (FR-INV-32).
+    events.append_server(
+        db, "alice", "item", "tarp-1", "field_changed", {"field": "deleted", "value": True, "old": None}, now=T0
+    )
+    assert reasons(db, USER, fold("tarps", "tent-2", 11)) == []
 
 
 def test_devices_bind_codes_but_do_not_make_them(db):
