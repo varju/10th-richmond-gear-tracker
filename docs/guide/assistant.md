@@ -5,8 +5,9 @@ book a camp or check gear out. It acts as you, with what you are allowed to do.
 
 ## Connect an assistant
 
-Open Settings and tap Connect an assistant. The token is shown once, so copy it before you tap Done. Point your
-assistant at `https://your-site/gear/mcp` and send the token as the header `Authorization: Bearer <token>`.
+Open **Settings** > **AI assistant** and tap **Connect an assistant**. The token is shown once, so copy it before you
+tap **Done**. Point your assistant at `https://your-site/gear/mcp` and send the token as the header
+`Authorization: Bearer <token>`.
 
 ## What you can ask for
 
@@ -21,5 +22,5 @@ anyone else the same way the app does. It also needs a connection, so it is no u
 
 ## Revoke it
 
-The assistant sits in your device list beside your own device. Revoke it there and the token stops working at once, the
-same as a lost device.
+The assistant sits in **Settings** > **Your devices** beside your own device. Tap **Revoke** there and the token stops
+working at once, the same as a lost device.
