@@ -7,8 +7,13 @@ declare module "virtual:guide" {
     title: string;
     /** The rest of the file, as HTML. */
     html: string;
-    /** Every task in the section, for the contents. */
-    headings: { id: string; text: string }[];
+    /** The contents: every task, or every group with its tasks. */
+    headings: GuideHeading[];
+  }
+  export interface GuideHeading {
+    id: string;
+    text: string;
+    children: GuideHeading[];
   }
   export const sections: GuideSection[];
 }

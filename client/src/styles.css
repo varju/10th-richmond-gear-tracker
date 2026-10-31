@@ -1482,10 +1482,26 @@ h3.section.small {
   min-height: 32px;
 }
 
-.guide h3 {
+.guide-contents ul ul {
+  margin: 4px 0 8px;
+}
+
+.guide h3,
+.guide h4 {
   margin: 24px 0 8px;
   font-size: 18px;
   font-weight: 600;
+}
+
+.guide h3.group {
+  margin-top: 40px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 22px;
+}
+
+.guide > h3.group:first-child {
+  margin-top: 0;
 }
 
 .guide p {
@@ -1518,10 +1534,17 @@ h3.section.small {
     font-size: 11pt;
   }
 
-  .guide h3 {
+  .guide h3,
+  .guide h4 {
     margin-top: 14pt;
     font-size: 13pt;
     break-after: avoid;
+  }
+
+  .guide h3.group {
+    margin-top: 22pt;
+    border-bottom-color: #000;
+    font-size: 16pt;
   }
 
   .guide p {

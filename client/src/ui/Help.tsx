@@ -36,6 +36,15 @@ export function Help() {
                 {section.headings.map((h) => (
                   <li key={h.id}>
                     <a href={`#${h.id}`}>{h.text}</a>
+                    {h.children.length > 0 && (
+                      <ul>
+                        {h.children.map((c) => (
+                          <li key={c.id}>
+                            <a href={`#${c.id}`}>{c.text}</a>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </li>
                 ))}
               </ul>

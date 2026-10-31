@@ -27,28 +27,38 @@ function slug(text: string): string {
     .replace(/^-|-$/g, "");
 }
 
+interface Heading {
+  id: string;
+  text: string;
+  children: Heading[];
+}
+
 interface Section {
   id: string;
   title: string;
   html: string;
-  headings: { id: string; text: string }[];
+  headings: Heading[];
 }
 
 function compile(file: string, markdown: string): Section {
-  const headings: { id: string; text: string }[] = [];
+  const headings: Heading[] = [];
   let title = file.replace(/\.md$/, "");
+  // A file with h3s is grouped: its h2s are groups, its h3s the tasks. Otherwise the h2s are the tasks.
+  const grouped = /^### /m.test(markdown);
   const marked = new Marked({
     renderer: {
       heading(token) {
         const text = this.parser.parseInline(token.tokens);
-        // The one h1 is the section's name; the h2s are its tasks, and the contents.
+        // The one h1 is the section's name; the h2s and h3s are the contents.
         if (token.depth === 1) {
           title = text;
           return "";
         }
         const id = slug(token.text);
-        if (token.depth === 2) headings.push({ id, text });
-        return `<h${token.depth + 1} id="${id}">${text}</h${token.depth + 1}>\n`;
+        if (token.depth === 2) headings.push({ id, text, children: [] });
+        if (token.depth === 3 && grouped) headings.at(-1)?.children.push({ id, text, children: [] });
+        const group = grouped && token.depth === 2 ? ' class="group"' : "";
+        return `<h${token.depth + 1} id="${id}"${group}>${text}</h${token.depth + 1}>\n`;
       },
     },
   });
