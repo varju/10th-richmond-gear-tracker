@@ -13,7 +13,7 @@ from typing import Annotated, Any
 
 from pydantic import Field, ValidationError
 
-from gear_tracker import calendars, derived, events, notify
+from gear_tracker import calendars, derived, events, notify, views
 from gear_tracker.errors import ApiError, BadRequest, Deactivated, Forbidden, Rebootstrap
 from gear_tracker.events import NonEmpty, Rejected, Strict, now_ms
 from gear_tracker.flags import add_flag
@@ -118,12 +118,15 @@ def push(conn: sqlite3.Connection, principal: Principal, body: Any, now: int | N
                 raise Rejected("actor_id must be the signed-in user")
             if incoming.get("device_id") != principal.device_id:
                 raise Rejected("device_id must be this device")
-            _check_entity_rules(conn, principal, incoming)
             seen_before = events.get(conn, incoming["id"]) is not None if isinstance(incoming.get("id"), str) else False
+            if not seen_before:
+                # A resend of what is already stored stands, whatever has happened since.
+                _check_entity_rules(conn, principal, incoming)
             stored = events.append(conn, incoming, received_at=now)
             if not seen_before:
                 _check_drift(conn, stored, measured_offset, now)
                 _notify_of(conn, stored)
+                _close_deleted_ticket(conn, stored)
             accepted.append(stored.id)
         except Rejected as exc:
             rejected.append({"id": incoming.get("id"), "reason": exc.reason})
@@ -245,6 +248,15 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
         item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
         if not item.get("pool"):
             raise Rejected("recount is only for a pool (FR-INV-35)")
+    if entity_type == "repair" and kind != "created":
+        ticket_id = str(incoming.get("entity_id"))
+        ticket = derived.get_entity(conn, "repair", ticket_id) or {}
+        if ticket.get("deleted"):
+            raise Rejected("this ticket was deleted")
+        payload = incoming.get("payload")
+        field = payload.get("field") if isinstance(payload, dict) else None
+        if kind == "field_changed" and field == "deleted" and principal.role != "admin":
+            _check_own_untouched_ticket(conn, principal, ticket_id)
     if entity_type == "found_report" and kind == "created":
         raise Rejected("found reports come from the public page")
     if kind == "photo_added":
@@ -275,6 +287,22 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
                 raise Rejected("this code is not on anything")
 
 
+def _check_own_untouched_ticket(conn: sqlite3.Connection, principal: Principal, ticket_id: str) -> None:
+    """A User deletes only a ticket they raised that nobody else has touched (FR-REP-12)."""
+    actors = {
+        row["actor_id"]: row["raised"]
+        for row in conn.execute(
+            "SELECT actor_id, max(type = 'created') AS raised FROM events"
+            " WHERE entity_type = 'repair' AND entity_id = ? GROUP BY actor_id",
+            (ticket_id,),
+        )
+    }
+    if not actors.get(principal.user_id):
+        raise Rejected("only an Admin can delete someone else's ticket")
+    if len(actors) > 1:
+        raise Rejected("someone else has worked on this ticket; ask an Admin to delete it")
+
+
 def _check_drift(conn: sqlite3.Connection, event: events.Event, measured_offset: int, now: int) -> None:
     """The offset the device recorded under should match what we measure now. If not, its clock moved."""
     drift = measured_offset - event.clock_offset
@@ -295,6 +323,16 @@ def _notify_of(conn: sqlite3.Connection, event: events.Event) -> None:
         payload = event.payload
         item_id, description = str(payload.get("item_id")), str(payload.get("description"))
         notify.repair_raised(conn, event.entity_id, item_id, description, event.actor_id)
+
+
+def _close_deleted_ticket(conn: sqlite3.Connection, event: events.Event) -> None:
+    """Older app builds do not know `deleted` (FR-REP-10). Closed, the item is no longer flagged there."""
+    if event.entity_type != "repair" or event.type != "field_changed" or event.payload.get("field") != "deleted":
+        return
+    ticket = derived.get_entity(conn, "repair", event.entity_id) or {}
+    if views.is_open(ticket):
+        closed = {"field": "state", "value": "wont_fix", "old": ticket.get("state")}
+        events.append_server(conn, event.actor_id, "repair", event.entity_id, "field_changed", closed)
 
 
 def pull(

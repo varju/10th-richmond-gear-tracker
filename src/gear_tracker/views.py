@@ -469,7 +469,8 @@ OPEN_REPAIR_STATES = ("open", "in_progress")
 
 
 def repairs(state: State) -> list[Fields]:
-    return table(state, "repair")
+    """A deleted ticket is gone from every list (FR-REP-10)."""
+    return [t for t in table(state, "repair") if not t.get("deleted")]
 
 
 def is_open(ticket: Fields) -> bool:

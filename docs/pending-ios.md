@@ -13,6 +13,7 @@ What the app does differently.
   drops its guide link.
 - Marking an item as several of the same thing keeps its categories.
 - **Group with another item…** and **This is a duplicate record…** list nothing until you search.
+- A repair ticket can be deleted: by whoever raised it until someone else works on it, and by an Admin at any time.
 
 ## Chores
 

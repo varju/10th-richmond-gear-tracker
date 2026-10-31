@@ -463,6 +463,25 @@ def test_list_repairs_shows_open_ones_with_their_comments(tools):
         assistant.comment_ticket("nope", "hello")
 
 
+def test_delete_ticket_takes_an_untouched_ticket_of_your_own_off_every_list(db_path, tools, admin):
+    mine = assistant.raise_ticket(tools["stove"], "valve sticks")["ticket_id"]
+    assert assistant.delete_ticket(mine) == {"ticket_id": mine, "deleted": True}
+    assert entity(db_path, "repair", mine)["state"] == "wont_fix"
+    assert assistant.list_repairs(open_only=False)["tickets"] == []
+    with pytest.raises(NotFound):
+        assistant.comment_ticket(mine, "hello")
+
+    touched = assistant.raise_ticket(tools["stove"], "leg bent")["ticket_id"]
+    with assistant.acting_as(admin, db_path):
+        assistant.comment_ticket(touched, "on it")
+    with pytest.raises(BadRequest, match="ask an Admin"):
+        assistant.delete_ticket(touched)
+    assert entity(db_path, "repair", touched)["state"] == "open"
+    with assistant.acting_as(admin, db_path):
+        assistant.delete_ticket(touched)
+    assert assistant.list_repairs(open_only=False)["tickets"] == []
+
+
 # --- writing ------------------------------------------------------------------------------------
 
 

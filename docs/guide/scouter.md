@@ -50,6 +50,9 @@ Tap **Report a problem** on the item's card and say what is wrong. Then tap **Re
 locker; the ticket is raised with that move. To raise it without moving the item, tap **Save without moving**. The item
 is flagged for whoever takes it next.
 
+Raised one by mistake? Open the ticket and tap **Delete ticket…** twice. This works until someone else comments on it,
+adds a photo or moves it; after that, ask an Admin.
+
 ### A sticker fell off
 
 Open the item, tap **Replace QR code**, and scan a fresh sticker. Its history, tickets and reservations stay with it.

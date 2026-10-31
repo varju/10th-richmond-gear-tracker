@@ -247,7 +247,7 @@ def _reservation(state: dict[str, Any], reservation_id: str) -> dict[str, Any]:
 
 def _ticket(state: dict[str, Any], ticket_id: str) -> dict[str, Any]:
     ticket = views.entity(state, "repair", ticket_id)
-    if ticket is None:
+    if ticket is None or ticket.get("deleted"):
         raise NotFound(f"no repair ticket with id {ticket_id}")
     return ticket
 
@@ -1408,6 +1408,16 @@ def comment_ticket(ticket_id: str, text: str) -> dict[str, Any]:
         return {"ticket_id": ticket["id"]}
 
 
+def delete_ticket(ticket_id: str) -> dict[str, Any]:
+    """Take a ticket off every list, for good (FR-REP-10). A User deletes only a ticket they raised
+    that nobody else has commented on, photographed or moved; an Admin deletes any."""
+    with _open() as (conn, who):
+        ticket = _ticket(_state(conn), ticket_id)
+        gone = {"field": "deleted", "value": True, "old": None}
+        _push(conn, who, [_draft("repair", ticket["id"], "field_changed", gone)])
+        return {"ticket_id": ticket["id"], "deleted": True}
+
+
 def set_ticket_state(ticket_id: str, state: RepairState) -> dict[str, Any]:
     """Move a ticket along (FR-REP-03): open, in_progress, resolved, or wont_fix."""
     with _open() as (conn, who):
@@ -2312,6 +2322,7 @@ TOOLS = [
     raise_ticket,
     comment_ticket,
     set_ticket_state,
+    delete_ticket,
     list_found_reports,
     resolve_found_report,
     check_out,

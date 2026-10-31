@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from gear_tracker import events
+from gear_tracker import derived, events
 from gear_tracker.derived import snapshot
 from gear_tracker.flags import list_flags
 from gear_tracker.sync import (
@@ -538,6 +538,34 @@ def test_retired_items_cannot_be_checked_out(db):
     )
     out = own(USER, type="checked_out", payload={"holder_id": "alice"}, device_seq=3)
     assert reasons(db, USER, out) == ["retired items cannot be checked out (FR-INV-04)"]
+
+
+def test_a_ticket_is_deleted_by_its_raiser_until_someone_else_touches_it(db):
+    """FR-REP-12, FR-REP-13. After a delete, nothing more lands on the ticket, but a resend still stands."""
+    raise_ = {"entity_type": "repair", "type": "created", "payload": {"item_id": "tent-1", "description": "zip"}}
+    gone = {"entity_type": "repair", "payload": {"field": "deleted", "value": True, "old": None}}
+    bob = Principal("bob", "phone-a")
+
+    assert reasons(db, USER, own(USER, entity_id="t1", device_seq=1, **raise_)) == []
+    comment = {"type": "note_added", "payload": {"text": "mine"}}
+    assert reasons(db, USER, own(USER, entity_type="repair", entity_id="t1", device_seq=2, **comment)) == []
+    assert reasons(db, bob, own(bob, entity_id="t1", device_seq=3, **gone)) == [
+        "only an Admin can delete someone else's ticket"
+    ]
+    deleted = own(USER, entity_id="t1", device_seq=4, **gone)
+    assert reasons(db, USER, deleted) == []
+    assert (derived.get_entity(db, "repair", "t1") or {}).get("state") == "wont_fix"
+    assert reasons(db, USER, deleted) == []
+    late = own(USER, entity_type="repair", entity_id="t1", device_seq=5, **comment)
+    assert reasons(db, USER, late) == ["this ticket was deleted"]
+
+    assert reasons(db, USER, own(USER, entity_id="t2", device_seq=6, **raise_)) == []
+    moved = {"field": "state", "value": "in_progress", "old": "open"}
+    assert reasons(db, bob, own(bob, entity_type="repair", entity_id="t2", device_seq=7, payload=moved)) == []
+    assert reasons(db, USER, own(USER, entity_id="t2", device_seq=8, **gone)) == [
+        "someone else has worked on this ticket; ask an Admin to delete it"
+    ]
+    assert reasons(db, ADMIN, own(ADMIN, entity_id="t2", device_seq=9, **gone)) == []
 
 
 def test_items_are_deleted_by_an_admin_and_then_cannot_move(db):

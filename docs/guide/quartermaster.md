@@ -36,6 +36,9 @@ Open **Reports** > **Needs repair** for every open ticket. Open one to read the 
 **In progress**, **Resolved** or **Won't fix**. Cost, time and parts go in a comment; the **From** and **To** dates
 below the list show what was raised or changed in a period.
 
+An Admin can delete any ticket raised in error: tap **Delete ticket…** twice. It leaves every list and cannot be brought
+back.
+
 ## Counting
 
 ### A stock check

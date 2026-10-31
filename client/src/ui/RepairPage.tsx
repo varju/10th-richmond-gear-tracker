@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { nameOf } from "../lib/inventory";
-import { REPAIR_STATES, repair, setRepairState, stateLabel } from "../lib/repairs";
+import { REPAIR_STATES, canDelete, deleteTicket, repair, setRepairState, stateLabel } from "../lib/repairs";
 import type { Note } from "../lib/replay";
-import { navigate } from "../lib/router";
+import { back, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { localMinute } from "../lib/time";
 import { guard } from "../lib/unsaved";
@@ -28,6 +28,16 @@ export function RepairPage({ store, id }: Props) {
     return (
       <Page title="Not found" back="/repairs">
         <p>No ticket with that id. It may not have synced to this device yet.</p>
+      </Page>
+    );
+  }
+
+  if (ticket.deleted) {
+    return (
+      <Page title="Repair" back={`/items/${ticket.item_id}`}>
+        <p className="notice" role="note">
+          This ticket was deleted.
+        </p>
       </Page>
     );
   }
@@ -75,7 +85,44 @@ export function RepairPage({ store, id }: Props) {
       <h3 className="section">Comments</h3>
       <NoteList store={store} on={{ entity_type: "repair", entity_id: id }} notes={(ticket.notes ?? []) as Note[]} />
       <AddNote store={store} on={{ entity_type: "repair", entity_id: id }} />
+
+      <DeleteTicket store={store} id={id} itemId={ticket.item_id} onError={setError} />
     </Page>
+  );
+}
+
+/** Two taps, because there is no undo (FR-REP-10). Moving away cancels the first. */
+function DeleteTicket({
+  store,
+  id,
+  itemId,
+  onError,
+}: {
+  store: Store;
+  id: string;
+  itemId: string;
+  onError: (message: string) => void;
+}) {
+  const [asked, setAsked] = useState(false);
+  if (!canDelete(store, id)) return null;
+
+  async function remove() {
+    if (!asked) {
+      setAsked(true);
+      return;
+    }
+    try {
+      await deleteTicket(store, id);
+      back(`/items/${itemId}`);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Could not delete the ticket");
+    }
+  }
+
+  return (
+    <button type="button" className={asked ? "warn" : ""} onClick={() => void remove()} onBlur={() => setAsked(false)}>
+      {asked ? "Really delete? This cannot be undone" : "Delete ticket…"}
+    </button>
   );
 }
 
