@@ -12,6 +12,7 @@ What the app does differently.
 - `b708c96` The AI assistant guide becomes a Scouters topic; the tab is renamed **Scouters**, and **Settings** > **AI
   assistant** drops its guide link. Includes the wording from `4eb7e1d`.
 - `daa5894` Marking an item as several of the same thing keeps its categories.
+- `98bed83` **Group with another item…** and **This is a duplicate record…** list nothing until you search.
 
 ## Chores
 
