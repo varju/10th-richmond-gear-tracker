@@ -1589,6 +1589,13 @@ def test_making_an_item_generic_keeps_its_categories(db_path, tools):
     assert assistant.get_item(tools["stove"])["categories"] == ["Tents"]
 
 
+def test_making_a_generic_single_keeps_its_categories(db_path, tools):
+    made = assistant.make_generic(tools["stove"])
+    assistant.update_item(made["generic_id"], assistant.ItemFields(category_ids=[tools["tents_cat"]]))
+    assistant.make_single(made["generic_id"])
+    assert assistant.get_item(tools["stove"])["categories"] == ["Tents"]
+
+
 def test_make_single_refuses_several_units_and_makes_an_item_from_none(db_path, tools):
     with pytest.raises(BadRequest, match="no more than one"):
         assistant.make_single(tools["tents"])

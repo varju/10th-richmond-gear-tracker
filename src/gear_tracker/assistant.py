@@ -1239,8 +1239,8 @@ def make_single(generic_id: str) -> dict[str, Any]:
                     "purchase_date": unit.get("purchase_date") or generic.get("purchase_date"),
                 }
             )
-            # The old side is the resolved set, as update_item reads it, not the raw field.
-            drafts = _field_drafts({**unit, "category_ids": views.categories_of(state, unit)}, patch)
+            # Stored, not resolved: a unit reads its generic's categories until parent_id clears.
+            drafts = _field_drafts(unit, patch)
         drafts += _field_drafts(generic, {"merged_into": item_id})
         _push(conn, who, drafts)
         return {"item_id": item_id, "generic_id": generic["id"]}
