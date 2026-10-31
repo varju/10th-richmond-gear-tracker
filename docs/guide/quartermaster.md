@@ -2,9 +2,9 @@
 
 ## What is out
 
-Open What is out. It groups every item that is out by who has it, and names the home, the event, and how many days it
-has been gone. On a computer the sections sit down the left of every screen, and the home screen lists these rows
-without opening anything. Print that page and the list goes on the locker door.
+Open Reports, then What is out. It groups every item that is out by who has it, and names the home, the event, and how
+many days it has been gone. On a computer, the home screen shows the same list. Print the page and pin it to the locker
+door.
 
 ## Gear that is gone too long
 
@@ -24,20 +24,20 @@ still has it. Add a note first if the story needs one.
 
 ## Work a repair ticket
 
-Open Needs repair for every open ticket. Open one to read the problem, add a comment, or move it to In progress,
-Resolved or Won't fix. Cost, time and parts go in a comment; the date range below the list shows what was raised or
-changed in a period.
+Open Reports, then Needs repair, for every open ticket. Open one to read the problem, add a comment, or move it to In
+progress, Resolved or Won't fix. Cost, time and parts go in a comment; the date range below the list shows what was
+raised or changed in a period.
 
 ## A stock check
 
 Open Stock check, pick the location and shelf you are standing at, and tap Start. Scan everything on the shelf.
-Misplaced here lists what state says lives elsewhere; Not seen yet lists what should be here. Tap Seen beside a row for
-gear with no code, or a sticker you cannot reach. Tap Finish, then Done. A check left running says so on the computer
-home screen until you finish it.
+Misplaced here lists gear whose home is somewhere else; Not seen yet lists what should be here but has not been scanned.
+Tap Seen beside a row for gear with no code, or a sticker you cannot reach. Tap Finish, then Done. A check left running
+says so on the computer home screen until you finish it.
 
 ## Recount a stack
 
-Open the pool and tap Recount. Say how many are in the locker right now, and why: a delivery, a breakage, a proper
+Open the stack and tap Recount. Say how many are in the locker right now, and why: a delivery, a breakage, a proper
 count. It resets what is on the shelf; what people already have out is untouched.
 
 ## Add an item
@@ -47,37 +47,60 @@ any column and keeps search and the filters in view.
 
 ## Several of the same thing
 
-Tick "We have several of these" when you save. The name is stored once and the item in your hand becomes #1. Add the
-next one by scanning a fresh code, tapping "Another of…", and picking the name.
+Tick "We have several of these" on New item, then pick one:
+
+- Labelled one by one, for tents. This saves the name, such as "Tent". Each tent is a unit with its own number and code:
+  scan a fresh code, tap "Another of…", and pick the name. Or open the name's page and tap Add a unit.
+- A stack we count, for mugs. Say how many. Nobody labels each mug; people check out a count.
+
+Starting from a scanned code, the tick saves the name and the item in your hand becomes #1.
+
+## Two records that are really a group
+
+Two tents entered as separate items? Open one and tap "Group with another item…", then pick the other. Both become
+numbered units under one name and keep their own history. To move a unit under a different name, open it and tap "Move
+to another generic…".
 
 ## Back to a single item
 
-Open the generic's page and tap "Make this a single item…", then confirm. Works with one unit left, or none: with one,
-that unit takes the generic's name, description, categories and purchase details, and its own home stays if it has one;
-with none, a fresh item takes them instead. The generic's page still opens, showing where it went.
+A name with labelled units can go back to being one item when it has one unit left, or none. Open the name's page, tap
+"Make this a single item…", and confirm.
 
-With no units left, "Make this a counted stack…" is also there: pick a quantity and confirm, and a fresh pool takes the
-generic's name, description, categories and purchase details.
+- With one unit left, that unit becomes the item. It keeps its own home.
+- With none left, a new item is made.
+
+Either way the item takes the name, description, categories and purchase details. The old page still opens and shows
+where it went.
+
+With no units left, "Make this a counted stack…" is also there. Pick a quantity and confirm, and a new stack takes the
+same details.
 
 ## Retire an item
 
 Open the item, tap Edit, and tick Retired. It leaves the lists and cannot be checked out; its history stays. Untick it
 to bring it back. Retire is for gear written off.
 
+## A record typed in twice
+
+One tent entered as two items? Only an Admin can fix it. Open the extra record, tap "This is a duplicate record…", pick
+the real one, and tap Merge. The extra record drops off the lists and points at the real one. Unmerge on either page
+undoes it.
+
 ## Delete an item
 
-Only an Admin, and only for a record made in error: a tent typed in twice, or an item that never existed. Open the item
-and tap "Delete for good…", then confirm. It has to be in, and a generic waits until its units have gone. The item
-leaves every list, including "show retired", and nothing in the app brings it back.
+Only an Admin, and only for an item that never existed. Open the item and tap "Delete for good…", then confirm. It has
+to be in, and a generic waits until its units have gone. The item leaves every list, including "show retired", and
+nothing in the app brings it back.
 
 ## Mark an item missing
 
-Open the item and tap Mark missing. It stays in the inventory, drops off What is out, and clears itself at the next scan
-or check-in. Missing is for gear that is only lost.
+Anyone can do this. Open the item and tap Mark missing. It stays in the inventory, drops off What is out, and clears
+itself at the next scan or check-in. Missing is for gear that is only lost.
 
 ## Photos
 
-Add photos on an item's page and on a repair ticket. They need a connection, and are never stored on the device.
+Add photos on an item's page and on a repair ticket. A photo taken with no signal waits on the device and uploads at the
+next sync. Viewing photos needs a connection.
 
 ## Locations and categories
 
@@ -88,8 +111,7 @@ there.
 
 In Settings, tap Export to download every item as a CSV. Edit it in a spreadsheet and import it back: a row with an id
 changes that item, a row without one adds one, a blank cell clears a field, and an unknown location or category is
-created. Preview shows what will change before anything is written. The same from the keyboard with `gear-admin export`
-and `gear-admin import`.
+created. Preview shows what will change before anything is written.
 
 ## Print a sheet of codes
 
@@ -120,7 +142,7 @@ cannot be demoted or deactivated.
 
 ## Fix a name or a misspelled email
 
-Open Users, pick the person, and edit their name or email. A renamed person sees their new name once they next sign in.
+Open Users, pick the person, and edit their name or email.
 
 ## A forgotten password
 
@@ -151,8 +173,8 @@ then send a test to your own address. Mail is optional; without it you pass link
 
 Open Calendars in Settings and paste a calendar feed's URL. The server checks it every hour, and the reservation form
 and a scanning session then offer its upcoming events for the event name; picking one in the reservation form also fills
-the dates. Remove a feed, or tap Refresh now to check it right away. A feed's URL stays on the server, even from an
-Admin: the list shows it with the host and path only.
+the dates. Remove a feed, or tap Refresh now to check it right away. Once saved, the full link is hidden; the list shows
+a shortened form.
 
 ## Read the audit log
 
@@ -165,5 +187,4 @@ works offline.
 
 ## Backups
 
-The host copies the database and the photo directory on a schedule. Rehearse a restore once so you know it works. See
-docs/deploy.md.
+The host copies the database and the photo directory on a schedule. Rehearse a restore once so you know it works.

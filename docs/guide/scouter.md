@@ -3,8 +3,8 @@
 ## Check gear out
 
 Tap Scan and point the camera at a code. The card shows the item; tap Check out. The first check-out asks for the event:
-tap tonight's from the list, type one, or tap No event. It stays set until four hours pass with no move; Change at the
-top changes it. Checking out from an item's page asks the same way.
+tap one from the list, type a name and tap Create, or tap No event. Later check-outs use the same event until four hours
+pass with no move. To switch events, tap Change at the top. Checking out from an item's page asks the same way.
 
 ## Return gear
 
@@ -13,9 +13,9 @@ offers Return and Take over: pick the one you mean. Any order, any number of eve
 
 ## Take some of a stack
 
-Some gear is a stack, not a sticker: bowls, mugs, tent pegs. Open it by search and tap Check out. It asks how many —
-starting at 1 — and the event, same as any check-out. Return offers the count you have out; confirm it, or change it if
-you are keeping some back.
+Some gear is counted, not labelled one by one: bowls, mugs, tent pegs. Scan the stack's code if it has one, or find it
+by search, and tap Check out. It asks how many — starting at 1 — and the event, same as any check-out. Return offers the
+count you have out; confirm it, or change it if you are keeping some back.
 
 ## Pack for a reservation
 
@@ -35,8 +35,9 @@ then use Filters to narrow by location, shelf, category, or in and out.
 
 ## Report damage
 
-Tap Report a problem on the item's card and say what is wrong. Then tap Return; the ticket is raised with the movement.
-To raise it without moving the item, tap Save without moving. The item is flagged for whoever takes it next.
+Tap Report a problem on the item's card and say what is wrong. Then tap Return, or Check out if it is in the locker; the
+ticket is raised with that move. To raise it without moving the item, tap Save without moving. The item is flagged for
+whoever takes it next.
 
 ## Take gear someone else has
 
@@ -63,8 +64,8 @@ instead.
 
 ## A sticker fell off
 
-Open the item, tap Replace code, and scan a fresh sticker. Its history, tickets and reservations stay with it. The old
-sticker still opens the same item if it turns up.
+Open the item, tap Replace QR code, and scan a fresh sticker. Its history, tickets and reservations stay with it. The
+old sticker still opens the same item if it turns up.
 
 ## Add an item on a labelling walk
 
@@ -80,6 +81,10 @@ Tick "We have several of these" before you save. The name is stored once, and th
 Scan the next code, tap "Another of…", and tap the name. The ones you labelled last are at the top. It is created with
 the next number, labelled, and you are back at the scanner. Type the number first when the gear already has one written
 on it.
+
+## Gear you cannot find
+
+Open the item and tap Mark missing. It drops off What is out until someone scans it or returns it.
 
 ## Sign in
 
