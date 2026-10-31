@@ -1493,6 +1493,44 @@ h3.section.small {
   max-width: 60ch;
 }
 
+/* The open guide on paper: its tab becomes the title, links that go nowhere are dropped. */
+@media print {
+  .tabs {
+    border: 0;
+  }
+
+  .tabs button:not([aria-selected="true"]),
+  .guide-contents {
+    display: none;
+  }
+
+  .tabs button[aria-selected="true"] {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    color: #000;
+    font-size: 20pt;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .guide {
+    font-size: 11pt;
+  }
+
+  .guide h3 {
+    margin-top: 14pt;
+    font-size: 13pt;
+    break-after: avoid;
+  }
+
+  .guide p {
+    max-width: none;
+    orphans: 3;
+    widows: 3;
+  }
+}
+
 /* --- M15: the desk screens on paper --------------------------------------------------
  *
  * What is out, pinned to the locker door: the data, without the ways of
