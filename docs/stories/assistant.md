@@ -27,8 +27,10 @@ Covers: FR-MCP-03, FR-MCP-05, FR-MCP-06, FR-RES-10
 
 ## S-MCP-03 What it cannot do
 
-The Scouter asks the assistant to invite a new volunteer. It cannot; that is an Admin's job in the app.
+A User asks the assistant to invite a new volunteer. It refuses, the same way the app refuses a User. Later they ask it
+to delete their account. It refuses that too, whoever asks: that is done in the app.
 
-- No user, setting, location, type, or code change is offered
+- A User's token is refused an Admin's work
+- Nobody's token deletes their own account
 
-Covers: FR-MCP-04
+Covers: FR-MCP-10, FR-MCP-31

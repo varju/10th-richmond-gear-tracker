@@ -36,6 +36,9 @@ Apple approves an update and the phone installs it. A server deploy must keep ol
 TestFlight build. Change the API or sync additively; drop the old shape only once no supported app build uses it. See
 [architecture.md](docs/architecture.md) "How it ships".
 
+**The assistant can do what the app does.** A new capability gets an MCP tool in `assistant.py` in the same change, or a
+Won't row in the FR-MCP section saying why it is left out.
+
 ## Writing requirements
 
 - Each section is sorted by descending priority: Must, Should, Could, Won't. IDs run linearly from 01 within a section.

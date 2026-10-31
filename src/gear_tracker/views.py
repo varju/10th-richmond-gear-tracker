@@ -173,6 +173,29 @@ def pool_counts(it: Fields) -> Fields:
     return {"owned": owned, "in": pool_in, "out": out}
 
 
+def active_users(state: State) -> list[Fields]:
+    """Members who can hold gear, by name. Mirrors activeUsers in inventory.ts."""
+    found = [{**u, "name": u.get("name") or u["id"]} for u in table(state, "user") if u.get("active") is not False]
+    return sorted(found, key=lambda u: u["name"].lower())
+
+
+def open_conflicts(state: State) -> list[Fields]:
+    """Double check-outs nothing has settled (FR-OFF-10), oldest later check-out first. Mirrors
+    openConflicts in conflicts.ts: open while the later check-out is still the item's current
+    movement and nobody has reviewed it."""
+    found = []
+    for it in items(state):
+        current = (it.get("movement") or {}).get("id")
+        if not current:
+            continue
+        for c in it.get("conflicts") or []:
+            earlier, later = c["events"]
+            if later["id"] == current and it.get("reviewed_movement") != later["id"]:
+                found.append({"item": it, "earlier": earlier, "later": later})
+                break
+    return sorted(found, key=lambda c: (c["later"]["at"], c["item"]["id"]))
+
+
 def has_gear_out(state: State, it: Fields) -> bool:
     """True when this item, in whatever shape it takes, has gear away from the shelf: an ordinary
     item checked out, a pool with any holder's count above zero, or a generic with a unit out."""

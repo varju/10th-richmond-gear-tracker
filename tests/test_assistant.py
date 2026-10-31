@@ -7,6 +7,7 @@ raw JSON-RPC and once with the SDK's own client.
 
 from __future__ import annotations
 
+import base64
 import email
 import socket
 from typing import TypedDict
@@ -1304,7 +1305,7 @@ def test_a_pools_page_reports_owned_in_and_out_by_holder(tools, pool_id):
     assistant.check_out(pool_id, count=6, event="Fall Camp")
     got = assistant.get_item(pool_id)
     assert got["owned"] == 20 and got["in"] == 14
-    assert got["out"] == [{"holder": "Alice", "count": 6}]
+    assert got["out"] == [{"holder_id": ALICE, "holder": "Alice", "count": 6}]
 
 
 def test_a_pools_history_carries_checkouts_and_recounts(tools, pool_id):
@@ -1323,7 +1324,7 @@ def test_search_marks_a_pool_row_and_carries_its_counts(tools, pool_id):
     assert rows["Tent pegs"]["kind"] == "pool"
     assert rows["Tent pegs"]["owned"] == 20
     assert rows["Tent pegs"]["in"] == 14
-    assert rows["Tent pegs"]["out"] == [{"holder": "Alice", "count": 6}]
+    assert rows["Tent pegs"]["out"] == [{"holder_id": ALICE, "holder": "Alice", "count": 6}]
 
 
 def test_check_out_and_in_a_pool_move_by_count(tools, pool_id):
@@ -1340,7 +1341,7 @@ def test_check_out_and_in_a_pool_move_by_count(tools, pool_id):
     back = assistant.check_in(pool_id, count=2)
     assert back == {"item_id": pool_id, "count": 2}
     left = assistant.get_item(pool_id)
-    assert left["in"] == 16 and left["out"] == [{"holder": "Alice", "count": 4}]
+    assert left["in"] == 16 and left["out"] == [{"holder_id": ALICE, "holder": "Alice", "count": 4}]
 
     # Left off, it defaults to what is still out (FR-OUT-23).
     rest = assistant.check_in(pool_id)
@@ -1491,3 +1492,216 @@ def test_refresh_calendar_feeds_reports_each_feed(admin_tools):
     assert len(feeds) == 1
     assert feeds[0]["label"] == "Troop"
     assert feeds[0]["last_error"]
+
+
+# --- what the app does that the assistant also does (FR-MCP-11 to FR-MCP-30) ------------------------------
+
+
+BOB = "01DDDDDDDDDDDDDDDDDDDDDDDD"
+
+
+@pytest.fixture
+def bob(db_path, tools):
+    with open_db(db_path) as conn:
+        events.append_server(conn, ALICE, "user", BOB, "created", {"name": "Bob", "role": "user", "active": True})
+    return BOB
+
+
+def test_transfer_hands_gear_on_and_takes_it_back_without_a_conflict(db_path, tools, bob):
+    assert {m["name"] for m in assistant.list_members()["members"]} == {"Alice", "Bob"}
+    with pytest.raises(BadRequest, match="not out"):
+        assistant.transfer(tools["stove"], bob)
+
+    assistant.check_out(tools["stove"], event="Fall Camp")
+    assert assistant.transfer(tools["stove"], bob, event="Fall Camp")["holder"] == "Bob"
+    with pytest.raises(Conflict):
+        assistant.transfer(tools["stove"], bob)
+    with pytest.raises(NotFound):
+        assistant.transfer(tools["stove"], "01EEEEEEEEEEEEEEEEEEEEEEEE")
+
+    assistant.transfer(tools["stove"])
+    stored = entity(db_path, "item", tools["stove"])
+    assert stored["holder_id"] == ALICE
+    assert not stored.get("conflicts")
+
+
+def _checked_out_elsewhere(db_path, item_id, holder):
+    """A second check-out from another device, with no check-in between: a conflict (FR-OFF-10)."""
+    with open_db(db_path) as conn:
+        events.append_server(conn, holder, "item", item_id, "checked_out", {"holder_id": holder, "event": None})
+
+
+def test_a_double_check_out_is_listed_and_settled_either_way(db_path, tools, bob):
+    for item_id in (tools["t1"], tools["t2"]):
+        assistant.check_out(item_id)
+        _checked_out_elsewhere(db_path, item_id, bob)
+    listed = assistant.list_conflicts()["conflicts"]
+    assert [c["item_id"] for c in listed] == [tools["t1"], tools["t2"]]
+    assert listed[0]["earlier"]["holder"] == "Alice" and listed[0]["later"]["holder"] == "Bob"
+
+    assistant.settle_conflict(tools["t1"], "keep", note="Bob took it at the hall")
+    assistant.settle_conflict(tools["t2"], "back")
+    assert assistant.list_conflicts()["conflicts"] == []
+    assert entity(db_path, "item", tools["t1"])["holder_id"] == BOB
+    assert entity(db_path, "item", tools["t2"])["status"] == "in"
+    with pytest.raises(BadRequest, match="no open conflict"):
+        assistant.settle_conflict(tools["t1"], "keep")
+
+
+def test_a_single_item_becomes_several_and_back_again(db_path, tools):
+    made = assistant.make_generic(tools["stove"])
+    generic = entity(db_path, "item", made["generic_id"])
+    assert generic["generic"] is True and generic["name"] == "Camp stove"
+    assert entity(db_path, "item", tools["stove"])["parent_id"] == made["generic_id"]
+    with pytest.raises(BadRequest):
+        assistant.make_generic(tools["stove"])
+
+    back = assistant.make_single(made["generic_id"])
+    assert back["item_id"] == tools["stove"]
+    stove = entity(db_path, "item", tools["stove"])
+    assert stove["name"] == "Camp stove" and stove.get("parent_id") is None
+    assert entity(db_path, "item", made["generic_id"])["merged_into"] == tools["stove"]
+
+
+def test_make_single_refuses_several_units_and_makes_an_item_from_none(db_path, tools):
+    with pytest.raises(BadRequest, match="no more than one"):
+        assistant.make_single(tools["tents"])
+    empty = assistant.create_item("Dining fly", generic=True)["item_id"]
+    made = assistant.make_single(empty)["item_id"]
+    assert entity(db_path, "item", made)["name"] == "Dining fly"
+    assert entity(db_path, "item", empty)["merged_into"] == made
+
+
+def test_two_items_are_grouped_and_a_unit_moves_between_generics(db_path, tools):
+    a = assistant.create_item("Blue tarp")["item_id"]
+    b = assistant.create_item("Blue tarp")["item_id"]
+    with pytest.raises(BadRequest, match="different numbers"):
+        assistant.group_items(a, b, number="1")
+    grouped = assistant.group_items(a, b, number="2")
+    assert entity(db_path, "item", a)["parent_id"] == grouped["generic_id"]
+    assert entity(db_path, "item", b)["number"] == "1"
+
+    moved = assistant.move_unit(tools["t1"], grouped["generic_id"])
+    assert moved["number"] == "3"  # 1 is taken there, so it is bumped
+    assert entity(db_path, "item", tools["t1"])["parent_id"] == grouped["generic_id"]
+
+
+def test_a_single_item_becomes_a_counted_pool(db_path, tools):
+    made = assistant.make_pool(tools["stove"], 4)
+    pool = entity(db_path, "item", made["item_id"])
+    assert pool["pool"] is True and pool["quantity"] == 4 and pool["name"] == "Camp stove"
+    assert entity(db_path, "item", tools["stove"])["merged_into"] == made["item_id"]
+    with pytest.raises(BadRequest, match="remove its units"):
+        assistant.make_pool(tools["tents"], 3)
+
+
+def test_a_deleted_record_is_not_reshaped_back_to_life(db_path, tools, admin):
+    empty = assistant.create_item("Dining fly", generic=True)["item_id"]
+    with assistant.acting_as(admin, db_path):
+        assistant.delete_item(empty)
+    with pytest.raises(NotFound):
+        assistant.make_single(empty)
+    with pytest.raises(NotFound):
+        assistant.make_pool(empty, 2)
+
+
+def test_notes_are_added_corrected_and_deleted(tools):
+    note_id = assistant.add_note(tools["stove"], "the burner sticks")["note_id"]
+    assert assistant.get_item(tools["stove"])["notes"][0]["note_id"] == note_id
+    assistant.correct_note(tools["stove"], note_id, "the left burner sticks")
+    assert assistant.get_item(tools["stove"])["notes"][0]["text"] == "the left burner sticks"
+    assistant.delete_note(tools["stove"], note_id)
+    assert assistant.get_item(tools["stove"])["notes"] == []
+    with pytest.raises(NotFound):
+        assistant.delete_note(tools["stove"], note_id)
+
+
+def test_the_event_gear_is_out_under_is_corrected(db_path, tools):
+    with pytest.raises(BadRequest, match="only gear that is out"):
+        assistant.correct_event(tools["stove"], event="x")
+    assistant.check_out(tools["stove"], event="Fall Camp")
+    assistant.correct_event(tools["stove"], event="Winter Camp")
+    assert entity(db_path, "item", tools["stove"])["movement"]["event"] == "Winter Camp"
+    assert assistant.get_item(tools["stove"])["history"][0]["event"] == "Winter Camp"
+
+
+def test_gear_packed_for_a_reservation_is_linked_not_corrected(db_path, tools):
+    camp = assistant.create_reservation("Fall Camp", "2099-10-02", "2099-10-04", items=[tools["stove"]])
+    assistant.check_out(tools["stove"], event="Fall Camp", reservation_id=camp["reservation_id"])
+    with pytest.raises(BadRequest, match="packed for a reservation"):
+        assistant.correct_event(tools["stove"], event="Winter Camp")
+    assert entity(db_path, "item", tools["stove"])["movement"]["reservation_id"] == camp["reservation_id"]
+
+
+def test_a_pool_comes_back_from_someone_else(db_path, tools, pool_id, bob):
+    with open_db(db_path) as conn:
+        events.append_server(conn, BOB, "item", pool_id, "checked_out", {"holder_id": BOB, "event": None, "count": 5})
+    with pytest.raises(BadRequest, match="you have none"):
+        assistant.check_in(pool_id)
+    out = assistant.get_item(pool_id)["out"]
+    assert out == [{"holder_id": BOB, "holder": "Bob", "count": 5}]
+    assistant.check_in(pool_id, count=3, holder_id=BOB)
+    assert assistant.get_item(pool_id)["out"][0]["count"] == 2
+    with pytest.raises(BadRequest, match="only for a pool"):
+        assistant.check_in(tools["stove"], holder_id=BOB)
+
+
+PNG = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"\x00" * 16).decode()
+
+
+def test_a_photo_is_added_fetched_and_removed(db_path, tools):
+    added = assistant.add_photo("item", tools["stove"], "image/png", PNG)
+    listed = assistant.list_photos("item", tools["stove"])["photos"]
+    assert [p["photo_id"] for p in listed] == [added["photo_id"]]
+    assert assistant.get_item(tools["stove"])["photos"] == 1
+
+    image = assistant.get_photo(added["photo_id"])
+    assert image.data == base64.b64decode(PNG)
+
+    assistant.remove_photo("item", tools["stove"], added["photo_id"])
+    assert assistant.list_photos("item", tools["stove"])["photos"] == []
+    wrapped = "\n".join(PNG[i : i + 8] for i in range(0, len(PNG), 8))
+    assert assistant.add_photo("item", tools["stove"], "image/png", wrapped)["size"] == len(base64.b64decode(PNG))
+    with pytest.raises(BadRequest, match="base64"):
+        assistant.add_photo("item", tools["stove"], "image/png", "not base64!")
+
+
+def test_a_stock_check_finds_misplaced_unseen_and_missing_gear(db_path, tools):
+    for unit in ("t1", "t2", "t3"):
+        assistant.update_item(tools[unit], assistant.ItemFields(home_location_id=tools["cold"]))
+    assistant.mark_missing(tools["t1"])
+    checked = assistant.stock_check(tools["cold"], seen=[tools["t1"], tools["stove"], "01FFFFFFFFFFFFFFFFFFFFFFFF"])
+    assert [b["item_id"] for b in checked["misplaced"]] == [tools["stove"]]
+    assert [b["item_id"] for b in checked["seen_here"]] == [tools["t1"]]
+    assert {b["item_id"] for b in checked["not_seen"]} == {tools["t2"], tools["t3"]}
+    assert checked["found_again"] == [tools["t1"]]
+    assert checked["unknown"] == ["01FFFFFFFFFFFFFFFFFFFFFFFF"]
+    assert "missing" not in checked["seen_here"][0]
+    assert entity(db_path, "item", tools["t1"])["missing"] is False
+
+
+def test_an_admin_reads_the_audit_log_and_a_user_cannot(tools, db_path, admin):
+    with pytest.raises(Forbidden):
+        assistant.read_audit_log()
+    with assistant.acting_as(admin, db_path):
+        page = assistant.read_audit_log(type="created", entity_type="item")
+    assert page["more"] is False
+    assert {e["item"] for e in page["events"]} >= {"Camp stove", "4-person tent"}
+    with assistant.acting_as(admin, db_path), pytest.raises(BadRequest):
+        assistant.read_audit_log(type="nonsense")
+
+
+def test_a_user_cannot_fold_a_generic_that_still_files_a_deleted_unit(db_path, tools, admin):
+    with assistant.acting_as(admin, db_path):
+        assistant.delete_item(tools["t2"])
+        assistant.delete_item(tools["t3"])
+    with pytest.raises(BadRequest, match="an Admin can do this"):
+        assistant.make_single(tools["tents"])
+    assert entity(db_path, "item", tools["t1"])["parent_id"] == tools["tents"]  # nothing half-written
+    with assistant.acting_as(admin, db_path):
+        assert assistant.make_single(tools["tents"])["item_id"] == tools["t1"]
+
+
+def test_an_oversized_photo_is_refused_before_it_is_decoded(tools):
+    with pytest.raises(ApiError, match="at most"):
+        assistant.add_photo("item", tools["stove"], "image/png", "A" * (8 * 1024 * 1024))

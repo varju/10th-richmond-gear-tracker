@@ -893,6 +893,11 @@ raises. Locations, categories and merges are events, so the sync layer gates the
 create a category, as the item editor allows. The MCP tools call `accounts._require_admin` as well, so the refusal reads
 the same as the app's.
 
+**Everything the app does, bar one.** Each capability in the app has a tool (CLAUDE.md). The one left out is deleting
+your own account (FR-MCP-31). A photo goes either way as base64, saved through the same `photos.save` as the upload
+endpoint. A stock check is one call: the items seen go in and the answer comes out, since the app's check keeps nothing
+on the server either.
+
 ## Public pages
 
 The only unauthenticated surface: scan a code while signed out, see the group name and how to make contact, never the

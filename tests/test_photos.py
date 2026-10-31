@@ -5,9 +5,10 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from gear_tracker.app import PHOTO_MAX_BYTES, create_app
+from gear_tracker.app import create_app
 from gear_tracker.db import open_db
 from gear_tracker.events import append
+from gear_tracker.photos import MAX_BYTES as PHOTO_MAX_BYTES
 from tests.factories import T0, incoming
 from tests.test_app import as_alice, authenticate
 

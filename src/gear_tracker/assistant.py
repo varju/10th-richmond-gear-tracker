@@ -1,4 +1,4 @@
-"""Assistant access over MCP: the same inventory, asked for in words (FR-MCP-01 to FR-MCP-10).
+"""Assistant access over MCP: the same inventory, asked for in words (FR-MCP-01 to FR-MCP-30).
 
 One process. The MCP server is mounted at `/mcp` in the same FastAPI app, over
 Streamable HTTP, using the official SDK.
@@ -35,11 +35,15 @@ same server- or client-side rule mirrored in the tool where the app only
 checks it in the browser (locations, categories, merge, unmerge, delete).
 Unassigning a code (FR-MCP-09) is a User's job on any token, so
 `unassign_code` sits with the rest of the User tools below.
+
+**What the app does, the assistant does** (FR-MCP-11 to FR-MCP-30), except delete the
+signed-in person's own account (FR-MCP-31).
 """
 
 from __future__ import annotations
 
 import base64
+import datetime
 import functools
 import json
 import sqlite3
@@ -52,6 +56,7 @@ from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.mcpserver.utilities.types import Image
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StringConstraints
 from starlette.requests import Request
@@ -59,14 +64,27 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.types import Receive, Scope, Send
 
-from gear_tracker import accounts, calendars, codes, derived, inventory_csv, labels, mail, notify, sync, views
+from gear_tracker import (
+    accounts,
+    calendars,
+    codes,
+    derived,
+    events,
+    inventory_csv,
+    labels,
+    mail,
+    notify,
+    sync,
+    views,
+)
 from gear_tracker import conflicts as clashes
+from gear_tracker import photos as photo_files
 from gear_tracker.db import connect
-from gear_tracker.errors import ApiError, BadRequest, Conflict, NotFound
-from gear_tracker.events import REPAIR_STATES, HttpsUrlOrBlank, now_ms
+from gear_tracker.errors import ApiError, BadRequest, Conflict, NotFound, TooLarge
+from gear_tracker.events import REPAIR_STATES, HttpsUrlOrBlank, PhotoEntity, PhotoType, now_ms
 from gear_tracker.ratelimit import RateLimit
 from gear_tracker.sync import Principal
-from gear_tracker.ulid import new_ulid
+from gear_tracker.ulid import is_ulid, new_ulid
 
 MCP_PATH = "/mcp"
 
@@ -83,7 +101,8 @@ assistant. Users, standing join links, mail, group settings, calendar feeds, loc
 categories, printed codes, CSV import, deleting an item, and merging duplicates
 are an Admin's job in the app, and are here too when the signed-in person is an Admin; a User's token is
 refused the same way the app refuses a User. A pool is gear kept as a counted stack, not named
-units; check_out, check_in and recount move it by count."""
+units; check_out, check_in and recount move it by count. Everything else a person does in the app
+is here too, except deleting their own account."""
 
 
 @dataclass(frozen=True)
@@ -92,6 +111,7 @@ class Caller:
 
     who: Principal
     db_path: Path
+    photo_dir: Path
 
 
 _CALLER: ContextVar[Caller] = ContextVar("gear_tracker_mcp_caller")
@@ -99,9 +119,9 @@ _CALLER: ContextVar[Caller] = ContextVar("gear_tracker_mcp_caller")
 
 
 @contextmanager
-def acting_as(who: Principal, db_path: str | Path) -> Iterator[None]:
+def acting_as(who: Principal, db_path: str | Path, photo_dir: str | Path | None = None) -> Iterator[None]:
     """Run the tool functions as this caller, outside an MCP request. The endpoint sets the same variable."""
-    token = _CALLER.set(Caller(who=who, db_path=Path(db_path)))
+    token = _CALLER.set(Caller(who=who, db_path=Path(db_path), photo_dir=photo_files.store_dir(db_path, photo_dir)))
     try:
         yield
     finally:
@@ -201,6 +221,14 @@ def _item(state: dict[str, Any], item_id: str) -> dict[str, Any]:
     return it
 
 
+def _live_raw_item(state: dict[str, Any], item_id: str) -> dict[str, Any]:
+    """The record itself, as _raw_item, but never one deleted for good (FR-INV-32)."""
+    it = _raw_item(state, item_id)
+    if it.get("deleted"):
+        raise NotFound(f"no item with id {item_id}")
+    return it
+
+
 def _raw_item(state: dict[str, Any], item_id: str) -> dict[str, Any]:
     """The record itself, not the survivor a merge points to (FR-INV-13). What deleteItem, mergeItem and
     unmergeItem read on the device: they act on the id given, not on what it resolves to."""
@@ -281,7 +309,10 @@ def _row(state: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
             "name": row["name"],
             "owned": counts["owned"],
             "in": counts["in"],
-            "out": [{"holder": views.user_name(state, o["holder_id"]), "count": o["count"]} for o in counts["out"]],
+            "out": [
+                {"holder_id": o["holder_id"], "holder": views.user_name(state, o["holder_id"]), "count": o["count"]}
+                for o in counts["out"]
+            ],
         }
     else:
         out = {
@@ -363,9 +394,21 @@ def _history(conn: sqlite3.Connection, state: dict[str, Any], item_id: str) -> l
         """,
         (*ids, HISTORY_SHOWN),
     ).fetchall()
+    corrected = {}
+    for fix in conn.execute(
+        f"""
+        SELECT payload FROM events WHERE entity_type = 'item' AND entity_id IN ({marks}) AND type = 'event_corrected'
+        ORDER BY effective_at, device_id, device_seq
+        """,
+        ids,
+    ):
+        fixed = json.loads(fix["payload"])
+        corrected[fixed["movement_id"]] = fixed.get("event")
     out = []
     for row in rows:
         payload = json.loads(row["payload"])
+        if row["id"] in corrected:
+            payload["event"] = corrected[row["id"]]
         entry = {
             "type": row["type"],
             "at": views.iso(row["effective_at"]),
@@ -423,7 +466,8 @@ def get_item(item_id: str) -> dict[str, Any]:
             out["owned"] = counts["owned"]
             out["in"] = counts["in"]
             out["out"] = [
-                {"holder": views.user_name(state, o["holder_id"]), "count": o["count"]} for o in counts["out"]
+                {"holder_id": o["holder_id"], "holder": views.user_name(state, o["holder_id"]), "count": o["count"]}
+                for o in counts["out"]
             ]
         else:
             if it.get("generic"):
@@ -440,9 +484,15 @@ def get_item(item_id: str) -> dict[str, Any]:
         # never moves, so it has none.
         out["history"] = [] if it.get("generic") and not views.is_pool(it) else _history(conn, state, it["id"])
         out["notes"] = [
-            {"text": note["text"], "by": views.user_name(state, note.get("actor_id")), "at": views.iso(note.get("at"))}
+            {
+                "note_id": note["id"],
+                "text": note["text"],
+                "by": views.user_name(state, note.get("actor_id")),
+                "at": views.iso(note.get("at")),
+            }
             for note in it.get("notes") or []
         ]
+        out["photos"] = len(it.get("photos") or [])
         return out
 
 
@@ -837,7 +887,7 @@ def add_unit(generic_id: str, number: str | None = None, nickname: str | None = 
         parent = _item(state, generic_id)
         if not parent.get("generic"):
             raise BadRequest("that item is not one the group owns several of")
-        taken = {str(unit.get("number") or "").strip() for unit in views.units_of(state, parent["id"])}
+        taken = _numbers(state, parent["id"])
         number = _next_number(taken) if number is None else number.strip()
         if not number:
             raise BadRequest("a unit needs a number")
@@ -874,10 +924,7 @@ def update_item(item_id: str, fields: ItemFields) -> dict[str, Any]:
             raise BadRequest("only one of several has a number")
         if "number" in patch:
             patch["number"] = patch["number"].strip()
-            if any(
-                str(unit.get("number") or "").strip() == patch["number"] and unit["id"] != it["id"]
-                for unit in views.units_of(state, it["parent_id"])
-            ):
+            if _number_taken(state, it["parent_id"], patch["number"], it["id"]):
                 raise Conflict(f"#{patch['number']} is taken")
         # A list compares by value, not like the fallback `category_id` it may still carry, so
         # the old side of the diff is the resolved set, not the raw field.
@@ -1015,6 +1062,333 @@ def unmerge_item(item_id: str) -> dict[str, Any]:
         ]
         _push(conn, who, drafts)
         return {"item_id": item_id, "merged_into": None}
+
+
+def _unit_number(value: str) -> str:
+    """A number as it is stored: what was typed, trimmed. Blank is not a number (FR-INV-23)."""
+    number = value.strip()
+    if not number:
+        raise BadRequest("a unit needs a number")
+    return number
+
+
+def _numbers(state: dict[str, Any], generic_id: str, except_id: str | None = None) -> set[str]:
+    """The unit numbers in use under a generic, as stored: trimmed text."""
+    return {str(u.get("number") or "").strip() for u in views.units_of(state, generic_id) if u["id"] != except_id}
+
+
+def _number_taken(state: dict[str, Any], generic_id: str, number: str, except_id: str | None = None) -> bool:
+    return number in _numbers(state, generic_id, except_id)
+
+
+def _clean(fields: dict[str, Any]) -> dict[str, Any]:
+    """What the app stores: strings trimmed, a blank one is absence. None stays, to clear a field."""
+    return {k: (v.strip() or None) if isinstance(v, str) else v for k, v in fields.items()}
+
+
+def _field_drafts(it: dict[str, Any], patch: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        _draft("item", it["id"], "field_changed", {"field": field, "value": value, "old": old})
+        for field, value, old in _changes(it, patch)
+    ]
+
+
+def _created_payload(fields: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in _clean(fields).items() if v is not None and v != []}
+
+
+def _carried(state: dict[str, Any], it: dict[str, Any], *, purchase: bool = True) -> dict[str, Any]:
+    """What a new item made from this one takes: name, description and home, and, unless the app leaves
+    them behind (makeGeneric does), purchase details and categories."""
+    fields: dict[str, Any] = {
+        "name": it.get("name") or "",
+        "description": it.get("description") or "",
+        "home_location_id": it.get("home_location_id"),
+        "sub_location": it.get("sub_location") or "",
+    }
+    if purchase:
+        fields["purchase_date"] = it.get("purchase_date")
+        fields["category_ids"] = _sorted_categories(state, views.categories_of(state, it))
+    return _created_payload(fields)
+
+
+def _hidden_units(state: dict[str, Any], generic_id: str) -> bool:
+    """Units the lists leave out, deleted or merged away, but the server's fold rule still counts. A User's
+    fold of a generic that has them is refused partway, so the tool refuses it before writing anything."""
+    return any(
+        it.get("parent_id") == generic_id and (it.get("deleted") or it.get("merged_into"))
+        for it in views.table(state, "item")
+    )
+
+
+def _refuse_hidden_units(state: dict[str, Any], who: Principal, generic_id: str) -> None:
+    if who.role != "admin" and _hidden_units(state, generic_id):
+        raise BadRequest("a deleted or merged unit is still filed under it; an Admin can do this")
+
+
+def _make_generic_drafts(state: dict[str, Any], it: dict[str, Any], number: str) -> tuple[str, list[dict[str, Any]]]:
+    """makeGeneric in actions.ts: a new generic takes the item's name, description and home, and the
+    item becomes its unit with this number (FR-INV-26)."""
+    generic_id = new_ulid()
+    payload = _carried(state, it, purchase=False)
+    drafts = [_draft("item", generic_id, "created", {**payload, "generic": True})]
+    drafts += _field_drafts(it, {"parent_id": generic_id, "number": number, "name": None})
+    return generic_id, drafts
+
+
+def make_generic(item_id: str, number: str = "1") -> dict[str, Any]:
+    """Say the group owns several of a single item (FR-INV-26). A new generic takes its name, description
+    and home; the item becomes its first unit, with this number, and keeps its code and history."""
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, item_id)
+        if it.get("generic"):
+            raise BadRequest("already generic")
+        if it.get("parent_id"):
+            raise BadRequest("this is already one of several")
+        first = _unit_number(number)
+        generic_id, drafts = _make_generic_drafts(state, it, first)
+        _push(conn, who, drafts)
+        return {"generic_id": generic_id, "item_id": it["id"], "number": first}
+
+
+def group_items(item_id: str, other_id: str, number: str, other_number: str = "1") -> dict[str, Any]:
+    """Two items that are really the same kind of thing become units of one generic (FR-INV-30).
+
+    Not a merge: both are real. If the other is a single item, a generic is made from its name and it
+    becomes unit `other_number`; if it is a generic or one of its units, this item joins that generic.
+    This item becomes unit `number`. Both keep their own home, code, movements and tickets.
+    """
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, item_id)
+        other = _item(state, other_id)
+        if it["id"] == other["id"]:
+            raise BadRequest("an item cannot be grouped with itself")
+        if it.get("generic"):
+            raise BadRequest("this is already a name for several")
+        if it.get("parent_id"):
+            raise BadRequest("this is already one of several")
+        if views.is_pool(other):
+            raise BadRequest("a pool has no units (FR-INV-34)")
+        mine = _unit_number(number)
+        theirs = _unit_number(other_number)
+        fresh = not other.get("generic") and not other.get("parent_id")
+        if fresh:
+            if mine == theirs:
+                raise BadRequest("the two need different numbers")
+            generic_id, drafts = _make_generic_drafts(state, other, theirs)
+        else:
+            generic_id, drafts = other.get("parent_id") or other["id"], []
+            if _number_taken(state, generic_id, mine):
+                raise Conflict(f"#{mine} is taken")
+        drafts += _field_drafts(it, {"parent_id": generic_id, "number": mine, "name": None})
+        _push(conn, who, drafts)
+        return {"generic_id": generic_id, "item_id": it["id"], "number": mine}
+
+
+def move_unit(unit_id: str, generic_id: str) -> dict[str, Any]:
+    """A unit filed under the wrong generic moves to another (FR-INV-28). Its history moves with it;
+    a number already taken there is bumped to the next free one."""
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, unit_id)
+        parent = _item(state, generic_id)
+        if not it.get("parent_id"):
+            raise BadRequest("not a unit")
+        if not parent.get("generic"):
+            raise BadRequest("not a generic item")
+        if views.is_pool(parent):
+            raise BadRequest("a pool has no units (FR-INV-34)")
+        if parent["id"] == it["parent_id"]:
+            return {"item_id": it["id"], "generic_id": parent["id"], "number": it.get("number"), "already": True}
+        mine = str(it.get("number") or "").strip()
+        number = _next_number(_numbers(state, parent["id"])) if _number_taken(state, parent["id"], mine) else mine
+        _push(conn, who, _field_drafts(it, {"parent_id": parent["id"], "number": number}))
+        return {"item_id": it["id"], "generic_id": parent["id"], "number": number}
+
+
+def make_single(generic_id: str) -> dict[str, Any]:
+    """A generic becomes a single item again (FR-INV-33, FR-INV-39). Only with one unit left, or none.
+
+    With one, that unit becomes the item: it takes the generic's name, description, categories and
+    purchase details, and keeps its own home if it has one. It must be in. With none, a new item takes
+    them. Either way the generic folds into the result, and its page still points there.
+    """
+    with _open() as (conn, who):
+        state = _state(conn)
+        generic = _live_raw_item(state, generic_id)
+        if not generic.get("generic") or views.is_pool(generic):
+            raise BadRequest("not a generic item")
+        if generic.get("merged_into"):
+            raise BadRequest("already merged")
+        units = views.units_of(state, generic["id"])
+        if len(units) > 1:
+            raise BadRequest("needs no more than one unit")
+        _refuse_hidden_units(state, who, generic["id"])
+        categories = _sorted_categories(state, views.categories_of(state, generic))
+        if not units:
+            item_id = new_ulid()
+            drafts = [_draft("item", item_id, "created", _carried(state, generic))]
+        else:
+            unit = units[0]
+            if unit.get("status") != "in":
+                raise BadRequest("return it first")
+            item_id = unit["id"]
+            nickname = (unit.get("nickname") or "").strip()
+            description = generic.get("description") or ""
+            if nickname:
+                description = " · ".join(part for part in (description, nickname) if part)
+            own_home = bool(unit.get("home_location_id"))
+            patch = _clean(
+                {
+                    "parent_id": None,
+                    "number": None,
+                    "nickname": None,
+                    "name": generic.get("name") or "",
+                    "description": description,
+                    "category_ids": categories,
+                    "home_location_id": unit.get("home_location_id") or generic.get("home_location_id"),
+                    "sub_location": (unit.get("sub_location") if own_home else generic.get("sub_location")) or "",
+                    "purchase_date": unit.get("purchase_date") or generic.get("purchase_date"),
+                }
+            )
+            # The old side is the resolved set, as update_item reads it, not the raw field.
+            drafts = _field_drafts({**unit, "category_ids": views.categories_of(state, unit)}, patch)
+        drafts += _field_drafts(generic, {"merged_into": item_id})
+        _push(conn, who, drafts)
+        return {"item_id": item_id, "generic_id": generic["id"]}
+
+
+def make_pool(item_id: str, quantity: Annotated[StrictInt, Field(ge=1)]) -> dict[str, Any]:
+    """A single item, or a generic with no units, becomes a counted stack of `quantity` (FR-INV-34,
+    FR-INV-40). A new pool takes its name, description, home, categories and purchase details, and the
+    item folds into it; a single item's code then opens the pool. A single item must be in."""
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _live_raw_item(state, item_id)
+        if it.get("parent_id"):
+            raise BadRequest("this is already one of several")
+        if it.get("merged_into"):
+            raise BadRequest("already merged")
+        if it.get("generic"):
+            if views.is_pool(it):
+                raise BadRequest("already several")
+            if views.units_of(state, it["id"]):
+                raise BadRequest("remove its units first")
+            _refuse_hidden_units(state, who, it["id"])
+        elif it.get("status") != "in":
+            raise BadRequest("return it first")
+        pool_id = new_ulid()
+        payload = _carried(state, it)
+        drafts = [_draft("item", pool_id, "created", {**payload, "generic": True, "pool": True, "quantity": quantity})]
+        drafts += _field_drafts(it, {"merged_into": pool_id})
+        _push(conn, who, drafts)
+        return {"item_id": pool_id, "from_id": it["id"], "quantity": quantity}
+
+
+# --- notes and photos -------------------------------------------------------------------------------
+
+
+def _note(it: dict[str, Any], note_id: str) -> None:
+    if not any(n["id"] == note_id for n in it.get("notes") or []):
+        raise NotFound(f"no note with id {note_id}; get_item lists them")
+
+
+def add_note(item_id: str, text: str) -> dict[str, Any]:
+    """A note on an item, without moving it (FR-OUT-13). To note a move, pass `note` to check_out or check_in."""
+    with _open() as (conn, who):
+        it = _item(_state(conn), item_id)
+        if not text.strip():
+            raise BadRequest("a note needs some text")
+        draft = _draft("item", it["id"], "note_added", {"text": text.strip()})
+        _push(conn, who, [draft])
+        return {"item_id": it["id"], "note_id": draft["id"]}
+
+
+def correct_note(item_id: str, note_id: str, text: str) -> dict[str, Any]:
+    """Change a note's text (FR-OUT-16). The original stays in the log."""
+    with _open() as (conn, who):
+        it = _item(_state(conn), item_id)
+        _note(it, note_id)
+        if not text.strip():
+            raise BadRequest("a note needs some text; use delete_note to remove it")
+        _push(conn, who, [_draft("item", it["id"], "note_corrected", {"note_id": note_id, "text": text.strip()})])
+        return {"item_id": it["id"], "note_id": note_id}
+
+
+def delete_note(item_id: str, note_id: str) -> dict[str, Any]:
+    """Stop showing a note (FR-OUT-21). Who wrote it, and when, stays in the log."""
+    with _open() as (conn, who):
+        it = _item(_state(conn), item_id)
+        _note(it, note_id)
+        _push(conn, who, [_draft("item", it["id"], "note_deleted", {"note_id": note_id})])
+        return {"item_id": it["id"], "note_id": note_id, "deleted": True}
+
+
+def _photos_of(state: dict[str, Any], entity_type: str, entity_id: str) -> tuple[str, list[dict[str, Any]]]:
+    if entity_type == "item":
+        it = _item(state, entity_id)
+        return it["id"], it.get("photos") or []
+    ticket = _ticket(state, entity_id)
+    return ticket["id"], ticket.get("photos") or []
+
+
+def list_photos(entity_type: PhotoEntity, entity_id: str) -> dict[str, Any]:
+    """The photos on an item or a repair ticket (FR-INV-11, FR-REP-01). get_photo returns one."""
+    with _open() as (conn, _who):
+        state = _state(conn)
+        _, photos = _photos_of(state, entity_type, entity_id)
+        return {
+            "photos": [
+                {
+                    "photo_id": ph["id"],
+                    "content_type": ph["content_type"],
+                    "size": ph["size"],
+                    "by": views.user_name(state, ph.get("actor_id")),
+                    "at": views.iso(ph.get("at")),
+                }
+                for ph in photos
+            ]
+        }
+
+
+def get_photo(photo_id: str) -> Image:
+    """One photo, as an image."""
+    with _open() as (_conn, _who):
+        if not is_ulid(photo_id):
+            raise BadRequest("photo_id must be a ULID")
+        path = photo_files.path_of(_CALLER.get().photo_dir, photo_id)
+        if path is None:
+            raise NotFound("no such photo")
+        return Image(data=path.read_bytes(), format=photo_files.content_type_of(path).removeprefix("image/"))
+
+
+def add_photo(entity_type: PhotoEntity, entity_id: str, content_type: PhotoType, data_base64: str) -> dict[str, Any]:
+    """Attach a photo to an item or a repair ticket (FR-INV-11, FR-REP-01): the image bytes, base64-encoded,
+    at most 5 MB once decoded."""
+    with _open() as (conn, who):
+        target, _photos = _photos_of(_state(conn), entity_type, entity_id)
+        # Base64 is four characters for three bytes; checked before decoding, so a huge string is refused cheaply.
+        if len(data_base64) > photo_files.MAX_BYTES * 3 // 2:
+            raise TooLarge(photo_files.TOO_LARGE)
+        try:
+            data = base64.b64decode("".join(data_base64.split()), validate=True)
+        except ValueError as e:
+            raise BadRequest("data_base64 is not valid base64") from e
+        photo_id = new_ulid()
+        photo_files.save(conn, _CALLER.get().photo_dir, who.user_id, photo_id, entity_type, target, content_type, data)
+        return {"photo_id": photo_id, "size": len(data)}
+
+
+def remove_photo(entity_type: PhotoEntity, entity_id: str, photo_id: str) -> dict[str, Any]:
+    """Stop showing a photo. The file stays on the server, and the log says who removed it."""
+    with _open() as (conn, who):
+        target, photos = _photos_of(_state(conn), entity_type, entity_id)
+        if not any(ph["id"] == photo_id for ph in photos):
+            raise NotFound("no such photo on it")
+        _push(conn, who, [_draft(entity_type, target, "photo_removed", {"photo_id": photo_id})])
+        return {"photo_id": photo_id, "removed": True}
 
 
 # --- repair tools -----------------------------------------------------------------------------------
@@ -1183,11 +1557,14 @@ def check_out(
         return out
 
 
-def check_in(item_id: str, note: str | None = None, count: Count | None = None) -> dict[str, Any]:
+def check_in(
+    item_id: str, note: str | None = None, count: Count | None = None, holder_id: str | None = None
+) -> dict[str, Any]:
     """Bring an item back, without a scan (FR-OUT-07). Anyone can check anything in (FR-OUT-08).
 
-    A pool (FR-INV-34) defaults `count` to what you have out, and refuses if you have none; say
-    `count` to return fewer and leave the rest against your name (FR-OUT-23).
+    A pool (FR-INV-34) comes back from one holder: you, unless `holder_id` names someone else who has
+    some out (get_item lists them). `count` defaults to all that holder has out; say fewer to leave
+    the rest against their name (FR-OUT-23).
     """
     with _open() as (conn, who):
         state = _state(conn)
@@ -1195,21 +1572,30 @@ def check_in(item_id: str, note: str | None = None, count: Count | None = None) 
         pool = views.is_pool(it)
         if it.get("generic") and not pool:
             raise BadRequest("that item does not move; one of its units does")
+        holder = holder_id or who.user_id
         if pool:
-            have = next((o["count"] for o in views.pool_counts(it)["out"] if o["holder_id"] == who.user_id), 0)
+            have = next((o["count"] for o in views.pool_counts(it)["out"] if o["holder_id"] == holder), 0)
+            whose = "you have" if holder == who.user_id else f"{views.user_name(state, holder)} has"
             if count is None:
                 if not have:
-                    raise BadRequest("you have none of this out")
+                    raise BadRequest(f"{whose} none of this out")
                 count = have
             elif count > have:
-                raise BadRequest(f"you have only {have} out")
+                raise BadRequest(f"{whose} only {have} out")
         else:
             if count is not None:
                 raise BadRequest("count is only for a pool (FR-OUT-22)")
+            if holder_id is not None:
+                raise BadRequest("holder_id is only for a pool; anyone can check anything else in")
             if it.get("status") != "out":
                 raise Conflict("it is already in")
         movement_id = new_ulid()
-        drafts = [_draft("item", it["id"], "checked_in", {"count": count} if pool else {}, movement_id)]
+        payload: dict[str, Any] = {}
+        if pool:
+            payload["count"] = count
+            if holder != who.user_id:
+                payload["holder_id"] = holder
+        drafts = [_draft("item", it["id"], "checked_in", payload, movement_id)]
         if note and note.strip():
             drafts.append(_draft("item", it["id"], "note_added", {"text": note.strip(), "movement_id": movement_id}))
         if not pool and it.get("missing"):
@@ -1236,6 +1622,184 @@ def recount(item_id: str, count: Annotated[StrictInt, Field(ge=0)], reason: str)
         _push(conn, who, [_draft("item", it["id"], "recounted", {"count": count, "reason": reason.strip()})])
         counts = views.pool_counts(_item(_state(conn), item_id))
         return {"item_id": it["id"], "in": counts["in"], "owned": counts["owned"]}
+
+
+def list_members() -> dict[str, Any]:
+    """Active members, by name: who gear can be transferred to."""
+    with _open() as (conn, _who):
+        return {"members": [{"user_id": u["id"], "name": u["name"]} for u in views.active_users(_state(conn))]}
+
+
+def transfer(
+    item_id: str,
+    to_user_id: str | None = None,
+    event: str | None = None,
+    note: str | None = None,
+    reservation_id: str | None = None,
+) -> dict[str, Any]:
+    """Move an item that is out to a new holder without it coming back first: to you when `to_user_id` is
+    left out (take over, FR-OUT-12), or to another active member (FR-OUT-26); list_members has their ids.
+    `event` is what it is going to now. It names the check-out it replaces, so it is not a conflict."""
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, item_id)
+        if reservation_id is not None:
+            _reservation(state, reservation_id)
+        if it.get("retired"):
+            raise BadRequest("retired items cannot be checked out")
+        previous = it.get("movement")
+        if it.get("status") != "out" or not previous:
+            raise BadRequest("not out; check it out instead")
+        to = to_user_id or who.user_id
+        if to not in {u["id"] for u in views.active_users(state)}:
+            raise NotFound(f"no active member with id {to}; call list_members")
+        if to == it.get("holder_id"):
+            raise Conflict("they already have it")
+        movement_id = new_ulid()
+        payload = {
+            "holder_id": to,
+            "event": (event or "").strip() or None,
+            "supersedes": previous["id"],
+            "reservation_id": reservation_id,
+        }
+        drafts = [_draft("item", it["id"], "checked_out", payload, movement_id)]
+        if note and note.strip():
+            drafts.append(_draft("item", it["id"], "note_added", {"text": note.strip(), "movement_id": movement_id}))
+        _push(conn, who, drafts)
+        return {"item_id": it["id"], "holder": views.user_name(state, to), "event": payload["event"]}
+
+
+def _version(state: dict[str, Any], m: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "movement_id": m["id"],
+        "holder": views.user_name(state, m.get("holder_id")),
+        "by": views.user_name(state, m.get("actor_id")),
+        "event": m.get("event"),
+        "at": views.iso(m.get("at")),
+    }
+
+
+def list_conflicts() -> dict[str, Any]:
+    """Items two devices checked out with no signal and no check-in between, and nobody has settled
+    (FR-OFF-10). The later holder is who the inventory shows now; settle_conflict decides."""
+    with _open() as (conn, _who):
+        state = _state(conn)
+        return {
+            "conflicts": [
+                {
+                    "item_id": c["item"]["id"],
+                    "item": views.display_name(state, c["item"]),
+                    "earlier": _version(state, c["earlier"]),
+                    "later": _version(state, c["later"]),
+                }
+                for c in views.open_conflicts(state)
+            ]
+        }
+
+
+def settle_conflict(item_id: str, outcome: Literal["back", "keep"], note: str | None = None) -> dict[str, Any]:
+    """Settle a double check-out (FR-OFF-10): "back" checks it in, because it came back; "keep" says the
+    later holder still has it. `note` tells the story on the item first, if it needs one."""
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, item_id)
+        found = next((c for c in views.open_conflicts(state) if c["item"]["id"] == it["id"]), None)
+        if found is None:
+            raise BadRequest("no open conflict on this item")
+        drafts = []
+        if note and note.strip():
+            drafts.append(_draft("item", it["id"], "note_added", {"text": note.strip()}))
+        if outcome == "keep":
+            later = found["later"]["id"]
+            payload = {"field": "reviewed_movement", "value": later, "old": it.get("reviewed_movement")}
+            drafts.append(_draft("item", it["id"], "field_changed", payload))
+        else:
+            drafts.append(_draft("item", it["id"], "checked_in", {}))
+            if it.get("missing"):
+                drafts.append(
+                    _draft("item", it["id"], "field_changed", {"field": "missing", "value": False, "old": True})
+                )
+        _push(conn, who, drafts)
+        return {"item_id": it["id"], "outcome": outcome}
+
+
+def correct_event(item_id: str, event: str | None = None) -> dict[str, Any]:
+    """Put right the event the item is out under (FR-OUT-41, FR-RES-17). The check-out stays in the log as
+    it was. Gear packed for a reservation is not corrected this way; link_out_to_reservation moves it."""
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, item_id)
+        movement = it.get("movement") or {}
+        if it.get("status") != "out" or movement.get("type") != "checked_out":
+            raise BadRequest("only gear that is out has an event to correct")
+        if movement.get("reservation_id"):
+            raise BadRequest("this is packed for a reservation; use link_out_to_reservation to move it")
+        payload = {"movement_id": movement["id"], "event": (event or "").strip() or None, "reservation_id": None}
+        _push(conn, who, [_draft("item", it["id"], "event_corrected", payload)])
+        return {"item_id": it["id"], "event": payload["event"]}
+
+
+def stock_check(location_id: str, seen: list[str], sub_location: str | None = None) -> dict[str, Any]:
+    """Check one location, or one shelf of it, against what was seen there (FR-RPT-09).
+
+    `seen` holds item ids or printed codes. Returns what was seen but lives elsewhere (misplaced), what
+    was seen at home, what should be here, is in, and was not seen, and any reference that matched
+    nothing. A missing item seen here is found again (FR-INV-19). Nothing else is recorded: a check is
+    true for the walk, not stored.
+    """
+    with _open() as (conn, who):
+        state = _state(conn)
+        _home(state, location_id)
+        shelf = (sub_location or "").strip()
+        sighted: list[str] = []
+        unknown: list[str] = []
+        for ref in seen:
+            item_id = ref
+            if codes.is_code(ref):
+                bound = codes.resolve(conn, ref)
+                item_id = (bound or {}).get("item_id") or ""
+            it = views.item(state, views.resolve_item(state, item_id)) if item_id else None
+            if it is None or it.get("deleted"):
+                unknown.append(ref)
+            elif it["id"] not in sighted:
+                sighted.append(it["id"])
+        found_again = [i for i in sighted if (views.item(state, i) or {}).get("missing")]
+        _push(
+            conn,
+            who,
+            [
+                _draft("item", i, "field_changed", {"field": "missing", "value": False, "old": True})
+                for i in found_again
+            ],
+        )
+        if found_again:
+            state = _state(conn)
+
+        def at_home(it: dict[str, Any]) -> bool:
+            if it.get("home_location_id") != location_id:
+                return False
+            return not shelf or (it.get("sub_location") or "") == shelf
+
+        def by_name(found: list[dict[str, Any]]) -> list[dict[str, Any]]:
+            return sorted((_item_brief(state, it) for it in found), key=lambda b: b["name"].lower())
+
+        seen_items = [views.item(state, i) or {} for i in sighted]
+        not_seen = [
+            it
+            for it in views.items(state)
+            if not it.get("retired")
+            and not views.is_pool(it)
+            and it.get("status") == "in"
+            and at_home(it)
+            and it["id"] not in sighted
+        ]
+        return {
+            "misplaced": by_name([it for it in seen_items if not at_home(it)]),
+            "seen_here": by_name([it for it in seen_items if at_home(it)]),
+            "not_seen": by_name(not_seen),
+            "found_again": found_again,
+            "unknown": unknown,
+        }
 
 
 # --- admin tools (FR-MCP-10) -------------------------------------------------------------------------
@@ -1678,6 +2242,50 @@ def apply_csv_import(text: str) -> dict[str, Any]:
         return inventory_csv.apply(conn, text, who.user_id)
 
 
+def read_audit_log(
+    type: str | None = None,
+    person_id: str | None = None,
+    entity_type: str | None = None,
+    from_day: datetime.date | None = None,
+    to_day: datetime.date | None = None,
+    offset: Annotated[StrictInt, Field(ge=0)] = 0,
+) -> dict[str, Any]:
+    """The whole log, newest first, as the app's audit screen shows it (FR-USR-24). Admins only.
+
+    Narrow by event `type`, by the person who did it (`person_id`, from list_users), by `entity_type`,
+    and by days where the group is, both inclusive. One page at a time; `more` says whether to call
+    again with `offset` moved on by the page's length.
+    """
+    with _open() as (conn, who):
+        accounts._require_admin(who)
+        page, more = events.audit_page(
+            conn,
+            type=type,
+            actor_id=person_id,
+            entity_type=entity_type,
+            first=from_day,
+            last=to_day,
+            offset=offset,
+        )
+        state = _state(conn)
+        return {
+            "events": [
+                {
+                    "event_id": e.id,
+                    "at": views.iso(e.effective_at),
+                    "type": e.type,
+                    "entity_type": e.entity_type,
+                    "entity_id": e.entity_id,
+                    "item": views.name_of(state, e.entity_id) if e.entity_type == "item" else None,
+                    "by": views.user_name(state, e.actor_id),
+                    "payload": e.payload,
+                }
+                for e in page
+            ],
+            "more": more,
+        }
+
+
 TOOLS = [
     search_items,
     get_item,
@@ -1704,6 +2312,18 @@ TOOLS = [
     delete_item,
     merge_items,
     unmerge_item,
+    make_generic,
+    group_items,
+    move_unit,
+    make_single,
+    make_pool,
+    add_note,
+    correct_note,
+    delete_note,
+    list_photos,
+    get_photo,
+    add_photo,
+    remove_photo,
     raise_ticket,
     comment_ticket,
     set_ticket_state,
@@ -1712,6 +2332,12 @@ TOOLS = [
     check_out,
     check_in,
     recount,
+    list_members,
+    transfer,
+    list_conflicts,
+    settle_conflict,
+    correct_event,
+    stock_check,
     get_notifications,
     set_notifications,
     list_users,
@@ -1747,6 +2373,7 @@ TOOLS = [
     export_csv,
     preview_csv_import,
     apply_csv_import,
+    read_audit_log,
 ]
 """Everything an assistant can do. What a User can do in the app, and what an Admin can do when the token's owner
 is an Admin (FR-MCP-10); a User's token is refused the tools below the movement tools the same way the app refuses
@@ -1795,8 +2422,9 @@ class Endpoint:
     tool, which is where the database is opened.
     """
 
-    def __init__(self, db_path: str | Path, authenticate: Authenticator):
+    def __init__(self, db_path: str | Path, authenticate: Authenticator, photo_dir: str | Path | None = None):
         self.db_path = Path(db_path)
+        self.photo_dir = photo_files.store_dir(db_path, photo_dir)
         self.authenticate = authenticate
         self.limit = RateLimit(*CALLS_PER_MINUTE)
         self.server = build_server()
@@ -1851,7 +2479,7 @@ class Endpoint:
         if not self.limit.allow(who.device_id, now_ms()):
             await _refuse(429, "rate_limited", "too many calls; try again in a minute")(scope, receive, send)
             return
-        _CALLER.set(Caller(who=who, db_path=self.db_path))
+        _CALLER.set(Caller(who=who, db_path=self.db_path, photo_dir=self.photo_dir))
         await self.session_manager.asgi_app(scope, receive, send)
 
 

@@ -14,6 +14,7 @@ import sqlite3
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import date
 from typing import Annotated, Any, Literal, get_args
 
 from pydantic import (
@@ -28,6 +29,8 @@ from pydantic import (
     model_validator,
 )
 
+from gear_tracker import localtime
+from gear_tracker.errors import BadRequest
 from gear_tracker.replay import DERIVED_FIELDS
 from gear_tracker.ulid import is_ulid, new_ulid
 
@@ -176,10 +179,12 @@ class CodeBinding(Payload):
     item_id: NonEmpty
 
 
-PHOTO_TYPES = ("image/jpeg", "image/png", "image/webp")
+PhotoType = Literal["image/jpeg", "image/png", "image/webp"]
+PHOTO_TYPES = get_args(PhotoType)
 """What a phone camera produces, and nothing else. The extension on disk follows from it."""
 
-PHOTO_ENTITIES = ("item", "repair")
+PhotoEntity = Literal["item", "repair"]
+PHOTO_ENTITIES = get_args(PhotoEntity)
 """Where a photo can go (FR-INV-11, FR-REP-01)."""
 
 
@@ -711,6 +716,40 @@ def in_replay_order(
     rows = conn.execute(f"SELECT * FROM events{where} ORDER BY effective_at, device_id, device_seq", args)
     for row in rows:
         yield from_row(row)
+
+
+AUDIT_PAGE = 100
+"""Audit rows per request (FR-USR-24). Enough to read a Friday evening; small enough to draw on a phone."""
+
+
+def audit_page(
+    conn: sqlite3.Connection,
+    *,
+    type: str | None = None,
+    actor_id: str | None = None,
+    entity_type: str | None = None,
+    first: date | None = None,
+    last: date | None = None,
+    offset: int = 0,
+) -> tuple[list[Event], bool]:
+    """One page of the audit log, and whether another follows (FR-USR-24). `first` and `last` are
+    days where the group is, both inclusive. The app's /audit and the assistant both read it here."""
+    if type is not None and type not in EVENT_TYPES:
+        raise BadRequest(f"type must be one of {', '.join(sorted(EVENT_TYPES))}")
+    if entity_type is not None and entity_type not in ENTITY_TYPES:
+        raise BadRequest(f"entity_type must be one of {', '.join(sorted(ENTITY_TYPES))}")
+    start, end = localtime.day_span(first, last)
+    found = audit(
+        conn,
+        type=type,
+        actor_id=actor_id,
+        entity_type=entity_type,
+        start=start,
+        end=end,
+        limit=AUDIT_PAGE + 1,
+        offset=offset,
+    )
+    return found[:AUDIT_PAGE], len(found) > AUDIT_PAGE
 
 
 def audit(

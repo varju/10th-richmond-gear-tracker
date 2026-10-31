@@ -38,12 +38,12 @@ from gear_tracker import (
     events,
     inventory_csv,
     labels,
-    localtime,
     mail,
     notify,
     privacy,
     sync,
 )
+from gear_tracker import photos as photo_files
 from gear_tracker.db import connect
 from gear_tracker.errors import (
     ApiError,
@@ -56,7 +56,7 @@ from gear_tracker.errors import (
     TooMany,
     Unauthorized,
 )
-from gear_tracker.events import PHOTO_ENTITIES, PHOTO_TYPES, PUBLIC_ACTOR, Strict, now_ms
+from gear_tracker.events import PUBLIC_ACTOR, Strict, now_ms
 from gear_tracker.ratelimit import RateLimit
 from gear_tracker.sync import Principal, _require_active
 from gear_tracker.ulid import is_ulid, new_ulid
@@ -66,14 +66,6 @@ LinkKind = Literal["invite", "reset"]
 
 HOUR_MS = 3_600_000
 DAY_MS = 24 * HOUR_MS
-
-PHOTO_MAX_BYTES = 5 * 1024 * 1024
-"""A phone shrinks a photo before sending it; this is the ceiling for one that did not."""
-
-PHOTO_EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
-
-AUDIT_PAGE = 100
-"""Audit rows per request (FR-USR-24). Enough to read a Friday evening; small enough to draw on a phone."""
 
 FOUND_PER_ADDRESS = (5, HOUR_MS)
 FOUND_PER_CODE = (3, DAY_MS)
@@ -313,8 +305,9 @@ def create_app(
     `photos` is the file store (FR-INV-11). By default a directory beside the database, so
     whatever backs up the one backs up the other.
     """
+    photo_dir = photo_files.store_dir(db_path, photos)
     # The assistant's endpoint, and the transport it needs running behind it (FR-MCP-01).
-    mcp = assistant.Endpoint(db_path, authenticate)
+    mcp = assistant.Endpoint(db_path, authenticate, photo_dir)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -330,7 +323,6 @@ def create_app(
 
     app = GearApp(title="Gear Tracker", lifespan=lifespan)
     app.router.routes.append(assistant.route(mcp))
-    photo_dir = Path(photos) if photos is not None else Path(db_path).parent / "photos"
     failed_sign_ins = FailedSignIns(log_directory(db_path) / FAILED_SIGN_INS)
 
     # In memory, in this process. One uvicorn worker serves the group, so that is the whole picture.
@@ -498,22 +490,10 @@ def create_app(
         One page at a time: `more` says whether another follows this offset.
         """
         accounts._require_admin(who)
-        if type is not None and type not in events.EVENT_TYPES:
-            raise BadRequest(f"type must be one of {', '.join(sorted(events.EVENT_TYPES))}")
-        if entity_type is not None:
-            _entity_type(entity_type)
-        start, end = localtime.day_span(first, last)
-        found = events.audit(
-            conn,
-            type=type,
-            actor_id=actor,
-            entity_type=entity_type,
-            start=start,
-            end=end,
-            limit=AUDIT_PAGE + 1,
-            offset=offset,
+        page, more = events.audit_page(
+            conn, type=type, actor_id=actor, entity_type=entity_type, first=first, last=last, offset=offset
         )
-        return stamped({"events": [asdict(e) for e in found[:AUDIT_PAGE]], "more": len(found) > AUDIT_PAGE})
+        return stamped({"events": [asdict(e) for e in page], "more": more})
 
     # --- auth ----------------------------------------------------------------------
 
@@ -768,13 +748,6 @@ def create_app(
 
     # --- photos ----------------------------------------------------------------------------
 
-    def photo_path(photo_id: str) -> Path | None:
-        for ext in PHOTO_EXTENSIONS.values():
-            candidate = photo_dir / f"{photo_id}{ext}"
-            if candidate.is_file():
-                return candidate
-        return None
-
     @app.put("/photos/{photo_id}")
     async def put_photo(
         request: Request, conn: Db, who: Who, photo_id: str, entity_type: str, entity_id: str
@@ -786,36 +759,14 @@ def create_app(
         """
         if not who.active:
             raise Deactivated("this account has been deactivated")
-        if not is_ulid(photo_id):
-            raise BadRequest("photo_id must be a ULID")
-        if entity_type not in PHOTO_ENTITIES:
-            raise BadRequest(f"entity_type must be one of {', '.join(PHOTO_ENTITIES)}")
         content_type = request.headers.get("Content-Type", "").split(";")[0].strip().lower()
-        if content_type not in PHOTO_TYPES:
-            raise BadRequest(f"Content-Type must be one of {', '.join(PHOTO_TYPES)}")
-        entity = derived.get_entity(conn, entity_type, entity_id)
-        if entity is None:
-            raise NotFound(f"no such {entity_type}")
-        if any(ph["id"] == photo_id for ph in entity.get("photos", [])):
+        if photo_files.already(conn, photo_id, entity_type, entity_id, content_type):
             return stamped({})
         declared = request.headers.get("Content-Length")
-        if declared is not None and declared.isdigit() and int(declared) > PHOTO_MAX_BYTES:
-            raise TooLarge(f"a photo may be at most {PHOTO_MAX_BYTES // (1024 * 1024)} MB")
+        if declared is not None and declared.isdigit() and int(declared) > photo_files.MAX_BYTES:
+            raise TooLarge(photo_files.TOO_LARGE)
         data = await request.body()
-        if len(data) == 0:
-            raise BadRequest("the photo is empty")
-        if len(data) > PHOTO_MAX_BYTES:
-            raise TooLarge(f"a photo may be at most {PHOTO_MAX_BYTES // (1024 * 1024)} MB")
-        photo_dir.mkdir(parents=True, exist_ok=True)
-        (photo_dir / f"{photo_id}{PHOTO_EXTENSIONS[content_type]}").write_bytes(data)
-        events.append_server(
-            conn,
-            who.user_id,
-            entity_type,
-            entity_id,
-            "photo_added",
-            {"photo_id": photo_id, "content_type": content_type, "size": len(data)},
-        )
+        photo_files.save(conn, photo_dir, who.user_id, photo_id, entity_type, entity_id, content_type, data)
         return stamped({})
 
     @app.get("/photos/{photo_id}")
@@ -824,11 +775,10 @@ def create_app(
         _require_active(_who)
         if not is_ulid(photo_id):
             raise BadRequest("photo_id must be a ULID")
-        path = photo_path(photo_id)
+        path = photo_files.path_of(photo_dir, photo_id)
         if path is None:
             raise NotFound("no such photo")
-        media_type = next(ct for ct, ext in PHOTO_EXTENSIONS.items() if ext == path.suffix)
-        return FileResponse(path, media_type=media_type, headers={"Cache-Control": "no-store"})
+        return FileResponse(path, media_type=photo_files.content_type_of(path), headers={"Cache-Control": "no-store"})
 
     # --- public -------------------------------------------------------------------------
 
