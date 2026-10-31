@@ -194,6 +194,16 @@ test("marking an item generic keeps it, under the number given (FR-INV-26)", asy
   await expect(act.makeGeneric(store, f.stove, " ")).rejects.toThrow("a unit needs a number");
 });
 
+test("marking an item generic keeps its categories, on the generic its unit reads them from (FR-INV-26, FR-SET-07)", async () => {
+  const f = await fixture();
+  const kitchen = await act.createCategory(store, "Camp kitchen");
+  await act.updateItem(store, f.stove, { category_ids: [kitchen] });
+  const genericId = await act.makeGeneric(store, f.stove);
+
+  expect(inv.categoriesOf(store.state, inv.item(store.state, genericId)!)).toEqual([kitchen]);
+  expect(inv.categoriesOf(store.state, inv.item(store.state, f.stove)!)).toEqual([kitchen]);
+});
+
 test("a single item becomes a counted stack, the way it becomes a generic (FR-INV-26, FR-INV-34)", async () => {
   const f = await fixture();
   await act.bindCode(store, "ABCDEFGH23", f.stove);

@@ -1563,6 +1563,13 @@ def test_a_single_item_becomes_several_and_back_again(db_path, tools):
     assert entity(db_path, "item", made["generic_id"])["merged_into"] == tools["stove"]
 
 
+def test_making_an_item_generic_keeps_its_categories(db_path, tools):
+    assistant.update_item(tools["stove"], assistant.ItemFields(category_ids=[tools["tents_cat"]]))
+    made = assistant.make_generic(tools["stove"])
+    assert entity(db_path, "item", made["generic_id"])["category_ids"] == [tools["tents_cat"]]
+    assert assistant.get_item(tools["stove"])["categories"] == ["Tents"]
+
+
 def test_make_single_refuses_several_units_and_makes_an_item_from_none(db_path, tools):
     with pytest.raises(BadRequest, match="no more than one"):
         assistant.make_single(tools["tents"])

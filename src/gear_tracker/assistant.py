@@ -1098,23 +1098,23 @@ def _created_payload(fields: dict[str, Any]) -> dict[str, Any]:
 
 
 def _carried(state: dict[str, Any], it: dict[str, Any], *, purchase: bool = True) -> dict[str, Any]:
-    """What a new item made from this one takes: name, description and home, and, unless the app leaves
-    them behind (makeGeneric does), purchase details and categories."""
+    """What a new item made from this one takes: name, description, home and categories, and, unless the
+    app leaves it on the unit (makeGeneric does), the purchase date."""
     fields: dict[str, Any] = {
         "name": it.get("name") or "",
         "description": it.get("description") or "",
         "home_location_id": it.get("home_location_id"),
         "sub_location": it.get("sub_location") or "",
+        "category_ids": _sorted_categories(state, views.categories_of(state, it)),
     }
     if purchase:
         fields["purchase_date"] = it.get("purchase_date")
-        fields["category_ids"] = _sorted_categories(state, views.categories_of(state, it))
     return _created_payload(fields)
 
 
 def _make_generic_drafts(state: dict[str, Any], it: dict[str, Any], number: str) -> tuple[str, list[dict[str, Any]]]:
-    """makeGeneric in actions.ts: a new generic takes the item's name, description and home, and the
-    item becomes its unit with this number (FR-INV-26)."""
+    """makeGeneric in actions.ts: a new generic takes the item's name, description, home and categories,
+    and the item becomes its unit with this number (FR-INV-26)."""
     generic_id = new_ulid()
     payload = _carried(state, it, purchase=False)
     drafts = [_draft("item", generic_id, "created", {**payload, "generic": True})]
@@ -1123,8 +1123,8 @@ def _make_generic_drafts(state: dict[str, Any], it: dict[str, Any], number: str)
 
 
 def make_generic(item_id: str, number: str = "1") -> dict[str, Any]:
-    """Say the group owns several of a single item (FR-INV-26). A new generic takes its name, description
-    and home; the item becomes its first unit, with this number, and keeps its code and history."""
+    """Say the group owns several of a single item (FR-INV-26). A new generic takes its name, description,
+    home and categories; the item becomes its first unit, with this number, and keeps its code and history."""
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)

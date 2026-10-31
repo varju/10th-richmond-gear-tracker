@@ -156,7 +156,8 @@ export function addUnit(store: Store, genericId: string, number?: string): Promi
 
 /**
  * Mark a single item as generic (FR-INV-26). A new generic takes its name,
- * description and home; the item becomes a unit under it, with the number the
+ * description, home and categories, since a unit reads its generic's
+ * categories (FR-SET-07); the item becomes a unit under it, with the number the
  * person confirmed, and loses the name it no longer needs. Nothing in its
  * history is rewritten, so its code, movements and tickets stay where they
  * are. Photos stay on the unit: only the server may say a photo exists, so a
@@ -173,6 +174,7 @@ export async function makeGeneric(store: Store, id: string, number = "1"): Promi
     description: it.description ?? "",
     home_location_id: it.home_location_id ?? null,
     sub_location: it.sub_location ?? "",
+    category_ids: categoriesOf(store.state, it),
   });
   await changed(store, "item", id, { parent_id: genericId, number: first, name: null });
   return genericId;
