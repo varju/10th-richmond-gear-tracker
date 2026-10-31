@@ -94,10 +94,10 @@ and an Admin can unlock it sooner.
 
 ## Install it
 
-On an iPhone, if the group has its own app, the home screen offers its App Store link, even when you opened it from an
-icon on your phone. With no app, or on an iPad, do this before you record anything: tap Share, then Add to Home Screen.
-Safari loses a tab's unsent records after seven days without a visit; an installed app does not. Android keeps them
-either way, so installing there is only a shortcut: open the browser menu and tap Add to Home screen if you want one.
+On an iPhone, install the app from the App Store link on the home screen. On an iPad, or if there is no link, do this
+before you record anything: tap Share, then Add to Home Screen. Safari loses a tab's unsent records after seven days
+without a visit; an installed app does not. Android keeps them either way, so installing there is only a shortcut: open
+the browser menu and tap Add to Home screen if you want one.
 
 ## A lost device
 
