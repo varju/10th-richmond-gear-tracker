@@ -17,7 +17,7 @@ const GUIDE_DIR = resolve(import.meta.dirname, "../docs/guide");
 
 // The order the sections read in. A file that is not written yet is skipped, so
 // a new section is added by dropping the file in and naming it here.
-const GUIDE_FILES = ["scouter.md", "quartermaster.md", "assistant.md"];
+const GUIDE_FILES = ["scouter.md", "quartermaster.md"];
 
 /** "Check gear out" becomes "check-gear-out", which is the anchor a contents link uses. */
 function slug(text: string): string {

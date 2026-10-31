@@ -810,12 +810,12 @@ test("the guide is the compiled markdown, one tab per guide, with grouped conten
   mount();
   // One tab per section, in the order the build lists them; the first is open.
   const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
-  expect(tabs.slice(0, 2)).toEqual(["Scouter", "Quartermaster"]);
-  expect(screen.getByRole("tab", { name: "Scouter" })).toHaveAttribute("aria-selected", "true");
+  expect(tabs).toEqual(["Scouters", "Quartermaster"]);
+  expect(screen.getByRole("tab", { name: "Scouters" })).toHaveAttribute("aria-selected", "true");
   // The first group, its first task, and the nested contents link that jumps to it.
   expect(screen.getAllByRole("heading", { level: 3 })[0]).toHaveTextContent("Every visit");
   expect(screen.getAllByRole("heading", { level: 4 })[0]).toHaveTextContent("Check gear out");
-  const contents = within(screen.getByRole("navigation", { name: "Scouter contents" }));
+  const contents = within(screen.getByRole("navigation", { name: "Scouters contents" }));
   const group = contents.getByRole("link", { name: "Every visit" }).closest("li")!;
   expect(within(group).getByRole("link", { name: "Check gear out" })).toHaveAttribute("href", "#check-gear-out");
 
@@ -823,7 +823,7 @@ test("the guide is the compiled markdown, one tab per guide, with grouped conten
   await userEvent.setup().click(screen.getByRole("tab", { name: "Quartermaster" }));
   expect(location.search).toBe("?guide=quartermaster");
   expect(screen.getByRole("tabpanel", { name: "Quartermaster" })).toBeInTheDocument();
-  expect(screen.queryByRole("navigation", { name: "Scouter contents" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("navigation", { name: "Scouters contents" })).not.toBeInTheDocument();
 });
 
 // --- Back follows the way in ------------------------------------------------

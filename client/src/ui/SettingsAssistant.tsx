@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { type Api, ApiError, type AssistantToken, Offline } from "../lib/api";
-import { navigate } from "../lib/router";
 import { siteUrl } from "../lib/server";
 import { Page } from "./Page";
 
@@ -61,10 +60,7 @@ function ConnectAssistant({ api }: { api: Api }) {
         </p>
         <p className="muted small">
           Connecting makes a token. Add this site as an MCP server in your assistant and paste the token in. It needs a
-          connection, so it is no use in the yard.{" "}
-          <button className="link" type="button" onClick={() => navigate("/help?guide=assistant")}>
-            More in the guide
-          </button>
+          connection, so it is no use in the yard.
         </p>
         {error && (
           <p className="error" role="alert">

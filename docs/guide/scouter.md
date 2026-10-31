@@ -1,4 +1,4 @@
-# Scouter
+# Scouters
 
 ## Every visit
 
@@ -116,6 +116,11 @@ Anything the old device never sent is gone.
 
 Open **Settings** > **Notifications** and tick what you want to hear about: gear reported found, a new repair ticket,
 someone joining. Each box saves itself. Nothing arrives if the group has not set up mail.
+
+### Connect an AI assistant
+
+Open **Settings** > **AI assistant** and tap **Connect an assistant**; the screen walks you through the rest. It can do
+anything your role allows in the app except delete your account, and it needs a connection.
 
 ### Delete your account
 
