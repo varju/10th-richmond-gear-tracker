@@ -439,7 +439,8 @@ def search_items(
 
     Every word must appear somewhere in the name or the home. One row per thing
     the group owns several of, with how many are in, and single items as rows of
-    their own. `status` is "in", "out", or "missing".
+    their own. `status` is "in", "out", or "missing". `include_retired` shows only
+    retired gear, like the app's Show retired (FR-INV-05).
     """
     with _open() as (conn, _who):
         state = _state(conn)
