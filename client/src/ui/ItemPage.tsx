@@ -775,7 +775,8 @@ function MergePicker({ store, id, onDone }: { store: Store; id: string; onDone: 
   const state = store.state;
   const me = item(state, id);
   const survivor = chosen ? item(state, chosen) : undefined;
-  const candidates = search(state, { query }).filter((c) => c.id !== id);
+  // Nothing listed until a search: a long list buries the question above the search box.
+  const candidates = query.trim() ? search(state, { query }).filter((c) => c.id !== id) : [];
   const myName = me ? displayName(state, me) : "";
 
   async function merge() {
@@ -881,7 +882,7 @@ function GroupPicker({ store, id, onDone }: { store: Store; id: string; onDone: 
   const shared = generics(state).filter(
     (g) => !g.retired && !g.merged_into && displayName(state, g).toLowerCase().includes(words),
   );
-  const candidates = [...shared, ...search(state, { query }).filter((c) => c.id !== id)];
+  const candidates = words ? [...shared, ...search(state, { query }).filter((c) => c.id !== id)] : [];
 
   function choose(otherId: string) {
     const picked = item(state, otherId);

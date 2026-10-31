@@ -74,15 +74,15 @@ next sync. Viewing photos needs a connection.
 
 ### Two records that are really a group
 
-Two tents entered as separate items? Open one, tap **Group with another item…**, and pick the other. Both become
-numbered units under one name and keep their own history. To move a unit under a different name, open it and tap **Move
-to another generic…**.
+Two tents entered as separate items? Open one, tap **Group with another item…**, then search for the other and pick it.
+Both become numbered units under one name and keep their own history. To move a unit under a different name, open it and
+tap **Move to another generic…**.
 
 ### A record typed in twice
 
 One tent entered as two items? Only an Admin can fix it. Open the extra record, tap **This is a duplicate record…**,
-pick the real one, and tap **Merge**. The extra record drops off the lists and points at the real one. **Unmerge** on
-either page undoes it.
+search for the real one and pick it, and tap **Merge**. The extra record drops off the lists and points at the real one.
+**Unmerge** on either page undoes it.
 
 ### Back to a single item
 

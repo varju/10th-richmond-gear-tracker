@@ -405,6 +405,7 @@ test("an Admin merges a duplicate into the item it doubles, and lands on the sur
   renderInShell(<ItemPage store={store} id={other} />);
   await user.click(screen.getByRole("button", { name: "This is a duplicate record…" }));
   expect(screen.getByText(/second record of/)).toBeInTheDocument();
+  expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
   await user.type(screen.getByLabelText("Search"), "tent 1");
   await user.click(screen.getByRole("button", { name: /^Tent 1$/ }));
   expect(screen.getByText("Merge Tent 1 (again) into Tent 1?")).toBeInTheDocument();
@@ -466,6 +467,7 @@ test("two of the same gear are grouped under one name, and both stay (FR-INV-30)
   // Grouping is an edit, so a user may do it; merging is still an Admin's (FR-INV-13, FR-INV-30).
   expect(screen.queryByRole("button", { name: /duplicate record/ })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Group with another item…" }));
+  await user.type(screen.getByLabelText("Search"), "tent");
   await user.click(screen.getByRole("button", { name: /^Tent 2/ }));
   expect(screen.getByText("Tent 2 becomes a name for both, and each becomes one of them.")).toBeInTheDocument();
   expect(screen.getByLabelText("The other one’s number")).toHaveValue("1");
@@ -490,6 +492,7 @@ test("grouping with a generic joins the one already there (FR-INV-30)", async ()
   renderInShell(<ItemPage store={store} id={tent} />);
 
   await user.click(screen.getByRole("button", { name: "Group with another item…" }));
+  await user.type(screen.getByLabelText("Search"), "tent");
   await user.click(screen.getByRole("button", { name: "4-person tent 1 unit" }));
   expect(screen.getByText("Tent 1 becomes one of 4-person tent.")).toBeInTheDocument();
   // No second number to confirm: the generic is already named.
@@ -595,6 +598,7 @@ test("a group of two needs two different numbers (FR-INV-23, FR-INV-30)", async 
   await act.createItem(store, { name: "Tent 2" });
   renderInShell(<ItemPage store={store} id={tent} />);
   await user.click(screen.getByRole("button", { name: "Group with another item…" }));
+  await user.type(screen.getByLabelText("Search"), "tent");
   await user.click(screen.getByRole("button", { name: /^Tent 2/ }));
   await user.clear(screen.getByLabelText("This one’s number"));
   await user.type(screen.getByLabelText("This one’s number"), "1");
