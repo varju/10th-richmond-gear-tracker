@@ -50,6 +50,13 @@ Won't row in the FR-MCP section saying why it is left out.
 - One requirement per row. Testable. No compound "and also".
 - No trailing rationale. Explain why only when the reason constrains the build or stops a withdrawn idea coming back.
 
+## iOS releases
+
+The iPhone app bundles `client/` and `docs/guide/`, so a change there reaches iPhones only through an App Store release.
+After committing one, append a line to `docs/pending-ios.md` with its short hash and what changed, and commit that.
+Leave out what the app never runs: tests, dev dependencies, and web-only code such as the install prompt or anything
+behind `!NATIVE`. A release empties the list and names its tag.
+
 ## Tasks
 
 `docs/tasks.md` is a shrinking list, not a changelog. Delete a task when its work is committed. Git is the record of
