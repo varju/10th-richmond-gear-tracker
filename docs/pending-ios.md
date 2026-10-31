@@ -11,6 +11,7 @@ What the app does differently.
 - `5152c0f` Help groups the Scouter guide, with nested contents.
 - `b708c96` The AI assistant guide becomes a Scouters topic; the tab is renamed **Scouters**, and **Settings** > **AI
   assistant** drops its guide link. Includes the wording from `4eb7e1d`.
+- `daa5894` Marking an item as several of the same thing keeps its categories.
 
 ## Chores
 
