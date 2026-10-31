@@ -6,6 +6,23 @@ Tap Scan and point the camera at a code. The card shows the item; tap Check out.
 tap one from the list, type a name and tap Create, or tap No event. Later check-outs use the same event until four hours
 pass with no move. To switch events, tap Change at the top. Checking out from an item's page asks the same way.
 
+## No sticker on it?
+
+Search for it first. It may already be in the app, or have lost its sticker.
+
+- **Found it.** Stick a fresh code on it, scan it, tap "Put it on an existing item", and pick it.
+- **Not there.** Stick a code on it, scan it, and tap Create a new item. Type its name, pick a home, and Save. A name is
+  enough if you are in a hurry.
+- **One of several,** like tents. Tick "We have several of these" before you save; this one becomes #1. For the next,
+  scan its code, tap "Another of…", and tap the name. Type the number first if one is already written on the gear.
+- **Counted gear,** like mugs or tent pegs. Do not sticker each one. Tap New item on the home screen, tick "We have
+  several of these", pick A stack we count, and say how many. Then put one code on the bin: scan it, tap "Put it on an
+  existing item", and pick the stack.
+- **Cannot take a sticker,** too small or always wet. Tap New item on the home screen and save it with no code. Find it
+  by search to check it out; in a packing session, tap its row in the list.
+
+Then check it out as usual.
+
 ## Return gear
 
 Tap Scan and point at each code. Gear you have shows where it goes; tap Return and put it there. Gear someone else has
@@ -57,30 +74,10 @@ quantity of something the group has several of. Duplicate on last year's camp sa
 Everything except signing in works with no signal. An amber strip counts records still on your device; it clears itself
 when you next open the app in signal. Records waiting three days stop the app and ask you to sync.
 
-## Gear with no sticker
-
-Find it by search and open it. Check out and Return are on its page. In a packing session, tap its row in the list
-instead.
-
 ## A sticker fell off
 
 Open the item, tap Replace QR code, and scan a fresh sticker. Its history, tickets and reservations stay with it. The
 old sticker still opens the same item if it turns up.
-
-## Add an item on a labelling walk
-
-Stick a code on the gear and scan it. Tap Create a new item, type its name, pick a home, and Save. The scanner comes
-straight back for the next one.
-
-## We have several of these
-
-Tick "We have several of these" before you save. The name is stored once, and the one in your hand becomes #1.
-
-## Another one the same
-
-Scan the next code, tap "Another of…", and tap the name. The ones you labelled last are at the top. It is created with
-the next number, labelled, and you are back at the scanner. Type the number first when the gear already has one written
-on it.
 
 ## Gear you cannot find
 
@@ -104,13 +101,13 @@ the browser menu and tap Add to Home screen if you want one.
 Sign in on the new device and the whole inventory is there. Revoke the old one under Settings, Your devices. Anything
 the old device never sent is gone.
 
+## Email alerts
+
+Open Notifications in Settings and tick what you want to hear about: gear reported found, a new repair ticket, someone
+joining. Each box saves itself. Nothing arrives if the group has not set up mail.
+
 ## Delete your account
 
 Settings, Delete my account. You are signed out and cannot sign in again. Other devices sign out the next time they
 connect, after sending anything they had not sent. Your name stays on what you did; an Admin can restore your access. It
 needs a connection.
-
-## Email alerts
-
-Open Notifications in Settings and tick what you want to hear about: gear reported found, a new repair ticket, someone
-joining. Each box saves itself. Nothing arrives if the group has not set up mail.
