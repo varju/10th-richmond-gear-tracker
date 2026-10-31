@@ -53,10 +53,10 @@ Won't row in the FR-MCP section saying why it is left out.
 ## iOS releases
 
 The iPhone app bundles `client/` and `docs/guide/`, so a change there reaches iPhones only through an App Store release.
-After committing one, append a line to `docs/pending-ios.md` with its short hash and what changed, and commit that. It
-goes under Functional if the app does something differently, otherwise under Chores. Leave out what the app never runs:
-tests, dev dependencies, and web-only code such as the install prompt or anything behind `!NATIVE`. A release empties
-the list and names its tag.
+A change there appends a line to `docs/pending-ios.md` saying what changed, in the same commit. The line goes under
+Functional if the app does something differently, otherwise under Chores. Leave out what the app never runs: tests, dev
+dependencies, and web-only code such as the install prompt or anything behind `!NATIVE`. A release empties the list and
+names its tag.
 
 ## Tasks
 
