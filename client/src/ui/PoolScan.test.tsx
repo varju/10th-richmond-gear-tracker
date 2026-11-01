@@ -69,7 +69,19 @@ test("a pool's first check-out of a session asks the event, then opens the count
   expect(item(store.state, bowls)?.pool_out).toEqual({ alice: 6 });
 });
 
-async function packing(generics: { item_id: string; quantity: number }[]) {
+test("scanning a pool's code takes the whole stack with All (FR-OUT-42)", async () => {
+  renderInShell(<Scan store={store} />);
+  await typeCode("AAAAAAAAAA");
+  await waitFor(() => expect(card()).toBeInTheDocument());
+  await user.click(within(card()).getByRole("button", { name: "Check out" }));
+  await user.click(
+    within(screen.getByRole("region", { name: "Which event" })).getByRole("button", { name: "No event" }),
+  );
+  await user.click(await within(card()).findByRole("button", { name: "All 20" }));
+  await waitFor(() => expect(item(store.state, bowls)?.pool_out).toEqual({ alice: 20 }));
+});
+
+async function openPacking(generics: { item_id: string; quantity: number }[]) {
   const fall = await res.createReservation(store, {
     event: "Fall Camp",
     starts: "2026-10-02",
@@ -84,6 +96,11 @@ async function packing(generics: { item_id: string; quantity: number }[]) {
   await waitFor(() => expect(card()).toBeInTheDocument());
   // A reservation's session has its event already (FR-RES-03): no question.
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
+  return fall;
+}
+
+async function packing(generics: { item_id: string; quantity: number }[]) {
+  const fall = await openPacking(generics);
   const count = within(card()).getByLabelText("How many");
   await user.clear(count);
   await user.type(count, "6");
@@ -91,6 +108,12 @@ async function packing(generics: { item_id: string; quantity: number }[]) {
   await waitFor(() => expect(screen.queryByRole("region", { name: "Bowls" })).not.toBeInTheDocument());
   return fall;
 }
+
+test("All while packing raises the camp's line to match (FR-OUT-42, FR-RES-07)", async () => {
+  const fall = await openPacking([{ item_id: bowls, quantity: 4 }]);
+  await user.click(within(card()).getByRole("button", { name: "All 20" }));
+  await waitFor(() => expect(res.reservation(store.state, fall)?.generics).toEqual([{ item_id: bowls, quantity: 20 }]));
+});
 
 test("a count taken while packing a camp that overflows its line raises the line to match (FR-RES-07)", async () => {
   const fall = await packing([{ item_id: bowls, quantity: 4 }]);

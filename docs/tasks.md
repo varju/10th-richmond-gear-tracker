@@ -26,10 +26,8 @@ changelog.
 
 ## Groups of items
 
-- [ ] Question to consider: How to better manage our PFD collection. We have several bags, grouped by size. e.g. Adult
-      (paddling), Adult, Youth 60-90, Youth 30-60. Most of the time an entire bag is signed out at once. Occasionally a
-      single PFD will be borrowed from within a bag. So the bags are both a storage location and an item that can be
-      checked out. Another example of the same scenario a canoe trailer is both storage and an item.
+- [ ] Question to consider: A canoe trailer is both storage and an item that can be checked out. Today its contents
+      still show as in at the yard when it is out. Deferred until the group has used pools for PFD bags.
 
 ## UI
 

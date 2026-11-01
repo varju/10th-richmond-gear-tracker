@@ -81,6 +81,57 @@ test("taking more than are in warns, and never blocks (FR-OUT-22)", async () => 
   expect(inv.item(store.state, bowls)?.pool_out).toEqual({ alice: 8 });
 });
 
+test("All checks out everything that is in (FR-OUT-42)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 12);
+  await mv.checkOutPool(store, bowls, { count: 1 });
+  navigate(`/items/${bowls}`);
+  renderInShell(<ItemPage store={store} id={bowls} />);
+
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+  expect(screen.getByLabelText("How many")).toHaveValue(1);
+  await user.click(screen.getByRole("button", { name: "All 11" }));
+  await waitFor(() => expect(inv.item(store.state, bowls)?.pool_in).toBe(0));
+  expect(inv.item(store.state, bowls)?.pool_out).toEqual({ alice: 12 });
+  expect(await screen.findByText("Checked out 11 · Bowls")).toBeInTheDocument();
+});
+
+test("All ignores a blank count field (FR-OUT-42)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 12);
+  navigate(`/items/${bowls}`);
+  renderInShell(<ItemPage store={store} id={bowls} />);
+
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+  await user.clear(screen.getByLabelText("How many"));
+  await user.click(screen.getByRole("button", { name: "All 12" }));
+  await waitFor(() => expect(inv.item(store.state, bowls)?.pool_out).toEqual({ alice: 12 }));
+});
+
+test("All is offered only for a check-out of more than one (FR-OUT-42)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 2);
+  await mv.checkOutPool(store, bowls, { count: 1 });
+  navigate(`/items/${bowls}`);
+  renderInShell(<ItemPage store={store} id={bowls} />);
+
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+  expect(screen.queryByRole("button", { name: /^All/ })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  expect(screen.queryByRole("button", { name: /^All/ })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await user.click(screen.getByRole("button", { name: "Recount" }));
+  expect(screen.queryByRole("button", { name: /^All/ })).not.toBeInTheDocument();
+});
+
+test("All is not offered when none are in (FR-OUT-42)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 2);
+  await mv.checkOutPool(store, bowls, { count: 2 });
+  navigate(`/items/${bowls}`);
+  renderInShell(<ItemPage store={store} id={bowls} />);
+
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+  expect(screen.queryByRole("button", { name: /^All/ })).not.toBeInTheDocument();
+});
+
 test("anyone can return another's, picked from a list when more than one holder has some out (FR-OUT-23)", async () => {
   const bowls = await act.createPool(store, { name: "Bowls" }, 20);
   await mv.checkOutPool(store, bowls, { count: 6 });

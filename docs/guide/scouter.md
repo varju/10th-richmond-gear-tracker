@@ -17,8 +17,9 @@ else has offers **Return** and **Take over**: pick the one you mean. Any order, 
 ### Take some of a stack
 
 Some gear is counted, not labelled one by one: bowls, mugs, tent pegs. Scan the stack's code if it has one, or find it
-by search, and tap **Check out**. It asks how many — starting at 1 — and the event, same as any check-out. **Return**
-offers the count you have out; confirm it, or change it if you are keeping some back.
+by search, and tap **Check out**. It asks how many — starting at 1 — and the event, same as any check-out. To take them
+all, like a whole bag of PFDs, tap **All**. **Return** offers the count you have out; confirm it, or change it if you
+are keeping some back.
 
 ### No sticker on it?
 

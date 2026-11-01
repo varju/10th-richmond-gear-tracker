@@ -1418,30 +1418,36 @@ export function PoolActions({
   }
 
   const n = Number(count.trim());
-  const validCount = Number.isInteger(n) && (mode === "recount" ? n >= 0 : n >= 1);
+  const valid = (amount: number) => Number.isInteger(amount) && (mode === "recount" ? amount >= 0 : amount >= 1);
+  const validCount = valid(n);
   const overdraw = mode === "out" && validCount && n > counts.in;
 
-  async function submit() {
-    if (!mode || !validCount || (mode === "recount" && reason.trim() === "")) return;
+  async function submit(amount: number) {
+    if (!mode || !valid(amount) || (mode === "recount" && reason.trim() === "")) return;
     setBusy(true);
     setError(null);
     try {
       if (mode === "out") {
         await checkOutPool(store, it.id, {
-          count: n,
+          count: amount,
           event: recorded.event,
           reservation_id: recorded.reservation_id,
           packing: session !== undefined,
         });
       } else if (mode === "in")
-        await checkInPool(store, it.id, { count: n, holder_id: holder ?? undefined, packing: session !== undefined });
-      else await recount(store, it.id, n, reason);
+        await checkInPool(store, it.id, {
+          count: amount,
+          holder_id: holder ?? undefined,
+          packing: session !== undefined,
+        });
+      else await recount(store, it.id, amount, reason);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not record it");
       setBusy(false);
       return;
     }
-    const label = mode === "out" ? `Checked out ${n}` : mode === "in" ? `Returned ${n}` : `Recounted to ${n}`;
+    const label =
+      mode === "out" ? `Checked out ${amount}` : mode === "in" ? `Returned ${amount}` : `Recounted to ${amount}`;
     setBusy(false);
     setMode(null);
     onMoved(`${label} · ${displayName(state, it)}`, mode);
@@ -1513,13 +1519,20 @@ export function PoolActions({
         </label>
       )}
       {mode === "out" && <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>}
+      {mode === "out" && counts.in > 1 && (
+        <div className="row">
+          <button type="button" disabled={busy} onClick={() => void submit(counts.in)}>
+            All {counts.in}
+          </button>
+        </div>
+      )}
       {mode ? (
         <div className="row">
           <button
             type="button"
             className="primary"
             disabled={busy || !validCount || (mode === "recount" && reason.trim() === "")}
-            onClick={() => void submit()}
+            onClick={() => void submit(n)}
           >
             {mode === "out" ? "Check out" : mode === "in" ? "Return" : "Recount"}
           </button>
