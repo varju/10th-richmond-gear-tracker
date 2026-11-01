@@ -14,6 +14,11 @@ changelog.
       event types, payloads (`reservation_id`), the API, and FR-RES IDs: older app builds sync on those names. Keep
       `/reservations` URLs working (redirect if renamed). Watch for clashes with "event" meaning a log event in docs,
       and with the session event.
+- [ ] **Change the session event from the item page.** Packing for two events at once from a desktop has no direct way
+      to switch: the item page shows the event with no way to change it, and the inventory table hides Scan with no
+      camera. Add **Change** beside the event above **Check out**, using the event question's picker (last used and
+      today's events in one tap). Earlier moves stay under the old event, or get the "Also change" question as on Scan
+      (FR-OUT-40); decide which.
 
 ## Tests
 
@@ -33,3 +38,4 @@ changelog.
 
 - [ ] As quartermaster, how can I find items that have no QR code, or that have no location or shelf set?
 - [ ] Status column is blank for countables, with actual status on next line. Why?
+- [ ] Check out screen on iOS: Allow number pad to be hidden after entering the quantity for a counted stack
