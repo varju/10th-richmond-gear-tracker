@@ -888,6 +888,10 @@ def add_unit(generic_id: str, number: str | None = None, nickname: str | None = 
         parent = _item(state, generic_id)
         if not parent.get("generic"):
             raise BadRequest("that item is not one the group owns several of")
+        if views.is_pool(parent):
+            raise BadRequest("a pool has no units (FR-INV-34)")
+        if parent.get("retired"):
+            raise BadRequest("that generic is retired; bring it back first")
         taken = _numbers(state, parent["id"])
         number = _next_number(taken) if number is None else number.strip()
         if not number:

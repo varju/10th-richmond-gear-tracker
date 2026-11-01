@@ -38,6 +38,7 @@ import {
   parentOf,
   poolCounts,
   search,
+  takesUnits,
   unitsOf,
 } from "../lib/inventory";
 import { itemReservations } from "../lib/itemReservations";
@@ -879,10 +880,16 @@ function GroupPicker({ store, id, onDone }: { store: Store; id: string; onDone: 
   const other = chosen ? item(state, chosen) : undefined;
   const words = query.trim().toLowerCase();
   // Generics are not in search: they are a name, not a thing that moves. Both are offered here.
-  const shared = generics(state).filter(
-    (g) => !g.retired && !g.merged_into && displayName(state, g).toLowerCase().includes(words),
-  );
-  const candidates = words ? [...shared, ...search(state, { query }).filter((c) => c.id !== id)] : [];
+  const shared = generics(state).filter((g) => takesUnits(g) && displayName(state, g).toLowerCase().includes(words));
+  const candidates = words
+    ? [
+        ...shared,
+        ...search(state, { query }).filter((c) => {
+          const parent = parentOf(state, c);
+          return c.id !== id && (!parent || takesUnits(parent));
+        }),
+      ]
+    : [];
 
   function choose(otherId: string) {
     const picked = item(state, otherId);
@@ -1527,9 +1534,11 @@ function GenericPage({
       back="/"
       actions={
         <>
-          <button className="primary" type="button" onClick={() => void add()}>
-            Add a unit
-          </button>
+          {!it.retired && (
+            <button className="primary" type="button" onClick={() => void add()}>
+              Add a unit
+            </button>
+          )}
           <button type="button" onClick={onEdit}>
             Edit
           </button>
@@ -1613,7 +1622,7 @@ function MovePicker({ store, id, onDone }: { store: Store; id: string; onDone: (
   const state = store.state;
   const [error, setError] = useState<string | null>(null);
   const it = item(state, id);
-  const choices = generics(state).filter((g) => !g.retired && g.id !== it?.parent_id);
+  const choices = generics(state).filter((g) => takesUnits(g) && g.id !== it?.parent_id);
 
   async function move(parentId: string) {
     try {
@@ -1652,7 +1661,7 @@ function MovePicker({ store, id, onDone }: { store: Store; id: string; onDone: (
             </button>
           </li>
         ))}
-        {choices.length === 0 && <li className="muted">No other generic items yet.</li>}
+        {choices.length === 0 && <li className="muted">No other generic to move it to.</li>}
       </ul>
     </Page>
   );

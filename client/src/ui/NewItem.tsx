@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { addUnit, bindCode, createGeneric, createItem, createPool, createUnit, type ItemInput } from "../lib/actions";
-import { categories, displayName, item, nextNumber, numberTaken } from "../lib/inventory";
+import { categories, displayName, item, nextNumber, numberTaken, takesUnits } from "../lib/inventory";
 import { back, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useUnsaved } from "../lib/unsaved";
@@ -209,6 +209,14 @@ export function NewUnit({ store, parent, code }: Props & { parent: string }) {
     return (
       <Page title="Not found" back="/">
         <p>No generic item with that id. It may not have synced to this device yet.</p>
+      </Page>
+    );
+  }
+
+  if (!takesUnits(generic)) {
+    return (
+      <Page title="No new units" back="/">
+        <p>{displayName(store.state, generic)} takes no new units: it is retired, a pool, or gone.</p>
       </Page>
     );
   }

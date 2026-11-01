@@ -639,6 +639,13 @@ def test_nothing_merges_into_a_deleted_item(admin_tools):
         assistant.merge_items(admin_tools["t3"], admin_tools["stove"])
 
 
+def test_a_pool_takes_no_units(db_path, tools):
+    with open_db(db_path) as conn:
+        pool = _new(conn, "item", {"name": "Tent pegs", "generic": True, "pool": True, "quantity": 40})
+    with pytest.raises(BadRequest, match="pool"):
+        assistant.add_unit(pool)
+
+
 def test_an_item_never_merged_refuses_to_unmerge(admin_tools):
     with pytest.raises(BadRequest, match="not merged"):
         assistant.unmerge_item(admin_tools["stove"])
@@ -1488,6 +1495,8 @@ def test_retired_gear_is_not_reshaped(db_path, tools):
     assistant.retire_item(spare)
     with pytest.raises(BadRequest, match="retired"):
         assistant.make_single(spare)
+    with pytest.raises(BadRequest, match="generic is retired"):
+        assistant.add_unit(spare)
     with pytest.raises(BadRequest, match="generic is retired"):
         assistant.move_unit(tools["t2"], spare)
 

@@ -172,6 +172,10 @@ export const isGeneric = (it: Item): boolean => Boolean(it.generic);
 export const isUnit = (it: Item): boolean => Boolean(it.parent_id);
 export const isPool = (it: Item): boolean => Boolean(it.pool);
 
+/** A generic a unit can be put under: live, not folded away, not a pool. */
+export const takesUnits = (g: Item): boolean =>
+  Boolean(g.generic) && !g.retired && !g.merged_into && !g.deleted && !isPool(g);
+
 export interface PoolHolderCount {
   holder_id: string;
   count: number;
@@ -308,7 +312,7 @@ export function recentGenerics(state: State, limit = 4): Item[] {
     const at = Math.max(it.added_at ?? 0, it.modified_at ?? 0);
     if (at > (unitTouch.get(it.parent_id) ?? 0)) unitTouch.set(it.parent_id, at);
   }
-  const list = generics(state).filter((g) => !g.retired && !g.merged_into && !isPool(g));
+  const list = generics(state).filter(takesUnits);
   const touched = new Map(list.map((g) => [g.id, Math.max(g.modified_at ?? 0, unitTouch.get(g.id) ?? 0)]));
   return list
     .sort(
