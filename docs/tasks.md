@@ -23,3 +23,15 @@ changelog.
 - [ ] Fix the flaky "Only new ones leaves the earlier moves as they were (FR-OUT-40)" in
       `client/src/ui/ScanMove.test.tsx`. It failed once in a full run, then passed three runs on its own and two more
       full runs. Cause not yet known.
+
+## Groups of items
+
+- [ ] Question to consider: How to better manage our PFD collection. We have several bags, grouped by size. e.g. Adult
+      (paddling), Adult, Youth 60-90, Youth 30-60. Most of the time an entire bag is signed out at once. Occasionally a
+      single PFD will be borrowed from within a bag. So the bags are both a storage location and an item that can be
+      checked out.
+
+## UI
+
+- [ ] Inventory screen has a lot of vertical padding. Use space better on desktop? Also Consider allowing generics to be
+      collapsed.
