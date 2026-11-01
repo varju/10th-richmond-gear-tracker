@@ -75,6 +75,11 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
   // The first check-out of a session asks its event (FR-OUT-05); a reservation's session has the reservation's (FR-RES-03).
   const packing: Session | undefined = booked ? { event: booked.event, reservation_id: booked.id } : undefined;
   const me = store.meta.user?.id;
+  // Read after the move, so an event answered on the way is the one named.
+  const withEvent = (text: string) => {
+    const event = (packing ?? sessionEvent(store.meta, store.now())).event;
+    return event ? `${text} · ${event}` : text;
+  };
 
   // The card opening freezes the frame on the sticker, so a read looks like a read; it
   // un-freezes when the card closes, whether by a move or by Skip.
@@ -244,7 +249,7 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
               it={card}
               session={packing}
               onMoved={(message, kind) => {
-                confirm(message);
+                confirm(kind === "out" ? withEvent(message) : message);
                 showCard(null);
                 moved.current.set(card.id, Date.now());
                 // A count taken during a reservation session grows its line (FR-RES-07).
@@ -270,9 +275,11 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
               it={card}
               session={packing}
               onMoved={(kind, to) => {
-                confirm(
-                  `${to ? `Transferred to ${userName(store.state, to)}` : kind} · ${displayName(store.state, card)}`,
-                );
+                const text = `${to ? `Transferred to ${userName(store.state, to)}` : kind} · ${displayName(
+                  store.state,
+                  card,
+                )}`;
+                confirm(kind === "Checked out" ? withEvent(text) : text);
                 showCard(null);
                 moved.current.set(card.id, Date.now());
                 // An extra taken during a reservation session joins its gear list (FR-RES-07).

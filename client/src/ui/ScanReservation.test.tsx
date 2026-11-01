@@ -84,7 +84,7 @@ test("packing never runs out like a plain session: hours on, a card check-out st
     within(await screen.findByRole("region", { name: "4-person tent #1" })).getByRole("button", { name: "Check out" }),
   );
   expect(screen.queryByRole("region", { name: "Which event" })).not.toBeInTheDocument();
-  await screen.findByText("Checked out · 4-person tent #1");
+  await screen.findByText(/^Checked out · 4-person tent #1/);
   expect(item(store.state, tent)?.movement).toMatchObject({ event: "Fall Camp", reservation_id: fall });
 
   // The same as a row of the list.
@@ -98,13 +98,13 @@ test("a scan ticks an item off; an unlisted one is appended with no fuss (FR-RES
   renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");
   await user.click(screen.getByRole("button", { name: "Check out" }));
-  await screen.findByText("Checked out · 4-person tent #1");
+  await screen.findByText(/^Checked out · 4-person tent #1/);
   expect(rows().map((b) => b.textContent)).toEqual(["TarpWarm locker"]);
   expect(item(store.state, tent)?.movement?.event).toBe("Fall Camp");
 
   await typeCode("BBBBBBBBBB");
   await user.click(screen.getByRole("button", { name: "Check out" }));
-  await screen.findByText("Checked out · Stove");
+  await screen.findByText(/^Checked out · Stove/);
   expect(item(store.state, stove)).toMatchObject({ status: "out", holder_id: "alice" });
   expect(rows().map((b) => b.textContent)).toEqual(["TarpWarm locker"]);
 
@@ -185,7 +185,7 @@ test("a unit that overflows a full generic line raises the line instead (FR-RES-
 test("gear with no sticker is ticked off from the list itself (FR-OUT-02)", async () => {
   renderInShell(<Scan store={store} />);
   await user.click(within(remaining()).getByRole("button", { name: /Tarp/ }));
-  expect(await screen.findByText("Checked out · Tarp")).toHaveAttribute("role", "status");
+  expect(await screen.findByText(/^Checked out · Tarp/)).toHaveAttribute("role", "status");
   expect(item(store.state, tarp)).toMatchObject({
     status: "out",
     movement: expect.objectContaining({ event: "Fall Camp" }),
@@ -196,7 +196,7 @@ test("gear with no sticker is ticked off from the list itself (FR-OUT-02)", asyn
 test("checking an item off the list silences its bound code", async () => {
   renderInShell(<Scan store={store} />);
   await user.click(within(remaining()).getByRole("button", { name: /4-person tent #1/ }));
-  expect(await screen.findByText("Checked out · 4-person tent #1")).toHaveAttribute("role", "status");
+  expect(await screen.findByText(/^Checked out · 4-person tent #1/)).toHaveAttribute("role", "status");
   await typeCode("AAAAAAAAAA");
   expect(screen.queryByRole("region", { name: "4-person tent #1" })).not.toBeInTheDocument();
 });

@@ -10,11 +10,12 @@ event, offering tonight's calendar entry; one tap picks it.
 - The event is asked once and applies to everything scanned after it
 - Skipping the event is one tap
 - Each scan shows the item so it can be checked against what is in hand
+- The confirmation names the event, and **Events** shows and changes it
 - One tap confirms and the scanner is ready again
 - No signal is needed
 
 Covers: FR-OUT-01, FR-OUT-03, FR-OUT-04, FR-OUT-05, FR-OUT-06, FR-OUT-29, FR-OUT-30, FR-OUT-32, FR-OUT-33, FR-OUT-37,
-FR-OUT-38, FR-OFF-01
+FR-OUT-38, FR-OUT-43, FR-OUT-44, FR-OFF-01
 
 ## S-MOVE-02 Return gear
 

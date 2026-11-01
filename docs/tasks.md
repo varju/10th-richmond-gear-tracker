@@ -7,14 +7,6 @@ changelog.
 
 ---
 
-## Reservations follow-ups
-
-- [ ] **Change the session event from the item page.** Packing for two events at once from a desktop has no direct way
-      to switch: the item page shows the event with no way to change it, and the inventory table hides Scan with no
-      camera. Add **Change** beside the event above **Check out**, using the event question's picker (last used and
-      today's events in one tap). Earlier moves stay under the old event, or get the "Also change" question as on Scan
-      (FR-OUT-40); decide which.
-
 ## Tests
 
 - [ ] Fix the flaky `test_deleting_an_item_releases_its_codes` in `tests/test_assistant.py`. It failed once in a full
@@ -35,3 +27,5 @@ changelog.
 - [ ] Status column is blank for countables, with actual status on next line. Why?
 - [ ] Check out screen on iOS: Allow number pad to be hidden after entering the quantity for a counted stack
 - [ ] Edit item > We have several > Give count immediately?
+- [ ] How can we easily mark items as given to parents to take home and clean, when parents don't have their own
+      accounts?

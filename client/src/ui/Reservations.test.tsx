@@ -55,6 +55,22 @@ async function fillDates(starts: string, ends: string) {
   }
 }
 
+test("the Events page shows the event check-outs go to, and changes it", async () => {
+  navigate("/events");
+  renderInShell(<Reservations store={store} />, () => T0);
+  expect(screen.getByText("Check-outs have no event")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Change" }));
+  await user.type(screen.getByLabelText("Event"), "Apple Day");
+  await user.click(screen.getByRole("button", { name: "Create" }));
+  expect(await screen.findByText("Check-outs go to: Apple Day")).toBeInTheDocument();
+  expect(store.meta.session_event).toBe("Apple Day");
+
+  await user.click(screen.getByRole("button", { name: "Change" }));
+  await user.click(screen.getByRole("button", { name: "No event" }));
+  expect(await screen.findByText("Check-outs have no event")).toBeInTheDocument();
+});
+
 test("the list says No events only when there are none", async () => {
   navigate("/events");
   const shown = renderInShell(<Reservations store={store} />, () => T0);

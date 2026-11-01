@@ -9,9 +9,11 @@ import {
   upcoming,
 } from "../lib/reservations";
 import { navigate } from "../lib/router";
+import { sessionEvent, setSessionEvent } from "../lib/session";
 import type { Store } from "../lib/store";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
+import { EventPicker } from "./EventChoice";
 import { plural } from "./labels";
 import { Page } from "./Page";
 
@@ -103,6 +105,52 @@ function UnplannedRows({ store, list, now }: { store: Store; list: Unplanned[]; 
   );
 }
 
+/** The event this device's check-outs record, with a way to change it (FR-OUT-05). */
+function CurrentEvent({ store }: { store: Store }) {
+  const { now } = useShell();
+  const { event } = sessionEvent(store.meta, now());
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function pick(name: string | undefined) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await setSessionEvent(store, name);
+      setEditing(false);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not change the event");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <EventPicker
+        store={store}
+        label="Check-out event"
+        busy={busy}
+        error={error}
+        lastUsed={store.meta.session_event}
+        hide={event}
+        onPick={(name) => void pick(name)}
+        onCancel={() => setEditing(false)}
+      />
+    );
+  }
+  return (
+    <div className="session">
+      <span>{event ? `Check-outs go to: ${event}` : "Check-outs have no event"}</span>
+      <button type="button" className="minor" onClick={() => setEditing(true)}>
+        Change
+      </button>
+    </div>
+  );
+}
+
 /** The camps ahead, and the way to plan a new one (S-RES-01). */
 export function Reservations({ store }: { store: Store }) {
   useStore(store);
@@ -122,6 +170,7 @@ export function Reservations({ store }: { store: Store }) {
         </button>
       }
     >
+      <CurrentEvent store={store} />
       {ahead.length === 0 && gone.length === 0 && loose.length === 0 && <p>No events.</p>}
       {ahead.length > 0 && <Rows list={ahead} />}
       {loose.length > 0 && <UnplannedRows store={store} list={loose} now={now} />}

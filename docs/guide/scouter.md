@@ -6,8 +6,9 @@
 
 Tap **Scan** and point the camera at a code. The card shows the item; tap **Check out**. The first check-out asks for
 the event: tap one from the list, type a name and tap **Create**, or tap **No event**. Later check-outs use the same
-event until four hours pass with no move. To switch events, tap **Change** at the top. Checking out from an item's page
-asks the same way.
+event until four hours pass with no move. To switch events, tap **Change** at the top. The confirmation names the event.
+Checking out from an item's page asks the same way. **Events** shows the event check-outs go to, with **Change** beside
+it.
 
 ### Return gear
 
