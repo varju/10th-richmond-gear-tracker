@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { back, depth, navigate, parseRoute } from "./router";
 
 test("a route is its segments and query", () => {
@@ -44,4 +44,64 @@ test("back on a cold load goes to the fallback instead of out of the app", () =>
   back("/");
   expect(location.pathname).toBe("/");
   expect(depth()).toBe(0);
+});
+
+/** Scrolls the window and waits for the app to hear it. */
+async function scrollTo(y: number): Promise<void> {
+  window.scrollTo(0, y);
+  window.dispatchEvent(new Event("scroll"));
+  await vi.waitFor(() => expect(window.scrollY).toBe(y));
+}
+
+function popped(): Promise<unknown> {
+  return new Promise((done) => window.addEventListener("popstate", done, { once: true }));
+}
+
+test("a new screen opens at the top", async () => {
+  navigate("/items");
+  await scrollTo(900);
+  navigate("/items/abc");
+  expect(window.scrollY).toBe(0);
+});
+
+test("a replace keeps its place on the same screen, and starts another at the top", async () => {
+  navigate("/items");
+  await scrollTo(900);
+  navigate("/items?q=tent", true);
+  expect(window.scrollY).toBe(900);
+  navigate("/items/abc", true);
+  expect(window.scrollY).toBe(0);
+});
+
+test("back and forward return each screen to where it was scrolled", async () => {
+  navigate("/items");
+  await scrollTo(900);
+  navigate("/items/abc");
+  await scrollTo(300);
+
+  let pop = popped();
+  back("/");
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(900));
+
+  // Scrolled on, so the position kept is the latest, not the one at the first tap.
+  await scrollTo(2000);
+  pop = popped();
+  history.forward();
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(300));
+
+  pop = popped();
+  history.back();
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(2000));
+});
+
+test("a link to a heading on the page is left where the browser put it", async () => {
+  navigate("/help");
+  await scrollTo(500);
+  history.pushState(null, "", "/help#checking-out");
+  window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+  await new Promise(requestAnimationFrame);
+  expect(window.scrollY).toBe(500);
 });

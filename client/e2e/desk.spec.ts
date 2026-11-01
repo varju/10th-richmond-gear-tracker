@@ -57,3 +57,20 @@ test("the inventory is a table that sorts, with every unit under its generic", a
   await page.getByRole("button", { name: /^Name/ }).click();
   await expect(page.getByRole("columnheader", { name: /Name/ })).toHaveAttribute("aria-sort", "descending");
 });
+
+test("back from an item returns to where the table was scrolled", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: "All items" }).click();
+  await expect(page.getByRole("table")).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 400));
+  expect(await page.evaluate(() => window.scrollY)).toBe(400);
+
+  // Dispatched, not clicked: a click would first scroll the row into view.
+  await page.getByRole("table").getByRole("button", { name: "Tent, 4-person #1", exact: true }).dispatchEvent("click");
+  await expect(page).toHaveURL(/\/items\/./);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByRole("table")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(400);
+});

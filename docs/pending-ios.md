@@ -8,6 +8,7 @@ What the app does differently.
 
 - A unit can no longer be added, moved or grouped under a pool, a retired generic or one folded away, and retired gear
   can no longer be moved or grouped.
+- Back and forward return a screen to where it was scrolled, and a new screen opens at its top.
 
 ## Chores
 

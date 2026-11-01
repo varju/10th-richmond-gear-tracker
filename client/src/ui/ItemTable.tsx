@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   categories,
   categoryNames,
@@ -11,7 +11,7 @@ import {
 } from "../lib/inventory";
 import { filterParams, readFilter, withQuery } from "../lib/listUrl";
 import { openRepairs } from "../lib/repairs";
-import { navigate, useRoute } from "../lib/router";
+import { navigate, restoringScroll, useRoute } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { FilterFields } from "./Filters";
@@ -81,6 +81,14 @@ export function ItemTable({ store }: { store: Store }) {
   const filter = readFilter(route.query);
   const sort = readSort(route.query);
   const camera = useCamera();
+  const search = useRef<HTMLInputElement>(null);
+  // Not on a return down the page: Safari scrolls a focused box into view, even with preventScroll.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      if (!restoringScroll() && window.scrollY === 0) search.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
   const state = store.state;
   // A column only once the group has made a category (FR-SET-07).
   const hasCategories = categories(state).length > 0;
@@ -110,7 +118,7 @@ export function ItemTable({ store }: { store: Store }) {
             value={query}
             onChange={(e) => show(e.target.value, filter, sort)}
             autoComplete="off"
-            autoFocus
+            ref={search}
           />
         </label>
         <FilterFields store={store} filter={filter} onChange={(f) => show(query, f, sort)} />
