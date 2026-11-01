@@ -18,6 +18,7 @@ What the app does differently.
   now **What happened**.
 - Counted stacks now show under their event: **Events** lists an event with only counted gear out, **Add** brings that
   gear in, and **What is out** shows a stack's count per event.
+- **What is out** can show one event's gear.
 
 ## Chores
 

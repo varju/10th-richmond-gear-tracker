@@ -345,14 +345,15 @@ def is_overdue(state: State, it: Fields, now: int) -> bool:
     return it.get("status") == "out" and days is not None and days_out(it, now) >= days
 
 
-def what_is_out(state: State, now: int) -> dict[str, Any]:
+def what_is_out(state: State, now: int, event: str | None = None) -> dict[str, Any]:
     """Everyone who has something, by name (FR-RPT-01). Missing gear is not out (FR-INV-19).
+
+    `event` keeps only that event's gear, case and spacing aside (FR-RPT-13).
 
     A pool has no single "out"; it lists once per holder and event, with its count, and carries no
     days, because a count can be the sum of check-outs at different times (FR-RPT-11).
     """
     by_holder: dict[str, list[Fields]] = {}
-    overdue = 0
     for it in items(state):
         if is_pool(it):
             if not it.get("retired"):
@@ -361,8 +362,8 @@ def what_is_out(state: State, now: int) -> dict[str, Any]:
                     under = [(lot["event"], lot["count"]) for lot in out["lots"]]
                     if out["unknown"]:
                         under.append((None, out["unknown"]))
-                    for event, count in under:
-                        key = event_name_key(event) if event else ""
+                    for name, count in under:
+                        key = event_name_key(name) if name else ""
                         if key in lines:
                             lines[key]["count"] += count
                         else:
@@ -370,7 +371,7 @@ def what_is_out(state: State, now: int) -> dict[str, Any]:
                                 "item_id": it["id"],
                                 "name": display_name(state, it),
                                 "days": 0,
-                                "event": " ".join(event.split()) if event else None,
+                                "event": " ".join(name.split()) if name else None,
                                 "overdue": False,
                                 "count": count,
                             }
@@ -386,9 +387,15 @@ def what_is_out(state: State, now: int) -> dict[str, Any]:
             "event": movement.get("event"),
             "overdue": is_overdue(state, it, now),
         }
-        if entry["overdue"]:
-            overdue += 1
         by_holder.setdefault(it.get("holder_id") or "", []).append(entry)
+
+    wanted = event_name_key(event or "")
+    if wanted:
+        by_holder = {
+            holder_id: found
+            for holder_id, entries in by_holder.items()
+            if (found := [e for e in entries if e["event"] and event_name_key(e["event"]) == wanted])
+        }
 
     def _holder_entry(holder_id: str, entries: list[Fields]) -> Fields:
         return {
@@ -403,6 +410,7 @@ def what_is_out(state: State, now: int) -> dict[str, Any]:
     )
     # A pool under two events is still one thing this person has.
     total = sum(len({entry["item_id"] for entry in h["items"]}) for h in holders)
+    overdue = sum(1 for h in holders for entry in h["items"] if entry["overdue"])
     return {"holders": holders, "total": total, "overdue": overdue}
 
 

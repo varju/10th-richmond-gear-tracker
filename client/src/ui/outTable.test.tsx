@@ -163,6 +163,29 @@ test("a pool shows its event, one row per event (FR-RPT-11)", async () => {
   ]);
 });
 
+test("the event filter keeps a pool's count under that event, and sorting keeps the filter (FR-RPT-13)", async () => {
+  const { bowls } = await fixture();
+  clock = T0 + 10 * DAY_MS;
+  await store.setMeta({ user: { id: "u1", name: "Alice", role: "admin", active: true } });
+  await mv.checkOutPool(store, bowls, { count: 2, event: "Spring camp" });
+  await mount();
+
+  await user.selectOptions(screen.getByRole("combobox", { name: "Event" }), "Spring camp");
+  expect(location.pathname + location.search).toBe("/out?event=spring+camp");
+  expect(
+    rows()
+      .slice(1)
+      .map((r) => [cells(r)[0], cells(r)[3]]),
+  ).toEqual([
+    ["Tent 1", "5 days"],
+    ["Bowls", "2 out"],
+  ]);
+
+  await user.click(screen.getByRole("button", { name: "Item" }));
+  expect(location.pathname + location.search).toBe("/out?event=spring+camp&sort=item");
+  expect(screen.getByRole("combobox", { name: "Event" })).toHaveValue("spring camp");
+});
+
 test("clicking the default column twice returns to ascending, clearing dir from the URL", async () => {
   await fixture();
   await mount();

@@ -58,7 +58,6 @@ export function isOverdue(state: State, it: Item, now: number): boolean {
  */
 export function whatIsOut(state: State, now: number): OutReport {
   const byHolder = new Map<string, OutItem[]>();
-  let overdue = 0;
   for (const it of items(state)) {
     if (isPool(it)) {
       for (const out of poolLots(it)) {
@@ -82,7 +81,6 @@ export function whatIsOut(state: State, now: number): OutReport {
       event: typeof it.movement?.event === "string" ? it.movement.event : null,
       overdue: isOverdue(state, it, now),
     };
-    if (entry.overdue) overdue++;
     const key = it.holder_id ?? "";
     byHolder.set(key, [...(byHolder.get(key) ?? []), entry]);
   }
@@ -95,9 +93,47 @@ export function whatIsOut(state: State, now: number): OutReport {
       ),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
+  return tallied(holders);
+}
+
+function tallied(holders: Holder[]): OutReport {
   // A pool under two events is still one thing this person has.
   const total = holders.reduce((n, h) => n + new Set(h.items.map((entry) => entry.item.id)).size, 0);
+  const overdue = holders.reduce((n, h) => n + h.items.filter((entry) => entry.overdue).length, 0);
   return { holders, total, overdue };
+}
+
+export interface OutEvent {
+  key: string;
+  name: string;
+}
+
+/** The events gear is out under, by name. */
+function outEvents(report: OutReport): OutEvent[] {
+  const found = new Map<string, string>();
+  for (const entry of report.holders.flatMap((h) => h.items)) {
+    const key = eventNameKey(entry.event ?? "");
+    if (key && !found.has(key)) found.set(key, tidyName(entry.event ?? ""));
+  }
+  return [...found].map(([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * The report the URL asks for: one event's gear (FR-RPT-13), or everything.
+ * An event with nothing left out is ignored, so `event` is empty.
+ */
+export function readOutEvent(
+  all: OutReport,
+  query: URLSearchParams,
+): { report: OutReport; events: OutEvent[]; event: string; eventName: string } {
+  const events = outEvents(all);
+  const wanted = eventNameKey(query.get("event") ?? "");
+  const chosen = events.find((e) => e.key === wanted);
+  if (!chosen) return { report: all, events, event: "", eventName: "" };
+  const holders = all.holders
+    .map((h) => ({ ...h, items: h.items.filter((entry) => entry.event && eventNameKey(entry.event) === wanted) }))
+    .filter((h) => h.items.length > 0);
+  return { report: tallied(holders), events, event: wanted, eventName: chosen.name };
 }
 
 export type OutSort = "holder" | "item" | "days" | "reservation";
@@ -134,8 +170,9 @@ export function readOrder(query: URLSearchParams): OutOrder {
   return { sort: SORTS.find((s) => s === query.get("sort")) ?? "holder", up: query.get("dir") !== "down" };
 }
 
-export function orderParams({ sort, up }: OutOrder): URLSearchParams {
+export function orderParams({ sort, up }: OutOrder, event = ""): URLSearchParams {
   const params = new URLSearchParams();
+  if (event) params.set("event", event);
   if (sort !== "holder") params.set("sort", sort);
   if (!up) params.set("dir", "down");
   return params;

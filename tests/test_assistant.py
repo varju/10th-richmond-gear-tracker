@@ -437,6 +437,21 @@ def test_whats_out_is_by_holder_with_the_event(tools):
     assert report["holders"][0]["items"][0]["event"] == "Fall Camp"
 
 
+def test_whats_out_narrows_to_one_event(tools, pool_id):
+    assistant.check_out(tools["stove"], event="Fall  Camp")
+    assistant.check_out(pool_id, count=4, event="fall camp")
+    assistant.check_out(pool_id, count=2, event="Meeting")
+
+    report = assistant.whats_out(event="FALL CAMP")
+
+    rows = [row for holder in report["holders"] for row in holder["items"]]
+    assert sorted((r["item_id"], r.get("count")) for r in rows) == sorted([(tools["stove"], None), (pool_id, 4)])
+    assert report["total"] == 2
+    assert assistant.whats_out(event="Nothing here") == {"holders": [], "total": 0, "overdue": 0}
+    everything = assistant.whats_out(event="  ")
+    assert sum(len(holder["items"]) for holder in everything["holders"]) == 3
+
+
 def test_list_locations_counts_what_lives_there(tools):
     found = {loc["name"]: loc for loc in assistant.list_locations()["locations"]}
     assert found["Warm locker"]["items"] == 1

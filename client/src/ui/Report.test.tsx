@@ -107,6 +107,52 @@ test("the overdue flag appears once the period has passed", async () => {
   expect(row).toHaveTextContent("out 40 days");
 });
 
+test("the event filter shows one event's gear, and sorting keeps it (FR-RPT-13)", async () => {
+  await setGroup({ name: "10th Richmond", overdue_days: 30 });
+  await mv.checkOut(store, tent, { event: "spring  CAMP" });
+  await mv.checkOut(store, stove, { event: "Spring camp" });
+  await store.setMeta({ user: carol });
+  await mv.checkOut(store, axe, { event: "Meeting" });
+
+  mount(<Report store={store} />, 40);
+  const filter = screen.getByRole("combobox", { name: "Event" });
+  expect(
+    within(filter)
+      .getAllByRole("option")
+      .map((o) => o.textContent),
+  ).toEqual(["All events", "Meeting", "Spring camp"]);
+
+  await user.selectOptions(filter, "Spring camp");
+  expect(location.pathname + location.search).toBe("/out?event=spring+camp");
+  expect(screen.getByText("2 items out · 2 overdue")).toBeInTheDocument();
+  expect(screen.getByText(/10th Richmond · Spring camp ·/)).toBeInTheDocument();
+  expect(screen.getAllByRole("region").map((s) => s.getAttribute("aria-label"))).toEqual(["Alice"]);
+
+  await user.selectOptions(screen.getByRole("combobox", { name: "Sort by" }), "Item");
+  expect(location.pathname + location.search).toBe("/out?event=spring+camp&sort=item");
+  expect(screen.queryByText(/Axe/)).not.toBeInTheDocument();
+
+  await user.selectOptions(filter, "All events");
+  expect(location.pathname + location.search).toBe("/out?sort=item");
+  expect(screen.getByText("3 items out · 3 overdue")).toBeInTheDocument();
+});
+
+test("a blank event name offers no filter and hides nothing", async () => {
+  await mv.checkOut(store, axe);
+  await mv.checkOut(store, tent, { event: "  " });
+  mount(<Report store={store} />);
+  expect(screen.getByText("2 items out")).toBeInTheDocument();
+  expect(screen.queryByRole("combobox", { name: "Event" })).not.toBeInTheDocument();
+});
+
+test("an event with nothing left out shows everything", async () => {
+  await mv.checkOut(store, axe);
+  navigate("/out?event=old+camp");
+  mount(<Report store={store} />);
+  expect(screen.getByText("1 item out")).toBeInTheDocument();
+  expect(screen.queryByRole("combobox", { name: "Event" })).not.toBeInTheDocument();
+});
+
 test("a row opens the item", async () => {
   await mv.checkOut(store, tent);
   mount(<Report store={store} />);

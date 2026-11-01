@@ -6,6 +6,7 @@ import {
   type OutSort,
   outRows,
   readOrder,
+  readOutEvent,
   rowKey,
   sortRows,
   whatIsOut,
@@ -17,7 +18,7 @@ import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { plural } from "./labels";
 import { Page } from "./Page";
-import { daysLabel } from "./Report";
+import { daysLabel, EventFilter } from "./Report";
 
 const COLUMNS: { key: OutSort; label: string }[] = [
   { key: "item", label: "Item" },
@@ -37,7 +38,7 @@ export function OutTable({ store }: { store: Store }) {
   const order = readOrder(route.query);
   const { now } = useShell();
   const state = store.state;
-  const report = whatIsOut(state, now());
+  const { report, events, event, eventName } = readOutEvent(whatIsOut(state, now()), route.query);
   const groupName = group(state).name;
 
   const list = sortRows(state, outRows(report), order);
@@ -45,12 +46,12 @@ export function OutTable({ store }: { store: Store }) {
   // Clicking the column already sorted on turns it around; any other opens the way it reads best.
   function sortBy(sort: OutSort) {
     const up = order.sort === sort ? !order.up : firstDirection(sort);
-    navigate(withQuery("/out", orderParams({ sort, up })), true);
+    navigate(withQuery("/out", orderParams({ sort, up }, event)), true);
   }
 
   return (
     <Page title="What is out" back="/">
-      <p className="muted small">{[groupName, localDate(now())].filter(Boolean).join(" · ")}</p>
+      <p className="muted small">{[groupName, eventName, localDate(now())].filter(Boolean).join(" · ")}</p>
       {report.total === 0 ? (
         <p>Nothing is out.</p>
       ) : (
@@ -58,6 +59,15 @@ export function OutTable({ store }: { store: Store }) {
           <p className="muted small">
             {plural(report.total, "item")} out{report.overdue > 0 && ` · ${report.overdue} overdue`}
           </p>
+          {events.length > 0 && (
+            <div className="table-top">
+              <EventFilter
+                events={events}
+                value={event}
+                onChange={(next) => navigate(withQuery("/out", orderParams(order, next)), true)}
+              />
+            </div>
+          )}
           <table className="grid">
             <thead>
               <tr>

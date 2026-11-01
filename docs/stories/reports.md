@@ -10,8 +10,9 @@ exists.
 - One report, no filters required to make it useful
 - Names the holder and the event
 - Sortable by holder, item, time out, or reservation
+- Can show just one event's gear
 
-Covers: FR-RPT-01, FR-RPT-12
+Covers: FR-RPT-01, FR-RPT-12, FR-RPT-13
 
 ## S-RPT-02 What has been gone too long
 

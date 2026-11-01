@@ -5,8 +5,8 @@
 ### What is out
 
 Open **Reports** > **What is out**. It groups every item that is out by who has it, and names the home, the event, and
-how many days it has been gone. On a computer, the home screen shows the same list. Print the page and pin it to the
-locker door.
+how many days it has been gone. On a computer, the home screen shows the same list. To see only one event's gear, open
+the report and pick it under **Event**. Print the page and pin it to the locker door.
 
 ### Gear that is gone too long
 

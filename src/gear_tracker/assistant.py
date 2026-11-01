@@ -497,11 +497,14 @@ def get_item(item_id: str) -> dict[str, Any]:
         return out
 
 
-def whats_out() -> dict[str, Any]:
-    """What is out and who has it (FR-RPT-01), longest out first, with anything overdue flagged."""
+def whats_out(event: str | None = None) -> dict[str, Any]:
+    """What is out and who has it (FR-RPT-01), longest out first, with anything overdue flagged.
+
+    Give `event` to see only that event's gear (FR-RPT-13). Case and spacing do not matter.
+    """
     with _open() as (conn, _who):
         state = _state(conn)
-        return views.what_is_out(state, now_ms())
+        return views.what_is_out(state, now_ms(), event)
 
 
 def list_reservations(upcoming_only: StrictBool = True) -> dict[str, Any]:
