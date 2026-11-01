@@ -12,7 +12,10 @@ function userAgent(ua: string) {
   vi.stubGlobal("navigator", { ...navigator, userAgent: ua });
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  localStorage.clear();
+});
 
 test("an iPhone is asked to install: Safari, then Share and Add to Home Screen", () => {
   userAgent(IPHONE);
