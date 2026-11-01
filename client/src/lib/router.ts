@@ -17,6 +17,7 @@ interface Entry {
   depth: number;
   key?: string;
   scroll?: number;
+  screen?: Record<string, unknown>;
 }
 
 const current = (): Entry | null => history.state as Entry | null;
@@ -103,6 +104,14 @@ window.addEventListener("popstate", () => {
 });
 window.addEventListener("pagehide", () => history.replaceState({ ...current(), scroll: window.scrollY }, ""));
 if (current()?.scroll) restore(current()!.scroll!);
+
+/** A screen's own state, kept with its history entry so back, forward and a reload bring it back. */
+export const entryState = (name: string): unknown => current()?.screen?.[name];
+
+export function setEntryState(name: string, value: unknown): void {
+  const state = current();
+  history.replaceState({ ...state, depth: depth(), screen: { ...state?.screen, [name]: value } }, "");
+}
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);

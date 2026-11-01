@@ -33,7 +33,5 @@ changelog.
 
 ## UI
 
-- [ ] Inventory screen has a lot of vertical padding. Use space better on desktop? Also Consider allowing generics to be
-      collapsed.
 - [ ] As quartermaster, how can I find items that have no QR code, or that have no location or shelf set?
 - [ ] Status column is blank for countables, with actual status on next line. Why?

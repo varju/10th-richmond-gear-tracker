@@ -29,7 +29,7 @@ test("the sections stay beside the screen, and home opens on what needs a person
   await expect(sections.getByRole("button", { name: "Help" })).toBeVisible();
 });
 
-test("the inventory is a table that sorts, with every unit under its generic", async ({ page }) => {
+test("the inventory is a table that sorts, with a generic's units folded under it", async ({ page }) => {
   await signIn(page);
   await page.goto("/items");
   const table = page.getByRole("table");
@@ -37,9 +37,19 @@ test("the inventory is a table that sorts, with every unit under its generic", a
   // A desk starts typing.
   await expect(page.getByLabel("Search")).toBeFocused();
 
+  // Shut until opened (FR-INV-25).
+  const unit = table.getByRole("button", { name: "Tent, 4-person #1", exact: true });
+  const fold = table.getByRole("button", { name: /, Tent, 4-person$/ });
+  await expect(fold).toHaveAttribute("aria-expanded", "false");
+  await expect(unit).toBeHidden();
+  await fold.click();
+  await expect(unit).toBeVisible();
+  await fold.click();
+  await expect(unit).toBeHidden();
+
+  // A search is looking for units, so it opens what it finds.
   await page.getByLabel("Search").fill("tent, 4-person");
-  // Units are never folded away (FR-INV-25).
-  await expect(table.getByRole("button", { name: "Tent, 4-person #1", exact: true })).toBeVisible();
+  await expect(unit).toBeVisible();
   // Whole numbers first and in numeric order, then text (FR-INV-23). The demo
   // carries a #10 and a "3b" so this is a real sort, not 1 through 6.
   const units = await table.getByRole("button", { name: /^Tent, 4-person #/ }).allInnerTexts();
@@ -62,6 +72,7 @@ test("back from an item returns to where the table was scrolled", async ({ page 
   await signIn(page);
   await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: "All items" }).click();
   await expect(page.getByRole("table")).toBeVisible();
+  await page.getByRole("button", { name: /, Tent, 4-person$/ }).click();
   await page.evaluate(() => window.scrollTo(0, 400));
   expect(await page.evaluate(() => window.scrollY)).toBe(400);
 

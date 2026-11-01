@@ -10,6 +10,8 @@ What the app does differently.
   can no longer be moved or grouped.
 - Back and forward return a screen to where it was scrolled, and a new screen opens at its top.
 - Edit can turn a single item into a counted stack; the item page no longer has its own button for it.
+- The wide inventory table has tighter rows and hides a generic's units until its count is clicked or a search or filter
+  is on. A generic shows its units' Repair and Missing flags.
 
 ## Chores
 
