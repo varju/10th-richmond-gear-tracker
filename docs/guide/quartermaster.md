@@ -36,6 +36,9 @@ Open **Reports** > **Needs repair** for every open ticket. Open one to read the 
 **In progress**, **Resolved** or **Won't fix**. Cost, time and parts go in a comment; the **From** and **To** dates
 below the list show what was raised or changed in a period.
 
+An Admin can delete any ticket raised in error: tap **Delete ticket…** twice. It leaves every list and cannot be brought
+back.
+
 ## Counting
 
 ### A stock check
@@ -55,7 +58,8 @@ count. It resets what is on the shelf; what people already have out is untouched
 ### Add an item
 
 Tap **New item**, name it, pick a home, and tap **Save**. On a computer the button sits above the inventory table, which
-sorts by any column and keeps search and the filters in view.
+sorts by any column and keeps search and the filters in view. Click a name's unit count to show its units; a search or
+filter shows them already.
 
 ### Several of the same thing
 
@@ -66,6 +70,9 @@ Tick **We have several of these** on **New item**, then pick one:
 - **A stack we count,** for mugs. Say how many. Nobody labels each mug; people check out a count.
 
 Starting from a scanned code, the tick saves the name and the item in your hand becomes #1.
+
+An item already saved as one thing? Open it, tap **Edit**, tick the same box, and pick one. It can become a stack only
+while it is checked in.
 
 ### Photos
 

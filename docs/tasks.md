@@ -1,46 +1,11 @@
 # Tasks
 
-The build, in order. See [architecture.md](architecture.md) for why, and [stories/](stories/) for what each step is for.
+What is next. See [architecture.md](architecture.md) for how it is built, and [stories/](stories/) for how it is used.
 
 **Delete tasks from this file as they are committed.** This file shrinks to nothing. It is not a changelog; git is the
 changelog.
 
-Milestones are ordered by risk, not by feature value. M0 comes first because a bad result there changes the project.
-
 ---
-
-## M0 — Prove the scanner
-
-Passed indoors on two iPhones: worst single acquisition 1.58 s against a 2 s bar, no camera dropouts. Numbers are in
-[architecture.md](architecture.md#what-m0-measured). What is left needs a locker, or label stock.
-
-- [ ] Repeat in an unlit locker, and with gloves on
-- [ ] Add those numbers to architecture.md
-
-Deferred until the first sheet is printed on real stock (32 labels of 1.75 x 1.25 in). Not blocked on us, and not
-holding anything up:
-
-- [ ] Confirm the sheet registers on real stock, and record the margins for FR-TAG-02
-- [ ] Test through a scuffed sticker and a wet one
-
-## M6 — Items and codes
-
-Built. What is left waits on other work:
-
-- [ ] Check the printed sheet against the real stock and fix `labels.py` if the margins are off (FR-TAG-02)
-
-## M9 — Go live
-
-First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is
-fresh from the labelling walk.
-
-- [ ] Print code sheets and do the labelling walk (S-BOOT-02, S-BOOT-03)
-
-Public pages come before the labelling walk, not after it. From the moment stickers go on gear, a stranger can scan one.
-
-## M11 — iPhone app
-
-- [ ] Time the [native scanner](architecture.md#native-scanner) in the app against the M0 table and its 2 s bar
 
 ## Reservations follow-ups
 
@@ -49,3 +14,24 @@ Public pages come before the labelling walk, not after it. From the moment stick
       event types, payloads (`reservation_id`), the API, and FR-RES IDs: older app builds sync on those names. Keep
       `/reservations` URLs working (redirect if renamed). Watch for clashes with "event" meaning a log event in docs,
       and with the session event.
+
+## Tests
+
+- [ ] Fix the flaky `test_deleting_an_item_releases_its_codes` in `tests/test_assistant.py`. It failed once in a full
+      run (a released code still showed as bound), then passed five reruns. Likely cause: events written in the same
+      millisecond replay out of order.
+- [ ] Fix the flaky "Only new ones leaves the earlier moves as they were (FR-OUT-40)" in
+      `client/src/ui/ScanMove.test.tsx`. It failed once in a full run, then passed three runs on its own and two more
+      full runs. Cause not yet known.
+
+## Groups of items
+
+- [ ] Question to consider: How to better manage our PFD collection. We have several bags, grouped by size. e.g. Adult
+      (paddling), Adult, Youth 60-90, Youth 30-60. Most of the time an entire bag is signed out at once. Occasionally a
+      single PFD will be borrowed from within a bag. So the bags are both a storage location and an item that can be
+      checked out. Another example of the same scenario a canoe trailer is both storage and an item.
+
+## UI
+
+- [ ] As quartermaster, how can I find items that have no QR code, or that have no location or shelf set?
+- [ ] Status column is blank for countables, with actual status on next line. Why?

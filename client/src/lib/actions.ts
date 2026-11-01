@@ -12,10 +12,12 @@ import {
   codesFor,
   displayName,
   type Item,
+  isPool,
   item,
   nextNumber,
   numberOf,
   numberTaken,
+  takesUnits,
   unitsOf,
 } from "./inventory";
 
@@ -137,6 +139,7 @@ export const createPool = (store: Store, input: ItemInput, quantity: number) =>
 export async function createUnit(store: Store, input: UnitInput): Promise<string> {
   const parent = item(store.state, input.parent_id);
   if (!parent?.generic) throw new Error("not a generic item");
+  joinable(parent);
   const number = unitNumber(input.number);
   if (numberTaken(store.state, input.parent_id, number)) throw new Error(`#${number} is taken`);
   return created(store, "item", clean({ ...input, number }));
@@ -196,6 +199,7 @@ export async function makePool(store: Store, id: string, quantity: number): Prom
   if (!it) throw new Error("no such item");
   if (it.parent_id) throw new Error("this is already one of several");
   if (it.merged_into) throw new Error("already merged");
+  if (it.retired) throw new Error("it is retired; bring it back first");
   if (it.generic) {
     if (it.pool) throw new Error("already several");
     if (unitsOf(store.state, id).length) throw new Error("remove its units first");
@@ -243,6 +247,8 @@ export async function moveUnit(store: Store, id: string, parentId: string): Prom
   if (!it?.parent_id) throw new Error("not a unit");
   if (!parent?.generic) throw new Error("not a generic item");
   if (parentId === it.parent_id) return;
+  if (it.retired) throw new Error("it is retired; bring it back first");
+  joinable(parent);
   const mine = numberOf(it);
   const number = numberTaken(store.state, parentId, mine) ? nextNumber(store.state, parentId) : mine;
   await changed(store, "item", id, { parent_id: parentId, number });
@@ -311,9 +317,17 @@ export async function joinGeneric(store: Store, id: string, genericId: string, n
   if (it.generic) throw new Error("this is already a name for several");
   if (it.parent_id) throw new Error("this is already one of several");
   if (!parent?.generic) throw new Error("not a generic item");
+  joinable(parent);
   const mine = unitNumber(number);
   if (numberTaken(store.state, genericId, mine)) throw new Error(`#${mine} is taken`);
   await changed(store, "item", id, { parent_id: genericId, number: mine, name: null });
+}
+
+function joinable(parent: Item): void {
+  if (takesUnits(parent)) return;
+  if (isPool(parent)) throw new Error("a pool has no units");
+  if (parent.retired) throw new Error("that generic is retired; bring it back first");
+  throw new Error("that generic is gone");
 }
 
 /**
@@ -337,6 +351,9 @@ export async function groupWith(
   if (id === otherId) throw new Error("an item cannot be grouped with itself");
   if (it.generic) throw new Error("this is already a name for several");
   if (it.parent_id) throw new Error("this is already one of several");
+  if (isPool(other)) throw new Error("a pool has no units");
+  if (it.retired) throw new Error("it is retired; bring it back first");
+  if (other.retired) throw new Error("the other item is retired; bring it back first");
   const mine = unitNumber(numbers.mine);
   const theirs = unitNumber(numbers.other ?? "1");
   const fresh = !other.generic && !other.parent_id;

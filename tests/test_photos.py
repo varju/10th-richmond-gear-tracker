@@ -75,6 +75,16 @@ def test_a_ticket_takes_a_photo_too(client):
     assert photos_of(client, "repair", "rep-1")[0]["content_type"] == "image/png"
 
 
+def test_a_deleted_ticket_takes_no_new_photo_but_a_retry_still_stands(db_path, client):
+    """FR-REP-10. A retry after a dropped reply finds the photo already saved."""
+    assert put(client, entity="repair/rep-1").status_code == 200
+    with open_db(db_path) as conn:
+        gone = {"field": "deleted", "value": True, "old": None}
+        append(conn, incoming(device_seq=3, entity_type="repair", entity_id="rep-1", payload=gone), received_at=T0)
+    assert put(client, entity="repair/rep-1").status_code == 200
+    assert put(client, photo_id="01000000000000000000000BBB", entity="repair/rep-1").status_code == 404
+
+
 def test_a_retry_writes_nothing_twice(client, db_path):
     put(client)
     assert put(client, body=b"different bytes").status_code == 200

@@ -1,8 +1,9 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
 import * as rep from "../lib/repairs";
+import { addNote } from "../lib/notes";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { unsaved } from "../lib/unsaved";
@@ -163,4 +164,43 @@ test("the repairs screen lists open tickets, then the history over a date range 
   await user.type(screen.getByLabelText("To"), "2025-09-01");
   await user.click(within(history).getByRole("button", { name: /Open · Raised/ }));
   expect(location.pathname).toBe(`/repairs/${other}`);
+});
+
+test("the raiser deletes an untouched ticket with two taps, and it leaves every list (FR-REP-10)", async () => {
+  await store.setMeta({ user: carol });
+  const mine = await rep.raiseTicket(store, tent, "pole cracked");
+  renderInShell(<RepairPage store={store} id={mine} />);
+  await user.click(screen.getByRole("button", { name: "Delete ticket…" }));
+  await user.click(screen.getByRole("button", { name: "Really delete? This cannot be undone" }));
+  await waitFor(() => expect(rep.repair(store.state, mine)?.deleted).toBe(true));
+  expect(store.pending.at(-1)).toMatchObject({
+    entity_type: "repair",
+    entity_id: mine,
+    type: "field_changed",
+    payload: { field: "deleted", value: true },
+  });
+  expect(rep.openRepairs(store.state, tent).map((r) => r.id)).toEqual([ticket]);
+});
+
+test("once someone else comments, only an Admin can delete the ticket (FR-REP-12, FR-REP-13)", async () => {
+  await store.setMeta({ user: carol });
+  const mine = await rep.raiseTicket(store, tent, "pole cracked");
+  expect(rep.canDelete(store, mine)).toBe(true);
+  expect(rep.canDelete(store, ticket)).toBe(false);
+
+  await store.setMeta({ user: alice });
+  await addNote(store, { entity_type: "repair", entity_id: mine }, "spare pole in the bin");
+  expect(rep.canDelete(store, mine)).toBe(true);
+
+  await store.setMeta({ user: carol });
+  expect(rep.canDelete(store, mine)).toBe(false);
+  renderInShell(<RepairPage store={store} id={mine} />);
+  expect(screen.queryByRole("button", { name: "Delete ticket…" })).not.toBeInTheDocument();
+});
+
+test("a deleted ticket's page says so and offers nothing (FR-REP-10)", async () => {
+  await rep.deleteTicket(store, ticket);
+  renderInShell(<RepairPage store={store} id={ticket} />);
+  expect(screen.getByRole("note")).toHaveTextContent("This ticket was deleted.");
+  expect(screen.queryByRole("button", { name: "Resolved" })).not.toBeInTheDocument();
 });

@@ -2,15 +2,14 @@
 
 Gear inventory for a Scout group. Tracks what we own, where it lives, who has it, and what needs fixing.
 
-**Status: early build.** Requirements are settled and the scanner is proven. The application is not written yet; see
-`docs/tasks.md` for what is next.
+**Status: live.** The web app and the iPhone app are in use. See `docs/tasks.md` for what is next.
 
 ## Read first
 
 | File                                               | What it holds                     |
 | -------------------------------------------------- | --------------------------------- |
 | `docs/architecture.md`                             | How it is built, and why          |
-| `docs/tasks.md`                                    | The build, in order               |
+| `docs/tasks.md`                                    | What is next                      |
 | `docs/deploy.md`                                   | Running your own copy             |
 | `docs/stories/README.md`                           | What a Friday evening looks like  |
 | `docs/requirements/README.md`                      | Context, people, scale, locations |

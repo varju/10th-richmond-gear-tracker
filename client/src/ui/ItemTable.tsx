@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   categories,
   categoryNames,
@@ -11,7 +11,7 @@ import {
 } from "../lib/inventory";
 import { filterParams, readFilter, withQuery } from "../lib/listUrl";
 import { openRepairs } from "../lib/repairs";
-import { navigate, useRoute } from "../lib/router";
+import { entryState, navigate, restoringScroll, setEntryState, useRoute } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { FilterFields } from "./Filters";
@@ -54,6 +54,14 @@ function flagsOf(store: Store, it: Item): string[] {
   return [...(openRepairs(store.state, it.id).length > 0 ? ["Repair"] : []), ...(it.missing ? ["Missing"] : [])];
 }
 
+/** A generic shows its units' flags, so a shut one still says what needs a look. */
+function rowFlags(store: Store, row: Row): string[] {
+  if (row.kind === "single") return flagsOf(store, row.item);
+  if (row.kind === "pool") return [];
+  const all = row.units.flatMap((u) => flagsOf(store, u));
+  return ["Repair", "Missing"].filter((f) => all.includes(f));
+}
+
 function sortKey(store: Store, row: Row, key: Key): string {
   switch (key) {
     case "name":
@@ -65,12 +73,12 @@ function sortKey(store: Store, row: Row, key: Key): string {
     case "status":
       return statusOf(store, row);
     case "flags":
-      return row.kind === "single" ? flagsOf(store, row.item).join(" ") : "";
+      return rowFlags(store, row).join(" ");
   }
 }
 
 /**
- * The inventory at a desk: every row on screen at once, sortable, with search
+ * The inventory at a desk: one row per item, sortable, with search
  * and the filters always in view (FR-INV-25, NFR-USE-10). The phone shows the
  * same data as a list; this is it laid out for a table and a mouse.
  */
@@ -81,10 +89,29 @@ export function ItemTable({ store }: { store: Store }) {
   const filter = readFilter(route.query);
   const sort = readSort(route.query);
   const camera = useCamera();
+  const search = useRef<HTMLInputElement>(null);
+  // Not on a return down the page: Safari scrolls a focused box into view, even with preventScroll.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      if (!restoringScroll() && window.scrollY === 0) search.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
   const state = store.state;
   // A column only once the group has made a category (FR-SET-07).
   const hasCategories = categories(state).length > 0;
   const columns = COLUMNS.filter((c) => c.key !== "category" || hasCategories);
+  const [, refold] = useState(0);
+  // A search or filter is looking for units, so it opens every generic it shows. Retired swaps the list; it does not narrow it.
+  const narrowed = Boolean(query || filter.location_id || filter.sub_location || filter.status || filter.category_id);
+  // Generics opened or shut by hand, by id: one set while browsing, another while narrowed.
+  const looking = narrowed ? "narrowed" : "all";
+  const allFolds = (entryState("folds") ?? {}) as Record<string, Record<string, boolean>>;
+  const folds = allFolds[looking] ?? {};
+  const toggle = (id: string, open: boolean) => {
+    setEntryState("folds", { ...allFolds, [looking]: { ...folds, [id]: !open } });
+    refold((n) => n + 1);
+  };
 
   // Replace, not push: typing a search must not fill the back button with keystrokes.
   const show = (text: string, next: Filter, order: Sort) =>
@@ -110,7 +137,7 @@ export function ItemTable({ store }: { store: Store }) {
             value={query}
             onChange={(e) => show(e.target.value, filter, sort)}
             autoComplete="off"
-            autoFocus
+            ref={search}
           />
         </label>
         <FilterFields store={store} filter={filter} onChange={(f) => show(query, f, sort)} />
@@ -126,7 +153,7 @@ export function ItemTable({ store }: { store: Store }) {
         </div>
       </div>
       <p className="muted small">{plural(list.length, "row")}</p>
-      <table className="grid">
+      <table className="grid inventory">
         <thead>
           <tr>
             {columns.map((c) => (
@@ -145,7 +172,14 @@ export function ItemTable({ store }: { store: Store }) {
         </thead>
         <tbody>
           {list.map((row) => (
-            <ItemRows key={row.item.id} store={store} row={row} showCategory={hasCategories} />
+            <ItemRows
+              key={row.item.id}
+              store={store}
+              row={row}
+              showCategory={hasCategories}
+              open={folds[row.item.id] ?? narrowed}
+              onToggle={toggle}
+            />
           ))}
         </tbody>
       </table>
@@ -159,25 +193,40 @@ interface RowProps {
   row: Row;
   /** The Category column is shown, and so is this cell (FR-SET-07). */
   showCategory: boolean;
+  /** A generic's units are shown (FR-INV-25). */
+  open: boolean;
+  onToggle: (id: string, open: boolean) => void;
 }
 
-/** One row, and every unit under it: units are never folded away (FR-INV-25). */
-function ItemRows({ store, row, showCategory }: RowProps) {
+/** One row, and a generic's units under it when open (FR-INV-25). */
+function ItemRows({ store, row, showCategory, open, onToggle }: RowProps) {
   const state = store.state;
-  const flags = row.kind === "single" ? flagsOf(store, row.item) : [];
+  const flags = rowFlags(store, row);
+  const counts = row.kind === "generic" ? `${plural(row.counts.total, "unit")} · ${row.counts.in} in` : "";
   return (
     <>
       <tr>
         <td>
-          <button className="link" type="button" onClick={() => navigate(`/items/${row.item.id}`)}>
-            {row.name}
-          </button>
-          {row.kind === "generic" && (
-            <span className="muted small home">{`${plural(row.counts.total, "unit")} · ${row.counts.in} in`}</span>
-          )}
-          {row.kind === "pool" && (
-            <span className="muted small home">{`${row.pool.in} in · ${row.pool.owned - row.pool.in} out`}</span>
-          )}
+          <div className="name">
+            <button className="link" type="button" onClick={() => navigate(`/items/${row.item.id}`)}>
+              {row.name}
+            </button>
+            {row.kind === "generic" && row.units.length === 0 && <span className="muted small">{counts}</span>}
+            {row.kind === "generic" && row.units.length > 0 && (
+              <button
+                className="unit-fold muted small"
+                type="button"
+                aria-expanded={open}
+                aria-label={`${counts}, ${row.name}`}
+                onClick={() => onToggle(row.item.id, open)}
+              >
+                {counts} <span aria-hidden="true">{open ? "▾" : "▸"}</span>
+              </button>
+            )}
+            {row.kind === "pool" && (
+              <span className="muted small">{`${row.pool.in} in · ${row.pool.owned - row.pool.in} out`}</span>
+            )}
+          </div>
         </td>
         {showCategory && <td>{categoryNames(state, row.item)}</td>}
         <td>{homeLabel(state, row.item)}</td>
@@ -191,6 +240,7 @@ function ItemRows({ store, row, showCategory }: RowProps) {
         </td>
       </tr>
       {row.kind === "generic" &&
+        open &&
         row.units.map((unit) => (
           <tr key={unit.id} className="unit">
             <td>

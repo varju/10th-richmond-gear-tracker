@@ -147,14 +147,18 @@ test("a pool's container can carry a code, on the pool page's Details (FR-TAG-15
 
 test("a single item becomes a counted stack, the way it becomes a generic (FR-INV-26, FR-INV-34)", async () => {
   const stove = await act.createItem(store, { name: "Stove" });
-  navigate(`/items/${stove}`);
+  navigate(`/items/${stove}?edit=1`);
   renderInShell(<ItemPage store={store} id={stove} />);
 
+  expect(screen.queryByRole("button", { name: "Make this a counted stack…" })).not.toBeInTheDocument();
+  await user.click(screen.getByLabelText("We have several of these"));
+  await user.click(screen.getByLabelText("A stack we count"));
   const quantity = screen.getByLabelText("How many");
   await user.clear(quantity);
   await user.type(quantity, "12");
-  await user.click(screen.getByRole("button", { name: "Make this a counted stack…" }));
-  await user.click(screen.getByRole("button", { name: "Really make it a counted stack?" }));
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  expect(inv.item(store.state, stove)?.merged_into).toBeFalsy();
+  await user.click(screen.getByRole("button", { name: "Yes, make it several" }));
 
   await waitFor(() => expect(location.pathname).not.toBe(`/items/${stove}`));
   const poolId = location.pathname.split("/").at(-1)!;
@@ -166,14 +170,54 @@ test("a single item's code comes along when it becomes a counted stack (FR-TAG-1
   const stove = await act.createItem(store, { name: "Stove" });
   await printCodes(store, ["ABCDEFGH23"]);
   await act.bindCode(store, "ABCDEFGH23", stove);
-  navigate(`/items/${stove}`);
+  navigate(`/items/${stove}?edit=1`);
   renderInShell(<ItemPage store={store} id={stove} />);
 
-  await user.click(screen.getByRole("button", { name: "Make this a counted stack…" }));
-  await user.click(screen.getByRole("button", { name: "Really make it a counted stack?" }));
+  await user.click(screen.getByLabelText("We have several of these"));
+  await user.click(screen.getByLabelText("A stack we count"));
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await user.click(screen.getByRole("button", { name: "Yes, make it several" }));
 
   await waitFor(() => expect(location.pathname).not.toBe(`/items/${stove}`));
   const poolId = location.pathname.split("/").at(-1)!;
   expect(inv.currentCode(store.state, poolId)?.id).toBe("ABCDEFGH23");
   expect(inv.codeStatus(store.state, "ABCDEFGH23")).toBe("assigned");
+});
+
+test("gear that is out cannot become a counted stack until it is back (FR-INV-34)", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  await mv.checkOut(store, stove, { event: "Fall Camp" });
+  navigate(`/items/${stove}?edit=1`);
+  renderInShell(<ItemPage store={store} id={stove} />);
+
+  await user.click(screen.getByLabelText("We have several of these"));
+  expect(screen.getByLabelText("A stack we count")).toBeDisabled();
+  expect(screen.getByLabelText("Labelled one by one")).toBeChecked();
+  expect(screen.getByLabelText("This one’s number")).toBeInTheDocument();
+});
+
+test("retired gear cannot become a counted stack (FR-INV-34)", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  await act.retireItem(store, stove);
+  navigate(`/items/${stove}?edit=1`);
+  renderInShell(<ItemPage store={store} id={stove} />);
+
+  await user.click(screen.getByLabelText("We have several of these"));
+  expect(screen.getByLabelText("A stack we count")).toBeDisabled();
+  await expect(act.makePool(store, stove, 3)).rejects.toThrow("retired");
+});
+
+test("a check-out synced while Save waits to be confirmed asks again (FR-INV-34)", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  navigate(`/items/${stove}?edit=1`);
+  renderInShell(<ItemPage store={store} id={stove} />);
+
+  await user.click(screen.getByLabelText("We have several of these"));
+  await user.click(screen.getByLabelText("A stack we count"));
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  expect(screen.getByRole("button", { name: "Yes, make it several" })).toBeInTheDocument();
+  await mv.checkOut(store, stove, { event: "Fall Camp" });
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument());
+  expect(inv.generics(store.state)).toEqual([]);
 });

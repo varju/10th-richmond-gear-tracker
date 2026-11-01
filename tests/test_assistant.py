@@ -463,6 +463,25 @@ def test_list_repairs_shows_open_ones_with_their_comments(tools):
         assistant.comment_ticket("nope", "hello")
 
 
+def test_delete_ticket_takes_an_untouched_ticket_of_your_own_off_every_list(db_path, tools, admin):
+    mine = assistant.raise_ticket(tools["stove"], "valve sticks")["ticket_id"]
+    assert assistant.delete_ticket(mine) == {"ticket_id": mine, "deleted": True}
+    assert entity(db_path, "repair", mine)["state"] == "wont_fix"
+    assert assistant.list_repairs(open_only=False)["tickets"] == []
+    with pytest.raises(NotFound):
+        assistant.comment_ticket(mine, "hello")
+
+    touched = assistant.raise_ticket(tools["stove"], "leg bent")["ticket_id"]
+    with assistant.acting_as(admin, db_path):
+        assistant.comment_ticket(touched, "on it")
+    with pytest.raises(BadRequest, match="ask an Admin"):
+        assistant.delete_ticket(touched)
+    assert entity(db_path, "repair", touched)["state"] == "open"
+    with assistant.acting_as(admin, db_path):
+        assistant.delete_ticket(touched)
+    assert assistant.list_repairs(open_only=False)["tickets"] == []
+
+
 # --- writing ------------------------------------------------------------------------------------
 
 
@@ -603,6 +622,28 @@ def test_an_item_that_is_out_cannot_be_merged(admin_tools):
     assistant.check_out(admin_tools["t1"])
     with pytest.raises(BadRequest):
         assistant.merge_items(admin_tools["t1"], admin_tools["stove"])
+
+
+def test_a_generic_cannot_be_merged(admin_tools):
+    with pytest.raises(BadRequest, match="generic"):
+        assistant.merge_items(admin_tools["tents"], admin_tools["stove"])
+    with pytest.raises(BadRequest, match="generic"):
+        assistant.merge_items(admin_tools["stove"], admin_tools["tents"])
+
+
+def test_nothing_merges_into_a_deleted_item(admin_tools):
+    assistant.delete_item(admin_tools["t3"])
+    with pytest.raises(NotFound):
+        assistant.merge_items(admin_tools["stove"], admin_tools["t3"])
+    with pytest.raises(NotFound):
+        assistant.merge_items(admin_tools["t3"], admin_tools["stove"])
+
+
+def test_a_pool_takes_no_units(db_path, tools):
+    with open_db(db_path) as conn:
+        pool = _new(conn, "item", {"name": "Tent pegs", "generic": True, "pool": True, "quantity": 40})
+    with pytest.raises(BadRequest, match="pool"):
+        assistant.add_unit(pool)
 
 
 def test_an_item_never_merged_refuses_to_unmerge(admin_tools):
@@ -1431,6 +1472,43 @@ def test_retire_generic_needs_its_units_retired_first(db_path, tools):
     assert assistant.retire_item(tools["tents"])["retired"] is True
 
 
+def test_retired_gear_is_not_reshaped(db_path, tools):
+    with open_db(db_path) as conn:
+        spare = _new(conn, "item", {"name": "Spare tent", "generic": True})
+        lamp = _new(conn, "item", {"name": "Lamp"})
+    assistant.retire_item(tools["stove"])
+    assistant.retire_item(tools["t1"])
+    attempts = [
+        lambda: assistant.mark_missing(tools["stove"]),
+        lambda: assistant.make_pool(tools["stove"], 2),
+        lambda: assistant.group_items(tools["stove"], tools["tents"], "4"),
+        lambda: assistant.move_unit(tools["t1"], spare),
+    ]
+    for attempt in attempts:
+        with pytest.raises(BadRequest, match="retired"):
+            attempt()
+
+    assert assistant.move_unit(tools["t1"], tools["tents"])["already"] is True
+    with pytest.raises(BadRequest, match="other item is retired"):
+        assistant.group_items(lamp, tools["stove"], "2")
+
+    assistant.retire_item(spare)
+    with pytest.raises(BadRequest, match="retired"):
+        assistant.make_single(spare)
+    with pytest.raises(BadRequest, match="generic is retired"):
+        assistant.add_unit(spare)
+    with pytest.raises(BadRequest, match="generic is retired"):
+        assistant.move_unit(tools["t2"], spare)
+
+
+def test_nothing_joins_a_retired_generic_through_a_live_unit(db_path, tools):
+    for key in ("t1", "t2", "t3", "tents"):
+        assistant.retire_item(tools[key])
+    assistant.retire_item(tools["t2"], retired=False)
+    with pytest.raises(BadRequest, match="generic is retired"):
+        assistant.group_items(tools["stove"], tools["t2"], "4")
+
+
 def test_found_reports_are_listed_until_resolved(db_path, tools):
     assert assistant.list_found_reports() == {"reports": []}
     with open_db(db_path) as conn:
@@ -1567,6 +1645,13 @@ def test_making_an_item_generic_keeps_its_categories(db_path, tools):
     assistant.update_item(tools["stove"], assistant.ItemFields(category_ids=[tools["tents_cat"]]))
     made = assistant.make_generic(tools["stove"])
     assert entity(db_path, "item", made["generic_id"])["category_ids"] == [tools["tents_cat"]]
+    assert assistant.get_item(tools["stove"])["categories"] == ["Tents"]
+
+
+def test_making_a_generic_single_keeps_its_categories(db_path, tools):
+    made = assistant.make_generic(tools["stove"])
+    assistant.update_item(made["generic_id"], assistant.ItemFields(category_ids=[tools["tents_cat"]]))
+    assistant.make_single(made["generic_id"])
     assert assistant.get_item(tools["stove"])["categories"] == ["Tents"]
 
 

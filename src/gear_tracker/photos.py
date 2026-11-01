@@ -77,4 +77,8 @@ def already(conn: sqlite3.Connection, photo_id: str, entity_type: str, entity_id
     entity = derived.get_entity(conn, entity_type, entity_id)
     if entity is None:
         raise NotFound(f"no such {entity_type}")
-    return any(ph["id"] == photo_id for ph in entity.get("photos", []))
+    if any(ph["id"] == photo_id for ph in entity.get("photos", [])):
+        return True
+    if entity_type == "repair" and entity.get("deleted"):
+        raise NotFound("this ticket was deleted")
+    return False

@@ -1366,6 +1366,12 @@ h3.section.small {
   font-size: 16px;
 }
 
+/* The inventory runs to hundreds of rows, and its links are already 44 px tall. */
+.grid.inventory td {
+  padding-block: 2px;
+  vertical-align: middle;
+}
+
 .grid th {
   color: var(--muted);
   font-weight: 500;
@@ -1383,9 +1389,21 @@ h3.section.small {
   text-decoration: none;
 }
 
-/* The second line of a name cell: a home, or how many units are in. */
-.grid .home {
-  display: block;
+/* Counts beside the name. A generic's opens and shuts its units. */
+.grid .name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+button.unit-fold {
+  width: auto;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 400;
 }
 
 .grid tr.unit td:first-child {

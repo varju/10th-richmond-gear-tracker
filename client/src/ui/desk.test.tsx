@@ -10,7 +10,7 @@ import { openDb } from "../lib/db";
 import { checkOut } from "../lib/movement";
 import * as rep from "../lib/repairs";
 import { createReservation, todayIso } from "../lib/reservations";
-import { navigate } from "../lib/router";
+import { back, navigate } from "../lib/router";
 import { Store } from "../lib/store";
 import { localDate } from "../lib/time";
 import { desk, PHONE, setWidth } from "./widthTestKit";
@@ -183,22 +183,25 @@ test("a reservation in the next few weeks is coming up", async () => {
   expect(todayIso(T0)).toBe(localDate(T0));
 });
 
-test("the inventory is a table, sortable, its units always shown under their generic", async () => {
+test("the inventory is a table, sortable, a generic's units folded under it", async () => {
   await fixture();
   navigate("/items");
   mount();
   const user = userEvent.setup();
 
-  // The name is the only button in a row.
+  // The name is the first button in a row.
   const names = () =>
     within(screen.getByRole("table"))
       .getAllByRole("row")
       .slice(1)
-      .map((r) => within(r).getAllByRole("button").at(-1)!.textContent);
-  // A generic's units sit under it with no click needed (FR-INV-25).
+      .map((r) => within(r).getAllByRole("button")[0]!.textContent);
+  // A generic's units stay shut until its count is clicked (FR-INV-25).
+  expect(names()).toEqual(["3x3 tarp", "Stove", "Tent 1"]);
+  const fold = screen.getByRole("button", { name: "2 units · 2 in, 3x3 tarp" });
+  expect(fold).toHaveAttribute("aria-expanded", "false");
+  await user.click(fold);
+  expect(fold).toHaveAttribute("aria-expanded", "true");
   expect(names()).toEqual(["3x3 tarp", "3x3 tarp #1", "3x3 tarp #2", "Stove", "Tent 1"]);
-  expect(screen.getByText("2 units · 2 in")).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /^Units of/ })).not.toBeInTheDocument();
 
   // The same header again turns the sort around.
   await user.click(screen.getByRole("button", { name: /^Name/ }));
@@ -231,11 +234,12 @@ test("a Category column appears once one exists, and sorts (FR-SET-07)", async (
   expect(category("3x3 tarp")).toBe("");
 
   await user.click(screen.getByRole("button", { name: /^Category/ }));
+  await user.click(screen.getByRole("button", { name: "2 units · 2 in, 3x3 tarp" }));
   const names = () =>
     within(screen.getByRole("table"))
       .getAllByRole("row")
       .slice(1)
-      .map((r) => within(r).getAllByRole("button").at(-1)!.textContent);
+      .map((r) => within(r).getAllByRole("button")[0]!.textContent);
   // Ascending: the uncategorised generic and its units sort first, then by category name.
   expect(names()).toEqual(["3x3 tarp", "3x3 tarp #1", "3x3 tarp #2", "Stove", "Tent 1"]);
 });
@@ -251,6 +255,42 @@ test("the table narrows by search and by filter", async () => {
   await user.clear(screen.getByLabelText("Search"));
   await user.selectOptions(screen.getByLabelText("Status"), "out");
   expect(screen.getByText("Nothing matches.")).toBeInTheDocument();
+});
+
+test("a search opens the generics it shows, and folds by hand come back with the search and the screen", async () => {
+  const f = await fixture();
+  await act.createGeneric(store, { name: "Pegs", home_location_id: f.cold });
+  await act.markMissing(store, f.first);
+  navigate("/items");
+  mount();
+  const user = userEvent.setup();
+  // Shut, but still flagged.
+  const tarpRow = within(screen.getByRole("table"))
+    .getAllByRole("row")
+    .find((r) => within(r).queryByRole("button", { name: "3x3 tarp" }))!;
+  expect(within(tarpRow).getByText("Missing")).toBeInTheDocument();
+  // Nothing to open, so nothing to click.
+  expect(screen.getByText("0 units · 0 in")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "0 units · 0 in, Pegs" })).not.toBeInTheDocument();
+
+  const fold = () => screen.getByRole("button", { name: "2 units · 1 in, 3x3 tarp" });
+  await user.click(fold());
+  expect(fold()).toHaveAttribute("aria-expanded", "true");
+
+  await user.type(screen.getByLabelText("Search"), "3x");
+  await user.click(fold());
+  await user.type(screen.getByLabelText("Search"), "3");
+  expect(fold()).toHaveAttribute("aria-expanded", "false");
+  await user.clear(screen.getByLabelText("Search"));
+  expect(fold()).toHaveAttribute("aria-expanded", "true");
+
+  await user.click(screen.getByRole("button", { name: "3x3 tarp #1" }));
+  expect(location.pathname).toBe(`/items/${f.first}`);
+  back("/");
+  expect(await screen.findByRole("button", { name: "2 units · 1 in, 3x3 tarp" })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
 });
 
 test("no camera, no Scan button", async () => {

@@ -38,6 +38,7 @@ import {
   parentOf,
   poolCounts,
   search,
+  takesUnits,
   unitsOf,
 } from "../lib/inventory";
 import { itemReservations } from "../lib/itemReservations";
@@ -257,7 +258,6 @@ export function ItemPage({ store, id }: Props) {
               Group with another item…
             </button>
           )}
-          {!it.generic && !it.parent_id && !it.retired && it.status === "in" && <MakePool store={store} it={it} />}
           {admin && !it.retired && it.status === "in" && (
             <button type="button" onClick={() => setMerging(true)}>
               This is a duplicate record…
@@ -531,9 +531,7 @@ function MarkMissing({ store, it, onDone }: { store: Store; it: Item; onDone: ()
 }
 
 /**
- * A single item, or a generic with no units (FR-INV-40), becomes a counted
- * stack (FR-INV-34), the way a single item becomes a generic (FR-INV-26).
- * Two taps, like "Make this a single item…": the first sets how many, the
+ * A generic with no units becomes a counted stack (FR-INV-40). Two taps, like "Make this a single item…": the first sets how many, the
  * second does it.
  */
 function MakePool({ store, it }: { store: Store; it: Item }) {
@@ -879,10 +877,16 @@ function GroupPicker({ store, id, onDone }: { store: Store; id: string; onDone: 
   const other = chosen ? item(state, chosen) : undefined;
   const words = query.trim().toLowerCase();
   // Generics are not in search: they are a name, not a thing that moves. Both are offered here.
-  const shared = generics(state).filter(
-    (g) => !g.retired && !g.merged_into && displayName(state, g).toLowerCase().includes(words),
-  );
-  const candidates = words ? [...shared, ...search(state, { query }).filter((c) => c.id !== id)] : [];
+  const shared = generics(state).filter((g) => takesUnits(g) && displayName(state, g).toLowerCase().includes(words));
+  const candidates = words
+    ? [
+        ...shared,
+        ...search(state, { query }).filter((c) => {
+          const parent = parentOf(state, c);
+          return c.id !== id && (!parent || takesUnits(parent));
+        }),
+      ]
+    : [];
 
   function choose(otherId: string) {
     const picked = item(state, otherId);
@@ -992,8 +996,8 @@ function GroupPicker({ store, id, onDone }: { store: Store; id: string; onDone: 
 
 /**
  * One form for all three shapes. A unit edits its number and nickname where an
- * item edits its name; a single item can be turned into a generic here
- * (FR-INV-26), and the tick asks once before it happens.
+ * item edits its name; a single item can be turned into a generic (FR-INV-26)
+ * or a counted stack (FR-INV-34) here, and the tick asks once before it happens.
  */
 function EditItem({
   store,
@@ -1018,32 +1022,44 @@ function EditItem({
   const [several, setSeveral] = useState(false);
   // What this one becomes when it turns into several. Offered "1", because it is the first (FR-INV-26).
   const [firstNumber, setFirstNumber] = useState("1");
+  const [kind, setKind] = useState<"units" | "pool">("units");
+  const [quantity, setQuantity] = useState("1");
   const [asked, setAsked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const n = number.trim();
   const named = (values.name ?? "").trim() !== "";
   const numbered = n !== "" && !numberTaken(store.state, it.parent_id ?? "", n, id);
-  const canSave = unit ? numbered : named && (!several || firstNumber.trim() !== "");
+  // makePool refuses gear that is out or retired.
+  const canCount = it.status === "in" && !it.retired;
+  // A sync may check it out while Save waits to be confirmed; ask again rather than make units.
+  useEffect(() => setAsked(false), [canCount]);
+  const asPool = several && kind === "pool" && canCount;
+  const qty = Number(quantity.trim());
+  const validQuantity = Number.isInteger(qty) && qty >= 1;
+  const canSave = unit ? numbered : named && (!several || (asPool ? validQuantity : firstNumber.trim() !== ""));
   const dirty =
     nowRetired !== retired ||
     several ||
     (unit && (number !== numberOf(it) || nickname !== (it.nickname ?? ""))) ||
     (Object.keys(values) as (keyof ItemInput)[]).some((k) => values[k] !== initial[k]);
-  useUnsaved(dirty, { save: () => apply().then((ok) => ok), canSave });
+  useUnsaved(dirty, { save: () => apply().then((target) => target !== null), canSave });
 
-  async function apply(): Promise<boolean> {
+  /** The id it now lives under, or null when it could not be saved. */
+  async function apply(): Promise<string | null> {
     setSaving(true);
     setError(null);
     try {
+      let target = id;
       if (unit) await updateUnit(store, id, { number: n, nickname: nickname.trim() || null });
       await updateItem(store, id, unit ? withoutName(values) : values);
-      if (several) await makeGeneric(store, id, firstNumber);
-      if (nowRetired !== retired) await (nowRetired ? retireItem : unretireItem)(store, id);
-      return true;
+      if (asPool) target = await makePool(store, id, qty);
+      else if (several) await makeGeneric(store, id, firstNumber);
+      if (nowRetired !== retired) await (nowRetired ? retireItem : unretireItem)(store, target);
+      return target;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save it");
-      return false;
+      return null;
     } finally {
       setSaving(false);
     }
@@ -1055,7 +1071,10 @@ function EditItem({
       setAsked(true);
       return;
     }
-    if (await apply()) onDone();
+    const target = await apply();
+    if (target === null) return;
+    onDone();
+    if (target !== id) navigate(`/items/${target}`, true);
   }
 
   return (
@@ -1121,6 +1140,40 @@ function EditItem({
             <span>{SEVERAL}</span>
           </label>
           {several && (
+            <div className="row">
+              <label className="check">
+                <input
+                  type="radio"
+                  name="several-kind"
+                  checked={!asPool}
+                  onChange={() => {
+                    setKind("units");
+                    setAsked(false);
+                  }}
+                />
+                <span>Labelled one by one</span>
+              </label>
+              <label className="check">
+                <input
+                  type="radio"
+                  name="several-kind"
+                  checked={asPool}
+                  disabled={!canCount}
+                  onChange={() => {
+                    setKind("pool");
+                    setAsked(false);
+                  }}
+                />
+                <span>A stack we count</span>
+              </label>
+            </div>
+          )}
+          {several && !canCount && (
+            <p className="muted small">
+              {it.retired ? "Bring it back from retired" : "Check it in"} to make it a stack we count.
+            </p>
+          )}
+          {several && !asPool && (
             <>
               <label>
                 <span>This one’s number</span>
@@ -1129,6 +1182,28 @@ function EditItem({
               <p className="notice" role="note">
                 {(values.name ?? "").trim()} becomes a name for several, and this one becomes #
                 {firstNumber.trim() || "?"} under it. Its code, movements and tickets stay where they are.
+              </p>
+            </>
+          )}
+          {asPool && (
+            <>
+              <label className="tight">
+                <span>How many</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  step={1}
+                  value={quantity}
+                  onChange={(e) => {
+                    setQuantity(e.target.value);
+                    setAsked(false);
+                  }}
+                />
+              </label>
+              <p className="notice" role="note">
+                {(values.name ?? "").trim()} becomes a stack of {validQuantity ? qty : "?"}, counted rather than
+                labelled. Its code comes along, and this page points to the stack.
               </p>
             </>
           )}
@@ -1527,9 +1602,11 @@ function GenericPage({
       back="/"
       actions={
         <>
-          <button className="primary" type="button" onClick={() => void add()}>
-            Add a unit
-          </button>
+          {!it.retired && (
+            <button className="primary" type="button" onClick={() => void add()}>
+              Add a unit
+            </button>
+          )}
           <button type="button" onClick={onEdit}>
             Edit
           </button>
@@ -1613,7 +1690,7 @@ function MovePicker({ store, id, onDone }: { store: Store; id: string; onDone: (
   const state = store.state;
   const [error, setError] = useState<string | null>(null);
   const it = item(state, id);
-  const choices = generics(state).filter((g) => !g.retired && g.id !== it?.parent_id);
+  const choices = generics(state).filter((g) => takesUnits(g) && g.id !== it?.parent_id);
 
   async function move(parentId: string) {
     try {
@@ -1652,7 +1729,7 @@ function MovePicker({ store, id, onDone }: { store: Store; id: string; onDone: (
             </button>
           </li>
         ))}
-        {choices.length === 0 && <li className="muted">No other generic items yet.</li>}
+        {choices.length === 0 && <li className="muted">No other generic to move it to.</li>}
       </ul>
     </Page>
   );

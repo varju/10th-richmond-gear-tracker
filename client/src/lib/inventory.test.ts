@@ -400,6 +400,39 @@ test("a unit moves to another generic, and a taken number is bumped (FR-INV-28)"
   await expect(act.moveUnit(store, f.t1, other)).rejects.toThrow("not a unit");
 });
 
+test("moving or grouping refuses a pool or a retired generic", async () => {
+  const f = await withUnits();
+  const pool = await act.createPool(store, { name: "Tent pegs" }, 40);
+  await expect(act.moveUnit(store, f.u1, pool)).rejects.toThrow("a pool has no units");
+  await expect(act.groupWith(store, f.t1, pool, { mine: "1" })).rejects.toThrow("a pool has no units");
+
+  for (const id of [f.u1, f.u2, f.u3]) await act.retireItem(store, id);
+  await act.retireItem(store, f.tents);
+  await act.unretireItem(store, f.u2);
+  await expect(act.groupWith(store, f.t1, f.u2, { mine: "8" })).rejects.toThrow("generic is retired");
+  const other = await act.createGeneric(store, { name: "3-person tent" });
+  await act.createUnit(store, { parent_id: other, number: "1" });
+  const unit = inv.unitsOf(store.state, other)[0]!.id;
+  await expect(act.moveUnit(store, unit, f.tents)).rejects.toThrow("generic is retired");
+  await expect(act.addUnit(store, f.tents)).rejects.toThrow("generic is retired");
+  await expect(act.addUnit(store, pool)).rejects.toThrow("a pool has no units");
+  expect(inv.item(store.state, f.t1)?.parent_id).toBeUndefined();
+
+  const folded = await act.createGeneric(store, { name: "Old name" });
+  await act.makeSingle(store, folded);
+  await expect(act.moveUnit(store, unit, folded)).rejects.toThrow("that generic is gone");
+});
+
+test("retired gear is not moved or grouped", async () => {
+  const f = await withUnits();
+  await act.retireItem(store, f.u1);
+  const other = await act.createGeneric(store, { name: "3-person tent" });
+  await expect(act.moveUnit(store, f.u1, other)).rejects.toThrow("it is retired");
+  await act.retireItem(store, f.t2);
+  await expect(act.groupWith(store, f.t1, f.t2, { mine: "2" })).rejects.toThrow("other item is retired");
+  await expect(act.groupWith(store, f.t2, f.t1, { mine: "2" })).rejects.toThrow("it is retired");
+});
+
 test("recent generics come back most recently touched first (FR-INV-24)", async () => {
   const f = await withUnits();
   const other = await act.createGeneric(store, { name: "3-person tent" });

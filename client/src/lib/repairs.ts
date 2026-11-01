@@ -1,10 +1,10 @@
 /**
  * Repair tickets (FR-REP-01). A ticket is a `repair` entity that names its
  * item; its state moves by field_changed and its comments are notes. Pure reads
- * over state, and the two writes a person makes.
+ * over state, and the writes a person makes.
  */
 import { aliases } from "./inventory";
-import type { Fields, Note, State } from "./replay";
+import type { Fields, Note, Photo, State } from "./replay";
 import type { Store } from "./store";
 import { localDate } from "./time";
 import { newUlid } from "./ulid";
@@ -20,6 +20,8 @@ export interface Repair {
   added_at?: number;
   modified_at?: number;
   raised_by?: string;
+  deleted?: boolean;
+  photos?: Photo[];
 }
 
 /** In the order a ticket moves (FR-REP-03). */
@@ -37,10 +39,14 @@ export const isOpen = (r: Repair): boolean => r.state === "open" || r.state === 
 
 const newest = (a: Repair, b: Repair) => (b.added_at ?? 0) - (a.added_at ?? 0) || (a.id < b.id ? 1 : -1);
 
+/** Every ticket worth listing. A deleted one is gone (FR-REP-10). */
 export function repairs(state: State): Repair[] {
-  return Object.entries(state.repair ?? {}).map(([id, fields]: [string, Fields]) => ({ id, ...fields }) as Repair);
+  return Object.entries(state.repair ?? {})
+    .map(([id, fields]: [string, Fields]) => ({ id, ...fields }) as Repair)
+    .filter((r) => !r.deleted);
 }
 
+/** One ticket by id, deleted ones included: its page says it was deleted. */
 export const repair = (state: State, id: string): Repair | undefined =>
   state.repair?.[id] ? ({ id, ...state.repair[id] } as Repair) : undefined;
 
@@ -102,5 +108,42 @@ export async function setRepairState(store: Store, id: string, state: RepairStat
     type: "field_changed",
     actor_id: actor(store),
     payload: { field: "state", value: state, old: current.state },
+  });
+}
+
+/**
+ * Why this person may not delete the ticket, or null when they may (FR-REP-12,
+ * FR-REP-13). The server has the last word: this device may not have seen someone else's
+ * comment yet, or an old ticket's early events.
+ */
+export function whyNotDelete(store: Store, id: string): string | null {
+  const ticket = repair(store.state, id);
+  if (!ticket || ticket.deleted) return "no such ticket";
+  if (store.admin) return null;
+  const me = store.meta.user?.id;
+  if (!me) return "not signed in";
+  const known = store.eventsFor("repair", id);
+  const raisedBy = known.find((e) => e.type === "created")?.actor_id ?? ticket.raised_by;
+  if (raisedBy !== me) return "only an Admin can delete someone else's ticket";
+  const actors = [
+    ...(ticket.notes ?? []).map((n) => n.actor_id),
+    ...(ticket.photos ?? []).map((p) => p.actor_id),
+    ...known.map((e) => e.actor_id),
+  ];
+  return actors.every((a) => a === me) ? null : "someone else has worked on this ticket; ask an Admin to delete it";
+}
+
+export const canDelete = (store: Store, id: string): boolean => whyNotDelete(store, id) === null;
+
+/** The server closes it too, for older app builds that do not know `deleted`. */
+export async function deleteTicket(store: Store, id: string): Promise<void> {
+  const reason = whyNotDelete(store, id);
+  if (reason) throw new Error(reason);
+  await store.record({
+    entity_type: "repair",
+    entity_id: id,
+    type: "field_changed",
+    actor_id: actor(store),
+    payload: { field: "deleted", value: true, old: null },
   });
 }

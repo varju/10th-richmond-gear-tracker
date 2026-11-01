@@ -1,25 +1,19 @@
 # Pending iOS release
 
-App changes since `ios-1.0.1-304` that reach iPhones only through the next release.
+App changes since `ios-1.0.2-333` that reach iPhones only through the next release.
 
 ## Functional
 
 What the app does differently.
 
-- An Admin can set the group's App Store link under **Settings** > **General**.
-- Help prints the open guide cleanly.
-- Help groups the Scouter guide, with nested contents.
-- The AI assistant guide becomes a Scouters topic; the tab is renamed **Scouters**, and **Settings** > **AI assistant**
-  drops its guide link.
-- Marking an item as several of the same thing keeps its categories.
-- **Group with another item…** and **This is a duplicate record…** list nothing until you search.
+- A unit can no longer be added, moved or grouped under a pool, a retired generic or one folded away, and retired gear
+  can no longer be moved or grouped.
+- Back and forward return a screen to where it was scrolled, and a new screen opens at its top.
+- Edit can turn a single item into a counted stack; the item page no longer has its own button for it.
+- The wide inventory table has tighter rows and hides a generic's units until its count is clicked or a search or filter
+  is on. A generic shows its units' Repair and Missing flags.
 
 ## Chores
 
-Guide wording and layout.
-
-- The Scouter and Quartermaster guides are corrected against the app.
-- The install topic leads with the iPhone app.
-- Unlabelled gear is one Scouter topic: "No sticker on it?".
-- UI labels are bold in the guides; the Quartermaster guide is grouped.
-- The guide's lists are capped to the same width as its paragraphs.
+- The home page says "All clear." when nothing needs attention, not "Nothing needs you."
+- React 19.3.1 and zxing-wasm 3.1.6.
