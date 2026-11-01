@@ -29,9 +29,11 @@ changelog.
 - [ ] Question to consider: How to better manage our PFD collection. We have several bags, grouped by size. e.g. Adult
       (paddling), Adult, Youth 60-90, Youth 30-60. Most of the time an entire bag is signed out at once. Occasionally a
       single PFD will be borrowed from within a bag. So the bags are both a storage location and an item that can be
-      checked out.
+      checked out. Another example of the same scenario a canoe trailer is both storage and an item.
 
 ## UI
 
 - [ ] Inventory screen has a lot of vertical padding. Use space better on desktop? Also Consider allowing generics to be
       collapsed.
+- [ ] As quartermaster, how can I find items that have no QR code, or that have no location or shelf set?
+- [ ] Status column is blank for countables, with actual status on next line. Why?
