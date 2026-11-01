@@ -1,6 +1,6 @@
 # Tasks
 
-The build, in order. See [architecture.md](architecture.md) for why, and [stories/](stories/) for what each step is for.
+What is next. See [architecture.md](architecture.md) for how it is built, and [stories/](stories/) for how it is used.
 
 **Delete tasks from this file as they are committed.** This file shrinks to nothing. It is not a changelog; git is the
 changelog.
