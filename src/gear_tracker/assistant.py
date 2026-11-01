@@ -949,6 +949,8 @@ def mark_missing(item_id: str) -> dict[str, Any]:
             raise BadRequest("a generic does not go missing; one of its units does")
         if it.get("missing"):
             return {"item_id": it["id"], "missing": True, "already": True}
+        if it.get("retired"):
+            raise BadRequest("it is retired; bring it back first")
         _push(conn, who, [_draft("item", it["id"], "field_changed", {"field": "missing", "value": True, "old": None})])
         return {"item_id": it["id"], "missing": True}
 
@@ -1029,20 +1031,26 @@ def merge_items(duplicate_id: str, survivor_id: str) -> dict[str, Any]:
     """Fold a duplicate record into the item it doubles (FR-INV-13). Admins only.
 
     The duplicate points at the survivor; nothing is rewritten. The duplicate
-    must have nothing out, and neither item retired or already merged.
+    must be a single item or unit that is in, and the survivor a single item or
+    unit; neither retired or already merged. A duplicate generic or pool is
+    deleted instead.
     """
     with _open() as (conn, who):
         accounts._require_admin(who)
         state = _state(conn)
-        dup = _raw_item(state, duplicate_id)
-        survivor = _raw_item(state, survivor_id)
+        dup = _live_raw_item(state, duplicate_id)
+        survivor = _live_raw_item(state, survivor_id)
         if duplicate_id == survivor_id:
             raise BadRequest("an item cannot be merged into itself")
         if dup.get("merged_into") or survivor.get("merged_into"):
             raise BadRequest("already merged")
         if dup.get("retired") or survivor.get("retired"):
             raise BadRequest("retired items cannot be merged")
-        if views.has_gear_out(state, dup):
+        if dup.get("generic"):
+            raise BadRequest("a generic or pool cannot be merged; delete it instead")
+        if survivor.get("generic"):
+            raise BadRequest("merge into a single item or unit, not a generic or pool")
+        if dup.get("status") != "in":
             raise BadRequest("return it first")
         payload = {"field": "merged_into", "value": survivor_id, "old": None}
         _push(conn, who, [_draft("item", duplicate_id, "field_changed", payload)])
@@ -1158,6 +1166,10 @@ def group_items(item_id: str, other_id: str, number: str, other_number: str = "1
             raise BadRequest("this is already one of several")
         if views.is_pool(other):
             raise BadRequest("a pool has no units (FR-INV-34)")
+        if it.get("retired"):
+            raise BadRequest("it is retired; bring it back first")
+        if other.get("retired"):
+            raise BadRequest("the other item is retired; bring it back first")
         mine = _unit_number(number)
         theirs = _unit_number(other_number)
         fresh = not other.get("generic") and not other.get("parent_id")
@@ -1167,6 +1179,8 @@ def group_items(item_id: str, other_id: str, number: str, other_number: str = "1
             generic_id, drafts = _make_generic_drafts(state, other, theirs)
         else:
             generic_id, drafts = other.get("parent_id") or other["id"], []
+            if _item(state, generic_id).get("retired"):
+                raise BadRequest("that generic is retired; bring it back first")
             if _number_taken(state, generic_id, mine):
                 raise Conflict(f"#{mine} is taken")
         drafts += _field_drafts(it, {"parent_id": generic_id, "number": mine, "name": None})
@@ -1189,6 +1203,10 @@ def move_unit(unit_id: str, generic_id: str) -> dict[str, Any]:
             raise BadRequest("a pool has no units (FR-INV-34)")
         if parent["id"] == it["parent_id"]:
             return {"item_id": it["id"], "generic_id": parent["id"], "number": it.get("number"), "already": True}
+        if it.get("retired"):
+            raise BadRequest("it is retired; bring it back first")
+        if parent.get("retired"):
+            raise BadRequest("that generic is retired; bring it back first")
         mine = str(it.get("number") or "").strip()
         number = _next_number(_numbers(state, parent["id"])) if _number_taken(state, parent["id"], mine) else mine
         _push(conn, who, _field_drafts(it, {"parent_id": parent["id"], "number": number}))
@@ -1209,6 +1227,8 @@ def make_single(generic_id: str) -> dict[str, Any]:
             raise BadRequest("not a generic item")
         if generic.get("merged_into"):
             raise BadRequest("already merged")
+        if generic.get("retired"):
+            raise BadRequest("it is retired; bring it back first")
         units = views.units_of(state, generic["id"])
         if len(units) > 1:
             raise BadRequest("needs no more than one unit")
@@ -1257,6 +1277,8 @@ def make_pool(item_id: str, quantity: Annotated[StrictInt, Field(ge=1)]) -> dict
             raise BadRequest("this is already one of several")
         if it.get("merged_into"):
             raise BadRequest("already merged")
+        if it.get("retired"):
+            raise BadRequest("it is retired; bring it back first")
         if it.get("generic"):
             if views.is_pool(it):
                 raise BadRequest("already several")

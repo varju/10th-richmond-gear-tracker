@@ -624,6 +624,21 @@ def test_an_item_that_is_out_cannot_be_merged(admin_tools):
         assistant.merge_items(admin_tools["t1"], admin_tools["stove"])
 
 
+def test_a_generic_cannot_be_merged(admin_tools):
+    with pytest.raises(BadRequest, match="generic"):
+        assistant.merge_items(admin_tools["tents"], admin_tools["stove"])
+    with pytest.raises(BadRequest, match="generic"):
+        assistant.merge_items(admin_tools["stove"], admin_tools["tents"])
+
+
+def test_nothing_merges_into_a_deleted_item(admin_tools):
+    assistant.delete_item(admin_tools["t3"])
+    with pytest.raises(NotFound):
+        assistant.merge_items(admin_tools["stove"], admin_tools["t3"])
+    with pytest.raises(NotFound):
+        assistant.merge_items(admin_tools["t3"], admin_tools["stove"])
+
+
 def test_an_item_never_merged_refuses_to_unmerge(admin_tools):
     with pytest.raises(BadRequest, match="not merged"):
         assistant.unmerge_item(admin_tools["stove"])
@@ -1448,6 +1463,41 @@ def test_retire_generic_needs_its_units_retired_first(db_path, tools):
     for key in ("t1", "t2", "t3"):
         assistant.retire_item(tools[key])
     assert assistant.retire_item(tools["tents"])["retired"] is True
+
+
+def test_retired_gear_is_not_reshaped(db_path, tools):
+    with open_db(db_path) as conn:
+        spare = _new(conn, "item", {"name": "Spare tent", "generic": True})
+        lamp = _new(conn, "item", {"name": "Lamp"})
+    assistant.retire_item(tools["stove"])
+    assistant.retire_item(tools["t1"])
+    attempts = [
+        lambda: assistant.mark_missing(tools["stove"]),
+        lambda: assistant.make_pool(tools["stove"], 2),
+        lambda: assistant.group_items(tools["stove"], tools["tents"], "4"),
+        lambda: assistant.move_unit(tools["t1"], spare),
+    ]
+    for attempt in attempts:
+        with pytest.raises(BadRequest, match="retired"):
+            attempt()
+
+    assert assistant.move_unit(tools["t1"], tools["tents"])["already"] is True
+    with pytest.raises(BadRequest, match="other item is retired"):
+        assistant.group_items(lamp, tools["stove"], "2")
+
+    assistant.retire_item(spare)
+    with pytest.raises(BadRequest, match="retired"):
+        assistant.make_single(spare)
+    with pytest.raises(BadRequest, match="generic is retired"):
+        assistant.move_unit(tools["t2"], spare)
+
+
+def test_nothing_joins_a_retired_generic_through_a_live_unit(db_path, tools):
+    for key in ("t1", "t2", "t3", "tents"):
+        assistant.retire_item(tools[key])
+    assistant.retire_item(tools["t2"], retired=False)
+    with pytest.raises(BadRequest, match="generic is retired"):
+        assistant.group_items(tools["stove"], tools["t2"], "4")
 
 
 def test_found_reports_are_listed_until_resolved(db_path, tools):
