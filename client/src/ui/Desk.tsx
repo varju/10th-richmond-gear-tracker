@@ -54,7 +54,7 @@ export function Desk({ store }: { store: Store }) {
     <Page title="Gear Tracker">
       <h2 className="section">Needs attention</h2>
       {attention.length === 0 ? (
-        <p>Nothing needs you.</p>
+        <p>All clear.</p>
       ) : (
         <ul className="attention" aria-label="Needs attention">
           {attention.map((row) => (

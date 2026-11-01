@@ -10,3 +10,5 @@ What the app does differently.
   can no longer be moved or grouped.
 
 ## Chores
+
+- The home page says "All clear." when nothing needs attention, not "Nothing needs you."
