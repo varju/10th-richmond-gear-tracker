@@ -72,7 +72,6 @@ function UnplannedRows({ store, list, now }: { store: Store; list: Unplanned[]; 
 
   return (
     <>
-      <h2 className="section">Out, not planned</h2>
       {error && (
         <p className="error" role="alert">
           {error}
@@ -123,7 +122,8 @@ export function Reservations({ store }: { store: Store }) {
         </button>
       }
     >
-      {ahead.length === 0 ? <p>Nothing planned.</p> : <Rows list={ahead} />}
+      {ahead.length === 0 && gone.length === 0 && loose.length === 0 && <p>No events.</p>}
+      {ahead.length > 0 && <Rows list={ahead} />}
       {loose.length > 0 && <UnplannedRows store={store} list={loose} now={now} />}
       {gone.length > 0 && (
         <details className="filters">

@@ -14,11 +14,6 @@ changelog.
       camera. Add **Change** beside the event above **Check out**, using the event question's picker (last used and
       today's events in one tap). Earlier moves stay under the old event, or get the "Also change" question as on Scan
       (FR-OUT-40); decide which.
-- [ ] "Out with no reservation" is not necessary text. An adhoc event defined while checking gear out is just as good as
-      a prescheduled reservation
-- [ ] "Nothing planned" is confusing text. Consider simplify to "No events" and hiding text entirely as soon as an event
-      of any kind is defined
-- [ ] Move the Events button up to above Reports
 
 ## Tests
 

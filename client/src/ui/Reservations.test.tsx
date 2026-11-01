@@ -55,6 +55,16 @@ async function fillDates(starts: string, ends: string) {
   }
 }
 
+test("the list says No events only when there are none", async () => {
+  navigate("/events");
+  const shown = renderInShell(<Reservations store={store} />, () => T0);
+  expect(screen.queryByText("No events.")).not.toBeInTheDocument();
+  shown.unmount();
+  await res.cancelReservation(store, fall);
+  renderInShell(<Reservations store={store} />, () => T0);
+  expect(screen.getByText("No events.")).toBeInTheDocument();
+});
+
 test("the list shows what is ahead, with past camps folded away", async () => {
   await res.createReservation(store, {
     event: "Spring camp",
@@ -313,7 +323,7 @@ test("an event with gear out and no reservation becomes one in one tap, offline 
   });
   navigate("/events");
   renderInShell(<Reservations store={store} />, () => T0);
-  expect(screen.getByText("Out, not planned")).toBeInTheDocument();
+  expect(screen.getByText("Apple Day")).toBeInTheDocument();
   expect(screen.getByText("2025-08-31 – 2025-09-02 · 2 items out")).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Add Apple Day" }));
@@ -322,7 +332,7 @@ test("an event with gear out and no reservation becomes one in one tap, offline 
   expect(res.reservation(store.state, id)).toMatchObject({ event: "Apple Day", items: [t2, stove] });
   expect(inv.item(store.state, stove)?.movement).toMatchObject({ event: "Apple Day", reservation_id: id });
   expect(store.pending.filter((e) => e.type === "checked_out" || e.type === "checked_in")).toHaveLength(2);
-  expect(screen.queryByText("Out, not planned")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Add Apple Day" })).not.toBeInTheDocument();
 });
 
 test("an event with only counted gear out is listed, and Add brings it in (FR-RES-28)", async () => {

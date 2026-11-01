@@ -61,8 +61,8 @@ function menuLinks(state: State, admin: boolean, empty: boolean, stockCheck: boo
   return [
     ...(home ? [{ label: "Home", path: "/" }] : []),
     { label: "All items", path: "/items" },
-    { label: "Reports", path: "/reports" },
     { label: "Events", path: "/events" },
+    { label: "Reports", path: "/reports" },
     ...(empty ? [] : [{ label: stockCheck ? "Stock check · in progress" : "Stock check", path: "/stock-check" }]),
     ...(admin ? [{ label: "Users", path: "/settings/users" }] : []),
     { label: "Settings", path: "/settings" },

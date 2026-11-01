@@ -92,8 +92,7 @@ list under the viewfinder shows what is still to pack; tick **Show packed** to c
 which names anything you did not scan. The camp's own page also marks each line packed or not; tick **Not packed** to
 see only what is left.
 
-Took gear under an event nobody planned? **Events** lists it under **Out, not planned**. Tap **Add**, and it joins the
-list, holding that gear.
+Took gear under an event nobody planned? **Events** lists it too. Tap **Add**, and it joins the list, holding that gear.
 
 ## Your account
 

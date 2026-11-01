@@ -96,8 +96,8 @@ test("the sidebar carries every section, no counts", async () => {
   expect(sidebar().map((b) => b.textContent)).toEqual([
     "Home",
     "All items",
-    "Reports",
     "Events",
+    "Reports",
     "Stock check",
     "Users",
     "Settings",
