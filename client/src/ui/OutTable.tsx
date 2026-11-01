@@ -22,7 +22,7 @@ import { daysLabel } from "./Report";
 const COLUMNS: { key: OutSort; label: string }[] = [
   { key: "item", label: "Item" },
   { key: "holder", label: "Holder" },
-  { key: "reservation", label: "Reservation" },
+  { key: "reservation", label: "Event" },
   { key: "days", label: "Out" },
 ];
 

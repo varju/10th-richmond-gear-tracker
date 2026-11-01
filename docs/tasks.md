@@ -9,16 +9,18 @@ changelog.
 
 ## Reservations follow-ups
 
-- [ ] **Consider calling reservations "events".** People think in events (Apple Day, Fall camp), and the event question
-      already uses the word. Decide first, then rename the UI words, help and docs only. Keep `reservation` in code,
-      event types, payloads (`reservation_id`), the API, and FR-RES IDs: older app builds sync on those names. Keep
-      `/reservations` URLs working (redirect if renamed). Watch for clashes with "event" meaning a log event in docs,
-      and with the session event.
 - [ ] **Change the session event from the item page.** Packing for two events at once from a desktop has no direct way
       to switch: the item page shows the event with no way to change it, and the inventory table hides Scan with no
       camera. Add **Change** beside the event above **Check out**, using the event question's picker (last used and
       today's events in one tap). Earlier moves stay under the old event, or get the "Also change" question as on Scan
       (FR-OUT-40); decide which.
+- [ ] Bug: Counted items checked out for an event not listed on Reservations screen
+- [ ] Need to be able to see what items are out for an event
+- [ ] "Out with no reservation" is not necessary text. An adhoc event defined while checking gear out is just as good as
+      a prescheduled reservation
+- [ ] "Nothing planned" is confusing text. Consider simplify to "No events" and hiding text entirely as soon as an event
+      of any kind is defined
+- [ ] Move the Reservations button up to above Reports
 
 ## Tests
 

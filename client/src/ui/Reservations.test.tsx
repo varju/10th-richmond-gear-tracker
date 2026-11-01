@@ -63,13 +63,13 @@ test("the list shows what is ahead, with past camps folded away", async () => {
     items: [],
     generics: [],
   });
-  navigate("/reservations");
+  navigate("/events");
   renderInShell(<Reservations store={store} />, () => T0);
   expect(screen.getByRole("button", { name: /Fall Camp/ })).toHaveTextContent("2026-10-02 – 2026-10-04 · 2 items");
   expect(screen.getByText("Past (1)")).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: /Fall Camp/ }));
-  expect(location.pathname).toBe(`/reservations/${fall}`);
+  expect(location.pathname).toBe(`/events/${fall}`);
 });
 
 test("a new reservation is built from one search; an item already booked blocks it (FR-RES-01, FR-RES-05)", async () => {
@@ -77,7 +77,7 @@ test("a new reservation is built from one search; an item already booked blocks 
   const tarp = await act.createItem(store, { name: "Tarp" });
   await res.addItem(store, fall, stove);
 
-  navigate("/reservations/new");
+  navigate("/events/new");
   renderInShell(<ReservationForm store={store} />);
   expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 
@@ -103,11 +103,11 @@ test("a new reservation is built from one search; an item already booked blocks 
   await waitFor(() => expect(res.reservations(store.state).find((r) => r.event === "Cub camp")).toBeDefined());
   const made = res.reservations(store.state).find((r) => r.event === "Cub camp")!;
   expect(made).toMatchObject({ starts: "2026-10-04", ends: "2026-10-05", items: [tarp], generics: [] });
-  expect(location.pathname).toBe(`/reservations/${made.id}`);
+  expect(location.pathname).toBe(`/events/${made.id}`);
 });
 
 test("the first date filled fills the other; a date already set is kept", async () => {
-  navigate("/reservations/new");
+  navigate("/events/new");
   renderInShell(<ReservationForm store={store} />);
   await user.type(screen.getByLabelText("Starts"), "2026-10-03");
   expect(screen.getByLabelText("Ends")).toHaveValue("2026-10-03");
@@ -117,7 +117,7 @@ test("the first date filled fills the other; a date already set is kept", async 
 });
 
 test("ending before it starts marks the end date until it changes", async () => {
-  navigate("/reservations/new");
+  navigate("/events/new");
   renderInShell(<ReservationForm store={store} />);
   await user.type(screen.getByLabelText("Event"), "Cub camp");
   await fillDates("2026-10-05", "2026-10-03");
@@ -133,7 +133,7 @@ test("ending before it starts marks the end date until it changes", async () => 
 });
 
 test("a unit's search surfaces its generic, reserved by count, adjusted in place; too many names the other camp (FR-RES-13, FR-RES-15)", async () => {
-  navigate("/reservations/new");
+  navigate("/events/new");
   renderInShell(<ReservationForm store={store} />);
   await user.type(screen.getByLabelText("Event"), "Cub camp");
   await fillDates("2026-10-03", "2026-10-03");
@@ -157,7 +157,7 @@ test("a calendar feed's event fills the name and the dates when picked (FR-RES-2
       { uid: "e2", summary: "Winter Camp", starts: "2026-01-10", ends: "2026-01-12", all_day: true },
     ],
   });
-  navigate("/reservations/new");
+  navigate("/events/new");
   renderInShell(<ReservationForm store={store} />);
   await user.type(screen.getByLabelText("Event"), "spring");
   expect(screen.queryByRole("button", { name: /Winter Camp/ })).not.toBeInTheDocument();
@@ -168,7 +168,7 @@ test("a calendar feed's event fills the name and the dates when picked (FR-RES-2
 });
 
 test("duplicate carries the gear and the name over, not the dates (FR-RES-10)", async () => {
-  navigate(`/reservations/new?from=${fall}`);
+  navigate(`/events/new?from=${fall}`);
   renderInShell(<ReservationForm store={store} from={fall} />);
   expect(screen.getByLabelText("Event")).toHaveValue("Fall Camp");
   expect(screen.getByLabelText("Starts")).toHaveValue("");
@@ -178,7 +178,7 @@ test("duplicate carries the gear and the name over, not the dates (FR-RES-10)", 
 });
 
 test("the page shows the gear, opens packing on the scan screen without touching the device session, and can cancel (FR-RES-25)", async () => {
-  navigate(`/reservations/${fall}`);
+  navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />);
   expect(screen.getByRole("heading", { name: "Fall Camp" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /4-person tent #1/ })).toHaveTextContent("Cold locker · In");
@@ -192,7 +192,7 @@ test("the page shows the gear, opens packing on the scan screen without touching
   expect(store.meta.session_event).toBeUndefined();
   expect(location.pathname + location.search).toBe(`/scan?reservation=${fall}`);
 
-  await user.click(screen.getByRole("button", { name: "Cancel reservation" }));
+  await user.click(screen.getByRole("button", { name: "Cancel event" }));
   await user.click(screen.getByRole("button", { name: "Really cancel?" }));
   expect(await screen.findByText("Cancelled")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Check out" })).not.toBeInTheDocument();
@@ -213,7 +213,7 @@ test("two camps saved on two devices are named against each other on the page (F
 });
 
 test("Edit opens the form with the reservation in it and saves changed fields only", async () => {
-  navigate(`/reservations/${fall}/edit`);
+  navigate(`/events/${fall}/edit`);
   renderInShell(<ReservationForm store={store} id={fall} />);
   expect(screen.getByLabelText("Event")).toHaveValue("Fall Camp");
   expect(screen.getByLabelText("Ends")).toHaveValue("2026-10-04");
@@ -225,14 +225,14 @@ test("Edit opens the form with the reservation in it and saves changed fields on
       store.pending.filter((e) => e.entity_id === fall && e.type !== "created").map((e) => [e.type, e.payload]),
     ).toEqual([["item_removed", { item_id: t1 }]]),
   );
-  expect(location.pathname).toBe(`/reservations/${fall}`);
+  expect(location.pathname).toBe(`/events/${fall}`);
 });
 
 test("gear that is out under nothing is claimed from the page in one tap (FR-RES-17, S-RES-07)", async () => {
   const stove = await act.createItem(store, { name: "Stove" });
   const out = await mv.checkOut(store, t1); // Thursday, no event set
   await mv.checkOut(store, stove, { event: "Somebody else's trip" });
-  navigate(`/reservations/${fall}`);
+  navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
 
   await user.click(screen.getByLabelText("It's with us: 4-person tent #1"));
@@ -256,7 +256,7 @@ test("gear that is out under nothing is claimed from the page in one tap (FR-RES
 test("the page marks each line packed or not, and Not packed hides the packed ones (FR-RES-29)", async () => {
   const stove = await act.createItem(store, { name: "Stove" });
   await res.addItem(store, fall, stove);
-  navigate(`/reservations/${fall}`);
+  navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
   const tent = () => screen.queryByRole("button", { name: /4-person tent #1/ });
   // Nothing packed yet: nothing to filter.
@@ -290,7 +290,7 @@ test("at a desk, It's with us sits at the end of its row; on a phone, under it",
   document.head.append(sheet);
   try {
     await mv.checkOut(store, t1);
-    navigate(`/reservations/${fall}`);
+    navigate(`/events/${fall}`);
     const row = () => {
       cleanup();
       renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
@@ -311,18 +311,18 @@ test("an event with gear out and no reservation becomes one in one tap, offline 
   await store.setMeta({
     calendar_events: [{ uid: "e1", summary: "Apple Day", starts: "2025-08-31", ends: "2025-09-02", all_day: true }],
   });
-  navigate("/reservations");
+  navigate("/events");
   renderInShell(<Reservations store={store} />, () => T0);
-  expect(screen.getByText("Out with no reservation")).toBeInTheDocument();
+  expect(screen.getByText("Out, not planned")).toBeInTheDocument();
   expect(screen.getByText("2025-08-31 – 2025-09-02 · 2 items out")).toBeInTheDocument();
 
-  await user.click(screen.getByRole("button", { name: "Reserve Apple Day" }));
-  await waitFor(() => expect(location.pathname).toMatch(/^\/reservations\/\w+$/));
+  await user.click(screen.getByRole("button", { name: "Add Apple Day" }));
+  await waitFor(() => expect(location.pathname).toMatch(/^\/events\/\w+$/));
   const id = location.pathname.split("/").at(-1)!;
   expect(res.reservation(store.state, id)).toMatchObject({ event: "Apple Day", items: [t2, stove] });
   expect(inv.item(store.state, stove)?.movement).toMatchObject({ event: "Apple Day", reservation_id: id });
   expect(store.pending.filter((e) => e.type === "checked_out" || e.type === "checked_in")).toHaveLength(2);
-  expect(screen.queryByText("Out with no reservation")).not.toBeInTheDocument();
+  expect(screen.queryByText("Out, not planned")).not.toBeInTheDocument();
 });
 
 test("a camp within seven days of another sharing gear gets a muted hint, not a block (FR-RES-19)", async () => {
@@ -333,7 +333,7 @@ test("a camp within seven days of another sharing gear gets a muted hint, not a 
     items: [],
     generics: [{ item_id: tents, quantity: 1 }],
   });
-  navigate(`/reservations/${fall}`);
+  navigate(`/events/${fall}`);
   // Fall Camp ends 2026-10-04; Winter Prep starts four days later: near, but not overlapping.
   renderInShell(<ReservationPage store={store} id={fall} />);
   expect(screen.queryByRole("note")).not.toBeInTheDocument();
@@ -356,7 +356,7 @@ test("a pool line on the page is checked out by count, and ticks off (FR-RES-13)
     items: [],
     generics: [{ item_id: bowls, quantity: 4 }],
   });
-  navigate(`/reservations/${camp}`);
+  navigate(`/events/${camp}`);
   renderInShell(<ReservationPage store={store} id={camp} />);
 
   expect(screen.getByText("4 × Bowls — 0 packed")).toBeInTheDocument();
@@ -391,7 +391,7 @@ test("a retired pool line on the page offers no check-out, only a note (FR-INV-0
     items: [],
     generics: [{ item_id: bowls, quantity: 4 }],
   });
-  navigate(`/reservations/${camp}`);
+  navigate(`/events/${camp}`);
   renderInShell(<ReservationPage store={store} id={camp} />);
 
   expect(screen.getByText("4 × Bowls — 0 packed")).toBeInTheDocument();
@@ -406,7 +406,7 @@ test("a deleted item is not counted as unpacked, and the filter can be untied on
   await act.deleteItem(store, stove);
   await mv.checkOut(store, t1, { event: "Fall Camp", reservation_id: fall });
   await mv.checkOut(store, t2, { event: "Fall Camp", reservation_id: fall });
-  navigate(`/reservations/${fall}`);
+  navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
 
   await user.click(screen.getByRole("checkbox", { name: "Not packed" }));
@@ -423,7 +423,7 @@ test("a line whose item this device has no record of stays under Not packed (FR-
   await res.addItem(store, fall, newUlid());
   await mv.checkOut(store, t1, { event: "Fall Camp", reservation_id: fall });
   await mv.checkOut(store, t2, { event: "Fall Camp", reservation_id: fall });
-  navigate(`/reservations/${fall}`);
+  navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
 
   await user.click(screen.getByRole("checkbox", { name: "Not packed" }));
@@ -434,7 +434,7 @@ test("a line whose item this device has no record of stays under Not packed (FR-
 test("a cancelled reservation marks nothing packed and offers no filter (FR-RES-29)", async () => {
   await mv.checkOut(store, t1, { event: "Fall Camp", reservation_id: fall });
   await res.cancelReservation(store, fall);
-  navigate(`/reservations/${fall}`);
+  navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
   expect(screen.getByRole("button", { name: /4-person tent #1/ })).not.toHaveTextContent("Packed");
   expect(screen.getByText("1 × 4-person tent")).toBeInTheDocument();
@@ -443,7 +443,7 @@ test("a cancelled reservation marks nothing packed and offers no filter (FR-RES-
 
 test("gear out under the camp's name but not packing it is offered It's with us (FR-RES-17)", async () => {
   await mv.checkOut(store, t1, { event: "Fall Camp" }); // a plain scan, no reservation
-  navigate(`/reservations/${fall}`);
+  navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
   expect(screen.getByRole("button", { name: /^4-person tent #1/ })).toHaveTextContent("Not packed");
 
@@ -457,7 +457,7 @@ test("gear a reservation from an event could not link is named until it is linke
   const stove = await act.createItem(store, { name: "Stove" });
   await res.addItem(store, fall, stove);
   await mv.checkOut(store, stove, { event: "Apple Day" });
-  navigate(`/reservations/${fall}?unlinked=${stove}`);
+  navigate(`/events/${fall}?unlinked=${stove}`);
   renderInShell(<ReservationPage store={store} id={fall} unlinked={stove} />, () => T0);
   expect(screen.getByRole("alert")).toHaveTextContent("Not linked: Stove.");
 
@@ -469,7 +469,7 @@ test("when nothing linked, the page gives the reason instead (FR-RES-31)", async
   const stove = await act.createItem(store, { name: "Stove" });
   await res.addItem(store, fall, stove);
   await mv.checkOut(store, stove, { event: "Apple Day" });
-  navigate(`/reservations/${fall}`);
+  navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} unlinked={stove} why="not signed in" />, () => T0);
   expect(screen.getByRole("alert")).toHaveTextContent(/^not signed in$/);
 });

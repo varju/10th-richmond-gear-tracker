@@ -144,7 +144,7 @@ test("switching to reservation clusters by event name (FR-RPT-12)", async () => 
   await mv.checkOut(store, axe);
 
   mount(<Report store={store} />, 3);
-  await user.selectOptions(screen.getByLabelText("Sort by"), "Reservation");
+  await user.selectOptions(screen.getByLabelText("Sort by"), "Event");
   expect(location.pathname + location.search).toBe("/out?sort=reservation");
   expect(screen.queryByRole("region")).not.toBeInTheDocument();
 

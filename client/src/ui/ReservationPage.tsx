@@ -95,8 +95,8 @@ export function ReservationPage({
 
   if (!r) {
     return (
-      <Page title="Not found" back="/reservations">
-        <p>No reservation with that id. It may not have synced to this device yet.</p>
+      <Page title="Not found" back="/events">
+        <p>No event with that id. It may not have synced to this device yet.</p>
       </Page>
     );
   }
@@ -279,8 +279,8 @@ export function ReservationPage({
 
   return (
     <Page
-      title="Reservation"
-      back="/reservations"
+      title="Event"
+      back="/events"
       actions={
         <>
           {!r.cancelled && (
@@ -289,16 +289,16 @@ export function ReservationPage({
             </button>
           )}
           <div className="row">
-            <button type="button" onClick={() => navigate(`/reservations/${id}/edit`)}>
+            <button type="button" onClick={() => navigate(`/events/${id}/edit`)}>
               Edit
             </button>
-            <button type="button" onClick={() => navigate(`/reservations/new?from=${id}`)}>
+            <button type="button" onClick={() => navigate(`/events/new?from=${id}`)}>
               Duplicate
             </button>
           </div>
           {!r.cancelled && (
             <button type="button" className={confirmCancel ? "warn" : ""} onClick={cancel}>
-              {confirmCancel ? "Really cancel?" : "Cancel reservation"}
+              {confirmCancel ? "Really cancel?" : "Cancel event"}
             </button>
           )}
         </>

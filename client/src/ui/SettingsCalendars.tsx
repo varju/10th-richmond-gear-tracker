@@ -90,9 +90,9 @@ export function SettingsCalendars({ store, api }: Props) {
   return (
     <Page title="Calendars" back="/settings">
       <p className="muted small">
-        Paste the group's calendar feed URLs here. The server checks them hourly and keeps upcoming events, so the
-        reservation form and a scanning session can suggest an event name and dates, offline. A feed's own URL never
-        leaves the server.
+        Paste the group's calendar feed URLs here. The server checks them hourly and keeps upcoming events, so the event
+        form and a scanning session can suggest an event name and dates, offline. A feed's own URL never leaves the
+        server.
       </p>
       {error && (
         <p className="error" role="alert">

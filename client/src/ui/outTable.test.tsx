@@ -97,7 +97,7 @@ test("the table's four columns, and the holder-ascending default", async () => {
     within(rows()[0]!)
       .getAllByRole("columnheader")
       .map((h) => h.textContent),
-  ).toEqual(["Item", "Holder ▲", "Reservation", "Out"]);
+  ).toEqual(["Item", "Holder ▲", "Event", "Out"]);
 
   const body = rows().slice(1);
   // Holder ascending, longest out first within a holder, as the phone's grouped list already reads:

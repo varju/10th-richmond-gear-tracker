@@ -563,6 +563,19 @@ test("an Admin sets the iPhone app link; it must be https, and blank clears it (
   await waitFor(() => expect(inv.group(store.state).iphone_app_url ?? null).toBeNull());
 });
 
+test("/reservations URLs open the events screens (FR-RES-35)", async () => {
+  await fixture();
+  mount();
+  reactAct(() => navigate("/reservations"));
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Events");
+  reactAct(() => navigate("/reservations/new"));
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("New event");
+  reactAct(() => navigate("/reservations/nope/edit"));
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Edit event");
+  reactAct(() => navigate("/reservations/nope"));
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Not found");
+});
+
 test("the menu reaches every section, users included", async () => {
   await fixture();
   mount();
@@ -572,7 +585,7 @@ test("the menu reaches every section, users included", async () => {
   expect(sections.map((b) => b.textContent)).toEqual([
     "All items",
     "Reports",
-    "Reservations",
+    "Events",
     "Stock check",
     "Users",
     "Settings",

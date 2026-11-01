@@ -45,7 +45,7 @@ beforeEach(async () => {
     generics: [{ item_id: tents, quantity: 1 }],
   });
   // The way in: the reservation's page, then its packing session.
-  navigate(`/reservations/${fall}`);
+  navigate(`/events/${fall}`);
   navigate(`/scan?reservation=${fall}`);
 });
 
@@ -219,7 +219,7 @@ test("Finish with items unscanned names them; Finish anyway leaves (FR-RES-04)",
 
   await user.click(screen.getByRole("button", { name: "Finish" }));
   await user.click(screen.getByRole("button", { name: "Finish anyway" }));
-  expect(location.pathname).toBe(`/reservations/${fall}`);
+  expect(location.pathname).toBe(`/events/${fall}`);
 });
 
 test("with everything packed, Finish just leaves", async () => {
@@ -229,5 +229,5 @@ test("with everything packed, Finish just leaves", async () => {
   renderInShell(<Scan store={store} />);
   expect(remaining()).toHaveTextContent("Everything is packed.");
   await user.click(screen.getByRole("button", { name: "Finish" }));
-  expect(location.pathname).toBe(`/reservations/${fall}`);
+  expect(location.pathname).toBe(`/events/${fall}`);
 });

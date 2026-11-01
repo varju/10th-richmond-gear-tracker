@@ -185,9 +185,9 @@ from**. Tap **Save**, then **Send a test** to your own address. Mail is optional
 ### Suggest event names from a calendar
 
 Open **Settings** > **Calendars**, paste a calendar feed's URL into **Feed URL**, and tap **Add feed**. The server
-checks it every hour, and the reservation form and a scanning session then offer its upcoming events for the event name;
-picking one in the reservation form also fills the dates. Tap **Remove** to drop a feed, or **Refresh now** to check it
-right away. Once saved, the full link is hidden; the list shows a shortened form.
+checks it every hour, and the event form and a scanning session then offer its upcoming events for the event name;
+picking one in the event form also fills the dates. Tap **Remove** to drop a feed, or **Refresh now** to check it right
+away. Once saved, the full link is hidden; the list shows a shortened form.
 
 ### Export and import
 
@@ -201,8 +201,8 @@ an unknown location or category is created. A preview shows what will change; no
 ### Read the audit log
 
 Open **Settings** > **Audit log** to see everything that has happened, newest first: gear moved, records edited,
-accounts invited and changed. Narrow it by **Event**, by **Person**, and with **From** and **To** dates. Deactivated
-people stay in the log and stay in the list you pick from.
+accounts invited and changed. Narrow it by **What happened**, by **Person**, and with **From** and **To** dates.
+Deactivated people stay in the log and stay in the list you pick from.
 
 The whole log lives on the server, so this one screen needs a connection. An item's own history is on its page, and
 works offline.

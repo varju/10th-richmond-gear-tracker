@@ -368,7 +368,7 @@ test("a live reservation naming the item shows under Status, each a link (FR-INV
   expect(line.closest("dl")).toBe(screen.getByText("Status").closest("dl"));
 
   await user.click(line);
-  expect(location.pathname).toBe(`/reservations/${r}`);
+  expect(location.pathname).toBe(`/events/${r}`);
 });
 
 test("nothing shows when there is no live reservation for the item (FR-INV-37)", async () => {
@@ -380,7 +380,7 @@ test("nothing shows when there is no live reservation for the item (FR-INV-37)",
     generics: [],
   });
   renderInShell(<ItemPage store={store} id={tent} />);
-  expect(screen.queryByText("Reserved")).not.toBeInTheDocument();
+  expect(screen.queryByText("Events")).not.toBeInTheDocument();
 });
 
 test("the purchase date shows under Details (FR-INV-12)", async () => {
@@ -713,5 +713,5 @@ test("a move packed for a reservation links to it instead of offering a correcti
   renderInShell(<ItemPage store={store} id={tent} />);
   expect(screen.queryByRole("button", { name: "Change event" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Fall camp" }));
-  expect(location.pathname).toBe(`/reservations/${r}`);
+  expect(location.pathname).toBe(`/events/${r}`);
 });

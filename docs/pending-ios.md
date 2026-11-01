@@ -13,6 +13,9 @@ What the app does differently.
 - The wide inventory table has tighter rows and hides a generic's units until its count is clicked or a search or filter
   is on. A generic shows its units' Repair and Missing flags.
 - Checking out a counted stack offers an All button that takes everything that is in.
+- Reservations are now called events throughout the app and its guide, at `/events` URLs. In **Events**, **Out with no
+  reservation** is now **Out, not planned**, and its **Reserve** button is **Add**. The audit log's **Event** filter is
+  now **What happened**.
 
 ## Chores
 

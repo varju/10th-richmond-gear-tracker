@@ -31,7 +31,7 @@ function Rows({ list }: { list: Reservation[] }) {
     <ul className="items">
       {list.map((r) => (
         <li key={r.id}>
-          <button className="item" type="button" onClick={() => navigate(`/reservations/${r.id}`)}>
+          <button className="item" type="button" onClick={() => navigate(`/events/${r.id}`)}>
             <span className="item-name">{r.event}</span>
             <span className="muted small">
               {datesLabel(r)} · {countLabel(r)}
@@ -62,9 +62,9 @@ function UnplannedRows({ store, list, now }: { store: Store; list: Unplanned[]; 
       if (made.unlinked.length) query.set("unlinked", made.unlinked.join(","));
       if (made.error) query.set("why", made.error);
       const search = query.toString() ? `?${query}` : "";
-      navigate(`/reservations/${made.id}${search}`);
+      navigate(`/events/${made.id}${search}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not make the reservation");
+      setError(e instanceof Error ? e.message : "Could not make the event");
     } finally {
       setBusy(false);
     }
@@ -72,7 +72,7 @@ function UnplannedRows({ store, list, now }: { store: Store; list: Unplanned[]; 
 
   return (
     <>
-      <h2 className="section">Out with no reservation</h2>
+      <h2 className="section">Out, not planned</h2>
       {error && (
         <p className="error" role="alert">
           {error}
@@ -93,9 +93,9 @@ function UnplannedRows({ store, list, now }: { store: Store; list: Unplanned[]; 
               type="button"
               disabled={busy}
               onClick={() => void reserve(u.key)}
-              aria-label={`Reserve ${u.event}`}
+              aria-label={`Add ${u.event}`}
             >
-              Reserve
+              Add
             </button>
           </li>
         ))}
@@ -115,11 +115,11 @@ export function Reservations({ store }: { store: Store }) {
 
   return (
     <Page
-      title="Reservations"
+      title="Events"
       back="/"
       actions={
-        <button className="primary" type="button" onClick={() => navigate("/reservations/new")}>
-          New reservation
+        <button className="primary" type="button" onClick={() => navigate("/events/new")}>
+          New event
         </button>
       }
     >

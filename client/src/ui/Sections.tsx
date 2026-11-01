@@ -46,7 +46,7 @@ export function reportLinks(state: State, today: string): Link[] {
   return [
     { label: `What is out${out > 0 ? ` · ${out}` : ""}`, path: "/out" },
     { label: `Needs repair${broken > 0 ? ` · ${broken}` : ""}`, path: "/repairs" },
-    { label: `Reservations · ${booked} upcoming`, path: "/reservations" },
+    { label: `Events · ${booked} upcoming`, path: "/events" },
   ];
 }
 
@@ -62,7 +62,7 @@ function menuLinks(state: State, admin: boolean, empty: boolean, stockCheck: boo
     ...(home ? [{ label: "Home", path: "/" }] : []),
     { label: "All items", path: "/items" },
     { label: "Reports", path: "/reports" },
-    { label: "Reservations", path: "/reservations" },
+    { label: "Events", path: "/events" },
     ...(empty ? [] : [{ label: stockCheck ? "Stock check · in progress" : "Stock check", path: "/stock-check" }]),
     ...(admin ? [{ label: "Users", path: "/settings/users" }] : []),
     { label: "Settings", path: "/settings" },

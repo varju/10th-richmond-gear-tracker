@@ -318,15 +318,11 @@ export function ItemPage({ store, id }: Props) {
             )}
             {reserved.length > 0 && (
               <>
-                <dt>Reserved</dt>
+                <dt>Events</dt>
                 {/* One line per camp, each a tap away, so packing for it starts from here (FR-INV-37). */}
                 {reserved.map((r) => (
                   <dd key={r.id}>
-                    <button
-                      className="link"
-                      type="button"
-                      onClick={() => guard(() => navigate(`/reservations/${r.id}`))}
-                    >
+                    <button className="link" type="button" onClick={() => guard(() => navigate(`/events/${r.id}`))}>
                       {r.event} · {datesLabel(r)}
                     </button>
                   </dd>
@@ -444,8 +440,8 @@ function OutEvent({ store, it }: { store: Store; it: Item }) {
 
   if (typeof m.reservation_id === "string") {
     return (
-      <button className="link" type="button" onClick={() => guard(() => navigate(`/reservations/${m.reservation_id}`))}>
-        {event ?? linked?.event ?? "Reservation"}
+      <button className="link" type="button" onClick={() => guard(() => navigate(`/events/${m.reservation_id}`))}>
+        {event ?? linked?.event ?? "Event"}
       </button>
     );
   }

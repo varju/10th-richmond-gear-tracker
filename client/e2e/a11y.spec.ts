@@ -55,8 +55,8 @@ test("the main screens have no WCAG 2.2 AA violations", async ({ page }) => {
     ["/settings/audit", "Audit log"],
     ["/settings/account", "Delete my account"],
     ["/reports", "Reports"],
-    ["/reservations", "Reservations"],
-    ["/reservations/new", "New reservation"],
+    ["/events", "Events"],
+    ["/events/new", "New event"],
     ["/repairs", "Needs repair"],
     ["/out", "What is out"],
   ] as const) {

@@ -298,6 +298,7 @@ function Screen({
       return <StockCheck store={store} />;
     case "repairs":
       return second ? <RepairPage store={store} id={second} /> : <Repairs store={store} />;
+    case "events":
     case "reservations":
       if (second === "new") return <ReservationForm store={store} from={route.query.get("from")} />;
       if (second && third === "edit") return <ReservationForm store={store} id={second} />;

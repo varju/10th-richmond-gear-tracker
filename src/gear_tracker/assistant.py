@@ -101,8 +101,8 @@ assistant. Users, standing join links, mail, group settings, calendar feeds, loc
 categories, printed codes, CSV import, deleting an item, and merging duplicates
 are an Admin's job in the app, and are here too when the signed-in person is an Admin; a User's token is
 refused the same way the app refuses a User. A pool is gear kept as a counted stack, not named
-units; check_out, check_in and recount move it by count. Everything else a person does in the app
-is here too, except deleting their own account."""
+units; check_out, check_in and recount move it by count. A planned event in the app is a reservation
+here; `event` is its name. Everything else a person does in the app is here too, except deleting their own account."""
 
 
 @dataclass(frozen=True)

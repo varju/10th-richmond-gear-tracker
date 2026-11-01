@@ -97,7 +97,7 @@ test("the sidebar carries every section, no counts", async () => {
     "Home",
     "All items",
     "Reports",
-    "Reservations",
+    "Events",
     "Stock check",
     "Users",
     "Settings",

@@ -89,7 +89,7 @@ async function openPacking(generics: { item_id: string; quantity: number }[]) {
     items: [],
     generics,
   });
-  navigate(`/reservations/${fall}`);
+  navigate(`/events/${fall}`);
   navigate(`/scan?reservation=${fall}`);
   renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");

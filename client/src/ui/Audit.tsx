@@ -90,7 +90,7 @@ export function Audit({ store, api }: Props) {
     <Page title="Audit log" back="/settings">
       <div className="row">
         <label className="tight">
-          <span>Event</span>
+          <span>What happened</span>
           <select value={filter.type ?? ""} onChange={(e) => set({ type: e.target.value || undefined })}>
             <option value="">Any</option>
             {EVENT_TYPES.map((t) => (

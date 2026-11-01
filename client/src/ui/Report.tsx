@@ -81,7 +81,7 @@ export function Report({ store }: { store: Store }) {
               <option value="holder">Person</option>
               <option value="item">Item</option>
               <option value="days">Time out</option>
-              <option value="reservation">Reservation</option>
+              <option value="reservation">Event</option>
             </select>
           </label>
           {sort === "holder" && up ? (

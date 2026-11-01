@@ -112,7 +112,7 @@ export function Desk({ store }: { store: Store }) {
         <ul className="items">
           {soon.map((r) => (
             <li key={r.id}>
-              <button className="item" type="button" onClick={() => navigate(`/reservations/${r.id}`)}>
+              <button className="item" type="button" onClick={() => navigate(`/events/${r.id}`)}>
                 <span className="item-name">{r.event}</span>
                 <span className="muted small">
                   {datesLabel(r)} · {countLabel(r)}

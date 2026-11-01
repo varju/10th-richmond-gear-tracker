@@ -85,7 +85,7 @@ test("narrowing by event, person, and a range of days asks the server, not the d
   mount();
   await screen.findByRole("list", { name: "Audit log" });
 
-  await user.selectOptions(screen.getByLabelText("Event"), "Checked out");
+  await user.selectOptions(screen.getByLabelText("What happened"), "Checked out");
   await user.selectOptions(screen.getByLabelText("Person"), "Carol");
   await user.type(screen.getByLabelText("From"), "2025-08-01");
   await user.type(screen.getByLabelText("To"), "2025-08-31");

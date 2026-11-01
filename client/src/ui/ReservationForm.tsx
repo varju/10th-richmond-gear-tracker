@@ -98,7 +98,7 @@ export function ReservationForm({ store, id, from }: Props) {
   const dirty = JSON.stringify(values) !== JSON.stringify(start);
   useUnsaved(dirty, { save, canSave: complete });
 
-  const back = id ? `/reservations/${id}` : "/reservations";
+  const back = id ? `/events/${id}` : "/events";
   const near = nearby(state, values, id);
   const eventSuggestions = eventOpen ? typedEvents(store, values.event) : [];
 
@@ -129,7 +129,7 @@ export function ReservationForm({ store, id, from }: Props) {
     try {
       const target = id ?? (await createReservation(store, values));
       if (id) await updateReservation(store, id, values);
-      navigate(`/reservations/${target}`, true);
+      navigate(`/events/${target}`, true);
       return true;
     } finally {
       setSaving(false);
@@ -234,7 +234,7 @@ export function ReservationForm({ store, id, from }: Props) {
 
   return (
     <Page
-      title={id ? "Edit reservation" : "New reservation"}
+      title={id ? "Edit event" : "New event"}
       actions={
         <>
           {error && (

@@ -56,8 +56,8 @@ adds a photo or moves it; after that, ask an Admin.
 
 ### A sticker fell off
 
-Open the item, tap **Replace QR code**, and scan a fresh sticker. Its history, tickets and reservations stay with it.
-The old sticker still opens the same item if it turns up.
+Open the item, tap **Replace QR code**, and scan a fresh sticker. Its history, tickets and events stay with it. The old
+sticker still opens the same item if it turns up.
 
 ### Gear that has gone missing
 
@@ -79,22 +79,21 @@ when you next open the app in signal. Records waiting three days stop the app an
 
 ## Camps
 
-### Plan a reservation
+### Plan an event
 
-Open **Reservations** and tap **New reservation**. Name the event, set the dates, and add gear by searching, or by
-picking a quantity of something the group has several of. **Duplicate** on last year's camp saves building the list
-again.
+Open **Events** and tap **New event**. Name it, set the dates, and add gear by searching, or by picking a quantity of
+something the group has several of. **Duplicate** on last year's camp saves building the list again.
 
-### Pack for a reservation
+### Pack for an event
 
-Open **Reservations**, pick the camp, and tap **Check out**. If it is under way or starts within a week, it is also
-sitting on the home screen: tap it there instead. Scan each item; every check-out is under the camp's event, with no
-question. The list under the viewfinder shows what is still to pack; tick **Show packed** to check what already went.
-Tap **Finish**, which names anything you did not scan. The camp's own page also marks each line packed or not; tick
-**Not packed** to see only what is left.
+Open **Events**, pick the camp, and tap **Check out**. If it is under way or starts within a week, it is also sitting on
+the home screen: tap it there instead. Scan each item; every check-out is under the camp's event, with no question. The
+list under the viewfinder shows what is still to pack; tick **Show packed** to check what already went. Tap **Finish**,
+which names anything you did not scan. The camp's own page also marks each line packed or not; tick **Not packed** to
+see only what is left.
 
-Took gear under an event nobody reserved? **Reservations** lists it under **Out with no reservation**. Tap **Reserve**,
-and the event gets a reservation holding that gear.
+Took gear under an event nobody planned? **Events** lists it under **Out, not planned**. Tap **Add**, and it joins the
+list, holding that gear.
 
 ## Your account
 

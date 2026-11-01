@@ -316,7 +316,7 @@ export async function createReservation(store: Store, input: ReservationInput): 
  */
 export async function updateReservation(store: Store, id: string, patch: Partial<ReservationInput>): Promise<void> {
   const before = reservation(store.state, id);
-  if (!before) throw new Error("no such reservation");
+  if (!before) throw new Error("no such event");
   const next = clean({ ...before, ...patch });
   for (const field of ["event", "starts", "ends"] as const) {
     if (!(field in patch)) continue;
@@ -351,7 +351,7 @@ export async function updateReservation(store: Store, id: string, patch: Partial
 // --- the gear list, one line at a time -------------------------------------------------------
 
 function line(store: Store, id: string, type: string, payload: Record<string, unknown>) {
-  if (!reservation(store.state, id)) throw new Error("no such reservation");
+  if (!reservation(store.state, id)) throw new Error("no such event");
   return store.record({ entity_type: "reservation", entity_id: id, type, actor_id: actor(store), payload });
 }
 
@@ -417,7 +417,7 @@ export function outElsewhere(state: State, r: Reservation): Item[] {
  */
 export async function linkOut(store: Store, id: string, itemId: string): Promise<void> {
   const r = reservation(store.state, id);
-  if (!r) throw new Error("no such reservation");
+  if (!r) throw new Error("no such event");
   const it = item(store.state, resolveItem(store.state, itemId));
   if (!it) throw new Error("no such item");
   const movement = it.movement as Movement | undefined;
@@ -579,7 +579,7 @@ export async function checkOutPoolLine(store: Store, r: Reservation, itemId: str
 }
 
 export async function cancelReservation(store: Store, id: string): Promise<void> {
-  if (!reservation(store.state, id)) throw new Error("no such reservation");
+  if (!reservation(store.state, id)) throw new Error("no such event");
   await store.record({
     entity_type: "reservation",
     entity_id: id,

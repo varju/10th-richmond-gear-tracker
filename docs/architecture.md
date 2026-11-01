@@ -561,6 +561,9 @@ event. Browsing by location (FR-INV-10) is the same question at rest: what state
 
 ## Reservations
 
+The app and its guide say "event" (FR-RES-34). Code, event types, payloads, the API and the assistant's tools say
+"reservation", because older app builds sync on those names. Requirements and stories keep the word too.
+
 A reservation is one entity: `created` with the event name, its days, the units it names and the generics it wants so
 many of (FR-RES-01, FR-RES-13). Event and dates are `field_changed`, one per field. Cancelling is a field, so the record
 stays.

@@ -172,7 +172,7 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
   return (
     <Page
       title={forItem ? "Scan new code" : booked ? "Pack" : "Scan"}
-      back={forItem ? `/items/${forItem}` : booked ? `/reservations/${booked.id}` : "/"}
+      back={forItem ? `/items/${forItem}` : booked ? `/events/${booked.id}` : "/"}
       actions={
         card ? undefined : (
           <>
@@ -420,7 +420,7 @@ function RemainingList({
 function Finish({ store, booked }: { store: Store; booked: Reservation }) {
   const [asking, setAsking] = useState(false);
   const rem: Remaining = remaining(store.state, booked);
-  const done = () => back(`/reservations/${booked.id}`);
+  const done = () => back(`/events/${booked.id}`);
   const left = [
     ...rem.items.map((it) => displayName(store.state, it)),
     ...rem.generics.filter((g) => g.done < g.quantity).map((g) => `${g.quantity - g.done} × ${g.generic.name}`),
