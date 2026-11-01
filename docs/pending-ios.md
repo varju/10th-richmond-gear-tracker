@@ -19,6 +19,7 @@ What the app does differently.
 - Counted stacks now show under their event: **Events** lists an event with only counted gear out, **Add** brings that
   gear in, and **What is out** shows a stack's count per event.
 - **What is out** can show one event's gear.
+- Changing the event on **Scan** no longer asks whether to change the items already moved; they keep their event.
 - A scan's check-out confirmation names the event, and **Events** shows the event check-outs go to, with **Change**.
 - **Events** drops the **Out, not planned** heading and lists every event together, says "No events." only when there
   are none, and sits above **Reports** in the menu.

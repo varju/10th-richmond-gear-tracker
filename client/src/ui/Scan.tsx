@@ -12,13 +12,13 @@ import {
   poolCounts,
   resolveItem,
 } from "../lib/inventory";
-import { changeSessionEvent, checkOut, correctSessionMoves, sessionMoves } from "../lib/movement";
+import { checkOut } from "../lib/movement";
 import { addExtra, isPacked, type Remaining, remaining, type Reservation, reservation } from "../lib/reservations";
 import { back, navigate, useRoute } from "../lib/router";
 import { confirmRead, READ_MS, type Scanner, startScanner, unlockSound } from "../lib/scanner";
 import type { Store } from "../lib/store";
 import { NATIVE } from "../lib/server";
-import { restartSession, type Session, sessionEvent } from "../lib/session";
+import { type Session, sessionEvent, setSessionEvent } from "../lib/session";
 import { guard, useUnsaved } from "../lib/unsaved";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
@@ -460,25 +460,19 @@ function Finish({ store, booked }: { store: Store; booked: Reservation }) {
 /**
  * The plain scanning session's event, until changed, cleared, or the session ends (FR-OUT-05,
  * FR-OUT-38). A setting on this device. A move re-checks it when made, so an event shown here that
- * has since ended asks again rather than recording nothing. A change asks whether the session's
- * earlier moves take it too (FR-OUT-40); switching mid-session can be deliberate, so it never does
- * that unasked.
+ * has since ended asks again rather than recording nothing. A change leaves earlier moves as they
+ * were; the item page corrects one (FR-OUT-41).
  */
 function SessionEvent({ store }: { store: Store }) {
   const { event } = sessionEvent(store.meta, store.now());
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
-  // The first tap on an answer wins, so a double tap records nothing twice.
-  const answering = useRef(false);
   useUnsaved(editing && draft.trim() !== (event ?? ""), { save: () => change(draft.trim() || undefined) });
-  // Derived, not held here: leaving with the question open brings it back on return. It goes once
-  // the session ends.
-  const earlier = editing ? [] : sessionMoves(store);
 
   async function change(next: string | undefined): Promise<boolean> {
     try {
-      await changeSessionEvent(store, next);
+      await setSessionEvent(store, next);
       setEditing(false);
       setError(null);
       return true;
@@ -493,66 +487,41 @@ function SessionEvent({ store }: { store: Store }) {
     void change(draft.trim() || undefined);
   }
 
-  async function answer(go: () => Promise<void>) {
-    if (answering.current) return;
-    answering.current = true;
-    try {
-      await go();
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not change them");
-    } finally {
-      answering.current = false;
-    }
-  }
-
-  const n = new Set(earlier.map((m) => m.itemId)).size;
   const suggestions = editing ? typedEvents(store, draft) : [];
-  const bar =
-    n > 0 ? (
-      <div className="session session-ask" role="group" aria-label="Earlier moves">
-        <span>Also change the {plural(n, "item")} already moved?</span>
-        <button type="button" className="minor primary" onClick={() => void answer(() => correctSessionMoves(store))}>
-          Change {n === 1 ? "it" : "them"}
-        </button>
-        <button type="button" className="minor" onClick={() => void answer(() => restartSession(store))}>
-          Only new ones
-        </button>
-      </div>
-    ) : editing ? (
-      <form className="session" onSubmit={create}>
-        <input
-          aria-label="Event"
-          placeholder="Event, e.g. Spring camp"
-          autoFocus
-          autoComplete="off"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-        />
-        <button type="submit" className="minor primary">
-          Create
-        </button>
-        <button type="button" className="minor" onClick={() => void change(undefined)}>
-          Clear
-        </button>
-        {/* Tapping a suggestion sets the name at once, the same one tap a scan takes (FR-RES-20). */}
-        {suggestions.length > 0 && <EventSuggestions events={suggestions} onPick={(ev) => void change(ev.summary)} />}
-      </form>
-    ) : (
-      <div className="session">
-        <span>{event ? `Event: ${event}` : "No event"}</span>
-        <button
-          type="button"
-          className="minor"
-          onClick={() => {
-            setDraft(event ?? "");
-            setEditing(true);
-          }}
-        >
-          Change
-        </button>
-      </div>
-    );
+  const bar = editing ? (
+    <form className="session" onSubmit={create}>
+      <input
+        aria-label="Event"
+        placeholder="Event, e.g. Spring camp"
+        autoFocus
+        autoComplete="off"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+      />
+      <button type="submit" className="minor primary">
+        Create
+      </button>
+      <button type="button" className="minor" onClick={() => void change(undefined)}>
+        Clear
+      </button>
+      {/* Tapping a suggestion sets the name at once, the same one tap a scan takes (FR-RES-20). */}
+      {suggestions.length > 0 && <EventSuggestions events={suggestions} onPick={(ev) => void change(ev.summary)} />}
+    </form>
+  ) : (
+    <div className="session">
+      <span>{event ? `Event: ${event}` : "No event"}</span>
+      <button
+        type="button"
+        className="minor"
+        onClick={() => {
+          setDraft(event ?? "");
+          setEditing(true);
+        }}
+      >
+        Change
+      </button>
+    </div>
+  );
   return (
     <>
       {bar}

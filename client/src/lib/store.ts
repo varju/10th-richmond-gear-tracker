@@ -13,13 +13,7 @@ import { apply, type Fields, KNOWN_EVENT_TYPES, replay, type ReplayEvent, replay
 import { eventAsked } from "./session";
 import { newUlid } from "./ulid";
 
-const SESSION_KEYS = [
-  "session_event",
-  "session_event_at",
-  "session_reservation_id",
-  "session_started_at",
-  "session_prior_events",
-] as const;
+const SESSION_KEYS = ["session_event", "session_event_at", "session_reservation_id"] as const;
 
 /** A move made in the plain session. `event` is the event it stamped; a return stamps none and leaves it out. */
 export type MoveSession = { event?: string | null };
@@ -52,11 +46,6 @@ export interface Meta {
   session_reservation_id?: string;
   /** When the session event was last set or answered, or a move made in it (FR-OUT-38). It ends SESSION_MS after. */
   session_event_at?: number;
-  /** When the running session was first answered, so its moves can be found (FR-OUT-40). A change keeps it;
-   * Only new ones moves it on. */
-  session_started_at?: number;
-  /** The events the running session had before a change not yet answered (FR-OUT-40). Null is No event. */
-  session_prior_events?: (string | null)[];
   /** The last measured round trip to the server, in ms. Sent with a push so the server can allow for latency. */
   round_trip_ms?: number;
   token?: string;
@@ -245,15 +234,9 @@ export class Store {
     const occurred_at = this.now();
     const tx = this.db.transaction(["meta", "events"], "readwrite");
     const metaStore = tx.objectStore("meta");
-    const [stored, session_event, session_event_at, session_reservation_id, session_started_at, session_prior_events] =
-      (await Promise.all(["device_seq", ...(session ? SESSION_KEYS : [])].map((key) => req(metaStore.get(key))))) as [
-        number | undefined,
-        string | undefined,
-        number | undefined,
-        string | undefined,
-        number | undefined,
-        (string | null)[] | undefined,
-      ];
+    const [stored, session_event, session_event_at, session_reservation_id] = (await Promise.all(
+      ["device_seq", ...(session ? SESSION_KEYS : [])].map((key) => req(metaStore.get(key))),
+    )) as [number | undefined, string | undefined, number | undefined, string | undefined];
     const device_seq = (stored ?? this.meta.device_seq) + 1;
     const event: StoredEvent = {
       ...input,
@@ -267,7 +250,7 @@ export class Store {
     };
     tx.objectStore("events").put(event);
     metaStore.put(device_seq, "device_seq");
-    const read = { session_event, session_event_at, session_reservation_id, session_started_at, session_prior_events };
+    const read = { session_event, session_event_at, session_reservation_id };
     const extend =
       session !== undefined &&
       eventAsked(read, occurred_at) &&

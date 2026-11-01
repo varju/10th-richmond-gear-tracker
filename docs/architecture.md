@@ -485,13 +485,8 @@ The check is made when the move is made, not when the screen drew, so an event t
 recording nothing. It is not a record, so two phones at one camp each type the name once and nothing is shared or
 reconciled.
 
-Changing the event mid-session can be a fix or a switch, so the phone asks which (FR-OUT-40). `session_started_at` marks
-when the session was first answered; a change keeps it and adds the event it replaces to `session_prior_events`. The
-question offers this device's check-outs and transfers by the signed-in person since the start that are still read,
-after corrections, under a prior event and packing no reservation. One returned since is still offered; one corrected
-since to anything else is not. A change that finds nothing clears the prior events. The question is derived, not stored,
-so leaving the screen does not lose it. Yes appends an `event_corrected` on each; either answer clears the prior events,
-and Only new ones also moves the start on to now.
+Changing the event mid-session leaves earlier moves under the event they were made with; the item page corrects one
+(FR-OUT-41).
 
 Packing a reservation neither uses nor moves on the device's session (FR-RES-25). A check-out or Take over on its scan
 screen, card or list row, takes the event and `reservation_id` from the reservation itself (FR-RES-03), so a long

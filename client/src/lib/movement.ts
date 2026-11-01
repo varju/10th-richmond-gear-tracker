@@ -300,68 +300,6 @@ export const knownEventNames = (store: Store) =>
 /** Names compared as the same event, case and spacing aside; blank is No event. */
 const sameKey = (name: string | null | undefined) => eventNameKey(name ?? "");
 
-/** One move a plain session made (FR-OUT-40). */
-export interface SessionMove {
-  itemId: string;
-  movementId: string;
-}
-
-const SESSION_MOVES = "session moves";
-
-/**
- * The moves an unanswered change of the plain session's event offers to correct (FR-OUT-40): every
- * check-out and transfer this device recorded for the signed-in person since the session started,
- * still read under one of the events it had before the change and packing no reservation. A move
- * corrected since to anything else, here or elsewhere, drops out; one returned since stays, since its
- * event is still history. Nothing once the session has ended, or for one an older build started.
- * The start is the device clock, which a sync never moves: only effective_at carries the offset.
- */
-export function sessionMoves(store: Store): SessionMove[] {
-  const { meta } = store;
-  const started = meta.session_started_at;
-  const prior = meta.session_prior_events;
-  if (!meta.user || started === undefined || !prior?.length || !eventAsked(meta, store.now())) return [];
-  return store.memo(SESSION_MOVES, () => {
-    const now = sameKey(meta.session_event);
-    const before = new Set(prior.map(sameKey));
-    const corrected = knownCorrections(store);
-    return store
-      .eventsBy(meta.user!.id)
-      .filter((e) => e.type === "checked_out" && e.device_id === meta.device_id && e.occurred_at >= started)
-      .filter((e) => {
-        const r = reading(e, corrected);
-        return r.reservation_id == null && sameKey(r.event) !== now && before.has(sameKey(r.event));
-      })
-      .sort(replayOrder)
-      .map((e) => ({ itemId: e.entity_id, movementId: e.id }));
-  });
-}
-
-/**
- * Change the running session's event from the Scan screen (FR-OUT-40). Keeps its start, and the
- * event it replaces while that leaves moves to offer; with none, there is no question to follow.
- */
-export async function changeSessionEvent(store: Store, name: string | undefined) {
-  await setSessionEvent(store, name, true);
-  if (store.meta.session_prior_events && sessionMoves(store).length === 0) {
-    await store.setMeta({ session_prior_events: undefined });
-  }
-}
-
-/**
- * Put the session's earlier moves under its event, one appended correction each, and close the
- * question (FR-OUT-40). Found afresh, so a second tap or a retry corrects only what is still left.
- * Only moves that pack nothing are offered, so no reservation link is written over. Refused once
- * the session has ended.
- */
-export async function correctSessionMoves(store: Store) {
-  // An ended session's question is gone from the screen; a tap that raced the end changes nothing.
-  if (!eventAsked(store.meta, store.now())) throw new Error("The session has ended. Nothing was changed.");
-  const event = store.meta.session_event ?? null;
-  for (const m of sessionMoves(store)) await correctEvent(store, m.itemId, m.movementId, event);
-  await store.setMeta({ session_prior_events: undefined });
-}
-
 export interface HistoryEntry {
   id: string;
   type: "checked_out" | "checked_in" | "recounted";
