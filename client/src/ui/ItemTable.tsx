@@ -47,8 +47,12 @@ function tableParams(text: string, filter: Filter, sort: Sort): URLSearchParams 
   return params;
 }
 
-/** A generic has no status of its own; its units carry it. */
-const statusOf = (store: Store, row: Row): string => (row.kind === "single" ? statusLabel(store.state, row.item) : "");
+/** A generic has no status of its own; its units carry it. A pool shows its counts. */
+const statusOf = (store: Store, row: Row): string => {
+  if (row.kind === "single") return statusLabel(store.state, row.item);
+  if (row.kind === "pool") return `${row.pool.in} in · ${row.pool.owned - row.pool.in} out`;
+  return "";
+};
 
 function flagsOf(store: Store, it: Item): string[] {
   return [...(openRepairs(store.state, it.id).length > 0 ? ["Repair"] : []), ...(it.missing ? ["Missing"] : [])];
@@ -222,9 +226,6 @@ function ItemRows({ store, row, showCategory, open, onToggle }: RowProps) {
               >
                 {counts} <span aria-hidden="true">{open ? "▾" : "▸"}</span>
               </button>
-            )}
-            {row.kind === "pool" && (
-              <span className="muted small">{`${row.pool.in} in · ${row.pool.owned - row.pool.in} out`}</span>
             )}
           </div>
         </td>

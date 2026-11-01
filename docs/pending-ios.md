@@ -23,6 +23,7 @@ What the app does differently.
 - A scan's check-out confirmation names the event, and **Events** shows the event check-outs go to, with **Change**.
 - **Events** drops the **Out, not planned** heading and lists every event together, says "No events." only when there
   are none, and sits above **Reports** in the menu.
+- The inventory list shows a counted stack's in and out counts in the Status column.
 
 ## Chores
 

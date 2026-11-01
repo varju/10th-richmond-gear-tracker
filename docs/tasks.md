@@ -24,7 +24,6 @@ changelog.
 ## UI
 
 - [ ] As quartermaster, how can I find items that have no QR code, or that have no location or shelf set?
-- [ ] Status column is blank for countables, with actual status on next line. Why?
 - [ ] Check out screen on iOS: Allow number pad to be hidden after entering the quantity for a counted stack
 - [ ] Edit item > We have several > Give count immediately?
 - [ ] How can we easily mark items as given to parents to take home and clean, when parents don't have their own
