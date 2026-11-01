@@ -70,6 +70,9 @@ Tick **We have several of these** on **New item**, then pick one:
 
 Starting from a scanned code, the tick saves the name and the item in your hand becomes #1.
 
+An item already saved as one thing? Open it, tap **Edit**, tick the same box, and pick one. It can become a stack only
+while it is checked in.
+
 ### Photos
 
 Add photos on an item's page and on a repair ticket. A photo taken with no signal waits on the device and uploads at the

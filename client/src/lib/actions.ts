@@ -199,6 +199,7 @@ export async function makePool(store: Store, id: string, quantity: number): Prom
   if (!it) throw new Error("no such item");
   if (it.parent_id) throw new Error("this is already one of several");
   if (it.merged_into) throw new Error("already merged");
+  if (it.retired) throw new Error("it is retired; bring it back first");
   if (it.generic) {
     if (it.pool) throw new Error("already several");
     if (unitsOf(store.state, id).length) throw new Error("remove its units first");
