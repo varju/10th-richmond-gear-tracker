@@ -5,23 +5,7 @@ The build, in order. See [architecture.md](architecture.md) for why, and [storie
 **Delete tasks from this file as they are committed.** This file shrinks to nothing. It is not a changelog; git is the
 changelog.
 
-Milestones are ordered by risk, not by feature value. M0 comes first because a bad result there changes the project.
-
 ---
-
-## M0 — Prove the scanner
-
-Passed indoors on two iPhones: worst single acquisition 1.58 s against a 2 s bar, no camera dropouts. Numbers are in
-[architecture.md](architecture.md#what-m0-measured). What is left needs a locker, or label stock.
-
-- [ ] Repeat in an unlit locker, and with gloves on
-- [ ] Add those numbers to architecture.md
-
-Deferred until the first sheet is printed on real stock (32 labels of 1.75 x 1.25 in). Not blocked on us, and not
-holding anything up:
-
-- [ ] Confirm the sheet registers on real stock, and record the margins for FR-TAG-02
-- [ ] Test through a scuffed sticker and a wet one
 
 ## M6 — Items and codes
 
@@ -38,10 +22,6 @@ fresh from the labelling walk.
 
 Public pages come before the labelling walk, not after it. From the moment stickers go on gear, a stranger can scan one.
 
-## M11 — iPhone app
-
-- [ ] Time the [native scanner](architecture.md#native-scanner) in the app against the M0 table and its 2 s bar
-
 ## Reservations follow-ups
 
 - [ ] **Consider calling reservations "events".** People think in events (Apple Day, Fall camp), and the event question
@@ -49,3 +29,9 @@ Public pages come before the labelling walk, not after it. From the moment stick
       event types, payloads (`reservation_id`), the API, and FR-RES IDs: older app builds sync on those names. Keep
       `/reservations` URLs working (redirect if renamed). Watch for clashes with "event" meaning a log event in docs,
       and with the session event.
+
+## Tests
+
+- [ ] Fix the flaky `test_deleting_an_item_releases_its_codes` in `tests/test_assistant.py`. It failed once in a full
+      run (a released code still showed as bound), then passed five reruns. Likely cause: events written in the same
+      millisecond replay out of order.
