@@ -16,3 +16,4 @@ What the app does differently.
 ## Chores
 
 - The home page says "All clear." when nothing needs attention, not "Nothing needs you."
+- React 19.3.1 and zxing-wasm 3.1.6.
