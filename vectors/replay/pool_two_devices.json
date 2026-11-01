@@ -77,6 +77,26 @@
         },
         "pool_reservations": {
           "r-fall": 3
+        },
+        "pool_lots": {
+          "carol": [
+            {
+              "id": "01000000000000000000000003",
+              "count": 4,
+              "event": null,
+              "reservation_id": null,
+              "at": 1500
+            }
+          ],
+          "bob": [
+            {
+              "id": "01000000000000000000000002",
+              "count": 3,
+              "event": "Fall Camp",
+              "reservation_id": "r-fall",
+              "at": 2000
+            }
+          ]
         }
       }
     }

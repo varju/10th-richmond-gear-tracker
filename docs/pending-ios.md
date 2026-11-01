@@ -16,6 +16,8 @@ What the app does differently.
 - Reservations are now called events throughout the app and its guide, at `/events` URLs. In **Events**, **Out with no
   reservation** is now **Out, not planned**, and its **Reserve** button is **Add**. The audit log's **Event** filter is
   now **What happened**.
+- Counted stacks now show under their event: **Events** lists an event with only counted gear out, **Add** brings that
+  gear in, and **What is out** shows a stack's count per event.
 
 ## Chores
 

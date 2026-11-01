@@ -14,13 +14,12 @@ changelog.
       camera. Add **Change** beside the event above **Check out**, using the event question's picker (last used and
       today's events in one tap). Earlier moves stay under the old event, or get the "Also change" question as on Scan
       (FR-OUT-40); decide which.
-- [ ] Bug: Counted items checked out for an event not listed on Reservations screen
 - [ ] Need to be able to see what items are out for an event
 - [ ] "Out with no reservation" is not necessary text. An adhoc event defined while checking gear out is just as good as
       a prescheduled reservation
 - [ ] "Nothing planned" is confusing text. Consider simplify to "No events" and hiding text entirely as soon as an event
       of any kind is defined
-- [ ] Move the Reservations button up to above Reports
+- [ ] Move the Events button up to above Reports
 
 ## Tests
 
@@ -41,3 +40,4 @@ changelog.
 - [ ] As quartermaster, how can I find items that have no QR code, or that have no location or shelf set?
 - [ ] Status column is blank for countables, with actual status on next line. Why?
 - [ ] Check out screen on iOS: Allow number pad to be hidden after entering the quantity for a counted stack
+- [ ] Edit item > We have several > Give count immediately?

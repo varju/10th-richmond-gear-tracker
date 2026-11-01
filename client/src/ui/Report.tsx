@@ -30,7 +30,7 @@ export function daysLabel(days: number): string {
 function detail(row: OutRow, withHolder: boolean): string {
   const rest =
     row.count != null
-      ? `${row.count} out`
+      ? [row.event ?? "", `${row.count} out`].filter(Boolean).join(" · ")
       : [row.event ?? "", `out ${daysLabel(row.days)}`].filter(Boolean).join(" · ");
   return withHolder ? [row.holderName, rest].join(" · ") : rest;
 }

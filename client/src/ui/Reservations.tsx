@@ -85,7 +85,7 @@ function UnplannedRows({ store, list, now }: { store: Store; list: Unplanned[]; 
               {u.event}
               <br />
               <span className="muted small">
-                {datesLabel(u)} · {plural(u.items.length, "item")} out
+                {datesLabel(u)} · {plural(u.items.length + u.pools.reduce((n, p) => n + p.count, 0), "item")} out
               </span>
             </span>
             <button

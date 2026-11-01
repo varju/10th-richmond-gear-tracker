@@ -15,15 +15,17 @@ import {
   isPool,
   type Item,
   item,
+  items,
   movable,
   nameOf,
   poolCounts,
+  poolLots,
   resolveItem,
   unitsOf,
 } from "./inventory";
 import { eventNameKey, tidyName } from "./calendar";
 import { correctEvent } from "./movement";
-import type { Fields, Movement, PoolReservations, State } from "./replay";
+import type { Fields, Movement, PoolLot, PoolReservations, State } from "./replay";
 import type { Store } from "./store";
 import { localDate } from "./time";
 import { newUlid } from "./ulid";
@@ -402,11 +404,33 @@ export async function addExtra(store: Store, id: string, itemId: string): Promis
   else await setQuantity(store, id, change.item_id, change.quantity);
 }
 
+/** A pool's counts out under this event's name and not packing a live reservation. Others' counts stay with them. */
+export function unlinkedLots(state: State, r: Reservation, itemId: string): PoolLot[] {
+  const it = item(state, itemId);
+  if (!it || !isPool(it)) return [];
+  const name = eventNameKey(r.event);
+  return poolLots(it)
+    .flatMap((o) => o.lots)
+    .filter((lot) => {
+      if (lot.event === null || eventNameKey(lot.event) !== name || lot.reservation_id === r.id) return false;
+      const packing = lot.reservation_id === null ? undefined : reservation(state, lot.reservation_id);
+      return !packing || !!packing.cancelled;
+    });
+}
+
 /** Gear that is out but not packing this reservation. What this camp can claim (FR-RES-17). */
 export function outElsewhere(state: State, r: Reservation): Item[] {
   const named = new Set(namedItems(state, r));
-  return movable(state)
-    .filter((it) => it.status === "out" && !it.merged_into && !named.has(it.id) && it.movement?.reservation_id !== r.id)
+  return items(state)
+    .filter((it) =>
+      isPool(it)
+        ? !it.merged_into && unlinkedLots(state, r, it.id).length > 0
+        : !it.generic &&
+          it.status === "out" &&
+          !it.merged_into &&
+          !named.has(it.id) &&
+          it.movement?.reservation_id !== r.id,
+    )
     .sort((a, b) => displayName(state, a).localeCompare(displayName(state, b)));
 }
 
@@ -420,6 +444,13 @@ export async function linkOut(store: Store, id: string, itemId: string): Promise
   if (!r) throw new Error("no such event");
   const it = item(store.state, resolveItem(store.state, itemId));
   if (!it) throw new Error("no such item");
+  if (isPool(it)) {
+    const lots = unlinkedLots(store.state, r, it.id);
+    if (lots.length === 0) throw new Error("it is not out");
+    for (const lot of lots) await correctEvent(store, it.id, lot.id, r.event, r.id);
+    await addExtra(store, id, it.id);
+    return;
+  }
   const movement = it.movement as Movement | undefined;
   if (it.status !== "out" || !movement) throw new Error("it is not out");
   if (movement.event !== r.event || movement.reservation_id !== r.id) {
@@ -436,6 +467,15 @@ export interface Unplanned {
   starts: string;
   ends: string;
   items: Item[];
+  pools: UnplannedPool[];
+}
+
+/** So many of a pool out under an unplanned event, whoever has them. */
+export interface UnplannedPool {
+  item: Item;
+  count: number;
+  /** The check-outs the count came from. */
+  lots: string[];
 }
 
 /**
@@ -455,6 +495,15 @@ interface Batch {
   event: string;
   first: string;
   items: Item[];
+  pools: UnplannedPool[];
+}
+
+interface OutUnder {
+  it: Item;
+  day: string;
+  event: string;
+  /** Set for a pool. */
+  lot?: PoolLot;
 }
 
 const UNPLANNED = "unplanned events";
@@ -462,25 +511,34 @@ const UNPLANNED = "unplanned events";
 /**
  * Gear out under an event name that no live reservation of that name accounts for. A reservation
  * accounts for gear packing it, and for gear that went out on its dates or in the seven days before
- * them: It's with us there links it (FR-RES-17). Pools are left out: their movement is only the
- * last count taken, and replay ties a count to a reservation only at check-out. Within a name, a
- * gap of more than seven days between days out starts a new batch, so gear still out from last
- * year is not dated with this year's (FR-RES-33).
+ * them: It's with us there links it (FR-RES-17). A pool counts by its lots. Within a name, a gap of
+ * more than seven days between days out starts a new batch, so gear still out from last year is
+ * not dated with this year's (FR-RES-33).
  */
 function batches(store: Store): Batch[] {
   return store.memo(UNPLANNED, () => {
     const state = store.state;
     const live = reservations(state);
     const liveIds = new Set(live.map((r) => r.id));
-    const byName = new Map<string, { it: Item; day: string; event: string }[]>();
+    const byName = new Map<string, OutUnder[]>();
+    const add = (it: Item, day: string, name: string, lot?: PoolLot) => {
+      const key = eventNameKey(name);
+      if (live.some((r) => eventNameKey(r.event) === key && shiftIso(r.starts, -7) <= day && day <= r.ends)) return;
+      byName.set(key, [...(byName.get(key) ?? []), { it, day, event: tidyName(name), lot }]);
+    };
     for (const it of movable(state)) {
       const m = it.movement as Movement | undefined;
       if (it.status !== "out" || it.merged_into || !m || typeof m.event !== "string" || !tidyName(m.event)) continue;
       if (typeof m.reservation_id === "string" && liveIds.has(m.reservation_id)) continue;
-      const key = eventNameKey(m.event);
-      const day = outSince(store, it, m);
-      if (live.some((r) => eventNameKey(r.event) === key && shiftIso(r.starts, -7) <= day && day <= r.ends)) continue;
-      byName.set(key, [...(byName.get(key) ?? []), { it, day, event: tidyName(m.event) }]);
+      add(it, outSince(store, it, m), m.event);
+    }
+    for (const it of items(state)) {
+      if (!isPool(it) || it.merged_into) continue;
+      for (const lot of poolLots(it).flatMap((o) => o.lots)) {
+        if (!lot.event || !tidyName(lot.event)) continue;
+        if (lot.reservation_id !== null && liveIds.has(lot.reservation_id)) continue;
+        add(it, todayIso(lot.at), lot.event, lot);
+      }
     }
 
     const found: Batch[] = [];
@@ -489,14 +547,24 @@ function batches(store: Store): Batch[] {
       let last = "";
       for (const o of out.sort((a, b) => a.day.localeCompare(b.day))) {
         if (!batch || o.day > shiftIso(last, 7)) {
-          batch = { key: `${name}\n${o.day}`, event: o.event, first: o.day, items: [] };
+          batch = { key: `${name}\n${o.day}`, event: o.event, first: o.day, items: [], pools: [] };
           found.push(batch);
         }
-        batch.items.push(o.it);
+        if (!o.lot) batch.items.push(o.it);
+        else {
+          const line = batch.pools.find((p) => p.item.id === o.it.id);
+          if (line) {
+            line.count += o.lot.count;
+            line.lots.push(o.lot.id);
+          } else batch.pools.push({ item: o.it, count: o.lot.count, lots: [o.lot.id] });
+        }
         last = o.day;
       }
     }
-    for (const b of found) b.items.sort((x, y) => displayName(state, x).localeCompare(displayName(state, y)));
+    for (const b of found) {
+      b.items.sort((x, y) => displayName(state, x).localeCompare(displayName(state, y)));
+      b.pools.sort((x, y) => displayName(state, x.item).localeCompare(displayName(state, y.item)));
+    }
     return found;
   });
 }
@@ -522,6 +590,7 @@ export function unplanned(store: Store, now: number): Unplanned[] {
         starts: listed?.starts ?? b.first,
         ends: today > ends ? today : ends,
         items: b.items,
+        pools: b.pools,
       };
     })
     .sort((a, b) => a.starts.localeCompare(b.starts) || a.event.localeCompare(b.event));
@@ -546,19 +615,28 @@ export async function reserveFromEvent(store: Store, key: string, now: number): 
     starts: u.starts,
     ends: u.ends,
     items: u.items.map((it) => it.id),
-    generics: [],
+    generics: u.pools.map((p) => ({ item_id: p.item.id, quantity: p.count })),
   });
   const unlinked: string[] = [];
   let error: string | undefined;
-  for (const it of u.items) {
+  const link = async (itemId: string, how: () => Promise<unknown>) => {
     try {
-      await linkOut(store, id, it.id);
+      await how();
     } catch (e) {
-      unlinked.push(it.id);
+      unlinked.push(itemId);
       error ??= e instanceof Error ? e.message : "Could not link it";
     }
+  };
+  for (const it of u.items) await link(it.id, () => linkOut(store, id, it.id));
+  // Only this row's counts: the same name from last year is its own row (FR-RES-33).
+  for (const p of u.pools) {
+    await link(p.item.id, async () => {
+      for (const lot of p.lots) await correctEvent(store, p.item.id, lot, u.event, id);
+    });
   }
-  return unlinked.length === u.items.length ? { kind: "made", id, unlinked, error } : { kind: "made", id, unlinked };
+  return unlinked.length === u.items.length + u.pools.length
+    ? { kind: "made", id, unlinked, error }
+    : { kind: "made", id, unlinked };
 }
 
 /**

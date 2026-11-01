@@ -617,7 +617,7 @@ test("a transfer does not move the day the gear went out (FR-RES-28)", async () 
   expect(rows()[0]!.slice(1, 2)).toEqual(["2026-10-11"]);
 });
 
-test("gear packing a reservation, and pools, are not offered (FR-RES-28)", async () => {
+test("gear and counts packing a reservation are not offered (FR-RES-28)", async () => {
   const f = await fixture();
   const bowls = await act.createPool(store, { name: "Bowls" }, 10);
   const camp = await res.createReservation(store, { ...fall, items: [f.t1], generics: [] });
@@ -697,4 +697,75 @@ test("when nothing links, the first reason comes back (FR-RES-31)", async () => 
   // Signed out once the reservation was recorded, before any link.
   delete store.meta.user;
   expect(await making).toMatchObject({ kind: "made", unlinked: [f.t1, f.stove], error: "not signed in" });
+});
+
+test("a counted stack out under an unplanned event is listed with its count (FR-RES-28)", async () => {
+  await fixture();
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  await mv.checkOutPool(store, bowls, { count: 4, event: "Cub camp" });
+
+  const rows = res.unplanned(store, clock);
+  expect(rows.map((r) => [r.event, r.items, r.pools.map((p) => [p.item.id, p.count])])).toEqual([
+    ["Cub camp", [], [[bowls, 4]]],
+  ]);
+});
+
+test("one tap brings a counted stack in as a quantity line, already packed (FR-RES-31)", async () => {
+  await fixture();
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  await mv.checkOutPool(store, bowls, { count: 4, event: "Cub camp" });
+
+  const made = await res.reserveFromEvent(store, res.unplanned(store, clock)[0]!.key, clock);
+  if (made.kind !== "made") throw new Error("not made");
+
+  const r = res.reservation(store.state, made.id)!;
+  expect(r.generics).toEqual([{ item_id: bowls, quantity: 4 }]);
+  expect(res.remaining(store.state, r).generics.map((g) => g.done)).toEqual([4]);
+  expect(res.unplanned(store, clock)).toEqual([]);
+});
+
+test("It's with us takes only a pool's counts under the event's own name (FR-RES-17)", async () => {
+  await fixture();
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  await mv.checkOutPool(store, bowls, { count: 4, event: "Fall Camp" });
+  await mv.checkOutPool(store, bowls, { count: 2, event: "Meeting" });
+  const id = await res.createReservation(store, { ...fall, items: [], generics: [] });
+  const r = res.reservation(store.state, id)!;
+  expect(res.outElsewhere(store.state, r).map((it) => it.id)).toEqual([bowls]);
+
+  await res.linkOut(store, id, bowls);
+
+  const after = res.reservation(store.state, id)!;
+  expect(after.generics).toEqual([{ item_id: bowls, quantity: 4 }]);
+  expect(res.outElsewhere(store.state, after)).toEqual([]);
+  await expect(res.linkOut(store, id, bowls)).rejects.toThrow("it is not out");
+});
+
+test("Add links only its own row's counts, leaving last year's row as it was (FR-RES-33)", async () => {
+  await fixture();
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  clock = Date.UTC(2025, 9, 10, 18);
+  await mv.checkOutPool(store, bowls, { count: 3, event: "Fall Camp" });
+  clock = Date.UTC(2026, 9, 10, 18);
+  await mv.checkOutPool(store, bowls, { count: 4, event: "Fall Camp" });
+
+  const rows = res.unplanned(store, clock);
+  expect(rows.map((r) => r.pools.map((p) => p.count))).toEqual([[3], [4]]);
+  const made = await res.reserveFromEvent(store, rows[1]!.key, clock);
+  if (made.kind !== "made") throw new Error("not made");
+
+  expect(res.reservation(store.state, made.id)?.generics).toEqual([{ item_id: bowls, quantity: 4 }]);
+  expect(res.unplanned(store, clock).map((r) => r.pools.map((p) => p.count))).toEqual([[3]]);
+});
+
+test("It's with us leaves counts packing another live event, and takes a cancelled one's (FR-RES-17)", async () => {
+  await fixture();
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  const old = await res.createReservation(store, { ...fall, items: [], generics: [{ item_id: bowls, quantity: 3 }] });
+  await res.checkOutPoolLine(store, res.reservation(store.state, old)!, bowls, 3);
+  const id = await res.createReservation(store, { ...fall, items: [], generics: [] });
+
+  expect(res.unlinkedLots(store.state, res.reservation(store.state, id)!, bowls)).toEqual([]);
+  await res.cancelReservation(store, old);
+  expect(res.unlinkedLots(store.state, res.reservation(store.state, id)!, bowls).map((l) => l.count)).toEqual([3]);
 });

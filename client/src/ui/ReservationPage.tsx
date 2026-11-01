@@ -8,6 +8,7 @@ import {
   nearby,
   nearbyLabel,
   outElsewhere,
+  unlinkedLots,
   remaining,
   reservation,
   type Reservation,
@@ -125,7 +126,13 @@ export function ReservationPage({
   const notLinked = (unlinked ?? "")
     .split(",")
     .map((itemId) => item(state, itemId))
-    .filter((it): it is Item => it?.status === "out" && it.movement?.reservation_id !== r.id);
+    .filter(
+      (it): it is Item =>
+        !!it &&
+        (isPool(it)
+          ? unlinkedLots(state, r, it.id).length > 0
+          : it.status === "out" && it.movement?.reservation_id !== r.id),
+    );
   // One column when the second would be empty.
   const twoCol = wide && others.length > 0;
 

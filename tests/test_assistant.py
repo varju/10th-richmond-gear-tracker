@@ -1557,6 +1557,24 @@ def test_link_out_to_reservation_corrects_the_movement_and_adds_the_item(db_path
     assert assistant.link_out_to_reservation(rid, stove)["corrected"] is False
 
 
+def test_link_out_to_reservation_takes_a_pools_counts_under_that_event(db_path, tools, pool_id):
+    rid = assistant.create_reservation(**FALL)["reservation_id"]
+    assistant.check_out(pool_id, count=4, event=FALL["event"])
+    assistant.check_out(pool_id, count=2, event="Meeting")
+
+    assert assistant.link_out_to_reservation(rid, pool_id)["corrected"] is True
+
+    assert entity(db_path, "reservation", rid)["generics"] == [{"item_id": pool_id, "quantity": 4}]
+    assert entity(db_path, "item", pool_id)["pool_reservations"] == {rid: 4}
+    rows = [row for holder in assistant.whats_out()["holders"] for row in holder["items"]]
+    assert sorted((r["event"], r["count"]) for r in rows if r["item_id"] == pool_id) == [
+        (FALL["event"], 4),
+        ("Meeting", 2),
+    ]
+    with pytest.raises(BadRequest):
+        assistant.link_out_to_reservation(rid, pool_id)
+
+
 def test_clear_mail_forgets_the_account(admin_tools):
     assistant.set_mail(host="mail.example.org", from_address="gear@example.org", password="x")
     assert assistant.get_mail()["mail"] is not None

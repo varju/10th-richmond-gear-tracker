@@ -590,10 +590,14 @@ do (FR-RES-26). The day an item went out is the first check-out since its last r
 transfer moves `since` on; past the log's reach, the current movement's day. An item is left out if it packs a live
 reservation, or went out on the dates of a live reservation of that name or in the week before them: It's with us on
 that one links it, so last year's camp does not hide this year's. Within one name, a gap of more than seven days starts
-a new row, so gear still out from last year is not dated with this year's (FR-RES-33). Pools are left out too: replay
-ties a pool's count to a reservation only at check-out. The new reservation is a `created` naming each item, then one
-`event_corrected` per item, as FR-RES-17 does. Units are named one by one, not as a generic line. An item that fails to
-link stays on the list, unpacked, with It's with us to try again.
+a new row, so gear still out from last year is not dated with this year's (FR-RES-33). A pool is read through
+`pool_lots`, which replay keeps per holder and check-out: its event, reservation, day and remaining count. A return
+names no event, so it comes off the holder's oldest lots. That rule lives only in replay, so changing it rewrites
+nothing in the log. A new derived field needs `gear-admin rebuild` on the server, and `SNAPSHOT_VERSION` in `store.ts`
+makes each device fetch a fresh snapshot. Counts on a pool join the new reservation as a quantity line, and It's with us
+offers only a pool's counts under the reservation's own name. The new reservation is a `created` naming each item, then
+one `event_corrected` per item, as FR-RES-17 does. Units are named one by one, not as a generic line. An item that fails
+to link stays on the list, unpacked, with It's with us to try again.
 
 Conflicts are checked on the device, against the state it has (FR-RES-05, FR-RES-15). Two phones offline can both save
 clashing reservations; both land, and the reservation page then names the clash. That is the same trade as the in-use

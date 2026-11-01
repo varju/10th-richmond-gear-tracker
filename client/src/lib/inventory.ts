@@ -7,7 +7,8 @@
  * parent and a number, and no name of its own: its name is derived, so read it
  * with displayName and never with `it.name`.
  */
-import type { Fields, Movement, Note, PoolOut, PoolReservations, State } from "./replay";
+import { keepNewest } from "./replay";
+import type { Fields, Movement, Note, PoolLot, PoolLots, PoolOut, PoolReservations, State } from "./replay";
 
 export interface Item {
   id: string;
@@ -32,6 +33,8 @@ export interface Item {
   pool_out?: PoolOut;
   /** Reservation id to count checked out for it, never reduced by a return. Set only on a pool (FR-RES-13). */
   pool_reservations?: PoolReservations;
+  /** Which check-outs each holder's count came from. Read through `poolLots`. */
+  pool_lots?: PoolLots;
   /** Set on a unit: the generic it belongs to. */
   parent_id?: string | null;
   /** Set on a single item or a generic; a unit reads its generic's (FR-SET-07). */
@@ -194,6 +197,18 @@ export function poolCounts(it: Item): PoolCounts {
     .filter(([, count]) => count > 0)
     .map(([holder_id, count]) => ({ holder_id, count }));
   return { owned: poolIn + out.reduce((sum, o) => sum + o.count, 0), in: poolIn, out };
+}
+
+/**
+ * One holder's count, split by the check-outs it came from. The counts decide: an older app build
+ * can leave lots out of step, so extra lots drop off the oldest end and `unknown` is any count no
+ * lot explains.
+ */
+export function poolLots(it: Item): { holder_id: string; count: number; lots: PoolLot[]; unknown: number }[] {
+  return poolCounts(it).out.map(({ holder_id, count }) => {
+    const lots = keepNewest(it.pool_lots?.[holder_id] ?? [], count);
+    return { holder_id, count, lots, unknown: count - lots.reduce((sum, lot) => sum + lot.count, 0) };
+  });
 }
 
 /** Things that move: single items and units, never a generic. */

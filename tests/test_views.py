@@ -306,3 +306,25 @@ def test_has_gear_out_for_a_generic_with_a_unit_out():
     assert has_gear_out(state, state["item"]["tents"] | {"id": "tents"})
     state["item"]["t1"]["status"] = "in"
     assert not has_gear_out(state, state["item"]["tents"] | {"id": "tents"})
+
+
+def test_what_is_out_splits_a_pool_by_event():
+    """FR-RPT-11. Names that differ only in case and spacing are one line."""
+
+    def lot(id_: str, count: int, event: str) -> dict:
+        return {"id": id_, "count": count, "event": event, "reservation_id": None, "at": 1}
+
+    state = {
+        "item": {
+            "bowls": {
+                "name": "Bowls",
+                "generic": True,
+                "pool": True,
+                "pool_out": {"bob": 8},
+                "pool_lots": {"bob": [lot("a", 3, "Fall Camp"), lot("b", 2, "fall  camp"), lot("c", 1, "Meeting")]},
+            }
+        },
+        "user": {"bob": {"name": "Bob"}},
+    }
+    rows = what_is_out(state, now=0)["holders"][0]["items"]
+    assert [(r["event"], r["count"]) for r in rows] == [("Fall Camp", 5), ("Meeting", 1), (None, 2)]

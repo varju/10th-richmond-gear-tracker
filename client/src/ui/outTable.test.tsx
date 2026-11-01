@@ -146,6 +146,23 @@ test("a pool out to two people gets a row each (FR-RPT-11)", async () => {
   ]);
 });
 
+test("a pool shows its event, one row per event (FR-RPT-11)", async () => {
+  const { bowls } = await fixture();
+  clock = T0 + 10 * DAY_MS;
+  await store.setMeta({ user: { id: "u1", name: "Alice", role: "admin", active: true } });
+  await mv.checkOutPool(store, bowls, { count: 2, event: "Fall Camp" });
+  await mv.checkOutPool(store, bowls, { count: 1, event: "Meeting" });
+  await mount();
+
+  const bowlRows = rows()
+    .slice(1)
+    .filter((r) => cells(r)[0] === "Bowls" && cells(r)[1] === "Alice");
+  expect(bowlRows.map((r) => [cells(r)[2], cells(r)[3]])).toEqual([
+    ["Fall Camp", "2 out"],
+    ["Meeting", "1 out"],
+  ]);
+});
+
 test("clicking the default column twice returns to ascending, clearing dir from the URL", async () => {
   await fixture();
   await mount();

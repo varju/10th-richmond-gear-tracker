@@ -71,7 +71,18 @@
           "at": 3000,
           "count": 2
         },
-        "pool_reservations": {}
+        "pool_reservations": {},
+        "pool_lots": {
+          "bob": [
+            {
+              "id": "01000000000000000000000002",
+              "count": 4,
+              "event": null,
+              "reservation_id": null,
+              "at": 2000
+            }
+          ]
+        }
       }
     }
   }

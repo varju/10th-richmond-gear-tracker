@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from gear_tracker.replay import State
+from gear_tracker.replay import State, keep_newest
 
 Fields = dict[str, Any]
 
@@ -171,6 +171,20 @@ def pool_counts(it: Fields) -> Fields:
     ]
     owned = pool_in + sum(o["count"] for o in out)
     return {"owned": owned, "in": pool_in, "out": out}
+
+
+def pool_lots(it: Fields) -> list[Fields]:
+    """One holder's count, split by the check-outs it came from. Mirrors poolLots in inventory.ts."""
+    found = []
+    for out in pool_counts(it)["out"]:
+        lots = keep_newest((it.get("pool_lots") or {}).get(out["holder_id"], []), out["count"])
+        found.append({**out, "lots": lots, "unknown": out["count"] - sum(lot["count"] for lot in lots)})
+    return found
+
+
+def event_name_key(name: str) -> str:
+    """What makes two names the same event: case and spacing aside. Mirrors eventNameKey in calendar.ts."""
+    return " ".join(name.split()).lower()
 
 
 def active_users(state: State) -> list[Fields]:
@@ -334,25 +348,33 @@ def is_overdue(state: State, it: Fields, now: int) -> bool:
 def what_is_out(state: State, now: int) -> dict[str, Any]:
     """Everyone who has something, by name (FR-RPT-01). Missing gear is not out (FR-INV-19).
 
-    A pool has no single "out"; it lists once per holder, with its count, and carries no days or
-    event of its own, because a holder's count can be the sum of check-outs at different times
-    under different events (FR-RPT-11).
+    A pool has no single "out"; it lists once per holder and event, with its count, and carries no
+    days, because a count can be the sum of check-outs at different times (FR-RPT-11).
     """
     by_holder: dict[str, list[Fields]] = {}
     overdue = 0
     for it in items(state):
         if is_pool(it):
             if not it.get("retired"):
-                for out in pool_counts(it)["out"]:
-                    entry = {
-                        "item_id": it["id"],
-                        "name": display_name(state, it),
-                        "days": 0,
-                        "event": None,
-                        "overdue": False,
-                        "count": out["count"],
-                    }
-                    by_holder.setdefault(out["holder_id"], []).append(entry)
+                for out in pool_lots(it):
+                    lines: dict[str, Fields] = {}
+                    under = [(lot["event"], lot["count"]) for lot in out["lots"]]
+                    if out["unknown"]:
+                        under.append((None, out["unknown"]))
+                    for event, count in under:
+                        key = event_name_key(event) if event else ""
+                        if key in lines:
+                            lines[key]["count"] += count
+                        else:
+                            lines[key] = {
+                                "item_id": it["id"],
+                                "name": display_name(state, it),
+                                "days": 0,
+                                "event": " ".join(event.split()) if event else None,
+                                "overdue": False,
+                                "count": count,
+                            }
+                    by_holder.setdefault(out["holder_id"], []).extend(lines.values())
             continue
         if it.get("status") != "out" or it.get("missing"):
             continue
@@ -379,7 +401,9 @@ def what_is_out(state: State, now: int) -> dict[str, Any]:
         (_holder_entry(holder_id, entries) for holder_id, entries in by_holder.items()),
         key=lambda h: h["holder"],
     )
-    return {"holders": holders, "total": sum(len(h["items"]) for h in holders), "overdue": overdue}
+    # A pool under two events is still one thing this person has.
+    total = sum(len({entry["item_id"] for entry in h["items"]}) for h in holders)
+    return {"holders": holders, "total": total, "overdue": overdue}
 
 
 # --- reservations -----------------------------------------------------------------------

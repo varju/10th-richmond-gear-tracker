@@ -3,7 +3,7 @@ import { openConflicts } from "../lib/conflicts";
 import { foundReports } from "../lib/found";
 import { displayName } from "../lib/inventory";
 import { openTickets } from "../lib/repairs";
-import { whatIsOut } from "../lib/reports";
+import { rowKey, whatIsOut } from "../lib/reports";
 import { todayIso, upcoming } from "../lib/reservations";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -87,7 +87,7 @@ export function Desk({ store }: { store: Store }) {
             <tbody>
               {report.holders.flatMap((holder) =>
                 holder.items.map((entry) => (
-                  <tr key={entry.item.id}>
+                  <tr key={rowKey({ ...entry, holderId: holder.id, holderName: holder.name })}>
                     <td>
                       <button className="link" type="button" onClick={() => navigate(`/items/${entry.item.id}`)}>
                         {displayName(state, entry.item)}
@@ -96,7 +96,7 @@ export function Desk({ store }: { store: Store }) {
                     </td>
                     <td>{holder.name}</td>
                     <td>{entry.event ?? ""}</td>
-                    <td>{daysLabel(entry.days)}</td>
+                    <td>{entry.count != null ? `${entry.count} out` : daysLabel(entry.days)}</td>
                   </tr>
                 )),
               )}

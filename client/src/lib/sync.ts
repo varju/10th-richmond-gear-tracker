@@ -9,7 +9,7 @@
  */
 import { type Api, ApiError, Offline } from "./api";
 import { uploadPhotos } from "./photos";
-import { Store } from "./store";
+import { SNAPSHOT_VERSION, Store } from "./store";
 
 export type SyncOutcome = { ok: true } | { ok: false; reason: "offline" | "signed_out" | "error"; message: string };
 
@@ -58,7 +58,12 @@ export async function sync(store: Store, api: Api, now: () => number = Date.now)
 
     // A cursor with no log_id was stored by an older build of this app. It may
     // belong to a database that has since been replaced, so it is not trusted.
-    if (replaced || store.meta.cursor === undefined || store.meta.log_id === undefined) {
+    if (
+      replaced ||
+      store.meta.cursor === undefined ||
+      store.meta.log_id === undefined ||
+      store.meta.snapshot_version !== SNAPSHOT_VERSION
+    ) {
       await bootstrap(store, api);
     } else {
       try {

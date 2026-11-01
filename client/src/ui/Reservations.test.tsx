@@ -325,6 +325,19 @@ test("an event with gear out and no reservation becomes one in one tap, offline 
   expect(screen.queryByText("Out, not planned")).not.toBeInTheDocument();
 });
 
+test("an event with only counted gear out is listed, and Add brings it in (FR-RES-28)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  await mv.checkOutPool(store, bowls, { count: 4, event: "Apple Day" });
+  navigate("/events");
+  renderInShell(<Reservations store={store} />, () => T0);
+  expect(screen.getByText(/4 items out/)).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Add Apple Day" }));
+  await waitFor(() => expect(location.pathname).toMatch(/^\/events\/\w+$/));
+  const id = location.pathname.split("/").at(-1)!;
+  expect(res.reservation(store.state, id)?.generics).toEqual([{ item_id: bowls, quantity: 4 }]);
+});
+
 test("a camp within seven days of another sharing gear gets a muted hint, not a block (FR-RES-19)", async () => {
   await res.createReservation(store, {
     event: "Winter Prep",

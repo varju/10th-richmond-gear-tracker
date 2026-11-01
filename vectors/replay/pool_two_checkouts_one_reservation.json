@@ -106,6 +106,33 @@
           "device_id": "a",
           "at": 5000,
           "count": 1
+        },
+        "pool_lots": {
+          "bob": [
+            {
+              "id": "01000000000000000000000002",
+              "count": 2,
+              "event": "Fall Camp",
+              "reservation_id": "r-fall",
+              "at": 2000
+            },
+            {
+              "id": "01000000000000000000000003",
+              "count": 2,
+              "event": "Fall Camp",
+              "reservation_id": "r-fall",
+              "at": 3000
+            }
+          ],
+          "carol": [
+            {
+              "id": "01000000000000000000000004",
+              "count": 5,
+              "event": null,
+              "reservation_id": null,
+              "at": 4000
+            }
+          ]
         }
       }
     }

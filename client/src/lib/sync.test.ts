@@ -4,7 +4,7 @@ import { createApi, type ServerEvent } from "./api";
 import { RETENTION_MS } from "./clock";
 import { openDb } from "./db";
 import { pendingPhotos, queuePhoto } from "./photos";
-import { Store } from "./store";
+import { SNAPSHOT_VERSION, Store } from "./store";
 import { sync } from "./sync";
 
 const T0 = 1_756_684_800_000;
@@ -245,6 +245,20 @@ test("a cursor stored before log ids existed bootstraps instead of pulling", asy
   expect(await sync(store, api(), () => clock)).toEqual({ ok: true });
   expect(server.calls).toEqual(["GET /sync/bootstrap"]);
   expect(store.meta.log_id).toBe("log-one");
+});
+
+test("a snapshot older than this build's shape is fetched again, keeping unsent records", async () => {
+  await sync(store, api(), () => clock);
+  await store.setMeta({ snapshot_version: undefined });
+  server.calls = [];
+
+  expect(await sync(store, api(), () => clock)).toEqual({ ok: true });
+  expect(server.calls).toEqual(["GET /sync/bootstrap"]);
+  expect(store.meta.snapshot_version).toBe(SNAPSHOT_VERSION);
+
+  server.calls = [];
+  await sync(store, api(), () => clock);
+  expect(server.calls).toEqual(["GET /sync/pull?since=" + store.meta.cursor + "&log=log-one"]);
 });
 
 test("a deactivated account gets its last push in, then is signed out", async () => {

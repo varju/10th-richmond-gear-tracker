@@ -7,7 +7,7 @@ import { createApi } from "./lib/api";
 import { DAY_MS } from "./lib/clock";
 import { openDb } from "./lib/db";
 import { navigate } from "./lib/router";
-import { Store } from "./lib/store";
+import { SNAPSHOT_VERSION, Store } from "./lib/store";
 
 const T0 = 1_756_684_800_000;
 let store: Store;
@@ -114,6 +114,7 @@ test("a record made while online is pushed without anyone asking", async () => {
     user: { id: "u1", name: "Alice", role: "admin", active: true },
     cursor: 2,
     log_id: "log-one",
+    snapshot_version: SNAPSHOT_VERSION,
   });
   mount();
   await waitFor(() => expect(calls).toContain("/sync/pull"));

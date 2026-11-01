@@ -28,11 +28,14 @@ State = dict[str, dict[str, dict[str, Any]]]
 # Derived fields, in DERIVED_FIELDS so a device cannot set them directly:
 #   pool_in          int                          what is on the shelf right now
 #   pool_out         {holder_id: int > 0}         what each holder has; a holder back at zero is removed
+#   pool_lots        {holder_id: [lot]}           which check-outs each holder's count came from, oldest first:
+#                                                  {id, count, event, reservation_id, at}
 #   pool_reservations {reservation_id: int > 0}   how many went out for each reservation, ever
-#                                                  (FR-RES-13). Only checked_out that carries a
-#                                                  reservation_id adds to it; a return never reduces
-#                                                  it. Read by that reservation's remaining() to say
-#                                                  how much of a pool line is done. Keyed by
+#                                                  (FR-RES-13). A checked_out that carries a
+#                                                  reservation_id adds to it, event_corrected moves a
+#                                                  lot's count, and a return never reduces it. Read by
+#                                                  that reservation's remaining() to say how much of a
+#                                                  pool line is done. Keyed by
 #                                                  reservation id, not by event name, so a later
 #                                                  reservation reusing an event name (e.g. next
 #                                                  year's "Fall Camp") starts at zero.
@@ -48,7 +51,10 @@ State = dict[str, dict[str, dict[str, Any]]]
 #                                                      adds to nothing.
 #   checked_in  {holder_id?, count}          holder defaults to the actor; pool_out[holder] =
 #                                             max(0, pool_out[holder] - count), removed at 0;
-#                                             pool_in += count (FR-OUT-23).
+#                                             pool_in += count (FR-OUT-23). A return says nothing of
+#                                             which event, so it comes off the holder's oldest lots.
+#   event_corrected {movement_id, event?,    a lot from that check-out moves to the new event, and its
+#                    reservation_id?}         count moves between pool_reservations entries.
 #   recounted   {count, reason}              pool_in = count. pool_out is untouched (FR-INV-35);
 #                                             anyone signed in may record one.
 #
@@ -74,6 +80,7 @@ DERIVED_FIELDS = frozenset(
         "pool_in",
         "pool_out",
         "pool_reservations",
+        "pool_lots",
         "deactivated_at",
     }
 )
@@ -81,6 +88,41 @@ DERIVED_FIELDS = frozenset(
 
 class UnknownEventType(ValueError):
     pass
+
+
+def keep_newest(lots: list[dict[str, Any]], count: int) -> list[dict[str, Any]]:
+    """The newest lots that add up to `count`: a return comes off the oldest. Mirrors keepNewest in replay.ts."""
+    kept: list[dict[str, Any]] = []
+    left = count
+    for lot in reversed(lots):
+        if left <= 0:
+            break
+        n = min(lot["count"], left)
+        kept.insert(0, {**lot, "count": n})
+        left -= n
+    return kept
+
+
+def _correct_lot(entity: dict[str, Any], p: dict[str, Any]) -> None:
+    next_id = p.get("reservation_id")
+    for lots in (entity.get("pool_lots") or {}).values():
+        for lot in lots:
+            if lot["id"] != p["movement_id"]:
+                continue
+            if lot["reservation_id"] != next_id:
+                totals = dict(entity.get("pool_reservations", {}))
+                if lot["reservation_id"] is not None:
+                    left = totals.get(lot["reservation_id"], 0) - lot["count"]
+                    if left > 0:
+                        totals[lot["reservation_id"]] = left
+                    else:
+                        totals.pop(lot["reservation_id"], None)
+                if next_id is not None:
+                    totals[next_id] = totals.get(next_id, 0) + lot["count"]
+                entity["pool_reservations"] = totals
+            lot["event"] = p.get("event")
+            lot["reservation_id"] = next_id
+            return
 
 
 def replay(events: Iterable[Event], base: State | None = None) -> State:
@@ -158,6 +200,7 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             if movement is not None and movement["id"] == p["movement_id"]:
                 movement["event"] = p.get("event")
                 movement["reservation_id"] = p.get("reservation_id")
+            _correct_lot(entity, p)
         case "note_added":
             note = {"id": event.id, "text": p["text"], "actor_id": event.actor_id, "at": event.effective_at}
             if p.get("movement_id") is not None:
@@ -183,6 +226,16 @@ def apply(entity: dict[str, Any], event: Event) -> None:
                     pool_reservations = dict(entity.get("pool_reservations", {}))
                     pool_reservations[p["reservation_id"]] = pool_reservations.get(p["reservation_id"], 0) + p["count"]
                     entity["pool_reservations"] = pool_reservations
+                lots = dict(entity.get("pool_lots", {}))
+                lot = {
+                    "id": event.id,
+                    "count": p["count"],
+                    "event": p.get("event"),
+                    "reservation_id": p.get("reservation_id"),
+                    "at": event.effective_at,
+                }
+                lots[p["holder_id"]] = [*lots.get(p["holder_id"], []), lot]
+                entity["pool_lots"] = lots
                 entity["movement"] = _movement(event)
             else:
                 # Two check-outs from different devices with no check-in between:
@@ -216,6 +269,12 @@ def apply(entity: dict[str, Any], event: Event) -> None:
                     pool_out.pop(holder_id, None)
                 entity["pool_out"] = pool_out
                 entity["pool_in"] = entity.get("pool_in", 0) + p["count"]
+                lots = dict(entity.get("pool_lots", {}))
+                if remaining:
+                    lots[holder_id] = keep_newest(lots.get(holder_id, []), remaining)
+                else:
+                    lots.pop(holder_id, None)
+                entity["pool_lots"] = lots
                 movement = _movement(event)
                 movement["holder_id"] = holder_id
                 entity["movement"] = movement

@@ -1,0 +1,199 @@
+{
+  "name": "a pool's counts stay under their check-outs; a return takes the oldest; a correction moves a lot (FR-RPT-11, FR-RES-28)",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "name": "Bowls",
+        "generic": true,
+        "pool": true,
+        "quantity": 20
+      }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": {
+        "holder_id": "bob",
+        "count": 5,
+        "event": "Fall Camp",
+        "reservation_id": "r-fall"
+      }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "payload": {
+        "holder_id": "bob",
+        "count": 3,
+        "event": "Meeting"
+      }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 4000,
+      "payload": {
+        "holder_id": "bob",
+        "count": 2
+      }
+    },
+    {
+      "id": "01000000000000000000000005",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "checked_in",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 5,
+      "effective_at": 5000,
+      "payload": {
+        "holder_id": "bob",
+        "count": 6
+      }
+    },
+    {
+      "id": "01000000000000000000000006",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "event_corrected",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 6,
+      "effective_at": 6000,
+      "payload": {
+        "movement_id": "01000000000000000000000003",
+        "event": "Hike",
+        "reservation_id": "r-hike"
+      }
+    },
+    {
+      "id": "01000000000000000000000007",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "event_corrected",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 7,
+      "effective_at": 7000,
+      "payload": {
+        "movement_id": "01000000000000000000000003",
+        "event": "Camp",
+        "reservation_id": "r-camp"
+      }
+    },
+    {
+      "id": "01000000000000000000000008",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 8,
+      "effective_at": 8000,
+      "payload": {
+        "holder_id": "bob",
+        "count": 3,
+        "event": "Camp",
+        "reservation_id": "r-camp"
+      }
+    },
+    {
+      "id": "01000000000000000000000009",
+      "entity_type": "item",
+      "entity_id": "bowls",
+      "type": "event_corrected",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 9,
+      "effective_at": 9000,
+      "payload": {
+        "movement_id": "01000000000000000000000008",
+        "event": null,
+        "reservation_id": null
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "bowls": {
+        "name": "Bowls",
+        "generic": true,
+        "pool": true,
+        "quantity": 20,
+        "added_at": 1000,
+        "modified_at": 1000,
+        "status": "in",
+        "holder_id": null,
+        "pool_in": 13,
+        "pool_out": {
+          "bob": 7
+        },
+        "pool_reservations": {
+          "r-fall": 5,
+          "r-camp": 2
+        },
+        "pool_lots": {
+          "bob": [
+            {
+              "id": "01000000000000000000000003",
+              "count": 2,
+              "event": "Camp",
+              "reservation_id": "r-camp",
+              "at": 3000
+            },
+            {
+              "id": "01000000000000000000000004",
+              "count": 2,
+              "event": null,
+              "reservation_id": null,
+              "at": 4000
+            },
+            {
+              "id": "01000000000000000000000008",
+              "count": 3,
+              "event": null,
+              "reservation_id": null,
+              "at": 8000
+            }
+          ]
+        },
+        "movement": {
+          "id": "01000000000000000000000008",
+          "type": "checked_out",
+          "holder_id": "bob",
+          "event": null,
+          "reservation_id": null,
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 8000,
+          "count": 3
+        }
+      }
+    }
+  }
+}

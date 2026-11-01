@@ -24,13 +24,15 @@ export type State = Record<string, Record<string, Fields>>;
 //   pool_in           number                          what is on the shelf right now
 //   pool_out          Record<holder_id, number>       what each holder has; a holder back at zero is removed
 //   pool_reservations Record<reservation_id, number>  how many went out for each reservation, ever
-//                                                      (FR-RES-13). Only checked_out that carries a
-//                                                      reservation_id adds to it; a return never
-//                                                      reduces it. Read by that reservation's
+//                                                      (FR-RES-13). A checked_out that carries a
+//                                                      reservation_id adds to it, event_corrected moves
+//                                                      a lot's count, and a return never reduces it. Read by that reservation's
 //                                                      remaining() to say how much of a pool line is
 //                                                      done. Keyed by reservation id, not event name,
 //                                                      so a later reservation reusing an event name
 //                                                      (e.g. next year's "Fall Camp") starts at zero.
+//   pool_lots         Record<holder_id, PoolLot[]>    which check-outs each holder's count came from, oldest
+//                                                      first, so a count can be read under its event.
 //
 // Events, on the pool's own entity (mirrored in views.py's `pool_counts`, `is_pool`):
 //   created    {quantity}                            pool_in = quantity, pool_out = {}, pool_reservations = {}
@@ -40,10 +42,13 @@ export type State = Record<string, Record<string, Fields>>;
 //                                                      from any device just add, whatever the order
 //                                                      (FR-OUT-24). A reservation_id also adds count to
 //                                                      pool_reservations[reservation_id]; with none, it
-//                                                      adds to nothing.
+//                                                      adds to nothing. Adds a lot under the holder.
 //   checked_in  {holder_id?, count}          holder defaults to the actor; pool_out[holder] =
 //                                             max(0, pool_out[holder] - count), removed at 0;
-//                                             pool_in += count (FR-OUT-23).
+//                                             pool_in += count (FR-OUT-23). A return says nothing of
+//                                             which event, so it comes off the holder's oldest lots.
+//   event_corrected {movement_id, event?,    a lot from that check-out moves to the new event, and its
+//                    reservation_id?}         count moves between pool_reservations entries.
 //   recounted   {count, reason}              pool_in = count. pool_out is untouched (FR-INV-35);
 //                                             anyone signed in may record one.
 //
@@ -95,6 +100,30 @@ export type PoolOut = Record<string, number>;
 
 /** A pool's per-reservation out total (FR-RES-13): how many went out for each reservation, ever. */
 export type PoolReservations = Record<string, number>;
+
+/** What is left of one check-out of a pool, still with its holder. `id` is the check-out's. */
+export interface PoolLot {
+  id: string;
+  count: number;
+  event: string | null;
+  reservation_id: string | null;
+  at: number;
+}
+
+export type PoolLots = Record<string, PoolLot[]>;
+
+/** The newest lots that add up to `count`: a return comes off the oldest. */
+export function keepNewest(lots: PoolLot[], count: number): PoolLot[] {
+  const kept: PoolLot[] = [];
+  let left = count;
+  for (const lot of [...lots].reverse()) {
+    if (left <= 0) break;
+    const n = Math.min(lot.count, left);
+    kept.unshift({ ...lot, count: n });
+    left -= n;
+  }
+  return kept;
+}
 
 /** A file on the server. Never the bytes: those are fetched when online (FR-INV-11). */
 export interface Photo {
@@ -224,6 +253,7 @@ export function apply(entity: Fields, event: ReplayEvent): void {
         current.event = p.event ?? null;
         current.reservation_id = p.reservation_id ?? null;
       }
+      correctLot(entity, p);
       break;
     }
     case "note_added": {
@@ -258,6 +288,16 @@ export function apply(entity: Fields, event: ReplayEvent): void {
           poolReservations[reservationId] = (poolReservations[reservationId] ?? 0) + count;
           entity.pool_reservations = poolReservations;
         }
+        const lots = { ...((entity.pool_lots ?? {}) as PoolLots) };
+        const lot: PoolLot = {
+          id: event.id,
+          count,
+          event: (p.event as string | null | undefined) ?? null,
+          reservation_id: (p.reservation_id as string | null | undefined) ?? null,
+          at: event.effective_at,
+        };
+        lots[holderId] = [...(lots[holderId] ?? []), lot];
+        entity.pool_lots = lots;
         entity.movement = movement(event);
         break;
       }
@@ -295,6 +335,10 @@ export function apply(entity: Fields, event: ReplayEvent): void {
         else delete poolOut[holderId];
         entity.pool_out = poolOut;
         entity.pool_in = ((entity.pool_in as number | undefined) ?? 0) + count;
+        const lots = { ...((entity.pool_lots ?? {}) as PoolLots) };
+        if (remaining) lots[holderId] = keepNewest(lots[holderId] ?? [], remaining);
+        else delete lots[holderId];
+        entity.pool_lots = lots;
         const m = movement(event);
         m.holder_id = holderId;
         entity.movement = m;
@@ -346,6 +390,29 @@ function notes(entity: Fields): Note[] {
 
 function photos(entity: Fields): Photo[] {
   return (entity.photos ??= []) as Photo[];
+}
+
+function correctLot(entity: Fields, p: Fields): void {
+  const lots = entity.pool_lots as PoolLots | undefined;
+  if (!lots) return;
+  const next = (p.reservation_id as string | null | undefined) ?? null;
+  for (const [holderId, list] of Object.entries(lots)) {
+    const lot = list.find((l) => l.id === p.movement_id);
+    if (!lot) continue;
+    if (lot.reservation_id !== next) {
+      const totals = { ...((entity.pool_reservations ?? {}) as PoolReservations) };
+      if (lot.reservation_id !== null) {
+        const left = (totals[lot.reservation_id] ?? 0) - lot.count;
+        if (left > 0) totals[lot.reservation_id] = left;
+        else delete totals[lot.reservation_id];
+      }
+      if (next !== null) totals[next] = (totals[next] ?? 0) + lot.count;
+      entity.pool_reservations = totals;
+    }
+    const fixed = { ...lot, event: (p.event as string | null | undefined) ?? null, reservation_id: next };
+    entity.pool_lots = { ...lots, [holderId]: list.map((l) => (l === lot ? fixed : l)) };
+    return;
+  }
 }
 
 function movement(event: ReplayEvent): Movement {

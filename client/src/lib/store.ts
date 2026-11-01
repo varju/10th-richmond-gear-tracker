@@ -43,6 +43,8 @@ export interface Meta {
   cursor?: number;
   /** The log the snapshot and cursor came from. A cursor without one predates this field and cannot be trusted. */
   log_id?: string;
+  /** Which shape of snapshot this device holds. Older than SNAPSHOT_VERSION, it is fetched again. */
+  snapshot_version?: number;
   /** The event name scans are for, until changed or cleared (FR-OUT-05). A device setting, not a record. */
   session_event?: string;
   /** Written by older builds when packing started (FR-RES-02). While set, `eventAsked` treats the
@@ -96,6 +98,9 @@ export interface Recording {
 }
 
 const SNAPSHOT_KEY = "snapshot";
+
+/** Raise it when replay derives a new field from old events: a stored snapshot cannot have it. */
+export const SNAPSHOT_VERSION = 1;
 
 /** The server's wording for a reused device_seq (events.py, `append`). Pulls out the last one it saw. */
 const SEQ_COLLISION = /^device_seq \d+ is not above the last seen, (\d+)$/;
@@ -396,10 +401,12 @@ export class Store {
     metaStore.put(snapshot, SNAPSHOT_KEY);
     metaStore.put(cursor, "cursor");
     if (log_id !== undefined) metaStore.put(log_id, "log_id");
+    metaStore.put(SNAPSHOT_VERSION, "snapshot_version");
     await done(tx);
     this.snapshot = snapshot;
     this.meta.cursor = cursor;
     if (log_id !== undefined) this.meta.log_id = log_id;
+    this.meta.snapshot_version = SNAPSHOT_VERSION;
     this.recompute();
   }
 

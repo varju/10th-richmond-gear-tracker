@@ -701,13 +701,48 @@ def add_to_reservation(reservation_id: str, item_id: str, quantity: StrictInt | 
         return {"saved": True, "reservation_id": reservation_id, "clashes": []}
 
 
+def _link_pool_out(conn: Any, who: Any, state: Any, r: dict[str, Any], it: dict[str, Any]) -> dict[str, Any]:
+    """A pool's counts under this reservation's name join it, unless packing a live reservation."""
+    live = {other["id"] for other in views.reservations(state)}
+    name = views.event_name_key(r.get("event") or "")
+    lots = [
+        lot
+        for out in views.pool_lots(it)
+        for lot in out["lots"]
+        if lot["reservation_id"] != r["id"]
+        and lot["reservation_id"] not in live
+        and lot["event"]
+        and views.event_name_key(lot["event"]) == name
+    ]
+    if not lots:
+        raise BadRequest("it is not out under this event")
+    drafts = [
+        _draft(
+            "item",
+            it["id"],
+            "event_corrected",
+            {"movement_id": lot["id"], "event": r.get("event"), "reservation_id": r["id"]},
+        )
+        for lot in lots
+    ]
+    taken = (it.get("pool_reservations") or {}).get(r["id"], 0) + sum(lot["count"] for lot in lots)
+    line = next((g for g in r.get("generics") or [] if g["item_id"] == it["id"]), None)
+    if taken > (line["quantity"] if line else 0):
+        drafts.append(_draft("reservation", r["id"], "quantity_changed", {"item_id": it["id"], "quantity": taken}))
+    _push(conn, who, drafts)
+    return {"reservation_id": r["id"], "item_id": it["id"], "corrected": True}
+
+
 def link_out_to_reservation(reservation_id: str, item_id: str) -> dict[str, Any]:
     """Claim gear that went out before the plan did (FR-RES-17). The movement stands; its event is put
-    right by an appended record (FR-OUT-16), and the item joins the gear list by name. Nothing moves."""
+    right by an appended record (FR-OUT-16), and the item joins the gear list by name. A pool joins by
+    quantity, with only its counts out under this reservation's event name. Nothing moves."""
     with _open() as (conn, who):
         state = _state(conn)
         r = _reservation(state, reservation_id)
         it = _item(state, item_id)
+        if views.is_pool(it):
+            return _link_pool_out(conn, who, state, r, it)
         movement = it.get("movement") or {}
         if it.get("status") != "out" or not movement:
             raise BadRequest("it is not out")

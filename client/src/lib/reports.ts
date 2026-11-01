@@ -3,8 +3,9 @@
  * longer than the group's period flagged (FR-OUT-14, FR-RPT-05). Pure
  * functions over state; the device answers this with no network.
  */
+import { eventNameKey, tidyName } from "./calendar";
 import { DAY_MS } from "./clock";
-import { displayName, group, isPool, type Item, items, movable, poolCounts, userName } from "./inventory";
+import { displayName, group, isPool, type Item, items, movable, poolCounts, poolLots, userName } from "./inventory";
 import type { State } from "./replay";
 
 export interface OutItem {
@@ -14,7 +15,7 @@ export interface OutItem {
   days: number;
   event: string | null;
   overdue: boolean;
-  /** Set only for a pool's line (FR-RPT-11): how many this holder has. */
+  /** Set only for a pool's line (FR-RPT-11): how many this holder has under this event. */
   count?: number;
 }
 
@@ -34,7 +35,7 @@ export interface OutReport {
 export const outCount = (state: State): number =>
   movable(state).filter((it) => it.status === "out" && !it.missing).length;
 
-/** How many lines of What is out are under this person: the same rules as whatIsOut, without building it. */
+/** How many things of What is out are under this person: the same rules as whatIsOut, without building it. */
 export const heldBy = (state: State, holderId: string): number =>
   items(state).filter((it) =>
     isPool(it)
@@ -53,17 +54,24 @@ export function isOverdue(state: State, it: Item, now: number): boolean {
 /**
  * Everyone who has something, by name; each person's gear longest out first.
  * Missing gear is not out (FR-INV-19). A pool has no single "out": it lists
- * once per holder, with its count, and carries no days or event of its own
- * (FR-RPT-11).
+ * once per holder and event, with its count, and carries no days (FR-RPT-11).
  */
 export function whatIsOut(state: State, now: number): OutReport {
   const byHolder = new Map<string, OutItem[]>();
   let overdue = 0;
   for (const it of items(state)) {
     if (isPool(it)) {
-      for (const out of poolCounts(it).out) {
-        const entry: OutItem = { item: it, days: 0, event: null, overdue: false, count: out.count };
-        byHolder.set(out.holder_id, [...(byHolder.get(out.holder_id) ?? []), entry]);
+      for (const out of poolLots(it)) {
+        const lines = new Map<string, OutItem>();
+        const add = (event: string | null, count: number) => {
+          const key = event ? eventNameKey(event) : "";
+          const line = lines.get(key);
+          if (line) line.count = (line.count ?? 0) + count;
+          else lines.set(key, { item: it, days: 0, event: event ? tidyName(event) : null, overdue: false, count });
+        };
+        for (const lot of out.lots) add(lot.event, lot.count);
+        if (out.unknown) add(null, out.unknown);
+        byHolder.set(out.holder_id, [...(byHolder.get(out.holder_id) ?? []), ...lines.values()]);
       }
       continue;
     }
@@ -87,7 +95,9 @@ export function whatIsOut(state: State, now: number): OutReport {
       ),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
-  return { holders, total: holders.reduce((n, h) => n + h.items.length, 0), overdue };
+  // A pool under two events is still one thing this person has.
+  const total = holders.reduce((n, h) => n + new Set(h.items.map((entry) => entry.item.id)).size, 0);
+  return { holders, total, overdue };
 }
 
 export type OutSort = "holder" | "item" | "days" | "reservation";
@@ -110,8 +120,8 @@ export function outRows(report: OutReport): OutRow[] {
   return report.holders.flatMap((h) => h.items.map((it) => ({ ...it, holderId: h.id, holderName: h.name })));
 }
 
-/** A pool lists once per holder (FR-RPT-11), so the item id alone does not tell two rows apart. */
-export const rowKey = (row: OutRow): string => `${row.holderId}:${row.item.id}`;
+/** A pool lists once per holder and event (FR-RPT-11), so the item id alone does not tell two rows apart. */
+export const rowKey = (row: OutRow): string => `${row.holderId}:${row.item.id}:${row.event ?? ""}`;
 
 /** Sorts a bare event name after any real one, so ungrouped gear falls to the end. */
 export const eventKey = (event: string | null): string => event ?? "￿";

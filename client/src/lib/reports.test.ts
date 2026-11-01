@@ -174,3 +174,63 @@ test("the default arrangement is the one the URL leaves out", () => {
   // An unknown sort is the default, not a crash.
   expect(readOrder(new URLSearchParams("sort=nonsense"))).toEqual({ sort: "holder", up: true });
 });
+
+test("a pool lists once per holder and event, and a count no lot explains has no event (FR-RPT-11)", () => {
+  const lot = (id: string, count: number, event: string | null) => ({ id, count, event, reservation_id: null, at: T0 });
+  const withLots: State = {
+    ...state,
+    item: {
+      bowls: {
+        name: "Bowls",
+        generic: true,
+        pool: true,
+        pool_in: 0,
+        pool_out: { alice: 9 },
+        pool_lots: { alice: [lot("a", 3, "Fall Camp"), lot("b", 2, "fall  camp"), lot("c", 1, "Meeting")] },
+      },
+    },
+  };
+  const rows = outRows(whatIsOut(withLots, T0));
+  expect(rows.map((r) => [r.event, r.count])).toEqual([
+    ["Fall Camp", 5],
+    ["Meeting", 1],
+    [null, 3],
+  ]);
+  expect(new Set(rows.map(rowKey)).size).toBe(3);
+});
+
+test("lots beyond the holder's count drop off the oldest end (FR-RPT-11)", () => {
+  const lot = (id: string, count: number, event: string) => ({ id, count, event, reservation_id: null, at: T0 });
+  const stale: State = {
+    ...state,
+    item: {
+      bowls: {
+        name: "Bowls",
+        generic: true,
+        pool: true,
+        pool_out: { alice: 2 },
+        pool_lots: { alice: [lot("a", 3, "Old"), lot("b", 2, "New")] },
+      },
+    },
+  };
+  expect(outRows(whatIsOut(stale, T0)).map((r) => [r.event, r.count])).toEqual([["New", 2]]);
+});
+
+test("a pool under two events still counts once in the total (FR-RPT-11)", () => {
+  const lot = (id: string, event: string) => ({ id, count: 1, event, reservation_id: null, at: T0 });
+  const split: State = {
+    ...state,
+    item: {
+      bowls: {
+        name: "Bowls",
+        generic: true,
+        pool: true,
+        pool_out: { alice: 2 },
+        pool_lots: { alice: [lot("a", "Fall Camp"), lot("b", "Meeting")] },
+      },
+    },
+  };
+  const report = whatIsOut(split, T0);
+  expect(outRows(report)).toHaveLength(2);
+  expect(report.total).toBe(1);
+});
