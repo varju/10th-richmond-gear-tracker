@@ -410,6 +410,9 @@ The commit it was built from is baked in too, in the same way, and shown at the 
 docker inspect --format '{{index .Config.Labels "gear.git-sha"}}' gear-tracker:latest
 ```
 
+A successful `make deploy` moves the git tag `deployed` to the commit it deployed, so `git log deployed..main` lists
+what is not live yet. A deploy from a dirty tree leaves the tag where it was. The tag stays local; it is not pushed.
+
 Every build also leaves a tag named after its commit, so going back a version is a retag and a restart rather than a
 rebuild:
 

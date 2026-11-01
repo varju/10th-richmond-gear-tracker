@@ -89,6 +89,7 @@ scan:
 deploy: image
 	@if command -v trivy >/dev/null; then $(MAKE) --no-print-directory scan; else echo "trivy is not installed: deploying unscanned"; fi
 	GEAR_TAG=$(TAG) $(GEAR_DEPLOY)
+	@case "$(TAG)" in *-dirty) echo "dirty tree: not moving the deployed tag";; *) git tag --force deployed HEAD && echo "tag deployed -> $(GIT_SHA)";; esac
 
 logs:
 	$(GEAR_LOGS)
