@@ -7,21 +7,6 @@ changelog.
 
 ---
 
-## M6 — Items and codes
-
-Built. What is left waits on other work:
-
-- [ ] Check the printed sheet against the real stock and fix `labels.py` if the margins are off (FR-TAG-02)
-
-## M9 — Go live
-
-First real use. Everything in the requirements that is built is built; going live buys feedback while the inventory is
-fresh from the labelling walk.
-
-- [ ] Print code sheets and do the labelling walk (S-BOOT-02, S-BOOT-03)
-
-Public pages come before the labelling walk, not after it. From the moment stickers go on gear, a stranger can scan one.
-
 ## Reservations follow-ups
 
 - [ ] **Consider calling reservations "events".** People think in events (Apple Day, Fall camp), and the event question
