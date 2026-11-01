@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -39,7 +39,7 @@ def connect(path: str | Path) -> sqlite3.Connection:
 
 
 @contextmanager
-def open_db(path: str | Path) -> Iterator[sqlite3.Connection]:
+def open_db(path: str | Path) -> Generator[sqlite3.Connection]:
     conn = connect(path)
     try:
         yield conn

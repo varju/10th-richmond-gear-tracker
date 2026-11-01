@@ -12,7 +12,7 @@ import re
 import sqlite3
 import sys
 import time
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncGenerator, Callable, Iterator
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import date, datetime
@@ -310,7 +310,7 @@ def create_app(
     mcp = assistant.Endpoint(db_path, authenticate, photo_dir)
 
     @asynccontextmanager
-    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
         # Refreshes every feed hourly for as long as the server runs (FR-RES-20). Harmless in
         # tests: a fresh database has no feeds, so each tick finds nothing to fetch, and the
         # thread stops the moment this context manager exits.

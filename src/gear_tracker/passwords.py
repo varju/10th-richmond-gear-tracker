@@ -9,7 +9,7 @@ from __future__ import annotations
 import functools
 import secrets
 import threading
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -36,7 +36,7 @@ _dummy: str | None = None
 
 
 @contextmanager
-def _slot() -> Iterator[None]:
+def _slot() -> Generator[None]:
     if not _slots.acquire(timeout=WAIT_S):
         raise TooMany("the server is busy; try again in a moment")
     try:

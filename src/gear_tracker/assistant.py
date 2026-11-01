@@ -47,7 +47,7 @@ import datetime
 import functools
 import json
 import sqlite3
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -119,7 +119,7 @@ _CALLER: ContextVar[Caller] = ContextVar("gear_tracker_mcp_caller")
 
 
 @contextmanager
-def acting_as(who: Principal, db_path: str | Path, photo_dir: str | Path | None = None) -> Iterator[None]:
+def acting_as(who: Principal, db_path: str | Path, photo_dir: str | Path | None = None) -> Generator[None]:
     """Run the tool functions as this caller, outside an MCP request. The endpoint sets the same variable."""
     token = _CALLER.set(Caller(who=who, db_path=Path(db_path), photo_dir=photo_files.store_dir(db_path, photo_dir)))
     try:
@@ -129,7 +129,7 @@ def acting_as(who: Principal, db_path: str | Path, photo_dir: str | Path | None 
 
 
 @contextmanager
-def _open() -> Iterator[tuple[sqlite3.Connection, Principal]]:
+def _open() -> Generator[tuple[sqlite3.Connection, Principal]]:
     """A connection and the caller, for the length of one tool call."""
     caller = _CALLER.get()
     conn = connect(caller.db_path)
