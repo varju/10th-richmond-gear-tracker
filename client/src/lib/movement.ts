@@ -8,6 +8,7 @@ import { aliases, isPool, item, type Item, poolCounts } from "./inventory";
 import * as notes from "./notes";
 import type { Log } from "./record";
 import { eventNameKey, tidyName } from "./calendar";
+import { addExtra, plannedFor } from "./reservations";
 import { type Movement, type Note, type ReplayEvent, replayOrder, type State } from "./replay";
 import { eventAsked, setSessionEvent } from "./session";
 import type { MoveSession, Store } from "./store";
@@ -38,6 +39,16 @@ function current(store: Store, itemId: string): Item {
   return it;
 }
 
+/**
+ * A plain check-out under an event's name belongs to that event when one is planned (FR-OUT-45). The
+ * reservation is stamped on the move, and the gear joins its list once the move is made.
+ */
+function planned(store: Store, options: { event?: string; reservation_id?: string; packing?: boolean }) {
+  if (options.reservation_id || options.packing) return { id: options.reservation_id ?? null, extra: false };
+  const r = plannedFor(store.state, options.event, () => store.now());
+  return { id: r?.id ?? null, extra: !!r };
+}
+
 /** Every move goes through here. One given `session` keeps a running plain session going (FR-OUT-38). */
 async function move(
   store: Store,
@@ -61,14 +72,17 @@ export async function checkOut(store: Store, itemId: string, options: MoveOption
   if (it.retired) throw new Error("retired items cannot be checked out");
   if (it.merged_into) throw new Error("merged into another item");
   if (it.status === "out") throw new Error("already out; transfer it instead");
-  return move(
+  const link = planned(store, options);
+  const movement = await move(
     store,
     itemId,
     "checked_out",
-    { holder_id: actor(store), event: options.event?.trim() || null, reservation_id: options.reservation_id ?? null },
+    { holder_id: actor(store), event: options.event?.trim() || null, reservation_id: link.id },
     options.note,
     options.packing ? undefined : { event: options.event?.trim() || null },
   );
+  if (link.extra && link.id) await addExtra(store, link.id, itemId);
+  return movement;
 }
 
 /** Anyone can bring anything back (FR-OUT-08). */
@@ -108,7 +122,8 @@ export async function checkOutPool(store: Store, itemId: string, options: PoolCh
   const it = poolItem(store, itemId);
   if (it.retired) throw new Error("retired items cannot be checked out");
   if (!Number.isInteger(options.count) || options.count < 1) throw new Error("pick a count of at least 1");
-  return move(
+  const link = planned(store, options);
+  const movement = await move(
     store,
     itemId,
     "checked_out",
@@ -116,11 +131,13 @@ export async function checkOutPool(store: Store, itemId: string, options: PoolCh
       holder_id: actor(store),
       count: options.count,
       event: options.event?.trim() || null,
-      reservation_id: options.reservation_id ?? null,
+      reservation_id: link.id,
     },
     options.note,
     options.packing ? undefined : { event: options.event?.trim() || null },
   );
+  if (link.extra && link.id) await addExtra(store, link.id, itemId);
+  return movement;
 }
 
 /**
@@ -169,7 +186,8 @@ export async function transfer(store: Store, itemId: string, options: TransferOp
   if (it.status !== "out" || !previous) throw new Error("not out; check it out instead");
   const to = options.to ?? actor(store);
   if (to === it.holder_id) throw new Error("they already have it");
-  return move(
+  const link = planned(store, options);
+  const movement = await move(
     store,
     itemId,
     "checked_out",
@@ -177,11 +195,13 @@ export async function transfer(store: Store, itemId: string, options: TransferOp
       holder_id: to,
       event: options.event?.trim() || null,
       supersedes: previous.id,
-      reservation_id: options.reservation_id ?? null,
+      reservation_id: link.id,
     },
     options.note,
     options.packing ? undefined : { event: options.event?.trim() || null },
   );
+  if (link.extra && link.id) await addExtra(store, link.id, itemId);
+  return movement;
 }
 
 const onItem = (itemId: string) => ({ entity_type: "item", entity_id: itemId });

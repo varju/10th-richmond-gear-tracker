@@ -418,6 +418,19 @@ export function unlinkedLots(state: State, r: Reservation, itemId: string): Pool
     });
 }
 
+/**
+ * The event a check-out under this name belongs to: a live reservation of that name, on its dates or
+ * in the seven days before them, the window FR-RES-17 uses. Soonest first when several match.
+ */
+export function plannedFor(state: State, name: string | undefined | null, now: () => number): Reservation | undefined {
+  const key = name ? eventNameKey(name) : "";
+  if (!key) return undefined;
+  const named = reservations(state).filter((r) => eventNameKey(r.event) === key);
+  if (named.length === 0) return undefined;
+  const today = todayIso(now());
+  return named.find((r) => shiftIso(r.starts, -7) <= today && today <= r.ends);
+}
+
 /** Gear that is out but not packing this reservation. What this camp can claim (FR-RES-17). */
 export function outElsewhere(state: State, r: Reservation): Item[] {
   const named = new Set(namedItems(state, r));

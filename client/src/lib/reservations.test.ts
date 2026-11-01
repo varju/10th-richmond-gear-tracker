@@ -769,3 +769,18 @@ test("It's with us leaves counts packing another live event, and takes a cancell
   await res.cancelReservation(store, old);
   expect(res.unlinkedLots(store.state, res.reservation(store.state, id)!, bowls).map((l) => l.count)).toEqual([3]);
 });
+
+test("a check-out under a planned event's name links to it and joins its list (FR-OUT-45)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2026, 9, 1, 18);
+  const id = await res.createReservation(store, { ...fall, items: [f.stove], generics: [] });
+
+  await mv.checkOut(store, f.tarp, { event: "fall camp" });
+  expect(inv.item(store.state, f.tarp)!.movement).toMatchObject({ event: "fall camp", reservation_id: id });
+  expect(res.reservation(store.state, id)?.items).toEqual([f.stove, f.tarp]);
+
+  // More than a week before it starts, the name alone links nothing.
+  clock = Date.UTC(2026, 8, 20, 18);
+  await mv.checkOut(store, f.t1, { event: "Fall Camp" });
+  expect(inv.item(store.state, f.t1)!.movement).toMatchObject({ reservation_id: null });
+});
