@@ -53,6 +53,9 @@ export type State = Record<string, Record<string, Fields>>;
 //                                             new cleaner. A checked_out with a cleaner adds it to its lot;
 //                                             a checked_in with one comes off that cleaner's lots first
 //                                             (returnLots).
+//   cleaning_started {cleaner, count,         `count` of that holder's lots not at a cleaner go home with
+//                     holder_id?}              `cleaner` (FR-OUT-46); counts, holders and events do not change
+//                                              (startCleaning). A pool only: a single item goes with a check-out.
 //   cleaning_ended {cleaner?, count?,         cleaned gear is back with its Scouter (FR-OUT-51). A single
 //                   holder_id?}                item's movement loses its cleaner. A pool's `count` of
 //                                             that holder's lots under `cleaner` lose it (endCleaning).
@@ -173,6 +176,27 @@ export function returnLots(lots: PoolLot[], before: number, count: number, clean
   return kept.filter((l) => l.count > 0);
 }
 
+/**
+ * A holder's lots after `count` of those not yet at a cleaner go home with `cleaner` (FR-OUT-46). Mirrors
+ * start_cleaning in replay.py. Oldest first. What goes takes `newId`, so a later correction of the name, which names this event, finds it.
+ */
+export function startCleaning(lots: PoolLot[], count: number, cleaner: string, newId: string): PoolLot[] {
+  let left = count;
+  const out: PoolLot[] = [];
+  for (const lot of lots) {
+    if (left > 0 && !lot.cleaner) {
+      const n = Math.min(lot.count, left);
+      left -= n;
+      if (n === lot.count) out.push({ ...lot, id: newId, cleaner });
+      else {
+        out.push({ ...lot, count: lot.count - n });
+        out.push({ ...lot, id: newId, count: n, cleaner });
+      }
+    } else out.push({ ...lot });
+  }
+  return out;
+}
+
 /** A holder's lots after `count` of those under `cleaner` come back (FR-OUT-51). Mirrors end_cleaning in replay.py. */
 export function endCleaning(
   lots: PoolLot[],
@@ -223,6 +247,7 @@ export const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set([
   "quantity_changed",
   "event_corrected",
   "cleaner_corrected",
+  "cleaning_started",
   "cleaning_ended",
   "note_added",
   "note_corrected",
@@ -342,6 +367,17 @@ export function apply(entity: Fields, event: ReplayEvent): void {
         const fixed = list.map((l) => (l.id === p.movement_id ? { ...l, cleaner: p.cleaner as string } : l));
         entity.pool_lots = { ...lots, [holderId]: fixed };
         break;
+      }
+      break;
+    }
+    case "cleaning_started": {
+      const holderId = (p.holder_id as string | undefined) ?? event.actor_id;
+      const lots = (entity.pool_lots ?? {}) as PoolLots;
+      if (lots[holderId]) {
+        entity.pool_lots = {
+          ...lots,
+          [holderId]: startCleaning(lots[holderId], p.count as number, p.cleaner as string, event.id),
+        };
       }
       break;
     }

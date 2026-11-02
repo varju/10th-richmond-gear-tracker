@@ -799,3 +799,17 @@ test("gear out for cleaning is not packed for its event (FR-RES-36)", async () =
   await mv.backFromCleaning(store, f.stove);
   expect(res.isPacked(res.remaining(store.state, res.reservation(store.state, r)!))).toBe(true);
 });
+
+test("a stack's packed count is what is still out for the event, not at a family's home (FR-RES-36)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  const id = await res.createReservation(store, { ...fall, items: [], generics: [{ item_id: bowls, quantity: 8 }] });
+  await res.checkOutPoolLine(store, res.reservation(store.state, id)!, bowls, 8);
+  const done = () => res.remaining(store.state, res.reservation(store.state, id)!).generics[0]!.done;
+  expect(done()).toBe(8);
+
+  await mv.sendHomeFromPool(store, bowls, { cleaner: "Smith", count: 3 });
+  expect(done()).toBe(5);
+
+  await mv.checkInPool(store, bowls, { count: 2 });
+  expect(done()).toBe(3);
+});

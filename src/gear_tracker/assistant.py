@@ -393,7 +393,7 @@ def _history(conn: sqlite3.Connection, state: dict[str, Any], item_id: str) -> l
         f"""
         SELECT * FROM events
         WHERE entity_type = 'item' AND entity_id IN ({marks})
-        AND type IN ('checked_out', 'checked_in', 'recounted', 'cleaning_ended')
+        AND type IN ('checked_out', 'checked_in', 'recounted', 'cleaning_ended', 'cleaning_started')
         ORDER BY effective_at DESC, device_id DESC, device_seq DESC LIMIT ?
         """,
         (*ids, HISTORY_SHOWN),
@@ -1962,6 +1962,37 @@ def back_from_cleaning(
         return {"item_id": it["id"], **({"count": payload["count"]} if payload else {})}
 
 
+def send_home_to_clean(item_id: str, cleaner: str, count: Count, holder_id: str | None = None) -> dict[str, Any]:
+    """Part of a pool that is out goes home with a family to clean (FR-OUT-46). It stays out to its Scouter, under
+    its event, and is read under `cleaner` from now on. `count` comes from what `holder_id` (you, by default) has out
+    and that is not already at a family. A single item goes with transfer and its `cleaner`.
+    """
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, item_id)
+        if not views.is_pool(it):
+            raise BadRequest("only a pool goes home by count; for a single item, call transfer with a cleaner")
+        if not cleaner.strip():
+            raise BadRequest("say who is taking it home")
+        holder = holder_id or who.user_id
+        have = sum(
+            lot["count"]
+            for out in views.pool_lots(it)
+            if out["holder_id"] == holder
+            for lot in out["lots"]
+            if not lot.get("cleaner")
+        )
+        if count < 1:
+            raise BadRequest("pick a count of at least 1")
+        if count > have:
+            raise BadRequest(f"that Scouter has {have} out that could go home")
+        payload: dict[str, Any] = {"cleaner": cleaner.strip(), "count": count}
+        if holder != who.user_id:
+            payload["holder_id"] = holder
+        _push(conn, who, [_draft("item", it["id"], "cleaning_started", payload)])
+        return {"item_id": it["id"], "count": count, "cleaner": payload["cleaner"]}
+
+
 def stock_check(location_id: str, seen: list[str], sub_location: str | None = None) -> dict[str, Any]:
     """Check one location, or one shelf of it, against what was seen there (FR-RPT-09).
 
@@ -2563,6 +2594,7 @@ TOOLS = [
     correct_event,
     correct_cleaner,
     back_from_cleaning,
+    send_home_to_clean,
     stock_check,
     get_notifications,
     set_notifications,

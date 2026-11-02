@@ -1928,3 +1928,25 @@ def test_sending_gear_home_leaves_its_holder_alone(tools):
     assistant.check_out(tools["t2"])
     assistant.transfer(tools["t2"], cleaner="Smith")
     assert assistant.get_item(tools["t2"])["holder"] == "Alice"
+
+
+def test_a_pool_count_out_at_camp_goes_home_to_clean(tools, pool_id):
+    with pytest.raises(BadRequest):
+        assistant.send_home_to_clean(pool_id, "Smith", 1)  # none out yet
+    with pytest.raises(BadRequest):
+        assistant.send_home_to_clean(tools["t1"], "Smith", 1)  # a single item uses transfer
+    assistant.check_out(pool_id, count=5, event="Fall Camp")
+    with pytest.raises(BadRequest):
+        assistant.send_home_to_clean(pool_id, "Smith", 6)
+    assistant.send_home_to_clean(pool_id, " Smith ", 3)
+    assistant.send_home_to_clean(pool_id, "Jones", 2)
+    with pytest.raises(BadRequest):
+        assistant.send_home_to_clean(pool_id, "Smith", 1)  # all five are at families now
+    assert sorted(assistant.get_item(pool_id)["cleaners"], key=str) == [
+        {"cleaner": "Jones", "count": 2},
+        {"cleaner": "Smith", "count": 3},
+    ]
+    lines = [(e.get("cleaner"), e["count"], e.get("event")) for e in assistant.whats_out()["holders"][0]["items"]]
+    assert sorted(lines, key=str) == [("Jones", 2, "Fall Camp"), ("Smith", 3, "Fall Camp")]
+    assistant.back_from_cleaning(pool_id, "Smith", count=1)
+    assert assistant.get_item(pool_id)["history"][0]["type"] == "cleaning_ended"

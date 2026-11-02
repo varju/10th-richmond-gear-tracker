@@ -2,7 +2,7 @@ import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, expect, test } from "vitest";
 import * as act from "./actions";
 import { openDb } from "./db";
-import { item } from "./inventory";
+import { item, poolCounts, poolLots } from "./inventory";
 import * as mv from "./movement";
 import { eventAsked, SESSION_MS, sessionEvent, setSessionEvent } from "./session";
 import { Store } from "./store";
@@ -374,4 +374,22 @@ test("handing gear at a cleaner's home to another Scouter keeps its event and cl
   await mv.transfer(store, tent, { cleaner: "Smith" });
   const moved = await mv.transfer(store, tent, { to: "bob" });
   expect(moved.payload).toMatchObject({ holder_id: "bob", event: "Camp", cleaner: "Smith" });
+});
+
+test("part of a stack out at camp goes home, keeping its holder and event (FR-OUT-46)", async () => {
+  const bags = await act.createPool(store, { name: "Bags" }, 20);
+  await expect(mv.sendHomeFromPool(store, bags, { cleaner: "Smith", count: 1 })).rejects.toThrow("only 0");
+  await mv.checkOutPool(store, bags, { count: 5, event: "Camp" });
+  await expect(mv.sendHomeFromPool(store, bags, { cleaner: "Smith", count: 6 })).rejects.toThrow("only 5");
+  await expect(mv.sendHomeFromPool(store, bags, { cleaner: " ", count: 1 })).rejects.toThrow("say who");
+
+  const sent = await mv.sendHomeFromPool(store, bags, { cleaner: " Smith ", count: 3 });
+  expect(sent.payload).toEqual({ cleaner: "Smith", count: 3 });
+  const lots = poolLots(item(store.state, bags)!)[0]!.lots;
+  expect(lots.map((l) => [l.count, l.cleaner ?? null, l.event])).toEqual([
+    [2, null, "Camp"],
+    [3, "Smith", "Camp"],
+  ]);
+  expect(poolCounts(item(store.state, bags)!)).toMatchObject({ in: 15, out: [{ holder_id: "alice", count: 5 }] });
+  expect(mv.history(store, bags)[0]).toMatchObject({ type: "cleaning_started", count: 3, cleaner: "Smith" });
 });

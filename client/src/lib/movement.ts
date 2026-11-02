@@ -216,6 +216,32 @@ export async function backFromCleaning(store: Store, itemId: string, options: Ba
   return move(store, itemId, "cleaning_ended", payload, options.note);
 }
 
+export interface SendHome {
+  cleaner: string;
+  count: number;
+  holder_id?: string;
+  note?: string;
+}
+
+/**
+ * Part of a pool that is out goes home with a family (FR-OUT-46). It stays out to its Scouter under its event;
+ * only the family's name is added. The count comes from what that Scouter has out and not already at a family.
+ */
+export async function sendHomeFromPool(store: Store, itemId: string, options: SendHome) {
+  const it = poolItem(store, itemId);
+  const name = cleanerName(options);
+  if (!name) throw new Error("say who is taking it home");
+  const holder = options.holder_id ?? actor(store);
+  const has = (poolLots(it).find((o) => o.holder_id === holder)?.lots ?? [])
+    .filter((l) => !l.cleaner)
+    .reduce((n, l) => n + l.count, 0);
+  if (!Number.isInteger(options.count) || options.count < 1) throw new Error("pick a count of at least 1");
+  if (options.count > has) throw new Error(`only ${has} out that could go home`);
+  const payload: Record<string, unknown> = { cleaner: name, count: options.count };
+  if (holder !== actor(store)) payload.holder_id = holder;
+  return move(store, itemId, "cleaning_started", payload, options.note);
+}
+
 /** How many are in right now, with a reason (FR-INV-35). What is already out is untouched; anyone signed in may record one. */
 export async function recount(store: Store, itemId: string, count: number, reason: string) {
   poolItem(store, itemId);
@@ -449,7 +475,7 @@ const sameKey = (name: string | null | undefined) => eventNameKey(name ?? "");
 
 export interface HistoryEntry {
   id: string;
-  type: "checked_out" | "checked_in" | "recounted" | "cleaning_ended";
+  type: "checked_out" | "checked_in" | "recounted" | "cleaning_ended" | "cleaning_started";
   actor_id: string;
   holder_id: string | null;
   event: string | null;
@@ -483,7 +509,11 @@ export function history(log: Log, itemId: string): HistoryEntry[] {
   return events
     .filter(
       (e) =>
-        e.type === "checked_out" || e.type === "checked_in" || e.type === "recounted" || e.type === "cleaning_ended",
+        e.type === "checked_out" ||
+        e.type === "checked_in" ||
+        e.type === "recounted" ||
+        e.type === "cleaning_ended" ||
+        e.type === "cleaning_started",
     )
     .map((e) => ({
       id: e.id,

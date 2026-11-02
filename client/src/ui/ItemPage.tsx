@@ -45,6 +45,7 @@ import {
 import { itemReservations } from "../lib/itemReservations";
 import {
   backFromCleaning,
+  sendHomeFromPool,
   checkInPool,
   checkOutPool,
   correctCleaner,
@@ -664,6 +665,7 @@ export function describeMovement(state: State, e: HistoryEntry): string {
       e.count != null ? ` · ${e.count}` : ""
     } by ${who} · ${when}`;
   }
+  if (e.type === "cleaning_started") return `Sent home ${e.count} with ${e.cleaner} by ${who} · ${when}`;
   if (e.count != null) {
     if (e.type === "checked_in") {
       return `Returned ${e.count}${e.cleaner ? ` from ${e.cleaner}` : ""} by ${who} · ${when}`;
@@ -1525,7 +1527,7 @@ export function PoolActions({
   const { askThen, question } = useEventQuestion(store, session);
   const state = store.state;
   const me = store.meta.user?.id;
-  const event = mode === "out" || mode === "home" ? recorded.event : undefined;
+  const event = mode === "out" ? recorded.event : undefined;
   const counts = poolCounts(it);
   const mine = counts.out.find((o) => o.holder_id === me)?.count ?? 0;
   // Return needs a holder to pick from only when there is a real choice to make (FR-OUT-23):
@@ -1542,10 +1544,10 @@ export function PoolActions({
   };
 
   function begin(next: "out" | "in" | "recount" | "home" | "back") {
-    if (next === "out" || next === "home")
+    if (next === "out")
       askThen((s) => {
         setRecorded(s);
-        open(next);
+        open("out");
       });
     else open(next);
   }
@@ -1592,11 +1594,16 @@ export function PoolActions({
   const n = Number(count.trim());
   const valid = (amount: number) => Number.isInteger(amount) && (mode === "recount" ? amount >= 0 : amount >= 1);
   const validCount = valid(n);
-  const overdraw = (mode === "out" || mode === "home") && validCount && n > counts.in;
+  // What the signed-in Scouter has out that is not yet at a family (FR-OUT-46).
+  const sendable = (poolLots(it).find((o) => o.holder_id === me)?.lots ?? [])
+    .filter((l) => !l.cleaner)
+    .reduce((total, l) => total + l.count, 0);
+  const overdraw = mode === "out" && validCount && n > counts.in;
+  const overSend = mode === "home" && validCount && n > sendable;
   const needsName = mode === "home" && cleaner.trim() === "";
 
   async function submit(amount: number) {
-    if (!mode || !valid(amount) || (mode === "recount" && reason.trim() === "") || needsName) return;
+    if (!mode || !valid(amount) || (mode === "recount" && reason.trim() === "") || needsName || overSend) return;
     setBusy(true);
     setError(null);
     try {
@@ -1608,13 +1615,7 @@ export function PoolActions({
           packing: session !== undefined,
         });
       } else if (mode === "home") {
-        await checkOutPool(store, it.id, {
-          count: amount,
-          cleaner,
-          event: recorded.event,
-          reservation_id: recorded.reservation_id,
-          packing: session !== undefined,
-        });
+        await sendHomeFromPool(store, it.id, { count: amount, cleaner });
       } else if (mode === "back") {
         await backFromCleaning(store, it.id, {
           cleaner: homeShare?.cleaner,
@@ -1668,6 +1669,11 @@ export function PoolActions({
       {error && (
         <p className="error" role="alert">
           {error}
+        </p>
+      )}
+      {overSend && (
+        <p className="error" role="alert">
+          Only {sendable} out that could go home.
         </p>
       )}
       {overdraw && (
@@ -1740,13 +1746,11 @@ export function PoolActions({
           />
         </label>
       )}
-      {(mode === "out" || mode === "home") && (
-        <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>
-      )}
-      {(mode === "out" || mode === "home") && counts.in > 1 && (
+      {mode === "out" && <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>}
+      {(mode === "out" ? counts.in : mode === "home" ? sendable : 0) > 1 && (
         <div className="row">
-          <button type="button" disabled={busy} onClick={() => void submit(counts.in)}>
-            All {counts.in}
+          <button type="button" disabled={busy} onClick={() => void submit(mode === "home" ? sendable : counts.in)}>
+            All {mode === "home" ? sendable : counts.in}
           </button>
         </div>
       )}
@@ -1755,7 +1759,7 @@ export function PoolActions({
           <button
             type="button"
             className="primary"
-            disabled={busy || !validCount || needsName || (mode === "recount" && reason.trim() === "")}
+            disabled={busy || !validCount || needsName || overSend || (mode === "recount" && reason.trim() === "")}
             onClick={() => void submit(n)}
           >
             {mode === "out"
@@ -1790,7 +1794,7 @@ export function PoolActions({
               Back from cleaning
             </button>
           )}
-          {session === undefined && counts.in > 0 && (
+          {session === undefined && sendable > 0 && (
             <button type="button" className="minor" onClick={() => begin("home")}>
               Send home to clean
             </button>

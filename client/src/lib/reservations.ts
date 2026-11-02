@@ -267,14 +267,12 @@ export function remaining(state: State, r: Reservation): Remaining {
   const generics = r.generics.map((g) => {
     const generic = item(state, g.item_id) ?? ({ id: g.item_id, name: "(unknown item)" } as Item);
     if (isPool(generic)) {
-      // pool_reservations accumulates at replay (FR-RES-13): a second visit for the same
-      // reservation adds to done, it does not replace it. Read off the raw entity: Item does not carry it.
-      const poolReservations = (state.item?.[g.item_id]?.pool_reservations as PoolReservations | undefined) ?? {};
-      const atCleaners = poolLots(generic)
+      // What is still out under this reservation and not at a family's home (FR-RES-36): the lots, not
+      // pool_reservations, which only ever grows and so still counts what came back.
+      const done = poolLots(generic)
         .flatMap((o) => o.lots)
-        .filter((l) => l.reservation_id === r.id && l.cleaner)
+        .filter((l) => l.reservation_id === r.id && !l.cleaner)
         .reduce((n, l) => n + l.count, 0);
-      const done = Math.max(0, (poolReservations[r.id] ?? 0) - atCleaners);
       return { generic, quantity: g.quantity, done: Math.min(done, g.quantity) };
     }
     // Any unretired unit of the generic counts, except one the reservation names: that one is its own line.

@@ -481,7 +481,9 @@ names the check-out it replaces with `supersedes`. The holder, event and reserva
 event's gear. There is no list of cleaners: the suggestions (FR-OUT-48) are the distinct names on this device's
 `checked_out` events, as `cleaner_corrected` now reads them, so every Scouter's names arrive with sync and age out with
 the 90-day window. `cleaner_corrected {movement_id, cleaner}` renames one check-out, appended as `event_corrected` is
-(FR-OUT-50). `cleaning_ended {cleaner?, count?, holder_id?}` is cleaned gear back with its Scouter (FR-OUT-51): a single
+(FR-OUT-50). `cleaning_started {cleaner, count, holder_id?}` sends part of a pool that is out home: that holder's lots
+not yet at a family take the name, oldest first, splitting a lot when only part goes. Counts, holders and events do not
+change. `cleaning_ended {cleaner?, count?, holder_id?}` is cleaned gear back with its Scouter (FR-OUT-51): a single
 item's movement loses its `cleaner`; a pool's `count` of that holder's lots under `cleaner` lose theirs, splitting a lot
 when only part comes back. Counts and holders do not change.
 

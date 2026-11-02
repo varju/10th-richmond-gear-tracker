@@ -275,6 +275,7 @@ test("a check-out synced while Save waits to be confirmed asks again (FR-INV-34)
 
 test("a share of a stack goes home with a family, and a return names whose it is (FR-OUT-46, FR-OUT-47)", async () => {
   const bags = await act.createPool(store, { name: "Bags" }, 20);
+  await mv.checkOutPool(store, bags, { count: 10, event: "Camp" });
   navigate(`/items/${bags}`);
   renderInShell(<ItemPage store={store} id={bags} />);
 
@@ -292,7 +293,7 @@ test("a share of a stack goes home with a family, and a return names whose it is
     await user.click(send);
     await waitFor(() => expect(screen.queryByLabelText("Taken home by")).not.toBeInTheDocument());
   }
-  expect(fact("Cleaning")).toBe("Smith · 4, Jones · 2");
+  expect(fact("Cleaning")).toBe("Jones · 2, Smith · 4");
 
   await user.click(screen.getByRole("button", { name: "Return" }));
   await user.selectOptions(screen.getByLabelText("Returned from"), "Jones · 2");
@@ -303,8 +304,9 @@ test("a share of a stack goes home with a family, and a return names whose it is
 
 test("part of a family's share comes back to the Scouter from the stack's page (FR-OUT-51)", async () => {
   const bags = await act.createPool(store, { name: "Bags" }, 20);
-  await mv.checkOutPool(store, bags, { count: 4, cleaner: "Smith" });
-  await mv.checkOutPool(store, bags, { count: 2, cleaner: "Jones" });
+  await mv.checkOutPool(store, bags, { count: 6, event: "Camp" });
+  await mv.sendHomeFromPool(store, bags, { count: 4, cleaner: "Smith" });
+  await mv.sendHomeFromPool(store, bags, { count: 2, cleaner: "Jones" });
   navigate(`/items/${bags}`);
   renderInShell(<ItemPage store={store} id={bags} />);
 
@@ -315,5 +317,5 @@ test("part of a family's share comes back to the Scouter from the stack's page (
   await user.type(count, "3");
   await user.click(screen.getAllByRole("button", { name: "Back from cleaning" })[0]!);
 
-  await waitFor(() => expect(fact("Cleaning")).toBe("Smith · 1, Jones · 2"));
+  await waitFor(() => expect(fact("Cleaning")).toBe("Jones · 2, Smith · 1"));
 });

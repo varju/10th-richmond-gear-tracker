@@ -109,9 +109,9 @@ def test_what_is_out_skips_a_retired_pool():
     assert what_is_out(state, now=0) == {"holders": [], "total": 0, "overdue": 0}
 
 
-def test_remaining_reads_a_pool_lines_done_count_from_pool_reservations():
-    """FR-RES-13. pool_reservations accumulates at replay, so this covers two check-outs for the
-    same reservation, capped at the line's quantity, not the raw total."""
+def test_remaining_reads_a_pool_lines_done_count_from_the_lots_still_out():
+    """FR-RES-13, FR-RES-36. Two check-outs for the same reservation add up, capped at the line's quantity.
+    Gear that came back no longer counts, though pool_reservations still does."""
     state = {
         "item": {
             "bowls": {
@@ -120,6 +120,12 @@ def test_remaining_reads_a_pool_lines_done_count_from_pool_reservations():
                 "pool": True,
                 "pool_in": 2,
                 "pool_out": {"alice": 8},
+                "pool_lots": {
+                    "alice": [
+                        {"id": "m1", "count": 3, "event": "Fall Camp", "reservation_id": "r-fall", "at": 1},
+                        {"id": "m2", "count": 5, "event": "Fall Camp", "reservation_id": "r-fall", "at": 2},
+                    ]
+                },
                 "pool_reservations": {"r-fall": 8},
             }
         },
@@ -148,6 +154,9 @@ def test_remaining_pool_line_is_not_done_for_a_different_reservation():
                 "pool": True,
                 "pool_in": 6,
                 "pool_out": {"alice": 4},
+                "pool_lots": {
+                    "alice": [{"id": "m1", "count": 4, "event": "Fall Camp", "reservation_id": "r-other", "at": 1}]
+                },
                 "pool_reservations": {"r-other": 4},
             }
         },
@@ -364,3 +373,28 @@ def test_remaining_does_not_count_gear_at_a_cleaners_home_as_packed():
     assert [row["item_id"] for row in rem["items"]] == ["stove"]
     assert rem["items"][0]["cleaner"] == "Smith"
     assert rem["generics"][0]["done"] == 0
+
+
+def test_remaining_does_not_count_pool_gear_that_came_back():
+    """FR-RES-36. pool_reservations still says 8, but 5 came back and 3 are at a family's home."""
+    lots = [
+        {"id": "m1", "count": 3, "event": "Fall Camp", "reservation_id": "r-fall", "at": 1, "cleaner": "Smith"},
+    ]
+    state = {
+        "item": {
+            "bowls": {
+                "name": "Bowls",
+                "generic": True,
+                "pool": True,
+                "pool_in": 5,
+                "pool_out": {"alice": 3},
+                "pool_lots": {"alice": lots},
+                "pool_reservations": {"r-fall": 8},
+            }
+        },
+        "reservation": {
+            "r-fall": {"event": "Fall Camp", "items": [], "generics": [{"item_id": "bowls", "quantity": 8}]}
+        },
+    }
+    r = state["reservation"]["r-fall"] | {"id": "r-fall"}
+    assert remaining(state, r)["generics"][0]["done"] == 0

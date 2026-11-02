@@ -468,15 +468,14 @@ def remaining(state: State, r: Fields) -> dict[str, Any]:
     for line in r.get("generics") or []:
         generic = item(state, line["item_id"]) or {"id": line["item_id"], "name": "(unknown item)"}
         if is_pool(generic):
-            # pool_reservations accumulates at replay (FR-RES-13): a second visit for the same
-            # reservation adds to done, it does not replace it.
-            at_cleaners = sum(
+            # What is still out under this reservation and not at a family's home (FR-RES-36): the lots, not
+            # pool_reservations, which only ever grows and so still counts what came back.
+            done = sum(
                 lot["count"]
                 for out in pool_lots(generic)
                 for lot in out["lots"]
-                if lot.get("reservation_id") == reservation_id and lot.get("cleaner")
+                if lot.get("reservation_id") == reservation_id and not lot.get("cleaner")
             )
-            done = max(0, (generic.get("pool_reservations") or {}).get(reservation_id, 0) - at_cleaners)
         else:
             # Any unretired unit of the generic counts, except one the reservation names: that one is its own line.
             done = sum(
