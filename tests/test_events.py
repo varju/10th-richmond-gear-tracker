@@ -427,3 +427,16 @@ def test_a_recount_names_a_count_and_a_reason():
                 entity_type="reservation", entity_id="res-1", type="recounted", payload={"count": 5, "reason": "x"}
             )
         )
+
+
+@pytest.mark.parametrize("payload", [{"holder_id": "alice", "cleaner": "  "}, {"holder_id": "alice", "cleaner": ""}])
+def test_a_cleaner_name_cannot_be_blank(payload):
+    with pytest.raises(Rejected):
+        validate(incoming(entity_type="item", type="checked_out", payload=payload))
+
+
+def test_a_cleaner_name_is_kept_as_typed():
+    event = validate(
+        incoming(entity_type="item", type="checked_out", payload={"holder_id": "alice", "cleaner": " Smith "})
+    )
+    assert event.payload.cleaner == " Smith "

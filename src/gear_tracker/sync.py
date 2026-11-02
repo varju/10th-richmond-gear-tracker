@@ -239,6 +239,15 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
             raise Rejected("a pool moves by count")
         if not is_pool and has_count:
             raise Rejected("count is only for a pool (FR-OUT-22)")
+        if (
+            kind == "checked_out"
+            and isinstance(payload, dict)
+            and payload.get("cleaner")
+            and (payload.get("event") or payload.get("reservation_id"))
+        ):
+            raise Rejected("gear sent home to clean has no event or reservation (FR-OUT-46)")
+        if kind == "checked_in" and not is_pool and isinstance(payload, dict) and payload.get("cleaner"):
+            raise Rejected("a cleaner names whose lot a pool return comes from (FR-OUT-47)")
         if kind == "checked_out":
             if item.get("retired"):
                 raise Rejected("retired items cannot be checked out (FR-INV-04)")

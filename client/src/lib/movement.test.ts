@@ -270,3 +270,61 @@ test("setting the event trims it, and a change leaves earlier moves under theirs
   expect(store.pending.filter((e) => e.type === "event_corrected")).toHaveLength(0);
   expect(item(store.state, tent)?.movement).toMatchObject({ event: "Spring camp" });
 });
+
+test("a single item sent home names its cleaner, asks no event, and leaves the session alone (FR-OUT-46)", async () => {
+  await setSessionEvent(store, "Spring camp");
+  const at = store.meta.session_event_at;
+  const out = await mv.checkOut(store, tent, { cleaner: " Smith family " });
+  expect(out.payload).toEqual({ holder_id: "alice", cleaner: "Smith family" });
+  expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice" });
+  expect(store.meta.session_event_at).toBe(at);
+
+  await expect(mv.checkOut(store, await act.createItem(store, { name: "Tent 2" }), { cleaner: "  " })).rejects.toThrow(
+    "say who",
+  );
+});
+
+test("a cleaner is corrected by an appended record, and the old name stops being offered (FR-OUT-48, FR-OUT-50)", async () => {
+  const first = await mv.checkOut(store, tent, { cleaner: "Smth" });
+  const other = await act.createItem(store, { name: "Tent 2" });
+  await mv.checkOut(store, other, { cleaner: "Jones" });
+  expect(mv.usedCleanerNames(store.known)).toEqual(["Jones", "Smth"]);
+
+  await mv.correctCleaner(store, tent, first.id, "Smith");
+  expect(item(store.state, tent)?.movement?.cleaner).toBe("Smith");
+  expect(mv.history(store, tent)[0]?.cleaner).toBe("Smith");
+  expect(mv.usedCleanerNames(store.known)).toEqual(["Smith", "Jones"]);
+  await expect(mv.correctCleaner(store, tent, first.id, " ")).rejects.toThrow("say the corrected");
+});
+
+test("cleaner names are offered once each, case and spacing aside, newest first (FR-OUT-48)", async () => {
+  const pool = await act.createPool(store, { name: "Bags" }, 20);
+  await mv.checkOutPool(store, pool, { count: 1, cleaner: "Smith" });
+  await mv.checkOutPool(store, pool, { count: 1, cleaner: "Jones" });
+  await mv.checkOutPool(store, pool, { count: 1, cleaner: "  smith " });
+  expect(mv.usedCleanerNames(store.known)).toEqual(["smith", "Jones"]);
+});
+
+test("a pool return names whose share comes back (FR-OUT-47)", async () => {
+  const pool = await act.createPool(store, { name: "Bags" }, 20);
+  await mv.checkOutPool(store, pool, { count: 3 });
+  await mv.checkOutPool(store, pool, { count: 4, cleaner: "Smith" });
+  await mv.checkOutPool(store, pool, { count: 2, cleaner: "Jones" });
+  await mv.checkInPool(store, pool, { count: 2, cleaner: "smith" });
+  await mv.checkInPool(store, pool, { count: 1 });
+
+  const lots = item(store.state, pool)!.pool_lots!.alice!;
+  expect(lots.map((l) => [l.cleaner ?? null, l.count])).toEqual([
+    [null, 2],
+    ["Smith", 2],
+    ["Jones", 2],
+  ]);
+});
+
+test("a transfer of gear at a cleaner's home keeps the cleaner (FR-OUT-46)", async () => {
+  await mv.checkOut(store, tent, { cleaner: "Smith" });
+  await store.setMeta({ user: { id: "bob", name: "Bob", role: "user", active: true } });
+  const moved = await mv.transfer(store, tent, { event: "Spring camp" });
+  expect(moved.payload).toMatchObject({ holder_id: "bob", cleaner: "Smith" });
+  expect(item(store.state, tent)).toMatchObject({ holder_id: "bob", movement: { cleaner: "Smith", event: null } });
+});

@@ -6,7 +6,7 @@
 import { eventNameKey, tidyName } from "./calendar";
 import { DAY_MS } from "./clock";
 import { displayName, group, isPool, type Item, items, movable, poolCounts, poolLots, userName } from "./inventory";
-import type { State } from "./replay";
+import { cleanerKey, type State } from "./replay";
 
 export interface OutItem {
   item: Item;
@@ -17,7 +17,13 @@ export interface OutItem {
   overdue: boolean;
   /** Set only for a pool's line (FR-RPT-11): how many this holder has under this event. */
   count?: number;
+  /** Who took it home to clean (FR-OUT-46); absent on gear that is simply out. */
+  cleaner?: string;
 }
+
+/** What a line is out for: "Cleaning with Smith" when it went home (FR-OUT-46), else its event. */
+export const outFor = (entry: Pick<OutItem, "event" | "cleaner">): string =>
+  entry.cleaner ? `Cleaning with ${entry.cleaner}` : entry.event ?? "";
 
 export interface Holder {
   id: string;
@@ -62,13 +68,17 @@ export function whatIsOut(state: State, now: number): OutReport {
     if (isPool(it)) {
       for (const out of poolLots(it)) {
         const lines = new Map<string, OutItem>();
-        const add = (event: string | null, count: number) => {
-          const key = event ? eventNameKey(event) : "";
+        const add = (event: string | null, count: number, cleaner?: string) => {
+          const key = `${event ? eventNameKey(event) : ""}\0${cleaner ? cleanerKey(cleaner) : ""}`;
           const line = lines.get(key);
           if (line) line.count = (line.count ?? 0) + count;
-          else lines.set(key, { item: it, days: 0, event: event ? tidyName(event) : null, overdue: false, count });
+          else {
+            const made: OutItem = { item: it, days: 0, event: event ? tidyName(event) : null, overdue: false, count };
+            if (cleaner) made.cleaner = tidyName(cleaner);
+            lines.set(key, made);
+          }
         };
-        for (const lot of out.lots) add(lot.event, lot.count);
+        for (const lot of out.lots) add(lot.event, lot.count, lot.cleaner);
         if (out.unknown) add(null, out.unknown);
         byHolder.set(out.holder_id, [...(byHolder.get(out.holder_id) ?? []), ...lines.values()]);
       }
@@ -81,6 +91,7 @@ export function whatIsOut(state: State, now: number): OutReport {
       event: typeof it.movement?.event === "string" ? it.movement.event : null,
       overdue: isOverdue(state, it, now),
     };
+    if (it.movement?.cleaner) entry.cleaner = tidyName(it.movement.cleaner);
     const key = it.holder_id ?? "";
     byHolder.set(key, [...(byHolder.get(key) ?? []), entry]);
   }
@@ -157,7 +168,8 @@ export function outRows(report: OutReport): OutRow[] {
 }
 
 /** A pool lists once per holder and event (FR-RPT-11), so the item id alone does not tell two rows apart. */
-export const rowKey = (row: OutRow): string => `${row.holderId}:${row.item.id}:${row.event ?? ""}`;
+export const rowKey = (row: OutRow): string =>
+  `${row.holderId}:${row.item.id}:${row.event ?? ""}:${row.cleaner ? cleanerKey(row.cleaner) : ""}`;
 
 /** Sorts a bare event name after any real one, so ungrouped gear falls to the end. */
 export const eventKey = (event: string | null): string => event ?? "￿";

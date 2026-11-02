@@ -89,8 +89,9 @@ Losing the inventory means recounting 400 items by hand across three locations.
 
 ## 5. Security and privacy (SEC)
 
-We hold the names and email addresses of adult Scouters, and nothing else. No youth data means no parental consent to
-manage and no Scouts Canada youth-data obligations to meet.
+We hold the names and email addresses of adult Scouters, and the names, as typed, of adults who take gear home to clean
+(FR-OUT-46). Nothing else. No youth data means no parental consent to manage and no Scouts Canada youth-data obligations
+to meet.
 
 | ID         | Priority | Requirement                                                                                                                                                                                                 |
 | ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -120,6 +121,7 @@ manage and no Scouts Canada youth-data obligations to meet.
 | NFR-SEC-24 | Should   | An Admin's unlock (FR-USR-29) clears the email's wrong-password count.                                                                                                                                      |
 | NFR-SEC-25 | Should   | The command line's unlock (FR-USR-28) clears the email's wrong-password count.                                                                                                                              |
 | NFR-SEC-26 | Should   | Sign-ins for one email checked at the same time get no more tries before a lock than ones made in turn.                                                                                                     |
+| NFR-SEC-27 | Should   | A cleaner (FR-OUT-46) is a name and nothing else: no phone, email or address. Erasing one needs an operator to edit the log, which NFR-DATA-02 forbids; offer a correction, not erasure.                    |
 
 ## 6. Maintainability (MAINT)
 

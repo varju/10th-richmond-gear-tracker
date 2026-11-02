@@ -476,6 +476,18 @@ The holder is whoever is signed in, except on a transfer to another member (FR-O
 actor is still the person who tapped. Gear handed to someone without an account is covered by a note (FR-OUT-15), not a
 holder field that would need its own list of people.
 
+Gear sent home to be cleaned (FR-OUT-46) is a `checked_out` with a `cleaner`, a name as typed. The holder is still the
+Scouter, the event and reservation are empty, and the session is left alone. There is no list of cleaners: the
+suggestions (FR-OUT-48) are the distinct names on this device's `checked_out` events, as `cleaner_corrected` now reads
+them, so every Scouter's names arrive with sync and age out with the 90-day window.
+`cleaner_corrected {movement_id, cleaner}` renames one check-out, appended as `event_corrected` is (FR-OUT-50).
+
+A pool's lot carries the `cleaner`. A `checked_in` may name one, and replay then takes the count from that cleaner's
+lots first, oldest first. What is left, and any return that names nobody, comes off the part no lot explains, then the
+ordinary lots, then the cleaning lots (`return_lots` and `returnLots`, FR-OUT-47). `pool_in` and `pool_out` never depend
+on the choice, so a build that ignores `cleaner` shows the right totals and differs only in which lot a count is filed
+under. Both fields are optional, so older builds keep syncing.
+
 The session event (FR-OUT-05) is a device setting in `meta`, for plain scanning. Any check-out or transfer, on the scan
 card or the item page, asks for it when no session is running, offering the last one used. `session_event_at` records
 when it was last set or answered. A move moves it on in the same write, if the `meta` read in that transaction says the

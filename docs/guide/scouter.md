@@ -69,6 +69,13 @@ Open the item and tap **Mark missing**. It drops off **What is out** until someo
 Scan it. The card names who has it; tap **Take over**. It never comes back to the locker, and the history keeps both of
 you.
 
+### Send gear home to clean
+
+Scan it and tap **Send home to clean**. Type who is taking it; the name is required, and names used lately appear as you
+type. You stay the holder, so it stays on your list until it is back. For a stack, give the count; send each family's
+share on its own. When the gear comes back, tap **Return**. If several families have some, pick whose share it is. To
+fix a typo, open the item and tap **Change name**.
+
 ### Hand gear to someone else
 
 Scan it and tap **Transfer to…**, then type part of their name and tap it. Works with no signal.

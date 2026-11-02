@@ -19,8 +19,14 @@ export function statusLabel(state: State, it: Item): string {
 export function holdingLabel(state: State, it: Item, me: string | undefined, now: number): string {
   if (it.missing) return "Missing";
   if (it.status !== "out") return "In";
-  const who = it.holder_id === me ? "You have this" : `Out with ${userName(state, it.holder_id)}`;
   const since = it.since != null ? ` · ${ago(now - it.since)}` : "";
+  const cleaner = it.movement?.cleaner;
+  if (cleaner) {
+    // The Scouter who handed it over is still the one to chase (FR-OUT-46).
+    const via = it.holder_id === me ? "you" : userName(state, it.holder_id);
+    return `Out for cleaning with ${cleaner}${since} · via ${via}`;
+  }
+  const who = it.holder_id === me ? "You have this" : `Out with ${userName(state, it.holder_id)}`;
   const event = typeof it.movement?.event === "string" ? it.movement.event : null;
   return `${who}${since}${event ? ` · ${event}` : ""}`;
 }

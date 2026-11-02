@@ -1,0 +1,53 @@
+{
+  "name": "a single item sent home to clean names its cleaner; a correction changes the name, not the check-out",
+  "events": [
+    {
+      "id": "00000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "holder_id": "alice",
+        "cleaner": "Smith family"
+      }
+    },
+    {
+      "id": "00000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "cleaner_corrected",
+      "actor_id": "bob",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 2000,
+      "payload": {
+        "movement_id": "00000000000000000000000001",
+        "cleaner": "Smith Family"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-1": {
+        "status": "out",
+        "holder_id": "alice",
+        "since": 1000,
+        "movement": {
+          "id": "00000000000000000000000001",
+          "type": "checked_out",
+          "holder_id": "alice",
+          "event": null,
+          "reservation_id": null,
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 1000,
+          "cleaner": "Smith Family"
+        }
+      }
+    }
+  }
+}

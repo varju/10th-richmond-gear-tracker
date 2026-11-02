@@ -5,6 +5,7 @@ import {
   type OutEvent,
   type OutRow,
   type OutSort,
+  outFor,
   outRows,
   readOrder,
   readOutEvent,
@@ -32,8 +33,8 @@ export function daysLabel(days: number): string {
 function detail(row: OutRow, withHolder: boolean): string {
   const rest =
     row.count != null
-      ? [row.event ?? "", `${row.count} out`].filter(Boolean).join(" · ")
-      : [row.event ?? "", `out ${daysLabel(row.days)}`].filter(Boolean).join(" · ");
+      ? [outFor(row), `${row.count} out`].filter(Boolean).join(" · ")
+      : [outFor(row), `out ${daysLabel(row.days)}`].filter(Boolean).join(" · ");
   return withHolder ? [row.holderName, rest].join(" · ") : rest;
 }
 

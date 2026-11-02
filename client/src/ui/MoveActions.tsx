@@ -5,13 +5,14 @@ import { openRepairs, raiseTicket } from "../lib/repairs";
 import { type Session, sessionEvent } from "../lib/session";
 import type { Store } from "../lib/store";
 import { useUnsaved } from "../lib/unsaved";
+import { CleanerField } from "./CleanerField";
 import { useEventQuestion } from "./EventChoice";
 import { TransferPicker } from "./TransferPicker";
 
 /** How long a "Checked out · Tent 1" strip stays up. */
 export const CONFIRM_MS = 1500;
 
-export type MoveKind = "Checked out" | "Returned" | "Transferred";
+export type MoveKind = "Checked out" | "Returned" | "Transferred" | "Sent home";
 
 /** A message that clears itself after `ms`. A newer message is left alone. */
 export function useFlash(ms: number): [string | null, (message: string) => void] {
@@ -33,15 +34,15 @@ interface Props {
   showEvent?: boolean;
   /** A reservation's packing session: moves record its event and link, and never ask (FR-RES-03). */
   session?: Session;
-  /** `to` is set on a transfer to another member (FR-OUT-26), which does not pack a reservation. */
-  onMoved: (kind: MoveKind, to?: string) => void;
+  /** `to` is set on a transfer to another member (FR-OUT-26), which does not pack a reservation. `cleaner` names who took it home. */
+  onMoved: (kind: MoveKind, to?: string, cleaner?: string) => void;
   /** Offers Save without moving for a typed note or problem (FR-OUT-27), and says what was saved. */
   onSaved?: (message: string) => void;
   /** Buttons that follow the movement buttons. */
   children?: ReactNode;
 }
 
-type Pending = { kind: MoveKind; to?: string; act: (options: TransferOptions) => Promise<unknown> };
+type Pending = { kind: MoveKind; to?: string; cleaner?: string; act: (options: TransferOptions) => Promise<unknown> };
 
 /**
  * The buttons that move an item, chosen by its state (FR-OUT-06): Check out when it is in, Return
@@ -57,10 +58,16 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [picking, setPicking] = useState(false);
+  // The name being typed for gear sent home to clean (FR-OUT-46); null when not asking.
+  const [cleaner, setCleaner] = useState<string | null>(null);
   // A move waiting on the event question (FR-OUT-05).
   const { askThen, question } = useEventQuestion(store, session);
   // A typed note or problem goes with a move or Save without moving; leaving asks but cannot save it.
-  useUnsaved((note !== null && note.trim() !== "") || (fault !== null && fault.trim() !== ""));
+  useUnsaved(
+    (note !== null && note.trim() !== "") ||
+      (fault !== null && fault.trim() !== "") ||
+      (cleaner !== null && cleaner.trim() !== ""),
+  );
   const me = store.meta.user?.id;
   const { event } = session ?? sessionEvent(store.meta, store.now());
   const open = openRepairs(store.state, it.id);
@@ -78,7 +85,7 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
   }
 
   /** `recorded` is what the event question checked when the move was made, so what was shown is what is stamped. */
-  async function run({ kind, to, act }: Pending, recorded: Session) {
+  async function run({ kind, to, cleaner: cleanerName, act }: Pending, recorded: Session) {
     setBusy(true);
     setError(null);
     const options = {
@@ -98,6 +105,7 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
     }
     setNote(null);
     setPicking(false);
+    setCleaner(null);
     // The move already happened; a fault that fails to record is a separate problem and must not
     // read as the move itself failing, nor risk the move being repeated on a retry. The fault text
     // stays so the person can try raising it again.
@@ -108,12 +116,12 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
       } catch (e) {
         setError(`Moved, but the problem was not recorded: ${e instanceof Error ? e.message : "unknown error"}`);
         setBusy(false);
-        onMoved(kind, to);
+        onMoved(kind, to, cleanerName);
         return;
       }
     }
     setBusy(false);
-    onMoved(kind, to);
+    onMoved(kind, to, cleanerName);
   }
 
   /** The note or problem on its own, nothing moved: a stock check from the same scan (FR-OUT-27). */
@@ -151,6 +159,12 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
     kind: "Transferred",
     to,
     act: (o) => transfer(store, it.id, { ...o, to }),
+  });
+
+  const sendHome = (name: string): Pending => ({
+    kind: "Sent home",
+    cleaner: name,
+    act: (o) => checkOut(store, it.id, { note: o.note, packing: o.packing, cleaner: name }),
   });
 
   const asking = question(children);
@@ -195,7 +209,24 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
           onChange={(e) => setNote(e.target.value)}
         />
       )}
-      {picking ? (
+      {cleaner !== null ? (
+        <section className="cleaner-picker" aria-label="Send home to clean">
+          <CleanerField store={store} value={cleaner} onChange={setCleaner} disabled={busy} />
+          <div className="row">
+            <button
+              type="button"
+              className="primary"
+              disabled={busy || cleaner.trim() === ""}
+              onClick={() => start(sendHome(cleaner.trim()), false)}
+            >
+              Send home
+            </button>
+            <button type="button" onClick={() => setCleaner(null)}>
+              Cancel
+            </button>
+          </div>
+        </section>
+      ) : picking ? (
         <TransferPicker
           store={store}
           it={it}
@@ -240,6 +271,13 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
               </button>
               <button type="button" className="minor" onClick={() => setFault("")}>
                 Report a problem
+              </button>
+            </div>
+          )}
+          {canTake && session === undefined && !typing && (
+            <div className="row minors">
+              <button type="button" className="minor" disabled={busy} onClick={() => setCleaner("")}>
+                Send home to clean
               </button>
             </div>
           )}

@@ -26,8 +26,6 @@ changelog.
 - [ ] As quartermaster, how can I find items that have no QR code, or that have no location or shelf set?
 - [ ] Check out screen on iOS: Allow number pad to be hidden after entering the quantity for a counted stack
 - [ ] Edit item > We have several > Give count immediately?
-- [ ] How can we easily mark items as given to parents to take home and clean, when parents don't have their own
-      accounts?
 
 ## User testing feedback
 
@@ -60,3 +58,4 @@ changelog.
 - [ ] Navigation bug: Events > Check-outs have no event: Change > Back. Should return to Events screen, but returns to
       All Items screen.
 - [ ] When creating a generic item, if I say we have several I should be able to indicate the count we have.
+- [ ] URLs within item descriptions should be clickable. Consider a simple markdown renderer?

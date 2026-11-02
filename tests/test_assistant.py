@@ -1827,3 +1827,59 @@ def test_a_user_folds_a_generic_whose_other_units_were_deleted(db_path, tools, a
 def test_an_oversized_photo_is_refused_before_it_is_decoded(tools):
     with pytest.raises(ApiError, match="at most"):
         assistant.add_photo("item", tools["stove"], "image/png", "A" * (8 * 1024 * 1024))
+
+
+def test_a_single_item_goes_home_to_clean_and_the_name_is_corrected(tools):
+    with pytest.raises(BadRequest):
+        assistant.check_out(tools["t1"], cleaner="  ")
+    with pytest.raises(BadRequest):
+        assistant.check_out(tools["t1"], cleaner="Smith", event="Fall Camp")
+
+    assistant.check_out(tools["t1"], cleaner=" Smith family ")
+    unit = assistant.get_item(tools["t1"])
+    assert unit["holder"] == "Alice" and unit["cleaner"] == "Smith family"
+    assert unit["history"][0]["cleaner"] == "Smith family"
+    assert assistant.whats_out()["holders"][0]["items"][0]["cleaner"] == "Smith family"
+
+    assistant.correct_cleaner(tools["t1"], "Smith Family")
+    unit = assistant.get_item(tools["t1"])
+    assert unit["cleaner"] == "Smith Family" and unit["history"][0]["cleaner"] == "Smith Family"
+
+    with pytest.raises(BadRequest):
+        assistant.correct_cleaner(tools["t2"], "Jones")  # not out for cleaning
+
+
+def test_pool_shares_go_home_with_different_families(tools, pool_id):
+    assistant.check_out(pool_id, count=3)
+    assistant.check_out(pool_id, count=4, cleaner="Smith")
+    assistant.check_out(pool_id, count=2, cleaner="Jones")
+    with pytest.raises(BadRequest):
+        assistant.check_in(tools["stove"], cleaner="Smith")  # a single item has no shares
+
+    assert assistant.get_item(pool_id)["cleaners"] == [
+        {"cleaner": "Smith", "count": 4},
+        {"cleaner": "Jones", "count": 2},
+    ]
+    lines = {(e.get("cleaner"), e["count"]) for e in assistant.whats_out()["holders"][0]["items"]}
+    assert lines == {(None, 3), ("Smith", 4), ("Jones", 2)}
+
+    assistant.check_in(pool_id, count=2, cleaner=" smith")
+    assistant.check_in(pool_id, count=1)  # a plain return leaves both families' shares
+    assert assistant.get_item(pool_id)["cleaners"] == [
+        {"cleaner": "Smith", "count": 2},
+        {"cleaner": "Jones", "count": 2},
+    ]
+
+    assistant.correct_cleaner(pool_id, "Smith-Lee", was="Smith")
+    assert [c["cleaner"] for c in assistant.get_item(pool_id)["cleaners"]] == ["Smith-Lee", "Jones"]
+    with pytest.raises(BadRequest):
+        assistant.correct_cleaner(pool_id, "Smith-Lee")  # a pool needs `was`
+
+
+def test_gear_out_for_cleaning_keeps_its_cleaner_through_a_transfer_and_has_no_event(tools, bob):
+    assistant.check_out(tools["t1"], cleaner="Smith")
+    with pytest.raises(BadRequest):
+        assistant.correct_event(tools["t1"], "Fall Camp")
+    assistant.transfer(tools["t1"], bob)
+    unit = assistant.get_item(tools["t1"])
+    assert unit["holder"] == "Bob" and unit["cleaner"] == "Smith"

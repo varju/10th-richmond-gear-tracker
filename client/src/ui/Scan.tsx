@@ -274,17 +274,17 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
               store={store}
               it={card}
               session={packing}
-              onMoved={(kind, to) => {
-                const text = `${to ? `Transferred to ${userName(store.state, to)}` : kind} · ${displayName(
-                  store.state,
-                  card,
-                )}`;
+              onMoved={(kind, to, cleaner) => {
+                const text = `${
+                  to ? `Transferred to ${userName(store.state, to)}` : cleaner ? `Sent home with ${cleaner}` : kind
+                } · ${displayName(store.state, card)}`;
                 confirm(kind === "Checked out" ? withEvent(text) : text);
                 showCard(null);
                 moved.current.set(card.id, Date.now());
                 // An extra taken during a reservation session joins its gear list (FR-RES-07).
                 // Gear handed to someone else is not packed for it (FR-OUT-26).
-                if (booked && kind !== "Returned" && !to) void addExtra(store, booked.id, card.id);
+                if (booked && kind !== "Returned" && kind !== "Sent home" && !to)
+                  void addExtra(store, booked.id, card.id);
               }}
               onSaved={(message) => {
                 confirm(`${message} · ${displayName(store.state, card)}`);

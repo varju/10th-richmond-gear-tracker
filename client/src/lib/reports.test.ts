@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { DAY_MS } from "./clock";
 import type { State } from "./replay";
-import { daysOut, isOverdue, orderParams, outRows, readOrder, rowKey, sortRows, whatIsOut } from "./reports";
+import { daysOut, isOverdue, orderParams, outFor, outRows, readOrder, rowKey, sortRows, whatIsOut } from "./reports";
 
 const T0 = 1_756_684_800_000;
 const out = (holder: string, since: number, event?: string) => ({
@@ -233,4 +233,43 @@ test("a pool under two events still counts once in the total (FR-RPT-11)", () =>
   const report = whatIsOut(split, T0);
   expect(outRows(report)).toHaveLength(2);
   expect(report.total).toBe(1);
+});
+
+test("gear at home for cleaning lists its cleaner, one line per family for a stack (FR-OUT-46)", () => {
+  const lot = (id: string, count: number, cleaner?: string) => ({
+    id,
+    count,
+    event: null,
+    reservation_id: null,
+    at: T0,
+    ...(cleaner ? { cleaner } : {}),
+  });
+  const cleaning: State = {
+    user: { alice: { name: "Alice" } },
+    item: {
+      tent: {
+        ...out("alice", T0 - DAY_MS),
+        name: "Tent",
+        movement: { ...out("alice", T0 - DAY_MS).movement, cleaner: "Smith  family" },
+      },
+      bags: {
+        name: "Bags",
+        generic: true,
+        pool: true,
+        pool_in: 10,
+        pool_out: { alice: 10 },
+        pool_lots: { alice: [lot("a", 3), lot("b", 4, "Smith"), lot("c", 2, "Jones"), lot("d", 1, " smith")] },
+      },
+    },
+  };
+  const rows = outRows(whatIsOut(cleaning, T0));
+  expect(rows.map((r) => [r.item.name, outFor(r), r.count ?? null])).toEqual(
+    expect.arrayContaining([
+      ["Tent", "Cleaning with Smith family", null],
+      ["Bags", "", 3],
+      ["Bags", "Cleaning with Smith", 5],
+      ["Bags", "Cleaning with Jones", 2],
+    ]),
+  );
+  expect(rows).toHaveLength(4);
 });

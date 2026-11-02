@@ -4,6 +4,7 @@ import {
   firstDirection,
   orderParams,
   type OutSort,
+  outFor,
   outRows,
   readOrder,
   readOutEvent,
@@ -95,7 +96,7 @@ export function OutTable({ store }: { store: Store }) {
                     {row.overdue && <span className="badge overdue">Overdue</span>}
                   </td>
                   <td>{row.holderName}</td>
-                  <td>{row.event ?? ""}</td>
+                  <td>{outFor(row)}</td>
                   <td>{row.count != null ? `${row.count} out` : daysLabel(row.days)}</td>
                 </tr>
               ))}

@@ -8,6 +8,7 @@ the rules here, change the vectors, and the other side fails until it catches up
 from __future__ import annotations
 
 import copy
+import re
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
@@ -55,6 +56,10 @@ State = dict[str, dict[str, dict[str, Any]]]
 #                                             which event, so it comes off the holder's oldest lots.
 #   event_corrected {movement_id, event?,    a lot from that check-out moves to the new event, and its
 #                    reservation_id?}         count moves between pool_reservations entries.
+#   cleaner_corrected {movement_id, cleaner}  a lot from that check-out, or the item's movement, takes the
+#                                             new cleaner. A checked_out with a cleaner adds it to its lot;
+#                                             a checked_in with one comes off that cleaner's lots first
+#                                             (return_lots).
 #   recounted   {count, reason}              pool_in = count. pool_out is untouched (FR-INV-35);
 #                                             anyone signed in may record one.
 #
@@ -101,6 +106,46 @@ def keep_newest(lots: list[dict[str, Any]], count: int) -> list[dict[str, Any]]:
         kept.insert(0, {**lot, "count": n})
         left -= n
     return kept
+
+
+def cleaner_key(name: str) -> str:
+    """What makes two cleaner names the same: case and spacing aside. Mirrors cleanerKey in replay.ts."""
+    return " ".join(part for part in re.split(r"[ \t\n\r]+", name) if part).lower()
+
+
+def return_lots(lots: list[dict[str, Any]], before: int, count: int, cleaner: str | None) -> list[dict[str, Any]]:
+    """A holder's lots after `count` of their `before` are returned (FR-OUT-47). Mirrors returnLots in replay.ts.
+
+    A return naming a cleaner comes off that cleaner's lots first. What is left to take, and any return that
+    names nobody, comes off the part no lot explains, then the ordinary lots, then the cleaning lots: each
+    oldest first, so a plain return never swallows a family's lot.
+    """
+    left = min(count, before)
+    kept = [dict(lot) for lot in lots]
+
+    def take(match: Any) -> None:
+        nonlocal left
+        for lot in kept:
+            if left > 0 and match(lot):
+                n = min(lot["count"], left)
+                lot["count"] -= n
+                left -= n
+
+    if cleaner:
+        key = cleaner_key(cleaner)
+        take(lambda lot: bool(lot.get("cleaner")) and cleaner_key(lot["cleaner"]) == key)
+    left -= min(left, max(0, before - sum(lot["count"] for lot in lots)))
+    take(lambda lot: not lot.get("cleaner"))
+    take(lambda lot: True)
+    return [lot for lot in kept if lot["count"] > 0]
+
+
+def _correct_cleaner(entity: dict[str, Any], p: dict[str, Any]) -> None:
+    for lots in (entity.get("pool_lots") or {}).values():
+        for lot in lots:
+            if lot["id"] == p["movement_id"]:
+                lot["cleaner"] = p["cleaner"]
+                return
 
 
 def _correct_lot(entity: dict[str, Any], p: dict[str, Any]) -> None:
@@ -201,6 +246,12 @@ def apply(entity: dict[str, Any], event: Event) -> None:
                 movement["event"] = p.get("event")
                 movement["reservation_id"] = p.get("reservation_id")
             _correct_lot(entity, p)
+        case "cleaner_corrected":
+            # As event_corrected: the check-out stands; only the name it is read under moves (FR-OUT-50).
+            movement = entity.get("movement")
+            if movement is not None and movement["id"] == p["movement_id"]:
+                movement["cleaner"] = p["cleaner"]
+            _correct_cleaner(entity, p)
         case "note_added":
             note = {"id": event.id, "text": p["text"], "actor_id": event.actor_id, "at": event.effective_at}
             if p.get("movement_id") is not None:
@@ -234,6 +285,8 @@ def apply(entity: dict[str, Any], event: Event) -> None:
                     "reservation_id": p.get("reservation_id"),
                     "at": event.effective_at,
                 }
+                if p.get("cleaner"):
+                    lot["cleaner"] = p["cleaner"]
                 lots[p["holder_id"]] = [*lots.get(p["holder_id"], []), lot]
                 entity["pool_lots"] = lots
                 entity["movement"] = _movement(event)
@@ -262,7 +315,8 @@ def apply(entity: dict[str, Any], event: Event) -> None:
                 # them (FR-OUT-23). The holder defaults to whoever is returning it.
                 holder_id = p.get("holder_id") or event.actor_id
                 pool_out = dict(entity.get("pool_out", {}))
-                remaining = max(0, pool_out.get(holder_id, 0) - p["count"])
+                before = pool_out.get(holder_id, 0)
+                remaining = max(0, before - p["count"])
                 if remaining:
                     pool_out[holder_id] = remaining
                 else:
@@ -271,7 +325,7 @@ def apply(entity: dict[str, Any], event: Event) -> None:
                 entity["pool_in"] = entity.get("pool_in", 0) + p["count"]
                 lots = dict(entity.get("pool_lots", {}))
                 if remaining:
-                    lots[holder_id] = keep_newest(lots.get(holder_id, []), remaining)
+                    lots[holder_id] = return_lots(lots.get(holder_id, []), before, p["count"], p.get("cleaner"))
                 else:
                     lots.pop(holder_id, None)
                 entity["pool_lots"] = lots
@@ -326,4 +380,6 @@ def _movement(event: Event) -> dict[str, Any]:
     }
     if event.payload.get("count") is not None:
         m["count"] = event.payload["count"]
+    if event.payload.get("cleaner"):
+        m["cleaner"] = event.payload["cleaner"]
     return m

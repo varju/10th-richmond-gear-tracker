@@ -272,3 +272,31 @@ test("a check-out synced while Save waits to be confirmed asks again (FR-INV-34)
   await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument());
   expect(inv.generics(store.state)).toEqual([]);
 });
+
+test("a share of a stack goes home with a family, and a return names whose it is (FR-OUT-46, FR-OUT-47)", async () => {
+  const bags = await act.createPool(store, { name: "Bags" }, 20);
+  navigate(`/items/${bags}`);
+  renderInShell(<ItemPage store={store} id={bags} />);
+
+  for (const [n, name] of [
+    ["4", "Smith"],
+    ["2", "Jones"],
+  ] as const) {
+    await user.click(screen.getByRole("button", { name: "Send home to clean" }));
+    const count = screen.getByLabelText("How many");
+    await user.clear(count);
+    await user.type(count, n);
+    const send = screen.getByRole("button", { name: "Send home" });
+    expect(send).toBeDisabled();
+    await user.type(screen.getByLabelText("Taken home by"), name);
+    await user.click(send);
+    await waitFor(() => expect(screen.queryByLabelText("Taken home by")).not.toBeInTheDocument());
+  }
+  expect(fact("Cleaning")).toBe("Smith · 4, Jones · 2");
+
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  await user.selectOptions(screen.getByLabelText("Returned from"), "Jones · 2");
+  expect(screen.getByLabelText("How many")).toHaveValue(2);
+  await user.click(screen.getAllByRole("button", { name: "Return" })[0]!);
+  await waitFor(() => expect(fact("Cleaning")).toBe("Smith · 4"));
+});

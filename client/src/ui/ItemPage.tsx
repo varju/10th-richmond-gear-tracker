@@ -37,15 +37,17 @@ import {
   numberTaken,
   parentOf,
   poolCounts,
+  poolLots,
   search,
   takesUnits,
   unitsOf,
 } from "../lib/inventory";
 import { itemReservations } from "../lib/itemReservations";
-import { checkInPool, checkOutPool, correctEvent, type HistoryEntry, recount } from "../lib/movement";
+import { checkInPool, checkOutPool, correctCleaner, correctEvent, type HistoryEntry, recount } from "../lib/movement";
 import { openRepairs, raiseTicket, type Repair, repairsFor, stateLabel } from "../lib/repairs";
 import { type Log, useRecord } from "../lib/record";
-import type { Movement, Note, State } from "../lib/replay";
+import { cleanerKey, type Movement, type Note, type State } from "../lib/replay";
+import { tidyName } from "../lib/calendar";
 import { isOverdue } from "../lib/reports";
 import { reservation, todayIso } from "../lib/reservations";
 import { back, navigate, useRoute } from "../lib/router";
@@ -58,6 +60,7 @@ import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { HomeFields, ItemFields, SEVERAL } from "./ItemFields";
 import { boughtLabel, plural, statusLabel, userName } from "./labels";
+import { CleanerField } from "./CleanerField";
 import { EventPicker, useEventQuestion } from "./EventChoice";
 import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
 import { AddNote, NoteLine, NoteList } from "./Notes";
@@ -308,7 +311,15 @@ export function ItemPage({ store, id }: Props) {
           <dl className="facts">
             <dt>Status</dt>
             <dd>{statusLabel(state, it) + (isOverdue(state, it, now()) ? " · Overdue" : "")}</dd>
-            {it.status === "out" && it.movement && (
+            {it.status === "out" && it.movement?.cleaner && (
+              <>
+                <dt>Cleaning</dt>
+                <dd>
+                  <OutCleaner store={store} it={it} />
+                </dd>
+              </>
+            )}
+            {it.status === "out" && it.movement && !it.movement.cleaner && (
               <>
                 <dt>Event</dt>
                 <dd>
@@ -409,6 +420,61 @@ export function ItemPage({ store, id }: Props) {
         </div>
       </div>
     </Page>
+  );
+}
+
+/**
+ * Who has the gear at home to clean (FR-OUT-46), put right from here (FR-OUT-50) with the names used
+ * lately. Appended like a note edit (FR-OUT-16).
+ */
+function OutCleaner({ store, it }: { store: Store; it: Item }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const m = it.movement as Movement;
+  const name = m.cleaner ?? "";
+
+  async function save() {
+    if (draft === null) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (draft.trim() !== name) await correctCleaner(store, it.id, m.id, draft);
+      setDraft(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not change the name");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (draft === null) {
+    return (
+      <>
+        {name}{" "}
+        <button type="button" className="minor" onClick={() => setDraft(name)}>
+          Change name
+        </button>
+      </>
+    );
+  }
+  return (
+    <>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <CleanerField store={store} value={draft} onChange={setDraft} disabled={busy} />
+      <div className="row">
+        <button type="button" className="primary" disabled={busy || draft.trim() === ""} onClick={() => void save()}>
+          Save
+        </button>
+        <button type="button" onClick={() => setDraft(null)}>
+          Cancel
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -586,13 +652,17 @@ export function describeMovement(state: State, e: HistoryEntry): string {
   // A pool's lines carry a count instead of the whole item (FR-INV-34, FR-INV-35).
   if (e.type === "recounted") return `Recounted to ${e.count} by ${who}: ${e.reason} · ${when}`;
   if (e.count != null) {
-    if (e.type === "checked_in") return `Returned ${e.count} by ${who} · ${when}`;
+    if (e.type === "checked_in") {
+      return `Returned ${e.count}${e.cleaner ? ` from ${e.cleaner}` : ""} by ${who} · ${when}`;
+    }
+    if (e.cleaner) return `Sent home ${e.count} with ${e.cleaner} by ${who} · ${when}`;
     return e.event
       ? `Checked out ${e.count} by ${who} for ${e.event} · ${when}`
       : `Checked out ${e.count} by ${who} · ${when}`;
   }
   if (e.type === "checked_in") return `Returned by ${who} · ${when}`;
   const forEvent = e.event ? ` for ${e.event}` : "";
+  if (e.cleaner) return `Sent home with ${e.cleaner} by ${who} · ${when}`;
   if (e.supersedes) {
     // A transfer to another member names them, and who handed it over (FR-OUT-26).
     const handed = e.holder_id !== null && e.holder_id !== e.actor_id;
@@ -1300,6 +1370,16 @@ function PoolPage({
             ? "None"
             : counts.out.map((o) => `${userName(state, o.holder_id)} · ${o.count}`).join(", ")}
         </dd>
+        {cleaningShares(it).length > 0 && (
+          <>
+            <dt>Cleaning</dt>
+            <dd>
+              {cleaningShares(it)
+                .map((x) => `${x.cleaner} · ${x.count}`)
+                .join(", ")}
+            </dd>
+          </>
+        )}
         <dt>Home</dt>
         <dd>{homeLabel(state, it) || "—"}</dd>
         {categoriesOf(state, it).length > 0 && (
@@ -1346,6 +1426,42 @@ function PoolPage({
   );
 }
 
+/** A holder's pool count by where it came from: sent home with a cleaner, or not (FR-OUT-47). Ordinary first. */
+function returnShares(it: Item, holderId: string | null) {
+  const held = poolLots(it).find((o) => o.holder_id === holderId);
+  if (!held) return [];
+  const shares = new Map<string, { key: string; cleaner?: string; count: number }>();
+  let ordinary = held.unknown;
+  for (const lot of held.lots) {
+    if (!lot.cleaner) {
+      ordinary += lot.count;
+      continue;
+    }
+    const key = cleanerKey(lot.cleaner);
+    const found = shares.get(key);
+    if (found) found.count += lot.count;
+    else shares.set(key, { key, cleaner: tidyName(lot.cleaner), count: lot.count });
+  }
+  const cleaning = [...shares.values()];
+  if (cleaning.length === 0) return [];
+  return ordinary > 0 ? [{ key: "", count: ordinary }, ...cleaning] : cleaning;
+}
+
+/** Who has some of the pool at home to clean, with how many, across every holder (FR-OUT-46). */
+function cleaningShares(it: Item) {
+  const found = new Map<string, { cleaner: string; count: number }>();
+  for (const held of poolLots(it)) {
+    for (const lot of held.lots) {
+      if (!lot.cleaner) continue;
+      const key = cleanerKey(lot.cleaner);
+      const share = found.get(key);
+      if (share) share.count += lot.count;
+      else found.set(key, { cleaner: tidyName(lot.cleaner), count: lot.count });
+    }
+  }
+  return [...found.values()];
+}
+
 /**
  * Check out, return, and recount a pool, by count (FR-OUT-22, FR-OUT-23,
  * FR-INV-35). Taking more than are in warns, never blocks. A check-out asks
@@ -1366,8 +1482,11 @@ export function PoolActions({
   onMoved: (message: string, kind: "out" | "in" | "recount") => void;
   children?: React.ReactNode;
 }) {
-  const [mode, setMode] = useState<"out" | "in" | "recount" | null>(null);
+  const [mode, setMode] = useState<"out" | "in" | "recount" | "home" | null>(null);
   const [count, setCount] = useState("1");
+  // Who is taking the stack home to clean (FR-OUT-46), and, on a return, whose share comes back (FR-OUT-47).
+  const [cleaner, setCleaner] = useState("");
+  const [from, setFrom] = useState("");
   const [holder, setHolder] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -1384,8 +1503,16 @@ export function PoolActions({
   // several people holding some, or the signed-in person holding none of their own.
   const needsHolderPick = counts.out.length > 1 || mine === 0;
   const holderCount = (id: string | null) => counts.out.find((o) => o.holder_id === id)?.count ?? 0;
+  const shares = (id: string | null) => returnShares(it, id);
+  // Which share a return comes off: the one picked, or the only one there is.
+  const shareList = holder ? shares(holder) : [];
+  const share = shareList.find((x) => x.key === from) ?? shareList[0];
+  const shareCount = (id: string | null, key: string) => {
+    const list = shares(id);
+    return (list.find((x) => x.key === key) ?? list[0])?.count ?? holderCount(id);
+  };
 
-  function begin(next: "out" | "in" | "recount") {
+  function begin(next: "out" | "in" | "recount" | "home") {
     if (next === "out")
       askThen((s) => {
         setRecorded(s);
@@ -1394,14 +1521,16 @@ export function PoolActions({
     else open(next);
   }
 
-  function open(next: "out" | "in" | "recount") {
+  function open(next: "out" | "in" | "recount" | "home") {
     setMode(next);
     setError(null);
     setReason("");
+    setCleaner("");
     if (next === "in") {
       const def = mine > 0 ? me ?? null : counts.out[0]?.holder_id ?? me ?? null;
       setHolder(def);
-      setCount(String(holderCount(def) || 1));
+      setFrom(shares(def)[0]?.key ?? "");
+      setCount(String(shareCount(def, shares(def)[0]?.key ?? "") || 1));
     } else {
       setHolder(null);
       setCount(next === "recount" ? String(counts.in) : "1");
@@ -1410,16 +1539,23 @@ export function PoolActions({
 
   function pickHolder(id: string) {
     setHolder(id);
-    setCount(String(holderCount(id) || 1));
+    setFrom(shares(id)[0]?.key ?? "");
+    setCount(String(shareCount(id, shares(id)[0]?.key ?? "") || 1));
+  }
+
+  function pickShare(key: string) {
+    setFrom(key);
+    setCount(String(shareCount(holder, key) || 1));
   }
 
   const n = Number(count.trim());
   const valid = (amount: number) => Number.isInteger(amount) && (mode === "recount" ? amount >= 0 : amount >= 1);
   const validCount = valid(n);
-  const overdraw = mode === "out" && validCount && n > counts.in;
+  const overdraw = (mode === "out" || mode === "home") && validCount && n > counts.in;
+  const needsName = mode === "home" && cleaner.trim() === "";
 
   async function submit(amount: number) {
-    if (!mode || !valid(amount) || (mode === "recount" && reason.trim() === "")) return;
+    if (!mode || !valid(amount) || (mode === "recount" && reason.trim() === "") || needsName) return;
     setBusy(true);
     setError(null);
     try {
@@ -1430,10 +1566,13 @@ export function PoolActions({
           reservation_id: recorded.reservation_id,
           packing: session !== undefined,
         });
+      } else if (mode === "home") {
+        await checkOutPool(store, it.id, { count: amount, cleaner });
       } else if (mode === "in")
         await checkInPool(store, it.id, {
           count: amount,
           holder_id: holder ?? undefined,
+          cleaner: share?.cleaner,
           packing: session !== undefined,
         });
       else await recount(store, it.id, amount, reason);
@@ -1443,10 +1582,16 @@ export function PoolActions({
       return;
     }
     const label =
-      mode === "out" ? `Checked out ${amount}` : mode === "in" ? `Returned ${amount}` : `Recounted to ${amount}`;
+      mode === "out"
+        ? `Checked out ${amount}`
+        : mode === "home"
+          ? `Sent home ${amount} to ${cleaner.trim()}`
+          : mode === "in"
+            ? `Returned ${amount}`
+            : `Recounted to ${amount}`;
     setBusy(false);
     setMode(null);
-    onMoved(`${label} · ${displayName(state, it)}`, mode);
+    onMoved(`${label} · ${displayName(state, it)}`, mode === "home" ? "out" : mode);
   }
 
   if (it.retired) {
@@ -1487,6 +1632,19 @@ export function PoolActions({
           </select>
         </label>
       )}
+      {mode === "in" && shareList.length > 1 && (
+        <label className="tight">
+          <span>Returned from</span>
+          <select value={share?.key ?? ""} onChange={(e) => pickShare(e.target.value)}>
+            {shareList.map((x) => (
+              <option key={x.key} value={x.key}>
+                {x.cleaner ?? "Not sent home"} · {x.count}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {mode === "home" && <CleanerField store={store} value={cleaner} onChange={setCleaner} disabled={busy} />}
       {mode && (
         <label className="tight">
           <span>How many</span>
@@ -1494,7 +1652,7 @@ export function PoolActions({
             type="number"
             inputMode="numeric"
             min={mode === "recount" ? 0 : 1}
-            max={mode === "in" ? holderCount(holder) : undefined}
+            max={mode === "in" ? share?.count ?? holderCount(holder) : undefined}
             step={1}
             autoFocus
             value={count}
@@ -1515,7 +1673,7 @@ export function PoolActions({
         </label>
       )}
       {mode === "out" && <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>}
-      {mode === "out" && counts.in > 1 && (
+      {(mode === "out" || mode === "home") && counts.in > 1 && (
         <div className="row">
           <button type="button" disabled={busy} onClick={() => void submit(counts.in)}>
             All {counts.in}
@@ -1527,10 +1685,10 @@ export function PoolActions({
           <button
             type="button"
             className="primary"
-            disabled={busy || !validCount || (mode === "recount" && reason.trim() === "")}
+            disabled={busy || !validCount || needsName || (mode === "recount" && reason.trim() === "")}
             onClick={() => void submit(n)}
           >
-            {mode === "out" ? "Check out" : mode === "in" ? "Return" : "Recount"}
+            {mode === "out" ? "Check out" : mode === "home" ? "Send home" : mode === "in" ? "Return" : "Recount"}
           </button>
           <button type="button" onClick={() => setMode(null)}>
             Cancel
@@ -1549,6 +1707,11 @@ export function PoolActions({
           <button type="button" onClick={() => begin("recount")}>
             Recount
           </button>
+          {session === undefined && counts.in > 0 && (
+            <button type="button" className="minor" onClick={() => begin("home")}>
+              Send home to clean
+            </button>
+          )}
         </div>
       )}
       {children}

@@ -75,6 +75,12 @@ def _not_derived(value: str) -> str:
     return value
 
 
+def _trimmed_name(value: str) -> str:
+    if not value.strip():
+        raise ValueError("a name is required")
+    return value
+
+
 HTTPS_LINK = re.compile(r"https://[^\x00-\x20/?#]+(?:[/?#][^\x00-\x20]*)?", re.IGNORECASE)
 """https://, in any case, a host, and no spaces or control characters. lib/install.ts isHttpsLink is the same pattern:
 two URL parsers would disagree at the edges, and an edit the client allows would bounce."""
@@ -147,17 +153,26 @@ class EventCorrection(Payload):
     reservation_id: Ulid | None = None
 
 
+class CleanerCorrection(Payload):
+    """The cleaner a movement was recorded under, put right (FR-OUT-50). The movement itself stands."""
+
+    movement_id: Ulid
+    cleaner: Annotated[str, AfterValidator(_trimmed_name)]
+
+
 class CheckOut(Payload):
     """Who has it, for which event (FR-OUT-04). `supersedes` names the check-out this one knowingly replaces:
     a transfer (FR-OUT-12), not a conflict (FR-OFF-10). `count` is set only for a pool (FR-OUT-22): it adds to
     that holder's count instead of moving the whole item. `reservation_id` names the reservation this packs
-    (FR-RES-02); only a check-out that carries it counts towards that reservation's progress."""
+    (FR-RES-02); only a check-out that carries it counts towards that reservation's progress. `cleaner` names
+    who took it home to clean (FR-OUT-46)."""
 
     holder_id: NonEmpty
     event: str | None = None
     supersedes: Ulid | None = None
     count: Annotated[int, Field(ge=1)] | None = None
     reservation_id: Ulid | None = None
+    cleaner: Annotated[str, AfterValidator(_trimmed_name)] | None = None
 
 
 class CheckIn(Payload):
@@ -166,6 +181,7 @@ class CheckIn(Payload):
 
     holder_id: NonEmpty | None = None
     count: Annotated[int, Field(ge=1)] | None = None
+    cleaner: Annotated[str, AfterValidator(_trimmed_name)] | None = None
 
 
 class Recount(Payload):
@@ -394,6 +410,11 @@ class EventCorrected(_ItemOnly):
     payload: EventCorrection
 
 
+class CleanerCorrected(_ItemOnly):
+    type: Literal["cleaner_corrected"]
+    payload: CleanerCorrection
+
+
 class ItemAdded(_ReservationOnly):
     type: Literal["item_added"]
     payload: ItemRef
@@ -478,6 +499,7 @@ IncomingEvent = Annotated[
     | NoteCorrected
     | NoteDeleted
     | EventCorrected
+    | CleanerCorrected
     | ItemAdded
     | ItemRemoved
     | QuantityChanged
@@ -501,6 +523,7 @@ EVENT_TYPES = frozenset(
         "note_corrected",
         "note_deleted",
         "event_corrected",
+        "cleaner_corrected",
         "item_added",
         "item_removed",
         "quantity_changed",

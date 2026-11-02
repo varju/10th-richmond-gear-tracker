@@ -9,7 +9,7 @@ import * as notes from "./notes";
 import type { Log } from "./record";
 import { eventNameKey, tidyName } from "./calendar";
 import { addExtra, plannedFor } from "./reservations";
-import { type Movement, type Note, type ReplayEvent, replayOrder, type State } from "./replay";
+import { cleanerKey, type Movement, type Note, type ReplayEvent, replayOrder, type State } from "./replay";
 import { eventAsked, setSessionEvent } from "./session";
 import type { MoveSession, Store } from "./store";
 
@@ -23,6 +23,16 @@ export interface MoveOptions {
   note?: string;
   /** Made while packing a reservation, so it leaves the plain session's clock alone (FR-RES-25). */
   packing?: boolean;
+  /** Sent home to be cleaned by this person (FR-OUT-46). Required to be a name; no event, no session. */
+  cleaner?: string;
+}
+
+/** The name a cleaning check-out was given, or an error when one is asked for and blank. */
+function cleanerName(options: { cleaner?: string }): string | undefined {
+  if (options.cleaner === undefined) return undefined;
+  const name = options.cleaner.trim();
+  if (!name) throw new Error("say who is taking it home");
+  return name;
 }
 
 function actor(store: Store): string {
@@ -72,6 +82,11 @@ export async function checkOut(store: Store, itemId: string, options: MoveOption
   if (it.retired) throw new Error("retired items cannot be checked out");
   if (it.merged_into) throw new Error("merged into another item");
   if (it.status === "out") throw new Error("already out; transfer it instead");
+  const cleaner = cleanerName(options);
+  if (cleaner) {
+    // Sent home: the Scouter stays the holder, and the session's event is left alone (FR-OUT-46).
+    return move(store, itemId, "checked_out", { holder_id: actor(store), cleaner }, options.note);
+  }
   const link = planned(store, options);
   const movement = await move(
     store,
@@ -109,6 +124,8 @@ export interface PoolCheckInOptions {
   count: number;
   /** Return on someone else's behalf (FR-OUT-23). Defaults to the actor when omitted. */
   holder_id?: string;
+  /** Whose share of the pool is coming back (FR-OUT-47). It comes off that cleaner's lots first. */
+  cleaner?: string;
   note?: string;
   packing?: boolean;
 }
@@ -122,6 +139,10 @@ export async function checkOutPool(store: Store, itemId: string, options: PoolCh
   const it = poolItem(store, itemId);
   if (it.retired) throw new Error("retired items cannot be checked out");
   if (!Number.isInteger(options.count) || options.count < 1) throw new Error("pick a count of at least 1");
+  const cleaner = cleanerName(options);
+  if (cleaner) {
+    return move(store, itemId, "checked_out", { holder_id: actor(store), count: options.count, cleaner }, options.note);
+  }
   const link = planned(store, options);
   const movement = await move(
     store,
@@ -155,6 +176,8 @@ export async function checkInPool(store: Store, itemId: string, options: PoolChe
   if (options.count > has) throw new Error(`only ${has} out to ${holder}`);
   const payload: Record<string, unknown> = { count: options.count };
   if (holder !== actor(store)) payload.holder_id = holder;
+  const cleaner = cleanerName(options);
+  if (cleaner) payload.cleaner = cleaner;
   return move(store, itemId, "checked_in", payload, options.note, options.packing ? undefined : {});
 }
 
@@ -186,6 +209,17 @@ export async function transfer(store: Store, itemId: string, options: TransferOp
   if (it.status !== "out" || !previous) throw new Error("not out; check it out instead");
   const to = options.to ?? actor(store);
   if (to === it.holder_id) throw new Error("they already have it");
+  if (previous.cleaner) {
+    // Still at the cleaner's home; only the Scouter answerable for it changes (FR-OUT-46).
+    return move(
+      store,
+      itemId,
+      "checked_out",
+      { holder_id: to, supersedes: previous.id, cleaner: previous.cleaner },
+      options.note,
+      options.packing ? undefined : {},
+    );
+  }
   const link = planned(store, options);
   const movement = await move(
     store,
@@ -240,6 +274,51 @@ export async function correctEvent(
     payload: { movement_id: movementId, event: event?.trim() || null, reservation_id: reservationId ?? null },
   });
 }
+
+/**
+ * The cleaner a movement was recorded under, put right (FR-OUT-50). Appended, the same shape as an
+ * event correction: the check-out itself is never rewritten (NFR-DATA-02).
+ */
+export async function correctCleaner(store: Store, itemId: string, movementId: string, cleaner: string) {
+  if (!item(store.state, itemId)) throw new Error("no such item");
+  const name = cleaner.trim();
+  if (!name) throw new Error("say the corrected name");
+  return store.record({
+    entity_type: "item",
+    entity_id: itemId,
+    type: "cleaner_corrected",
+    actor_id: actor(store),
+    payload: { movement_id: movementId, cleaner: name },
+  });
+}
+
+/**
+ * Cleaner names used before, most recent first, one per name, case and spacing aside (FR-OUT-48).
+ * Every cleaning check-out in `log`, as its last correction now reads it: a name corrected away is
+ * not offered again, and a corrected one ranks by the correction's time. Events older than the
+ * phone keeps (90 days) have dropped out, so those names age out of the list.
+ */
+export function usedCleanerNames(log: ReplayEvent[]): string[] {
+  const named = new Map<string, { name: string; at: number }>();
+  for (const e of [...log].sort(replayOrder)) {
+    if (e.type === "checked_out" && typeof e.payload.cleaner === "string") {
+      named.set(e.id, { name: e.payload.cleaner, at: e.effective_at });
+    } else if (e.type === "cleaner_corrected") {
+      const target = named.get(e.payload.movement_id as string);
+      if (target) named.set(e.payload.movement_id as string, { name: e.payload.cleaner as string, at: e.effective_at });
+    }
+  }
+  const names = new Map<string, string>();
+  for (const { name } of [...named.values()].sort((a, b) => b.at - a.at)) {
+    if (!names.has(cleanerKey(name))) names.set(cleanerKey(name), tidyName(name));
+  }
+  return [...names.values()];
+}
+
+const USED_CLEANERS = "used cleaner names";
+
+/** The cleaners named before on this device, worked out once per change to the store. */
+export const knownCleanerNames = (store: Store) => store.memo(USED_CLEANERS, () => usedCleanerNames(store.known));
 
 /** What a movement is read under now: the event, the reservation it packs, and since when. */
 export interface Reading {
@@ -333,6 +412,8 @@ export interface HistoryEntry {
   count?: number;
   /** Set only on a "recounted" line (FR-INV-35): why. */
   reason?: string | null;
+  /** Set when the gear went home to be cleaned (FR-OUT-46), as its last correction reads. */
+  cleaner?: string;
 }
 
 /**
@@ -347,6 +428,10 @@ export function history(log: Log, itemId: string): HistoryEntry[] {
     .sort(replayOrder);
   // The last correction wins, the same rule replay uses for the current movement (FR-RES-17).
   const corrected = corrections(events);
+  const renamed = new Map<string, string>();
+  for (const e of events) {
+    if (e.type === "cleaner_corrected") renamed.set(e.payload.movement_id as string, e.payload.cleaner as string);
+  }
   return events
     .filter((e) => e.type === "checked_out" || e.type === "checked_in" || e.type === "recounted")
     .map((e) => ({
@@ -360,6 +445,7 @@ export function history(log: Log, itemId: string): HistoryEntry[] {
       notes: notes.filter((n) => n.movement_id === e.id),
       count: (e.payload.count as number | undefined) ?? undefined,
       reason: (e.payload.reason as string | undefined) ?? null,
+      cleaner: renamed.get(e.id) ?? (e.payload.cleaner as string | undefined),
     }))
     .reverse();
 }

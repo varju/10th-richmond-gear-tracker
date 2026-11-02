@@ -3,7 +3,7 @@ import { openConflicts } from "../lib/conflicts";
 import { foundReports } from "../lib/found";
 import { displayName } from "../lib/inventory";
 import { openTickets } from "../lib/repairs";
-import { rowKey, whatIsOut } from "../lib/reports";
+import { outFor, rowKey, whatIsOut } from "../lib/reports";
 import { todayIso, upcoming } from "../lib/reservations";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -95,7 +95,7 @@ export function Desk({ store }: { store: Store }) {
                       {entry.overdue && <span className="badge overdue">Overdue</span>}
                     </td>
                     <td>{holder.name}</td>
-                    <td>{entry.event ?? ""}</td>
+                    <td>{outFor(entry)}</td>
                     <td>{entry.count != null ? `${entry.count} out` : daysLabel(entry.days)}</td>
                   </tr>
                 )),

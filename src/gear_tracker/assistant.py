@@ -83,6 +83,7 @@ from gear_tracker.db import connect
 from gear_tracker.errors import ApiError, BadRequest, Conflict, NotFound, TooLarge
 from gear_tracker.events import REPAIR_STATES, HttpsUrlOrBlank, PhotoEntity, PhotoType, now_ms
 from gear_tracker.ratelimit import RateLimit
+from gear_tracker.replay import cleaner_key
 from gear_tracker.sync import Principal
 from gear_tracker.ulid import is_ulid, new_ulid
 
@@ -289,6 +290,8 @@ def _item_brief(state: dict[str, Any], it: dict[str, Any]) -> dict[str, Any]:
         brief["holder"] = views.user_name(state, it["holder_id"])
     if (it.get("movement") or {}).get("event"):
         brief["event"] = it["movement"]["event"]
+    if it.get("status") == "out" and (it.get("movement") or {}).get("cleaner"):
+        brief["cleaner"] = it["movement"]["cleaner"]
     for flag in ("missing", "retired"):
         if it.get(flag):
             brief[flag] = True
@@ -395,15 +398,20 @@ def _history(conn: sqlite3.Connection, state: dict[str, Any], item_id: str) -> l
         (*ids, HISTORY_SHOWN),
     ).fetchall()
     corrected = {}
+    renamed = {}
     for fix in conn.execute(
         f"""
-        SELECT payload FROM events WHERE entity_type = 'item' AND entity_id IN ({marks}) AND type = 'event_corrected'
+        SELECT type, payload FROM events WHERE entity_type = 'item' AND entity_id IN ({marks})
+        AND type IN ('event_corrected', 'cleaner_corrected')
         ORDER BY effective_at, device_id, device_seq
         """,
         ids,
     ):
         fixed = json.loads(fix["payload"])
-        corrected[fixed["movement_id"]] = fixed.get("event")
+        if fix["type"] == "event_corrected":
+            corrected[fixed["movement_id"]] = fixed.get("event")
+        else:
+            renamed[fixed["movement_id"]] = fixed["cleaner"]
     out = []
     for row in rows:
         payload = json.loads(row["payload"])
@@ -418,6 +426,10 @@ def _history(conn: sqlite3.Connection, state: dict[str, Any], item_id: str) -> l
         }
         if "count" in payload:
             entry["count"] = payload["count"]
+        if row["id"] in renamed:
+            payload["cleaner"] = renamed[row["id"]]
+        if payload.get("cleaner"):
+            entry["cleaner"] = payload["cleaner"]
         if "reason" in payload:
             entry["reason"] = payload["reason"]
         out.append(entry)
@@ -470,6 +482,16 @@ def get_item(item_id: str) -> dict[str, Any]:
                 {"holder_id": o["holder_id"], "holder": views.user_name(state, o["holder_id"]), "count": o["count"]}
                 for o in counts["out"]
             ]
+            cleaners: dict[str, dict[str, Any]] = {}
+            for held in views.pool_lots(it):
+                for lot in held["lots"]:
+                    if lot.get("cleaner"):
+                        found = cleaners.setdefault(
+                            cleaner_key(lot["cleaner"]), {"cleaner": lot["cleaner"], "count": 0}
+                        )
+                        found["count"] += lot["count"]
+            if cleaners:
+                out["cleaners"] = list(cleaners.values())
         else:
             if it.get("generic"):
                 out["units"] = [_item_brief(state, unit) for unit in views.units_of(state, it["id"])]
@@ -1570,8 +1592,12 @@ def check_out(
     note: str | None = None,
     count: Count | None = None,
     reservation_id: str | None = None,
+    cleaner: str | None = None,
 ) -> dict[str, Any]:
     """Take an item out, without a scan (FR-OUT-02). The holder is you; `event` is what it is going to.
+
+    `cleaner` names the person taking it home to clean (FR-OUT-46); you stay the holder. It goes with
+    neither an event nor a reservation. For a pool, send each family's share as its own check-out.
 
     A pool (FR-INV-34) needs `count`; anything else refuses one (FR-MCP-08). Taking more than are
     in a pool warns, and is never blocked (FR-OUT-22). `reservation_id` says this packs that
@@ -1593,12 +1619,19 @@ def check_out(
             raise BadRequest("retired items cannot be checked out")
         if not pool and it.get("status") == "out":
             raise Conflict(f"already out with {views.user_name(state, it.get('holder_id'))}")
+        if cleaner is not None:
+            if not cleaner.strip():
+                raise BadRequest("say who is taking it home")
+            if (event or "").strip() or reservation_id:
+                raise BadRequest("gear sent home to clean has no event or reservation")
         movement_id = new_ulid()
         payload: dict[str, Any] = {
             "holder_id": who.user_id,
             "event": (event or "").strip() or None,
             "reservation_id": reservation_id,
         }
+        if cleaner is not None:
+            payload["cleaner"] = cleaner.strip()
         if pool:
             payload["count"] = count
         drafts = [_draft("item", it["id"], "checked_out", payload, movement_id)]
@@ -1617,13 +1650,18 @@ def check_out(
 
 
 def check_in(
-    item_id: str, note: str | None = None, count: Count | None = None, holder_id: str | None = None
+    item_id: str,
+    note: str | None = None,
+    count: Count | None = None,
+    holder_id: str | None = None,
+    cleaner: str | None = None,
 ) -> dict[str, Any]:
     """Bring an item back, without a scan (FR-OUT-07). Anyone can check anything in (FR-OUT-08).
 
     A pool (FR-INV-34) comes back from one holder: you, unless `holder_id` names someone else who has
     some out (get_item lists them). `count` defaults to all that holder has out; say fewer to leave
-    the rest against their name (FR-OUT-23).
+    the rest against their name (FR-OUT-23). `cleaner` says whose share of the pool is coming back
+    (FR-OUT-47); get_item and whats_out list the cleaners.
     """
     with _open() as (conn, who):
         state = _state(conn)
@@ -1631,6 +1669,8 @@ def check_in(
         pool = views.is_pool(it)
         if it.get("generic") and not pool:
             raise BadRequest("that item does not move; one of its units does")
+        if cleaner is not None and not pool:
+            raise BadRequest("cleaner is only for a pool; anyone can check anything else in")
         holder = holder_id or who.user_id
         if pool:
             have = next((o["count"] for o in views.pool_counts(it)["out"] if o["holder_id"] == holder), 0)
@@ -1654,6 +1694,10 @@ def check_in(
             payload["count"] = count
             if holder != who.user_id:
                 payload["holder_id"] = holder
+            if cleaner is not None:
+                if not cleaner.strip():
+                    raise BadRequest("say whose share is coming back")
+                payload["cleaner"] = cleaner.strip()
         drafts = [_draft("item", it["id"], "checked_in", payload, movement_id)]
         if note and note.strip():
             drafts.append(_draft("item", it["id"], "note_added", {"text": note.strip(), "movement_id": movement_id}))
@@ -1721,11 +1765,14 @@ def transfer(
             "supersedes": previous["id"],
             "reservation_id": reservation_id,
         }
+        if previous.get("cleaner"):
+            # Still at the cleaner's home; only the Scouter answerable for it changes (FR-OUT-46).
+            payload = {"holder_id": to, "supersedes": previous["id"], "cleaner": previous["cleaner"]}
         drafts = [_draft("item", it["id"], "checked_out", payload, movement_id)]
         if note and note.strip():
             drafts.append(_draft("item", it["id"], "note_added", {"text": note.strip(), "movement_id": movement_id}))
         _push(conn, who, drafts)
-        return {"item_id": it["id"], "holder": views.user_name(state, to), "event": payload["event"]}
+        return {"item_id": it["id"], "holder": views.user_name(state, to), "event": payload.get("event")}
 
 
 def _version(state: dict[str, Any], m: dict[str, Any]) -> dict[str, Any]:
@@ -1793,9 +1840,48 @@ def correct_event(item_id: str, event: str | None = None) -> dict[str, Any]:
             raise BadRequest("only gear that is out has an event to correct")
         if movement.get("reservation_id"):
             raise BadRequest("this is packed for a reservation; use link_out_to_reservation to move it")
+        if movement.get("cleaner"):
+            raise BadRequest("this is out for cleaning and has no event (FR-OUT-46)")
         payload = {"movement_id": movement["id"], "event": (event or "").strip() or None, "reservation_id": None}
         _push(conn, who, [_draft("item", it["id"], "event_corrected", payload)])
         return {"item_id": it["id"], "event": payload["event"]}
+
+
+def correct_cleaner(item_id: str, cleaner: str, was: str | None = None) -> dict[str, Any]:
+    """Put right the name of whoever took gear home to clean (FR-OUT-50). The check-out stays in the log.
+
+    A single item that is out for cleaning needs only `cleaner`. A pool needs `was`, the name as it
+    stands now; every lot under that name takes the new one.
+    """
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, item_id)
+        if not cleaner.strip():
+            raise BadRequest("say the corrected name")
+        if views.is_pool(it):
+            if not was or not was.strip():
+                raise BadRequest("a pool has several cleaners; say which name to correct in `was`")
+            key = cleaner_key(was)
+            lots = [
+                lot
+                for out in views.pool_lots(it)
+                for lot in out["lots"]
+                if lot.get("cleaner") and cleaner_key(lot["cleaner"]) == key
+            ]
+            if not lots:
+                raise BadRequest(f"no one named {was.strip()} has any of it")
+            targets = [lot["id"] for lot in lots]
+        else:
+            movement = it.get("movement") or {}
+            if it.get("status") != "out" or not movement.get("cleaner"):
+                raise BadRequest("only gear out for cleaning has a cleaner to correct")
+            targets = [movement["id"]]
+        drafts = [
+            _draft("item", it["id"], "cleaner_corrected", {"movement_id": t, "cleaner": cleaner.strip()})
+            for t in targets
+        ]
+        _push(conn, who, drafts)
+        return {"item_id": it["id"], "cleaner": cleaner.strip(), "corrected": len(drafts)}
 
 
 def stock_check(location_id: str, seen: list[str], sub_location: str | None = None) -> dict[str, Any]:
@@ -2397,6 +2483,7 @@ TOOLS = [
     list_conflicts,
     settle_conflict,
     correct_event,
+    correct_cleaner,
     stock_check,
     get_notifications,
     set_notifications,

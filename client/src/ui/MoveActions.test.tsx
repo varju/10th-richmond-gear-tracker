@@ -31,7 +31,7 @@ test("a move that succeeds still calls onMoved when its fault is raised fine", a
   await user.type(screen.getByLabelText("Problem"), "zipper broken");
   await user.click(screen.getByRole("button", { name: "Check out" }));
 
-  await waitFor(() => expect(onMoved).toHaveBeenCalledWith("Checked out", undefined));
+  await waitFor(() => expect(onMoved).toHaveBeenCalledWith("Checked out", undefined, undefined));
   expect(item(store.state, tent)?.status).toBe("out");
   expect(store.pending.at(-1)).toMatchObject({ entity_type: "repair", payload: { description: "zipper broken" } });
   // There is no way to make raiseTicket fail here without mocking it (it only refuses a
@@ -55,4 +55,25 @@ test("a move that fails is reported, the fault text is kept for a retry, and no 
   expect(screen.getByLabelText("Problem")).toHaveValue("zipper broken");
   expect(onMoved).not.toHaveBeenCalled();
   expect(store.pending.some((e) => e.entity_type === "repair")).toBe(false);
+});
+
+test("Send home to clean needs a name, offers recent ones, and keeps the Scouter as holder (FR-OUT-46, FR-OUT-48)", async () => {
+  const other = await act.createItem(store, { name: "Tent 2" });
+  await mv.checkOut(store, other, { cleaner: "Smith family" });
+  await mv.checkIn(store, other);
+  const onMoved = vi.fn();
+  renderInShell(<MoveActions store={store} it={item(store.state, tent)!} onMoved={onMoved} />);
+
+  await user.click(screen.getByRole("button", { name: "Send home to clean" }));
+  const send = screen.getByRole("button", { name: "Send home" });
+  expect(send).toBeDisabled();
+
+  await user.type(screen.getByLabelText("Taken home by"), "smi");
+  await user.click(screen.getByRole("button", { name: "Smith family" }));
+  expect(screen.getByLabelText("Taken home by")).toHaveValue("Smith family");
+  await user.click(send);
+
+  await waitFor(() => expect(onMoved).toHaveBeenCalledWith("Sent home", undefined, "Smith family"));
+  expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice" });
+  expect(item(store.state, tent)?.movement?.cleaner).toBe("Smith family");
 });

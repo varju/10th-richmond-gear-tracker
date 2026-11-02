@@ -1,0 +1,164 @@
+{
+  "name": "pool bags go home with two families; a return names one family, a plain return leaves both (FR-OUT-47)",
+  "events": [
+    {
+      "id": "00000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "bags",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "name": "Sleeping bags",
+        "generic": true,
+        "pool": true,
+        "quantity": 20
+      }
+    },
+    {
+      "id": "00000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "bags",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": {
+        "holder_id": "alice",
+        "count": 3
+      }
+    },
+    {
+      "id": "00000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "bags",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "payload": {
+        "holder_id": "alice",
+        "count": 4,
+        "cleaner": "Smith"
+      }
+    },
+    {
+      "id": "00000000000000000000000004",
+      "entity_type": "item",
+      "entity_id": "bags",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 4000,
+      "payload": {
+        "holder_id": "alice",
+        "count": 2,
+        "cleaner": "Jones"
+      }
+    },
+    {
+      "id": "00000000000000000000000005",
+      "entity_type": "item",
+      "entity_id": "bags",
+      "type": "checked_in",
+      "actor_id": "bob",
+      "device_id": "a",
+      "device_seq": 5,
+      "effective_at": 5000,
+      "payload": {
+        "holder_id": "alice",
+        "count": 2,
+        "cleaner": " smith"
+      }
+    },
+    {
+      "id": "00000000000000000000000006",
+      "entity_type": "item",
+      "entity_id": "bags",
+      "type": "checked_in",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 6,
+      "effective_at": 6000,
+      "payload": {
+        "count": 1
+      }
+    },
+    {
+      "id": "00000000000000000000000007",
+      "entity_type": "item",
+      "entity_id": "bags",
+      "type": "cleaner_corrected",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 7,
+      "effective_at": 7000,
+      "payload": {
+        "movement_id": "00000000000000000000000004",
+        "cleaner": "Jones-Lee"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "bags": {
+        "name": "Sleeping bags",
+        "generic": true,
+        "pool": true,
+        "quantity": 20,
+        "added_at": 1000,
+        "modified_at": 1000,
+        "status": "in",
+        "holder_id": null,
+        "pool_in": 14,
+        "pool_out": {
+          "alice": 6
+        },
+        "movement": {
+          "id": "00000000000000000000000006",
+          "type": "checked_in",
+          "holder_id": "alice",
+          "event": null,
+          "reservation_id": null,
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 6000,
+          "count": 1
+        },
+        "pool_reservations": {},
+        "pool_lots": {
+          "alice": [
+            {
+              "id": "00000000000000000000000002",
+              "count": 2,
+              "event": null,
+              "reservation_id": null,
+              "at": 2000
+            },
+            {
+              "id": "00000000000000000000000003",
+              "count": 2,
+              "event": null,
+              "reservation_id": null,
+              "at": 3000,
+              "cleaner": "Smith"
+            },
+            {
+              "id": "00000000000000000000000004",
+              "count": 2,
+              "event": null,
+              "reservation_id": null,
+              "at": 4000,
+              "cleaner": "Jones-Lee"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -49,6 +49,10 @@ export type State = Record<string, Record<string, Fields>>;
 //                                             which event, so it comes off the holder's oldest lots.
 //   event_corrected {movement_id, event?,    a lot from that check-out moves to the new event, and its
 //                    reservation_id?}         count moves between pool_reservations entries.
+//   cleaner_corrected {movement_id, cleaner}  a lot from that check-out, or the item's movement, takes the
+//                                             new cleaner. A checked_out with a cleaner adds it to its lot;
+//                                             a checked_in with one comes off that cleaner's lots first
+//                                             (returnLots).
 //   recounted   {count, reason}              pool_in = count. pool_out is untouched (FR-INV-35);
 //                                             anyone signed in may record one.
 //
@@ -93,6 +97,8 @@ export interface Movement {
   at: number;
   /** Set only for a pool (FR-OUT-22, FR-OUT-23): how many this movement carried. */
   count?: number;
+  /** Set when the gear went home to be cleaned (FR-OUT-46): who took it. */
+  cleaner?: string;
 }
 
 /** A pool's out side: how many one holder has (FR-INV-36). */
@@ -108,6 +114,8 @@ export interface PoolLot {
   event: string | null;
   reservation_id: string | null;
   at: number;
+  /** Who took this lot home to clean (FR-OUT-46); absent on an ordinary check-out. */
+  cleaner?: string;
 }
 
 export type PoolLots = Record<string, PoolLot[]>;
@@ -123,6 +131,43 @@ export function keepNewest(lots: PoolLot[], count: number): PoolLot[] {
     left -= n;
   }
   return kept;
+}
+
+/** What makes two cleaner names the same: case and spacing aside. Mirrors cleaner_key in replay.py. */
+export function cleanerKey(name: string): string {
+  return name
+    .split(/[ \t\n\r]+/)
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+/**
+ * A holder's lots after `count` of their `before` are returned (FR-OUT-47). Mirrors return_lots in
+ * replay.py. A return naming a cleaner comes off that cleaner's lots first. What is left to take, and
+ * any return that names nobody, comes off the part no lot explains, then the ordinary lots, then the
+ * cleaning lots: each oldest first, so a plain return never swallows a family's lot.
+ */
+export function returnLots(lots: PoolLot[], before: number, count: number, cleaner?: string | null): PoolLot[] {
+  let left = Math.min(count, before);
+  const kept = lots.map((l) => ({ ...l }));
+  const take = (match: (l: PoolLot) => boolean) => {
+    for (const lot of kept) {
+      if (left > 0 && match(lot)) {
+        const n = Math.min(lot.count, left);
+        lot.count -= n;
+        left -= n;
+      }
+    }
+  };
+  if (cleaner) {
+    const key = cleanerKey(cleaner);
+    take((l) => !!l.cleaner && cleanerKey(l.cleaner) === key);
+  }
+  left -= Math.min(left, Math.max(0, before - lots.reduce((n, l) => n + l.count, 0)));
+  take((l) => !l.cleaner);
+  take(() => true);
+  return kept.filter((l) => l.count > 0);
 }
 
 /** A file on the server. Never the bytes: those are fetched when online (FR-INV-11). */
@@ -148,6 +193,7 @@ export const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set([
   "item_removed",
   "quantity_changed",
   "event_corrected",
+  "cleaner_corrected",
   "note_added",
   "note_corrected",
   "note_deleted",
@@ -256,6 +302,19 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       correctLot(entity, p);
       break;
     }
+    case "cleaner_corrected": {
+      // As event_corrected: the check-out stands; only the name it is read under moves (FR-OUT-50).
+      const current = entity.movement as Movement | null | undefined;
+      if (current && current.id === p.movement_id) current.cleaner = p.cleaner as string;
+      const lots = (entity.pool_lots ?? {}) as PoolLots;
+      for (const [holderId, list] of Object.entries(lots)) {
+        if (!list.some((l) => l.id === p.movement_id)) continue;
+        const fixed = list.map((l) => (l.id === p.movement_id ? { ...l, cleaner: p.cleaner as string } : l));
+        entity.pool_lots = { ...lots, [holderId]: fixed };
+        break;
+      }
+      break;
+    }
     case "note_added": {
       const note: Note = { id: event.id, text: p.text as string, actor_id: event.actor_id, at: event.effective_at };
       if (p.movement_id != null) note.movement_id = p.movement_id as string;
@@ -296,6 +355,7 @@ export function apply(entity: Fields, event: ReplayEvent): void {
           reservation_id: (p.reservation_id as string | null | undefined) ?? null,
           at: event.effective_at,
         };
+        if (p.cleaner) lot.cleaner = p.cleaner as string;
         lots[holderId] = [...(lots[holderId] ?? []), lot];
         entity.pool_lots = lots;
         entity.movement = movement(event);
@@ -330,13 +390,15 @@ export function apply(entity: Fields, event: ReplayEvent): void {
         const holderId = (p.holder_id as string | undefined) ?? event.actor_id;
         const count = p.count as number;
         const poolOut = { ...((entity.pool_out ?? {}) as PoolOut) };
-        const remaining = Math.max(0, (poolOut[holderId] ?? 0) - count);
+        const before = poolOut[holderId] ?? 0;
+        const remaining = Math.max(0, before - count);
         if (remaining) poolOut[holderId] = remaining;
         else delete poolOut[holderId];
         entity.pool_out = poolOut;
         entity.pool_in = ((entity.pool_in as number | undefined) ?? 0) + count;
         const lots = { ...((entity.pool_lots ?? {}) as PoolLots) };
-        if (remaining) lots[holderId] = keepNewest(lots[holderId] ?? [], remaining);
+        if (remaining)
+          lots[holderId] = returnLots(lots[holderId] ?? [], before, count, p.cleaner as string | undefined);
         else delete lots[holderId];
         entity.pool_lots = lots;
         const m = movement(event);
@@ -427,5 +489,6 @@ function movement(event: ReplayEvent): Movement {
     at: event.effective_at,
   };
   if (event.payload.count != null) m.count = event.payload.count as number;
+  if (event.payload.cleaner) m.cleaner = event.payload.cleaner as string;
   return m;
 }

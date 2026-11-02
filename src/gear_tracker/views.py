@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from gear_tracker.replay import State, keep_newest
+from gear_tracker.replay import State, cleaner_key, keep_newest
 
 Fields = dict[str, Any]
 
@@ -358,12 +358,12 @@ def what_is_out(state: State, now: int, event: str | None = None) -> dict[str, A
         if is_pool(it):
             if not it.get("retired"):
                 for out in pool_lots(it):
-                    lines: dict[str, Fields] = {}
-                    under = [(lot["event"], lot["count"]) for lot in out["lots"]]
+                    lines: dict[tuple[str, str], Fields] = {}
+                    under = [(lot["event"], lot.get("cleaner"), lot["count"]) for lot in out["lots"]]
                     if out["unknown"]:
-                        under.append((None, out["unknown"]))
-                    for name, count in under:
-                        key = event_name_key(name) if name else ""
+                        under.append((None, None, out["unknown"]))
+                    for name, cleaner, count in under:
+                        key = (event_name_key(name) if name else "", cleaner_key(cleaner) if cleaner else "")
                         if key in lines:
                             lines[key]["count"] += count
                         else:
@@ -375,6 +375,8 @@ def what_is_out(state: State, now: int, event: str | None = None) -> dict[str, A
                                 "overdue": False,
                                 "count": count,
                             }
+                            if cleaner:
+                                lines[key]["cleaner"] = " ".join(cleaner.split())
                     by_holder.setdefault(out["holder_id"], []).extend(lines.values())
             continue
         if it.get("status") != "out" or it.get("missing"):
@@ -387,6 +389,8 @@ def what_is_out(state: State, now: int, event: str | None = None) -> dict[str, A
             "event": movement.get("event"),
             "overdue": is_overdue(state, it, now),
         }
+        if movement.get("cleaner"):
+            entry["cleaner"] = " ".join(movement["cleaner"].split())
         by_holder.setdefault(it.get("holder_id") or "", []).append(entry)
 
     wanted = event_name_key(event or "")
