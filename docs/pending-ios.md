@@ -18,5 +18,6 @@ What the app does differently.
 - A stack's page can change the name of a family its share was sent home with.
 - Correcting a cleaner's name renames the whole share, and does nothing once the gear is back.
 - A recount's reason is optional.
+- An event's gear lists are in alphabetical order. Lists sorted by name put 2 before 10.
 
 ## Chores

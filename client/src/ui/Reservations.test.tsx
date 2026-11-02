@@ -512,3 +512,73 @@ test("when nothing linked, the page gives the reason instead (FR-RES-31)", async
   renderInShell(<ReservationPage store={store} id={fall} unlinked={stove} why="not signed in" />, () => T0);
   expect(screen.getByRole("alert")).toHaveTextContent(/^not signed in$/);
 });
+
+test("an event's gear lists are in alphabetical order by name, also under Not packed (FR-RES-37)", async () => {
+  const zebra = await act.createItem(store, { name: "Zebra tarp" });
+  const apple = await act.createItem(store, { name: "Apple press" });
+  const mango = await act.createItem(store, { name: "Mango stove" });
+  const pots = await act.createGeneric(store, { name: "Pots" });
+  const axes = await act.createGeneric(store, { name: "Axes" });
+  const order = await res.createReservation(store, {
+    event: "Order camp",
+    starts: "2026-11-02",
+    ends: "2026-11-04",
+    items: [zebra, apple, mango],
+    generics: [
+      { item_id: pots, quantity: 1 },
+      { item_id: axes, quantity: 2 },
+    ],
+  });
+  navigate(`/events/${order}`);
+  renderInShell(<ReservationPage store={store} id={order} />, () => T0);
+  const names = () => [...document.querySelectorAll(".items .item-name")].map((e) => e.textContent);
+  const generics = () => [...document.querySelectorAll(".names .name")].map((e) => e.textContent?.split(" — ")[0]);
+  expect(names()).toEqual(["Apple press", "Mango stove", "Zebra tarp"]);
+  expect(generics()).toEqual(["2 × Axes", "1 × Pots"]);
+
+  await mv.checkOut(store, mango, { event: "Order camp", reservation_id: order });
+  await user.click(await screen.findByRole("checkbox", { name: "Not packed" }));
+  expect(names()).toEqual(["Apple press", "Zebra tarp"]);
+  expect(generics()).toEqual(["2 × Axes", "1 × Pots"]);
+  expect(res.reservation(store.state, order)?.items).toEqual([zebra, apple, mango]);
+});
+
+test("units numbered 2 and 10 list 2 first on the event page, the edit form and the packing list (FR-RES-37)", async () => {
+  const tents = await act.createGeneric(store, { name: "Tent" });
+  const ten = await act.addUnit(store, tents, "10");
+  const two = await act.addUnit(store, tents, "2");
+  const pots = await act.createGeneric(store, { name: "Pots" });
+  const axes = await act.createGeneric(store, { name: "Axes" });
+  const order = await res.createReservation(store, {
+    event: "Number camp",
+    starts: "2026-11-02",
+    ends: "2026-11-04",
+    items: [ten, two],
+    generics: [
+      { item_id: pots, quantity: 1 },
+      { item_id: axes, quantity: 1 },
+    ],
+  });
+  expect(res.remaining(store.state, res.reservation(store.state, order)!).generics.map((g) => g.generic.name)).toEqual([
+    "Axes",
+    "Pots",
+  ]);
+
+  navigate(`/events/${order}`);
+  renderInShell(<ReservationPage store={store} id={order} />, () => T0);
+  expect([...document.querySelectorAll(".items .item-name")].map((e) => e.textContent)).toEqual([
+    "Tent #2",
+    "Tent #10",
+  ]);
+  cleanup();
+
+  navigate(`/events/${order}/edit`);
+  renderInShell(<ReservationForm store={store} id={order} />);
+  expect([...document.querySelectorAll(".names .name")].map((e) => e.textContent)).toEqual([
+    "Tent #2",
+    "Tent #10",
+    "Axes",
+    "Pots",
+  ]);
+  expect(res.reservation(store.state, order)?.items).toEqual([ten, two]);
+});

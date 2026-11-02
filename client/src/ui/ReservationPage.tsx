@@ -1,5 +1,5 @@
 import { Fragment, useState } from "react";
-import { displayName, homeLabel, isPool, type Item, item, nameOf, resolveItem } from "../lib/inventory";
+import { compareNames, displayName, homeLabel, isPool, type Item, item, nameOf, resolveItem } from "../lib/inventory";
 import {
   cancelReservation,
   checkOutPoolLine,
@@ -122,7 +122,9 @@ export function ReservationPage({
   const filtering = notPacked && !r.cancelled;
   // A line with no record on this device is not packed either, so it stays.
   const keep = (itemId: string) => unpacked.has(resolveItem(state, itemId)) || !state.item?.[itemId];
-  const items = filtering ? r.items.filter(keep) : r.items;
+  const items = [...(filtering ? r.items.filter(keep) : r.items)].sort((a, b) =>
+    compareNames(nameOf(state, a), nameOf(state, b)),
+  );
   const generics = filtering ? rem.generics.filter((g) => g.done < g.quantity) : rem.generics;
   const addedBy = addedByLabel(state, r);
   // Still out and not packing this camp: linking failed, and It's with us is the way to retry.
@@ -200,7 +202,7 @@ export function ReservationPage({
               <Fragment key={itemId}>
                 <li className={claim ? "with-action" : undefined}>
                   <button className="item" type="button" onClick={() => navigate(`/items/${itemId}`)}>
-                    <span className="item-name">{it ? displayName(state, it) : "(unknown item)"}</span>
+                    <span className="item-name">{nameOf(state, itemId)}</span>
                     {it && (
                       <span className="muted small">
                         {[packMark(itemId), homeLabel(state, it), statusLabel(state, it)].filter(Boolean).join(" · ")}

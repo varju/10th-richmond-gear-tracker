@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import type { EventSuggestion } from "../lib/calendar";
-import { homeLabel, nameOf, rows, type Row } from "../lib/inventory";
+import { compareNames, homeLabel, nameOf, rows, type Row } from "../lib/inventory";
 import {
   conflicts,
   createReservation,
@@ -161,49 +161,53 @@ export function ReservationForm({ store, id, from }: Props) {
       <h3 className="section">Gear</h3>
       {values.items.length === 0 && values.generics.length === 0 && <p className="muted">Nothing added yet.</p>}
       <ul className="names">
-        {values.items.map((itemId) => {
-          const note = near[itemId];
-          return (
-            <Fragment key={itemId}>
-              <li className="row">
-                <span className="name">{nameOf(state, itemId)}</span>
-                <button
-                  className="small"
-                  type="button"
-                  onClick={() => set({ items: values.items.filter((x) => x !== itemId) })}
-                  aria-label={`Remove ${nameOf(state, itemId)}`}
-                >
-                  Remove
-                </button>
-              </li>
-              {note && <li className="near">{nearbyLabel(note)}</li>}
-            </Fragment>
-          );
-        })}
-        {values.generics.map((g) => {
-          const note = near[g.item_id];
-          return (
-            <Fragment key={g.item_id}>
-              <li className="row">
-                <span className="name">{nameOf(state, g.item_id)}</span>
-                <QuantityField
-                  value={g.quantity}
-                  onChange={(n) => setQuantity(g.item_id, n)}
-                  label={`How many ${nameOf(state, g.item_id)}`}
-                />
-                <button
-                  className="small"
-                  type="button"
-                  onClick={() => set({ generics: values.generics.filter((x) => x.item_id !== g.item_id) })}
-                  aria-label={`Remove ${nameOf(state, g.item_id)}`}
-                >
-                  Remove
-                </button>
-              </li>
-              {note && <li className="near">{nearbyLabel(note)}</li>}
-            </Fragment>
-          );
-        })}
+        {[...values.items]
+          .sort((a, b) => compareNames(nameOf(state, a), nameOf(state, b)))
+          .map((itemId) => {
+            const note = near[itemId];
+            return (
+              <Fragment key={itemId}>
+                <li className="row">
+                  <span className="name">{nameOf(state, itemId)}</span>
+                  <button
+                    className="small"
+                    type="button"
+                    onClick={() => set({ items: values.items.filter((x) => x !== itemId) })}
+                    aria-label={`Remove ${nameOf(state, itemId)}`}
+                  >
+                    Remove
+                  </button>
+                </li>
+                {note && <li className="near">{nearbyLabel(note)}</li>}
+              </Fragment>
+            );
+          })}
+        {[...values.generics]
+          .sort((a, b) => compareNames(nameOf(state, a.item_id), nameOf(state, b.item_id)))
+          .map((g) => {
+            const note = near[g.item_id];
+            return (
+              <Fragment key={g.item_id}>
+                <li className="row">
+                  <span className="name">{nameOf(state, g.item_id)}</span>
+                  <QuantityField
+                    value={g.quantity}
+                    onChange={(n) => setQuantity(g.item_id, n)}
+                    label={`How many ${nameOf(state, g.item_id)}`}
+                  />
+                  <button
+                    className="small"
+                    type="button"
+                    onClick={() => set({ generics: values.generics.filter((x) => x.item_id !== g.item_id) })}
+                    aria-label={`Remove ${nameOf(state, g.item_id)}`}
+                  >
+                    Remove
+                  </button>
+                </li>
+                {note && <li className="near">{nearbyLabel(note)}</li>}
+              </Fragment>
+            );
+          })}
       </ul>
     </>
   );

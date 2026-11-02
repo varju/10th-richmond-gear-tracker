@@ -290,9 +290,12 @@ export const nameOf = (state: State, id: string | null | undefined): string => {
   return it ? displayName(state, it) : "(unknown item)";
 };
 
+/** Names in order, with numbers by value: "#2" before "#10". */
+export const compareNames = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
+
 /** Sort by the name on screen. */
 export const byName = (state: State) => (a: Item, b: Item) =>
-  displayName(state, a).localeCompare(displayName(state, b));
+  compareNames(displayName(state, a), displayName(state, b));
 
 /**
  * What to offer on a new unit, editable before it is saved (FR-INV-23): one

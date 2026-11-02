@@ -10,6 +10,8 @@
  * loses nothing.
  */
 import {
+  byName,
+  compareNames,
   displayName,
   homeLabel,
   isPool,
@@ -260,9 +262,7 @@ const namedItems = (state: State, r: ReservationInput): string[] =>
 
 /** What is still to pack. Derived from state alone: a scan anywhere ticks it here after sync. */
 export function remaining(state: State, r: Reservation): Remaining {
-  const byHome = (a: Item, b: Item) =>
-    homeLabel(state, a).localeCompare(homeLabel(state, b)) ||
-    displayName(state, a).localeCompare(displayName(state, b));
+  const byHome = (a: Item, b: Item) => homeLabel(state, a).localeCompare(homeLabel(state, b)) || byName(state)(a, b);
   const named = namedItems(state, r)
     .map((id) => (state.item?.[id] ? ({ id, ...state.item[id] } as Item) : undefined))
     .filter((it): it is Item => it !== undefined)
@@ -282,7 +282,7 @@ export function remaining(state: State, r: Reservation): Remaining {
     return { generic, quantity: g.quantity, done: Math.min(done, g.quantity) };
   });
 
-  return { items: left, packed, generics };
+  return { items: left, packed, generics: generics.sort((a, b) => byName(state)(a.generic, b.generic)) };
 }
 
 export const isPacked = (rem: Remaining): boolean =>
@@ -450,7 +450,7 @@ export function outElsewhere(state: State, r: Reservation): Item[] {
           !named.has(it.id) &&
           it.movement?.reservation_id !== r.id,
     )
-    .sort((a, b) => displayName(state, a).localeCompare(displayName(state, b)));
+    .sort(byName(state));
 }
 
 /**
@@ -581,8 +581,8 @@ function batches(store: Store): Batch[] {
       }
     }
     for (const b of found) {
-      b.items.sort((x, y) => displayName(state, x).localeCompare(displayName(state, y)));
-      b.pools.sort((x, y) => displayName(state, x.item).localeCompare(displayName(state, y.item)));
+      b.items.sort((x, y) => compareNames(displayName(state, x), displayName(state, y)));
+      b.pools.sort((x, y) => compareNames(displayName(state, x.item), displayName(state, y.item)));
     }
     return found;
   });

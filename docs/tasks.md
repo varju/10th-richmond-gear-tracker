@@ -53,8 +53,6 @@ changelog.
       spot forgotten gear. Needs a requirement and an MCP tool in `assistant.py`.
 - [ ] "Enter QR code manually" shows the internal ID, which is not printed on the sticker. Ask for what the sticker
       shows, or drop the ID from the screen. Check what is printed first.
-- [ ] Event item list looks randomly ordered, probably by check-out order. Default to alphabetical. Check-out order may
-      be worth keeping as a sort option.
 - [ ] Desktop edition: From the Inventory listing, middle-clicking on an item should open it in a new window.
 - [ ] Navigation bug: Events > Check-outs have no event: Change > Back. Should return to Events screen, but returns to
       All Items screen.
@@ -65,3 +63,4 @@ changelog.
 - [ ] Generics render differently in All Items view than Countables. Countables have their in/out under Status, while
       Generics use an inconsistent method of counting. Make Generics render the same, using in/out instead of units/in,
       in the Status column. Put the collapse/expand arrow somewhere more subtle, in the main row.
+- [ ] Event gear list: offer check-out order as a sort option, if people miss it.
