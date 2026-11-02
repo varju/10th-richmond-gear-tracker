@@ -28,3 +28,35 @@ changelog.
 - [ ] Edit item > We have several > Give count immediately?
 - [ ] How can we easily mark items as given to parents to take home and clean, when parents don't have their own
       accounts?
+
+## User testing feedback
+
+- [ ] Adding a unit: offer to assign a QR code straight away. It is the likely next step and costs too many clicks now.
+- [ ] Check-out gives too little confirmation. A user did not realise the item was already checked out.
+- [ ] Some saves ask for more confirmation than they need, for example converting an item to a generic. Review which
+      saves confirm and make them consistent.
+- [ ] iPhone check-out: after picking an event, changing it does not show the autocomplete until the page is scrolled
+      sideways.
+- [ ] Scanning an unknown code: the emphasised "another of" button confuses users. De-emphasise it or reword it.
+- [ ] Recount: make the reason optional. Users enter rough counts from home, then correct them quickly when counting for
+      real.
+- [ ] An event created during check-out should be a real event, the same as a precreated reservation. No "Add" step
+      afterwards.
+- [ ] Back button revisits screens already seen. Example: add a generic item, add an instance, add a QR code. Back shows
+      the instance twice before the generic.
+- [ ] Generics: allow adding another instance while viewing an existing instance.
+- [ ] Add a duplicate-item button that opens an editable copy before saving, for items that differ only slightly (a
+      title, say).
+- [ ] Consumables, for example propane tanks that are refilled. An item can have an optional empty (base) weight.
+      Check-in asks for the current weight and infers the amount left. "Unknown" must be allowed when there is no scale.
+      Needs a requirement and an MCP tool in `assistant.py`.
+- [ ] "What did I miss compared to event X?" Compare what is checked out for the current event with a previous event, to
+      spot forgotten gear. Needs a requirement and an MCP tool in `assistant.py`.
+- [ ] "Enter QR code manually" shows the internal ID, which is not printed on the sticker. Ask for what the sticker
+      shows, or drop the ID from the screen. Check what is printed first.
+- [ ] Event item list looks randomly ordered, probably by check-out order. Default to alphabetical. Check-out order may
+      be worth keeping as a sort option.
+- [ ] Desktop edition: From the Inventory listing, middle-clicking on an item should open it in a new window.
+- [ ] Navigation bug: Events > Check-outs have no event: Change > Back. Should return to Events screen, but returns to
+      All Items screen.
+- [ ] When creating a generic item, if I say we have several I should be able to indicate the count we have.
