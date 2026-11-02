@@ -1883,6 +1883,7 @@ def test_cleaned_gear_comes_back_to_the_scouter(tools, pool_id):
     assistant.back_from_cleaning(tools["t1"])
     unit = assistant.get_item(tools["t1"])
     assert unit["holder"] == "Alice" and "cleaner" not in unit
+    assert unit["history"][0]["type"] == "cleaning_ended"
     assert assistant.whats_out()["holders"][0]["items"][0].get("cleaner") is None
 
     assistant.check_out(pool_id, count=4, cleaner="Smith")

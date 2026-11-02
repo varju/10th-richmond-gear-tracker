@@ -182,6 +182,7 @@ export async function checkInPool(store: Store, itemId: string, options: PoolChe
 }
 
 export interface BackFromCleaning {
+  note?: string;
   /** A pool only: whose share, how many, and which Scouter's it was. */
   cleaner?: string;
   count?: number;
@@ -213,7 +214,7 @@ export async function backFromCleaning(store: Store, itemId: string, options: Ba
   } else if (it.status !== "out" || !it.movement?.cleaner) {
     throw new Error("not out for cleaning");
   }
-  return move(store, itemId, "cleaning_ended", payload);
+  return move(store, itemId, "cleaning_ended", payload, options.note);
 }
 
 /** How many are in right now, with a reason (FR-INV-35). What is already out is untouched; anyone signed in may record one. */
@@ -436,7 +437,7 @@ const sameKey = (name: string | null | undefined) => eventNameKey(name ?? "");
 
 export interface HistoryEntry {
   id: string;
-  type: "checked_out" | "checked_in" | "recounted";
+  type: "checked_out" | "checked_in" | "recounted" | "cleaning_ended";
   actor_id: string;
   holder_id: string | null;
   event: string | null;
@@ -468,7 +469,10 @@ export function history(log: Log, itemId: string): HistoryEntry[] {
     if (e.type === "cleaner_corrected") renamed.set(e.payload.movement_id as string, e.payload.cleaner as string);
   }
   return events
-    .filter((e) => e.type === "checked_out" || e.type === "checked_in" || e.type === "recounted")
+    .filter(
+      (e) =>
+        e.type === "checked_out" || e.type === "checked_in" || e.type === "recounted" || e.type === "cleaning_ended",
+    )
     .map((e) => ({
       id: e.id,
       type: e.type as HistoryEntry["type"],

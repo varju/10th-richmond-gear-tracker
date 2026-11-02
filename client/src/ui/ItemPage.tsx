@@ -659,6 +659,11 @@ export function describeMovement(state: State, e: HistoryEntry): string {
   const when = localMinute(e.at);
   // A pool's lines carry a count instead of the whole item (FR-INV-34, FR-INV-35).
   if (e.type === "recounted") return `Recounted to ${e.count} by ${who}: ${e.reason} · ${when}`;
+  if (e.type === "cleaning_ended") {
+    return `Back from ${e.cleaner ? e.cleaner : "cleaning"}${
+      e.count != null ? ` · ${e.count}` : ""
+    } by ${who} · ${when}`;
+  }
   if (e.count != null) {
     if (e.type === "checked_in") {
       return `Returned ${e.count}${e.cleaner ? ` from ${e.cleaner}` : ""} by ${who} · ${when}`;
@@ -670,7 +675,7 @@ export function describeMovement(state: State, e: HistoryEntry): string {
   }
   if (e.type === "checked_in") return `Returned by ${who} · ${when}`;
   const forEvent = e.event ? ` for ${e.event}` : "";
-  if (e.cleaner) return `Sent home with ${e.cleaner} by ${who} · ${when}`;
+  if (e.cleaner && !e.supersedes) return `Sent home with ${e.cleaner} by ${who} · ${when}`;
   if (e.supersedes) {
     // A transfer to another member names them, and who handed it over (FR-OUT-26).
     const handed = e.holder_id !== null && e.holder_id !== e.actor_id;

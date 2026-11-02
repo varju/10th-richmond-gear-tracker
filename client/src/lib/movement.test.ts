@@ -353,3 +353,11 @@ test("part of a family's share of a stack comes back; the counts do not move (FR
     ["Jones", 2],
   ]);
 });
+
+test("cleaning ending shows in the history and carries a note (FR-OUT-51)", async () => {
+  await mv.checkOut(store, tent, { cleaner: "Smith" });
+  await mv.backFromCleaning(store, tent, { note: "zip stiff" });
+  const [latest] = mv.history(store, tent);
+  expect(latest?.type).toBe("cleaning_ended");
+  expect(latest?.notes.map((n) => n.text)).toEqual(["zip stiff"]);
+});

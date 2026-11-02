@@ -154,7 +154,10 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
 
   const checkOutMove: Pending = { kind: "Checked out", act: (o) => checkOut(store, it.id, o) };
   const returnMove: Pending = { kind: "Returned", act: (o) => checkIn(store, it.id, o) };
-  const backMove: Pending = { kind: "Back from cleaning", act: () => backFromCleaning(store, it.id) };
+  const backMove: Pending = {
+    kind: "Back from cleaning",
+    act: (o) => backFromCleaning(store, it.id, { note: o.note }),
+  };
   const takeOver: Pending = { kind: "Transferred", act: (o) => transfer(store, it.id, o) };
   const handTo = (to: string): Pending => ({
     kind: "Transferred",

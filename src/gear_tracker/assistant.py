@@ -392,7 +392,8 @@ def _history(conn: sqlite3.Connection, state: dict[str, Any], item_id: str) -> l
     rows = conn.execute(
         f"""
         SELECT * FROM events
-        WHERE entity_type = 'item' AND entity_id IN ({marks}) AND type IN ('checked_out', 'checked_in', 'recounted')
+        WHERE entity_type = 'item' AND entity_id IN ({marks})
+        AND type IN ('checked_out', 'checked_in', 'recounted', 'cleaning_ended')
         ORDER BY effective_at DESC, device_id DESC, device_seq DESC LIMIT ?
         """,
         (*ids, HISTORY_SHOWN),
@@ -1912,7 +1913,7 @@ def back_from_cleaning(
                 raise BadRequest(f"no one named {cleaner.strip()} has any of it under that Scouter")
             if count is not None and count > have:
                 raise BadRequest(f"{cleaner.strip()} has only {have}")
-            payload = {"cleaner": cleaner.strip(), "count": count or have}
+            payload = {"cleaner": cleaner.strip(), "count": have if count is None else count}
             if holder != who.user_id:
                 payload["holder_id"] = holder
         else:
