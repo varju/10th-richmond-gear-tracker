@@ -327,7 +327,7 @@ export function ItemPage({ store, id }: Props) {
                 </dd>
               </>
             )}
-            {it.status === "out" && it.movement && !it.movement.cleaner && (
+            {it.status === "out" && it.movement && (
               <>
                 <dt>Event</dt>
                 <dd>
@@ -668,14 +668,15 @@ export function describeMovement(state: State, e: HistoryEntry): string {
     if (e.type === "checked_in") {
       return `Returned ${e.count}${e.cleaner ? ` from ${e.cleaner}` : ""} by ${who} · ${when}`;
     }
-    if (e.cleaner) return `Sent home ${e.count} with ${e.cleaner} by ${who} · ${when}`;
+    if (e.cleaner)
+      return `Sent home ${e.count} with ${e.cleaner} by ${who}${e.event ? ` for ${e.event}` : ""} · ${when}`;
     return e.event
       ? `Checked out ${e.count} by ${who} for ${e.event} · ${when}`
       : `Checked out ${e.count} by ${who} · ${when}`;
   }
   if (e.type === "checked_in") return `Returned by ${who} · ${when}`;
   const forEvent = e.event ? ` for ${e.event}` : "";
-  if (e.cleaner && !e.supersedes) return `Sent home with ${e.cleaner} by ${who} · ${when}`;
+  if (e.cleaner && !e.supersedes) return `Sent home with ${e.cleaner} by ${who}${forEvent} · ${when}`;
   if (e.supersedes) {
     // A transfer to another member names them, and who handed it over (FR-OUT-26).
     const handed = e.holder_id !== null && e.holder_id !== e.actor_id;
@@ -1524,7 +1525,7 @@ export function PoolActions({
   const { askThen, question } = useEventQuestion(store, session);
   const state = store.state;
   const me = store.meta.user?.id;
-  const event = mode === "out" ? recorded.event : undefined;
+  const event = mode === "out" || mode === "home" ? recorded.event : undefined;
   const counts = poolCounts(it);
   const mine = counts.out.find((o) => o.holder_id === me)?.count ?? 0;
   // Return needs a holder to pick from only when there is a real choice to make (FR-OUT-23):
@@ -1541,10 +1542,10 @@ export function PoolActions({
   };
 
   function begin(next: "out" | "in" | "recount" | "home" | "back") {
-    if (next === "out")
+    if (next === "out" || next === "home")
       askThen((s) => {
         setRecorded(s);
-        open("out");
+        open(next);
       });
     else open(next);
   }
@@ -1607,7 +1608,13 @@ export function PoolActions({
           packing: session !== undefined,
         });
       } else if (mode === "home") {
-        await checkOutPool(store, it.id, { count: amount, cleaner });
+        await checkOutPool(store, it.id, {
+          count: amount,
+          cleaner,
+          event: recorded.event,
+          reservation_id: recorded.reservation_id,
+          packing: session !== undefined,
+        });
       } else if (mode === "back") {
         await backFromCleaning(store, it.id, {
           cleaner: homeShare?.cleaner,
@@ -1733,7 +1740,9 @@ export function PoolActions({
           />
         </label>
       )}
-      {mode === "out" && <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>}
+      {(mode === "out" || mode === "home") && (
+        <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>
+      )}
       {(mode === "out" || mode === "home") && counts.in > 1 && (
         <div className="row">
           <button type="button" disabled={busy} onClick={() => void submit(counts.in)}>

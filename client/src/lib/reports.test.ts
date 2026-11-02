@@ -273,3 +273,9 @@ test("gear at home for cleaning lists its cleaner, one line per family for a sta
   );
   expect(rows).toHaveLength(4);
 });
+
+test("a line out for cleaning still names its event (FR-OUT-46)", () => {
+  expect(outFor({ event: "Rainbucket", cleaner: "Smith" })).toBe("Rainbucket · Cleaning with Smith");
+  expect(outFor({ event: "Rainbucket" })).toBe("Rainbucket");
+  expect(outFor({ event: null })).toBe("");
+});

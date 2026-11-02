@@ -1597,8 +1597,8 @@ def check_out(
 ) -> dict[str, Any]:
     """Take an item out, without a scan (FR-OUT-02). The holder is you; `event` is what it is going to.
 
-    `cleaner` names the person taking it home to clean (FR-OUT-46); you stay the holder. It goes with
-    neither an event nor a reservation. For a pool, send each family's share as its own check-out.
+    `cleaner` names the person taking it home to clean (FR-OUT-46); you stay the holder, and `event`
+    is what it is for, as in any check-out. For a pool, send each family's share as its own check-out.
 
     A pool (FR-INV-34) needs `count`; anything else refuses one (FR-MCP-08). Taking more than are
     in a pool warns, and is never blocked (FR-OUT-22). `reservation_id` says this packs that
@@ -1625,8 +1625,6 @@ def check_out(
                 raise BadRequest("retired or merged items cannot be sent home")
             if not cleaner.strip():
                 raise BadRequest("say who is taking it home")
-            if (event or "").strip() or reservation_id:
-                raise BadRequest("gear sent home to clean has no event or reservation")
         movement_id = new_ulid()
         payload: dict[str, Any] = {
             "holder_id": who.user_id,
@@ -1747,8 +1745,8 @@ def transfer(
     """Move an item that is out to a new holder without it coming back first: to you when `to_user_id` is
     left out (take over, FR-OUT-12), or to another active member (FR-OUT-26); list_members has their ids.
     `event` is what it is going to now. It names the check-out it replaces, so it is not a conflict.
-    `cleaner` sends gear that is out home with that person to clean (FR-OUT-46): its holder stays the
-    holder, and it takes no other argument."""
+    `cleaner` sends gear that is out home with that person to clean (FR-OUT-46): its holder and event
+    stay, so it takes no `to_user_id`, `event` or `reservation_id`."""
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)
@@ -1765,7 +1763,13 @@ def transfer(
                 raise Conflict("already at a cleaner's home")
             movement_id = new_ulid()
             holder = it.get("holder_id") or who.user_id
-            payload = {"holder_id": holder, "supersedes": it["movement"]["id"], "cleaner": cleaner.strip()}
+            payload = {
+                "holder_id": holder,
+                "event": it["movement"].get("event"),
+                "reservation_id": it["movement"].get("reservation_id"),
+                "supersedes": it["movement"]["id"],
+                "cleaner": cleaner.strip(),
+            }
             drafts = [_draft("item", it["id"], "checked_out", payload, movement_id)]
             if note and note.strip():
                 drafts.append(
@@ -1794,7 +1798,13 @@ def transfer(
         }
         if previous.get("cleaner"):
             # Still at the cleaner's home; only the Scouter answerable for it changes (FR-OUT-46).
-            payload = {"holder_id": to, "supersedes": previous["id"], "cleaner": previous["cleaner"]}
+            payload = {
+                "holder_id": to,
+                "event": previous.get("event"),
+                "reservation_id": previous.get("reservation_id"),
+                "supersedes": previous["id"],
+                "cleaner": previous["cleaner"],
+            }
         drafts = [_draft("item", it["id"], "checked_out", payload, movement_id)]
         if note and note.strip():
             drafts.append(_draft("item", it["id"], "note_added", {"text": note.strip(), "movement_id": movement_id}))

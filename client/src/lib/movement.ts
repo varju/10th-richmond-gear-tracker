@@ -23,7 +23,7 @@ export interface MoveOptions {
   note?: string;
   /** Made while packing a reservation, so it leaves the plain session's clock alone (FR-RES-25). */
   packing?: boolean;
-  /** Sent home to be cleaned by this person (FR-OUT-46). Required to be a name; no event, no session. */
+  /** Sent home to be cleaned by this person (FR-OUT-46). Required to be a name. */
   cleaner?: string;
 }
 
@@ -83,16 +83,17 @@ export async function checkOut(store: Store, itemId: string, options: MoveOption
   if (it.merged_into) throw new Error("merged into another item");
   if (it.status === "out") throw new Error("already out; transfer it instead");
   const cleaner = cleanerName(options);
-  if (cleaner) {
-    // Sent home: the Scouter stays the holder, and the session's event is left alone (FR-OUT-46).
-    return move(store, itemId, "checked_out", { holder_id: actor(store), cleaner }, options.note);
-  }
   const link = planned(store, options);
   const movement = await move(
     store,
     itemId,
     "checked_out",
-    { holder_id: actor(store), event: options.event?.trim() || null, reservation_id: link.id },
+    {
+      holder_id: actor(store),
+      event: options.event?.trim() || null,
+      reservation_id: link.id,
+      ...(cleaner && { cleaner }),
+    },
     options.note,
     options.packing ? undefined : { event: options.event?.trim() || null },
   );
@@ -140,9 +141,6 @@ export async function checkOutPool(store: Store, itemId: string, options: PoolCh
   if (it.retired) throw new Error("retired items cannot be checked out");
   if (!Number.isInteger(options.count) || options.count < 1) throw new Error("pick a count of at least 1");
   const cleaner = cleanerName(options);
-  if (cleaner) {
-    return move(store, itemId, "checked_out", { holder_id: actor(store), count: options.count, cleaner }, options.note);
-  }
   const link = planned(store, options);
   const movement = await move(
     store,
@@ -153,6 +151,7 @@ export async function checkOutPool(store: Store, itemId: string, options: PoolCh
       count: options.count,
       event: options.event?.trim() || null,
       reservation_id: link.id,
+      ...(cleaner && { cleaner }),
     },
     options.note,
     options.packing ? undefined : { event: options.event?.trim() || null },
@@ -246,31 +245,29 @@ export async function transfer(store: Store, itemId: string, options: TransferOp
   const previous = it.movement as Movement | undefined;
   if (it.status !== "out" || !previous) throw new Error("not out; check it out instead");
   const sentHome = cleanerName(options);
-  if (sentHome) {
-    if (previous.cleaner) throw new Error("already at a cleaner's home");
-    if (options.to) throw new Error("sending gear home does not change who holds it");
+  if (sentHome && previous.cleaner) throw new Error("already at a cleaner's home");
+  if (sentHome && options.to) throw new Error("sending gear home does not change who holds it");
+  const cleaner = sentHome ?? previous.cleaner;
+  if (!sentHome && (options.to ?? actor(store)) === it.holder_id) throw new Error("they already have it");
+  if (cleaner) {
+    // At a cleaner's home it is still the event's gear (FR-OUT-46): event and reservation carry over.
     return move(
       store,
       itemId,
       "checked_out",
-      { holder_id: it.holder_id ?? actor(store), supersedes: previous.id, cleaner: sentHome },
+      {
+        holder_id: sentHome ? it.holder_id ?? actor(store) : options.to ?? actor(store),
+        event: previous.event ?? null,
+        reservation_id: previous.reservation_id ?? null,
+        supersedes: previous.id,
+        cleaner,
+      },
       options.note,
       options.packing ? undefined : {},
     );
   }
   const to = options.to ?? actor(store);
   if (to === it.holder_id) throw new Error("they already have it");
-  if (previous.cleaner) {
-    // Still at the cleaner's home; only the Scouter answerable for it changes (FR-OUT-46).
-    return move(
-      store,
-      itemId,
-      "checked_out",
-      { holder_id: to, supersedes: previous.id, cleaner: previous.cleaner },
-      options.note,
-      options.packing ? undefined : {},
-    );
-  }
   const link = planned(store, options);
   const movement = await move(
     store,

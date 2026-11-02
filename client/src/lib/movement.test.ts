@@ -271,13 +271,10 @@ test("setting the event trims it, and a change leaves earlier moves under theirs
   expect(item(store.state, tent)?.movement).toMatchObject({ event: "Spring camp" });
 });
 
-test("a single item sent home names its cleaner, asks no event, and leaves the session alone (FR-OUT-46)", async () => {
-  await setSessionEvent(store, "Spring camp");
-  const at = store.meta.session_event_at;
-  const out = await mv.checkOut(store, tent, { cleaner: " Smith family " });
-  expect(out.payload).toEqual({ holder_id: "alice", cleaner: "Smith family" });
+test("a single item sent home names its cleaner and keeps its event (FR-OUT-46)", async () => {
+  const out = await mv.checkOut(store, tent, { event: "Spring camp", cleaner: " Smith family " });
+  expect(out.payload).toMatchObject({ holder_id: "alice", event: "Spring camp", cleaner: "Smith family" });
   expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice" });
-  expect(store.meta.session_event_at).toBe(at);
 
   await expect(mv.checkOut(store, await act.createItem(store, { name: "Tent 2" }), { cleaner: "  " })).rejects.toThrow(
     "say who",
@@ -365,8 +362,16 @@ test("cleaning ending shows in the history and carries a note (FR-OUT-51)", asyn
 test("gear already out can be sent home, keeping the Scouter as holder (FR-OUT-46)", async () => {
   await mv.checkOut(store, tent, { event: "Camp" });
   const sent = await mv.transfer(store, tent, { cleaner: " Smith family " });
-  expect(sent.payload).toMatchObject({ holder_id: "alice", cleaner: "Smith family" });
+  expect(sent.payload).toMatchObject({ holder_id: "alice", event: "Camp", cleaner: "Smith family" });
+  expect(item(store.state, tent)?.movement?.event).toBe("Camp");
   expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice" });
   expect(item(store.state, tent)?.movement?.cleaner).toBe("Smith family");
   await expect(mv.transfer(store, tent, { cleaner: "Jones" })).rejects.toThrow("already at a cleaner");
+});
+
+test("handing gear at a cleaner's home to another Scouter keeps its event and cleaner (FR-OUT-46)", async () => {
+  await mv.checkOut(store, tent, { event: "Camp" });
+  await mv.transfer(store, tent, { cleaner: "Smith" });
+  const moved = await mv.transfer(store, tent, { to: "bob" });
+  expect(moved.payload).toMatchObject({ holder_id: "bob", event: "Camp", cleaner: "Smith" });
 });

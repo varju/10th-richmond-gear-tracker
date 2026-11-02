@@ -477,13 +477,13 @@ actor is still the person who tapped. Gear handed to someone without an account 
 holder field that would need its own list of people.
 
 Gear sent home to be cleaned (FR-OUT-46) is a `checked_out` with a `cleaner`, a name as typed; for gear already out it
-names the check-out it replaces with `supersedes`. The holder is still the Scouter, the event and reservation are empty,
-and the session is left alone. There is no list of cleaners: the suggestions (FR-OUT-48) are the distinct names on this
-device's `checked_out` events, as `cleaner_corrected` now reads them, so every Scouter's names arrive with sync and age
-out with the 90-day window. `cleaner_corrected {movement_id, cleaner}` renames one check-out, appended as
-`event_corrected` is (FR-OUT-50). `cleaning_ended {cleaner?, count?, holder_id?}` is cleaned gear back with its Scouter
-(FR-OUT-51): a single item's movement loses its `cleaner`; a pool's `count` of that holder's lots under `cleaner` lose
-theirs, splitting a lot when only part comes back. Counts and holders do not change.
+names the check-out it replaces with `supersedes`. The holder, event and reservation stay as they were: it is still the
+event's gear. There is no list of cleaners: the suggestions (FR-OUT-48) are the distinct names on this device's
+`checked_out` events, as `cleaner_corrected` now reads them, so every Scouter's names arrive with sync and age out with
+the 90-day window. `cleaner_corrected {movement_id, cleaner}` renames one check-out, appended as `event_corrected` is
+(FR-OUT-50). `cleaning_ended {cleaner?, count?, holder_id?}` is cleaned gear back with its Scouter (FR-OUT-51): a single
+item's movement loses its `cleaner`; a pool's `count` of that holder's lots under `cleaner` lose theirs, splitting a lot
+when only part comes back. Counts and holders do not change.
 
 A pool's lot carries the `cleaner`. A `checked_in` may name one, and replay then takes the count from that cleaner's
 lots first, oldest first. What is left, and any return that names nobody, comes off the part no lot explains, then the

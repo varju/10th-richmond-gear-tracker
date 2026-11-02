@@ -1832,8 +1832,6 @@ def test_an_oversized_photo_is_refused_before_it_is_decoded(tools):
 def test_a_single_item_goes_home_to_clean_and_the_name_is_corrected(tools):
     with pytest.raises(BadRequest):
         assistant.check_out(tools["t1"], cleaner="  ")
-    with pytest.raises(BadRequest):
-        assistant.check_out(tools["t1"], cleaner="Smith", event="Fall Camp")
 
     assistant.check_out(tools["t1"], cleaner=" Smith family ")
     unit = assistant.get_item(tools["t1"])
@@ -1921,6 +1919,7 @@ def test_gear_that_is_out_is_sent_home_with_a_transfer(tools):
     assistant.transfer(tools["t1"], cleaner=" Smith family ", note="clean the fly")
     unit = assistant.get_item(tools["t1"])
     assert unit["holder"] == "Alice" and unit["cleaner"] == "Smith family"
+    assert unit["event"] == "Fall Camp"
     with pytest.raises(Conflict):
         assistant.transfer(tools["t1"], cleaner="Jones")
 
