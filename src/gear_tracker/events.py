@@ -171,11 +171,13 @@ class CleaningEnded(Payload):
 
 class CleaningStarted(Payload):
     """`count` of a holder's pool lots go home with `cleaner` (FR-OUT-46). `holder_id` defaults to the actor.
-    The holder, event and reservation stay. Single items go home with a check-out that supersedes theirs."""
+    A single item that is out names no count but the check-out it goes home from (`movement_id`), so a send-home
+    that arrives after the gear came back and went out again is ignored. The holder, event and reservation stay."""
 
     cleaner: Annotated[str, AfterValidator(_trimmed_name)]
-    count: Annotated[int, Field(ge=1)]
+    count: Annotated[int, Field(ge=1)] | None = None
     holder_id: NonEmpty | None = None
+    movement_id: Ulid | None = None
 
 
 class CheckOut(Payload):

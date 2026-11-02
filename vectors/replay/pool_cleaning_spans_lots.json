@@ -1,0 +1,167 @@
+{
+  "name": "one send-home takes lots from several check-outs; lot ids stay unique and one correction renames every lot of it (FR-OUT-46, FR-OUT-50)",
+  "events": [
+    {
+      "id": "00000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "bags",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "name": "Sleeping bags",
+        "generic": true,
+        "pool": true,
+        "quantity": 20
+      }
+    },
+    {
+      "id": "00000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "bags",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": {
+        "holder_id": "alice",
+        "count": 2,
+        "event": "Camp",
+        "reservation_id": "00000000000000000000000009"
+      }
+    },
+    {
+      "id": "00000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "bags",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 2100,
+      "payload": {
+        "holder_id": "alice",
+        "count": 2,
+        "event": "Camp",
+        "reservation_id": "00000000000000000000000009"
+      }
+    },
+    {
+      "id": "00000000000000000000000004",
+      "entity_type": "item",
+      "entity_id": "bags",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 2200,
+      "payload": {
+        "holder_id": "alice",
+        "count": 3,
+        "event": "Camp",
+        "reservation_id": "00000000000000000000000009"
+      }
+    },
+    {
+      "id": "00000000000000000000000005",
+      "entity_type": "item",
+      "entity_id": "bags",
+      "type": "cleaning_started",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 5,
+      "effective_at": 3000,
+      "payload": {
+        "cleaner": "Smth",
+        "count": 5
+      }
+    },
+    {
+      "id": "00000000000000000000000006",
+      "entity_type": "item",
+      "entity_id": "bags",
+      "type": "cleaner_corrected",
+      "actor_id": "bob",
+      "device_id": "b",
+      "device_seq": 6,
+      "effective_at": 4000,
+      "payload": {
+        "movement_id": "00000000000000000000000005",
+        "cleaner": "Smith"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "bags": {
+        "name": "Sleeping bags",
+        "generic": true,
+        "pool": true,
+        "quantity": 20,
+        "added_at": 1000,
+        "modified_at": 1000,
+        "status": "in",
+        "holder_id": null,
+        "pool_in": 13,
+        "pool_out": {
+          "alice": 7
+        },
+        "pool_reservations": {
+          "00000000000000000000000009": 7
+        },
+        "pool_lots": {
+          "alice": [
+            {
+              "id": "00000000000000000000000002",
+              "count": 2,
+              "event": "Camp",
+              "reservation_id": "00000000000000000000000009",
+              "at": 2000,
+              "cleaner": "Smith",
+              "cleaning_id": "00000000000000000000000005"
+            },
+            {
+              "id": "00000000000000000000000003",
+              "count": 2,
+              "event": "Camp",
+              "reservation_id": "00000000000000000000000009",
+              "at": 2100,
+              "cleaner": "Smith",
+              "cleaning_id": "00000000000000000000000005"
+            },
+            {
+              "id": "00000000000000000000000004",
+              "count": 2,
+              "event": "Camp",
+              "reservation_id": "00000000000000000000000009",
+              "at": 2200
+            },
+            {
+              "id": "00000000000000000000000005",
+              "count": 1,
+              "event": "Camp",
+              "reservation_id": "00000000000000000000000009",
+              "at": 2200,
+              "cleaner": "Smith",
+              "cleaning_id": "00000000000000000000000005"
+            }
+          ]
+        },
+        "movement": {
+          "id": "00000000000000000000000004",
+          "type": "checked_out",
+          "holder_id": "alice",
+          "event": "Camp",
+          "reservation_id": "00000000000000000000000009",
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 2200,
+          "count": 3
+        }
+      }
+    }
+  }
+}

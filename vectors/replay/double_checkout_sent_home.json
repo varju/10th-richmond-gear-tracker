@@ -1,0 +1,95 @@
+{
+  "name": "sending a double check-out home leaves the later check-out as the current movement, so the conflict stays open (FR-OFF-10)",
+  "events": [
+    {
+      "id": "00000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "holder_id": "alice",
+        "event": "Camp"
+      }
+    },
+    {
+      "id": "00000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_out",
+      "actor_id": "bob",
+      "device_id": "b",
+      "device_seq": 2,
+      "effective_at": 1500,
+      "payload": {
+        "holder_id": "bob",
+        "event": "Camp"
+      }
+    },
+    {
+      "id": "00000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "cleaning_started",
+      "actor_id": "bob",
+      "device_id": "b",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "payload": {
+        "cleaner": "Smith",
+        "movement_id": "00000000000000000000000002"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-1": {
+        "status": "out",
+        "holder_id": "bob",
+        "since": 1500,
+        "movement": {
+          "id": "00000000000000000000000002",
+          "type": "checked_out",
+          "holder_id": "bob",
+          "event": "Camp",
+          "reservation_id": null,
+          "actor_id": "bob",
+          "device_id": "b",
+          "at": 1500,
+          "cleaner": "Smith",
+          "cleaning_id": "00000000000000000000000003"
+        },
+        "conflicts": [
+          {
+            "kind": "double_checkout",
+            "events": [
+              {
+                "id": "00000000000000000000000001",
+                "type": "checked_out",
+                "holder_id": "alice",
+                "event": "Camp",
+                "reservation_id": null,
+                "actor_id": "alice",
+                "device_id": "a",
+                "at": 1000
+              },
+              {
+                "id": "00000000000000000000000002",
+                "type": "checked_out",
+                "holder_id": "bob",
+                "event": "Camp",
+                "reservation_id": null,
+                "actor_id": "bob",
+                "device_id": "b",
+                "at": 1500
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

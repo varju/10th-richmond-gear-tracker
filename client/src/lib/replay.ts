@@ -26,13 +26,15 @@ export type State = Record<string, Record<string, Fields>>;
 //   pool_reservations Record<reservation_id, number>  how many went out for each reservation, ever
 //                                                      (FR-RES-13). A checked_out that carries a
 //                                                      reservation_id adds to it, event_corrected moves
-//                                                      a lot's count, and a return never reduces it. Read by that reservation's
-//                                                      remaining() to say how much of a pool line is
-//                                                      done. Keyed by reservation id, not event name,
-//                                                      so a later reservation reusing an event name
-//                                                      (e.g. next year's "Fall Camp") starts at zero.
+//                                                      a lot's count, and a return never reduces it. Older
+//                                                      app builds read it for progress; this one counts the
+//                                                      lots (poolPacked), so it is kept for them only. Keyed
+//                                                      by reservation id, not event name, so a later
+//                                                      reservation reusing an event name starts at zero.
 //   pool_lots         Record<holder_id, PoolLot[]>    which check-outs each holder's count came from, oldest
-//                                                      first, so a count can be read under its event.
+//                                                      first, so a count can be read under its event. Lot ids
+//                                                      are unique. `cleaning_id` is the cleaning_started that
+//                                                      sent the lot home; one send-home can span several lots.
 //
 // Events, on the pool's own entity (mirrored in views.py's `pool_counts`, `is_pool`):
 //   created    {quantity}                            pool_in = quantity, pool_out = {}, pool_reservations = {}
@@ -49,15 +51,21 @@ export type State = Record<string, Record<string, Fields>>;
 //                                             which event, so it comes off the holder's oldest lots.
 //   event_corrected {movement_id, event?,    a lot from that check-out moves to the new event, and its
 //                    reservation_id?}         count moves between pool_reservations entries.
-//   cleaner_corrected {movement_id, cleaner}  a lot from that check-out, or the item's movement, takes the
-//                                             new cleaner. A checked_out with a cleaner adds it to its lot;
-//                                             a checked_in with one comes off that cleaner's lots first
-//                                             (returnLots).
-//   cleaning_started {cleaner, count,         `count` of that holder's lots not at a cleaner go home with
-//                     holder_id?}              `cleaner` (FR-OUT-46); counts, holders and events do not change
-//                                              (startCleaning). A pool only: a single item goes with a check-out.
+//   cleaner_corrected {movement_id, cleaner}  every lot, and the item's movement, that still has a cleaner and
+//                                             whose `cleaning_id`, else `id`, is `movement_id` takes the new
+//                                             cleaner. Gear that has come back is ignored. A checked_out with
+//                                             a cleaner adds it to its lot; a checked_in with one comes off
+//                                             that cleaner's lots first (returnLots).
+//   cleaning_started {cleaner, count?,        `count` of that holder's lots not at a cleaner go home with
+//                     holder_id?,              `cleaner` (FR-OUT-46); counts, holders and events do not change
+//                     movement_id?}            (startCleaning). With no `count`, a single item that is out
+//                                              takes `cleaner` and `cleaning_id` on its movement if that
+//                                              movement is `movement_id`; its holder, event, reservation and
+//                                              `since` stay. Otherwise ignored.
+//   checked_out superseding a movement that has a cleaner, with none of its own, keeps that cleaner and
+//   `cleaning_id` (a transfer of gear at a cleaner's, FR-OUT-46).
 //   cleaning_ended {cleaner?, count?,         cleaned gear is back with its Scouter (FR-OUT-51). A single
-//                   holder_id?}                item's movement loses its cleaner. A pool's `count` of
+//                   holder_id?}                item's movement loses its cleaner and cleaning_id. A pool's `count` of
 //                                             that holder's lots under `cleaner` lose it (endCleaning).
 //   recounted   {count, reason}              pool_in = count. pool_out is untouched (FR-INV-35);
 //                                             anyone signed in may record one.
@@ -105,6 +113,8 @@ export interface Movement {
   count?: number;
   /** Set when the gear went home to be cleaned (FR-OUT-46): who took it. */
   cleaner?: string;
+  /** The cleaning_started that sent a single item home. */
+  cleaning_id?: string;
 }
 
 /** A pool's out side: how many one holder has (FR-INV-36). */
@@ -122,6 +132,8 @@ export interface PoolLot {
   at: number;
   /** Who took this lot home to clean (FR-OUT-46); absent on an ordinary check-out. */
   cleaner?: string;
+  /** The cleaning_started that sent this lot home; one send-home can span several lots. */
+  cleaning_id?: string;
 }
 
 export type PoolLots = Record<string, PoolLot[]>;
@@ -178,7 +190,9 @@ export function returnLots(lots: PoolLot[], before: number, count: number, clean
 
 /**
  * A holder's lots after `count` of those not yet at a cleaner go home with `cleaner` (FR-OUT-46). Mirrors
- * start_cleaning in replay.py. Oldest first. What goes takes `newId`, so a later correction of the name, which names this event, finds it.
+ * start_cleaning in replay.py. Oldest first. Every lot that goes gets `cleaning_id` `newId`, so a later correction of the
+ * name, which names this event, finds them all. A lot that goes whole keeps its id; a part of one takes `newId`, so lot
+ * ids stay unique.
  */
 export function startCleaning(lots: PoolLot[], count: number, cleaner: string, newId: string): PoolLot[] {
   let left = count;
@@ -187,10 +201,10 @@ export function startCleaning(lots: PoolLot[], count: number, cleaner: string, n
     if (left > 0 && !lot.cleaner) {
       const n = Math.min(lot.count, left);
       left -= n;
-      if (n === lot.count) out.push({ ...lot, id: newId, cleaner });
+      if (n === lot.count) out.push({ ...lot, cleaner, cleaning_id: newId });
       else {
         out.push({ ...lot, count: lot.count - n });
-        out.push({ ...lot, id: newId, count: n, cleaner });
+        out.push({ ...lot, id: newId, count: n, cleaner, cleaning_id: newId });
       }
     } else out.push({ ...lot });
   }
@@ -212,7 +226,7 @@ export function endCleaning(
     if (left > 0 && lot.cleaner && cleanerKey(lot.cleaner) === key) {
       const n = Math.min(lot.count, left);
       left -= n;
-      const { cleaner: _gone, ...back } = lot;
+      const { cleaner: _gone, cleaning_id: _sent, ...back } = lot;
       if (n === lot.count) out.push(back);
       else {
         out.push({ ...lot, count: lot.count - n });
@@ -359,18 +373,31 @@ export function apply(entity: Fields, event: ReplayEvent): void {
     }
     case "cleaner_corrected": {
       // As event_corrected: the check-out stands; only the name it is read under moves (FR-OUT-50).
+      // Gear that has come back has no cleaner to correct.
       const current = entity.movement as Movement | null | undefined;
-      if (current && current.id === p.movement_id) current.cleaner = p.cleaner as string;
-      const lots = (entity.pool_lots ?? {}) as PoolLots;
-      for (const [holderId, list] of Object.entries(lots)) {
-        if (!list.some((l) => l.id === p.movement_id)) continue;
-        const fixed = list.map((l) => (l.id === p.movement_id ? { ...l, cleaner: p.cleaner as string } : l));
-        entity.pool_lots = { ...lots, [holderId]: fixed };
-        break;
+      if (current?.cleaner && names(current, p.movement_id as string)) current.cleaner = p.cleaner as string;
+      const lots = entity.pool_lots as PoolLots | undefined;
+      if (lots) {
+        const fixedLots: PoolLots = {};
+        for (const [holderId, list] of Object.entries(lots)) {
+          fixedLots[holderId] = list.map((l) =>
+            l.cleaner && names(l, p.movement_id as string) ? { ...l, cleaner: p.cleaner as string } : l,
+          );
+        }
+        entity.pool_lots = fixedLots;
       }
       break;
     }
     case "cleaning_started": {
+      if (p.count == null) {
+        // Still out to the same holder under the check-out it names; only the cleaner is added.
+        const current = entity.movement as Movement | null | undefined;
+        if (entity.status === "out" && current && current.id === p.movement_id) {
+          current.cleaner = p.cleaner as string;
+          current.cleaning_id = event.id;
+        }
+        break;
+      }
       const holderId = (p.holder_id as string | undefined) ?? event.actor_id;
       const lots = (entity.pool_lots ?? {}) as PoolLots;
       if (lots[holderId]) {
@@ -393,7 +420,10 @@ export function apply(entity: Fields, event: ReplayEvent): void {
         }
       } else {
         const current = entity.movement as Movement | null | undefined;
-        if (entity.status === "out" && current) delete current.cleaner;
+        if (entity.status === "out" && current) {
+          delete current.cleaner;
+          delete current.cleaning_id;
+        }
       }
       break;
     }
@@ -463,6 +493,12 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       entity.holder_id = p.holder_id;
       entity.since = event.effective_at;
       entity.movement = movement(event);
+      // A transfer made without seeing the send-home keeps the gear at the cleaner's.
+      if (previous?.cleaner && p.supersedes === previous.id && !p.cleaner) {
+        const kept = entity.movement as Movement;
+        kept.cleaner = previous.cleaner;
+        kept.cleaning_id = previous.cleaning_id ?? previous.id;
+      }
       break;
     }
     case "checked_in": {
@@ -535,6 +571,9 @@ function notes(entity: Fields): Note[] {
 function photos(entity: Fields): Photo[] {
   return (entity.photos ??= []) as Photo[];
 }
+
+const names = (thing: { id: string; cleaning_id?: string }, movementId: string) =>
+  (thing.cleaning_id ?? thing.id) === movementId;
 
 function correctLot(entity: Fields, p: Fields): void {
   const lots = entity.pool_lots as PoolLots | undefined;

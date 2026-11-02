@@ -457,6 +457,17 @@ def _ticked(it: Fields, reservation_id: str) -> bool:
     )
 
 
+def pool_packed(it: Fields, reservation_id: str) -> int:
+    """How much of a stack is out under the reservation and not at a family's home (FR-RES-36).
+    Mirrors poolPacked in reservations.ts."""
+    return sum(
+        lot["count"]
+        for out in pool_lots(it)
+        for lot in out["lots"]
+        if lot.get("reservation_id") == reservation_id and not lot.get("cleaner")
+    )
+
+
 def remaining(state: State, r: Fields) -> dict[str, Any]:
     """What is still to pack (FR-RES-06). Derived from state alone: a scan anywhere ticks it here after sync."""
     named = [it for it in (item(state, i) for i in named_items(state, r)) if it is not None]
@@ -468,14 +479,8 @@ def remaining(state: State, r: Fields) -> dict[str, Any]:
     for line in r.get("generics") or []:
         generic = item(state, line["item_id"]) or {"id": line["item_id"], "name": "(unknown item)"}
         if is_pool(generic):
-            # What is still out under this reservation and not at a family's home (FR-RES-36): the lots, not
-            # pool_reservations, which only ever grows and so still counts what came back.
-            done = sum(
-                lot["count"]
-                for out in pool_lots(generic)
-                for lot in out["lots"]
-                if lot.get("reservation_id") == reservation_id and not lot.get("cleaner")
-            )
+            # The lots, not pool_reservations, which only ever grows and so still counts what came back.
+            done = pool_packed(generic, reservation_id)
         else:
             # Any unretired unit of the generic counts, except one the reservation names: that one is its own line.
             done = sum(

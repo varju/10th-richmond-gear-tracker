@@ -50,6 +50,7 @@ import {
   checkOutPool,
   correctCleaner,
   correctEvent,
+  correctPoolCleaner,
   type HistoryEntry,
   recount,
 } from "../lib/movement";
@@ -433,22 +434,30 @@ export function ItemPage({ store, id }: Props) {
 }
 
 /**
- * Who has the gear at home to clean (FR-OUT-46), put right from here (FR-OUT-50) with the names used
- * lately. Appended like a note edit (FR-OUT-16).
+ * A cleaner's name with a Change name button (FR-OUT-50), offering the names used lately. `save` appends the
+ * correction like a note edit (FR-OUT-16). `shown` is what is read before editing; it defaults to the name.
  */
-function OutCleaner({ store, it }: { store: Store; it: Item }) {
+function CleanerName({
+  store,
+  name,
+  shown = name,
+  save,
+}: {
+  store: Store;
+  name: string;
+  shown?: string;
+  save: (next: string) => Promise<unknown>;
+}) {
   const [draft, setDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const m = it.movement as Movement;
-  const name = m.cleaner ?? "";
 
-  async function save() {
+  async function submit() {
     if (draft === null) return;
     setBusy(true);
     setError(null);
     try {
-      if (draft.trim() !== name) await correctCleaner(store, it.id, m.id, draft);
+      if (draft.trim() !== name) await save(draft);
       setDraft(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not change the name");
@@ -460,7 +469,7 @@ function OutCleaner({ store, it }: { store: Store; it: Item }) {
   if (draft === null) {
     return (
       <>
-        {name}{" "}
+        <span>{shown}</span>{" "}
         <button type="button" className="minor" onClick={() => setDraft(name)}>
           Change name
         </button>
@@ -476,7 +485,7 @@ function OutCleaner({ store, it }: { store: Store; it: Item }) {
       )}
       <CleanerField store={store} value={draft} onChange={setDraft} disabled={busy} />
       <div className="row">
-        <button type="button" className="primary" disabled={busy || draft.trim() === ""} onClick={() => void save()}>
+        <button type="button" className="primary" disabled={busy || draft.trim() === ""} onClick={() => void submit()}>
           Save
         </button>
         <button type="button" onClick={() => setDraft(null)}>
@@ -484,6 +493,18 @@ function OutCleaner({ store, it }: { store: Store; it: Item }) {
         </button>
       </div>
     </>
+  );
+}
+
+/** Who has the single item at home to clean (FR-OUT-46), put right from here (FR-OUT-50). */
+function OutCleaner({ store, it }: { store: Store; it: Item }) {
+  const m = it.movement as Movement;
+  return (
+    <CleanerName
+      store={store}
+      name={m.cleaner ?? ""}
+      save={(next) => correctCleaner(store, it.id, m.cleaning_id ?? m.id, next)}
+    />
   );
 }
 
@@ -665,7 +686,11 @@ export function describeMovement(state: State, e: HistoryEntry): string {
       e.count != null ? ` · ${e.count}` : ""
     } by ${who} · ${when}`;
   }
-  if (e.type === "cleaning_started") return `Sent home ${e.count} with ${e.cleaner} by ${who} · ${when}`;
+  if (e.type === "cleaning_started") {
+    return e.count != null
+      ? `Sent home ${e.count} with ${e.cleaner} by ${who} · ${when}`
+      : `Sent home with ${e.cleaner} by ${who} · ${when}`;
+  }
   if (e.count != null) {
     if (e.type === "checked_in") {
       return `Returned ${e.count}${e.cleaner ? ` from ${e.cleaner}` : ""} by ${who} · ${when}`;
@@ -1390,9 +1415,16 @@ function PoolPage({
           <>
             <dt>Cleaning</dt>
             <dd>
-              {cleaningShares(it)
-                .map((x) => `${x.cleaner} · ${x.count}`)
-                .join(", ")}
+              {cleaningShares(it).map((x) => (
+                <div key={x.cleaner} className="cleaning-share">
+                  <CleanerName
+                    store={store}
+                    name={x.cleaner}
+                    shown={`${x.cleaner} · ${x.count}`}
+                    save={(next) => correctPoolCleaner(store, it.id, x.cleaner, next)}
+                  />
+                </div>
+              ))}
             </dd>
           </>
         )}

@@ -803,3 +803,19 @@ def test_recount_is_only_for_a_pool(db):
     )
     ok = own(USER, entity_id="bowls", type="recounted", payload={"count": 15, "reason": "shelf check"}, device_seq=3)
     assert reasons(db, USER, ok) == []
+
+
+def test_a_single_item_goes_home_without_a_count_and_a_pool_with_one(db):
+    push(db, USER, batch(USER, own(USER, type="created", payload={"name": "Tent"})), now=T0)
+    out = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    single = own(USER, type="cleaning_started", payload={"cleaner": "Smith", "movement_id": out}, device_seq=2)
+    assert reasons(db, USER, single) == []
+    unnamed = own(USER, type="cleaning_started", payload={"cleaner": "Smith"}, device_seq=2)
+    assert reasons(db, USER, unnamed) == ["a single item says which check-out it goes home from (FR-OUT-46)"]
+    counted = own(USER, type="cleaning_started", payload={"cleaner": "Smith", "count": 1}, device_seq=2)
+    assert reasons(db, USER, counted) == ["a pool goes home by count, a single item without one (FR-OUT-46)"]
+
+    created = {"name": "Bowls", "generic": True, "pool": True, "quantity": 20}
+    push(db, USER, batch(USER, own(USER, entity_id="bowls", type="created", payload=created, device_seq=3)), now=T0)
+    bare = own(USER, entity_id="bowls", type="cleaning_started", payload={"cleaner": "Smith"}, device_seq=4)
+    assert reasons(db, USER, bare) == ["a pool goes home by count, a single item without one (FR-OUT-46)"]

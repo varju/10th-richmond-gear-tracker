@@ -751,7 +751,7 @@ def _link_pool_out(conn: Any, who: Any, state: Any, r: dict[str, Any], it: dict[
         )
         for lot in lots
     ]
-    taken = (it.get("pool_reservations") or {}).get(r["id"], 0) + sum(lot["count"] for lot in lots)
+    taken = views.pool_packed(it, r["id"]) + sum(lot["count"] for lot in lots if not lot.get("cleaner"))
     line = next((g for g in r.get("generics") or [] if g["item_id"] == it["id"]), None)
     if taken > (line["quantity"] if line else 0):
         drafts.append(_draft("reservation", r["id"], "quantity_changed", {"item_id": it["id"], "quantity": taken}))
@@ -1593,12 +1593,10 @@ def check_out(
     note: str | None = None,
     count: Count | None = None,
     reservation_id: str | None = None,
-    cleaner: str | None = None,
 ) -> dict[str, Any]:
     """Take an item out, without a scan (FR-OUT-02). The holder is you; `event` is what it is going to.
 
-    `cleaner` names the person taking it home to clean (FR-OUT-46); you stay the holder, and `event`
-    is what it is for, as in any check-out. For a pool, send each family's share as its own check-out.
+    Gear is sent home to be cleaned once it is out, with transfer or send_home_to_clean (FR-OUT-46).
 
     A pool (FR-INV-34) needs `count`; anything else refuses one (FR-MCP-08). Taking more than are
     in a pool warns, and is never blocked (FR-OUT-22). `reservation_id` says this packs that
@@ -1620,19 +1618,12 @@ def check_out(
             raise BadRequest("retired items cannot be checked out")
         if not pool and it.get("status") == "out":
             raise Conflict(f"already out with {views.user_name(state, it.get('holder_id'))}")
-        if cleaner is not None:
-            if it.get("retired") or it.get("merged_into"):
-                raise BadRequest("retired or merged items cannot be sent home")
-            if not cleaner.strip():
-                raise BadRequest("say who is taking it home")
         movement_id = new_ulid()
         payload: dict[str, Any] = {
             "holder_id": who.user_id,
             "event": (event or "").strip() or None,
             "reservation_id": reservation_id,
         }
-        if cleaner is not None:
-            payload["cleaner"] = cleaner.strip()
         if pool:
             payload["count"] = count
         drafts = [_draft("item", it["id"], "checked_out", payload, movement_id)]
@@ -1734,6 +1725,28 @@ def list_members() -> dict[str, Any]:
         return {"members": [{"user_id": u["id"], "name": u["name"]} for u in views.active_users(_state(conn))]}
 
 
+def _send_single_home(
+    conn: Any, who: Any, state: Any, it: dict[str, Any], cleaner: str, note: str | None
+) -> dict[str, Any]:
+    """A single item that is out goes home with `cleaner`, still out to its holder (FR-OUT-46)."""
+    if it.get("retired") or it.get("merged_into"):
+        raise BadRequest("retired or merged items cannot be sent home")
+    if not cleaner.strip():
+        raise BadRequest("say who is taking it home")
+    if it.get("status") != "out" or not it.get("movement"):
+        raise BadRequest("not out; check it out first")
+    if it["movement"].get("cleaner"):
+        raise Conflict("already at a cleaner's home")
+    event_id = new_ulid()
+    holder = it.get("holder_id") or who.user_id
+    payload = {"cleaner": cleaner.strip(), "movement_id": it["movement"]["id"]}
+    drafts = [_draft("item", it["id"], "cleaning_started", payload, event_id)]
+    if note and note.strip():
+        drafts.append(_draft("item", it["id"], "note_added", {"text": note.strip(), "movement_id": event_id}))
+    _push(conn, who, drafts)
+    return {"item_id": it["id"], "holder": views.user_name(state, holder), "cleaner": payload["cleaner"]}
+
+
 def transfer(
     item_id: str,
     to_user_id: str | None = None,
@@ -1745,38 +1758,15 @@ def transfer(
     """Move an item that is out to a new holder without it coming back first: to you when `to_user_id` is
     left out (take over, FR-OUT-12), or to another active member (FR-OUT-26); list_members has their ids.
     `event` is what it is going to now. It names the check-out it replaces, so it is not a conflict.
-    `cleaner` sends gear that is out home with that person to clean (FR-OUT-46): its holder and event
-    stay, so it takes no `to_user_id`, `event` or `reservation_id`."""
+    `cleaner` sends gear that is out home with that person to clean (FR-OUT-46) without ending the check-out:
+    its holder, event and days out stay, so it takes no `to_user_id`, `event` or `reservation_id`."""
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)
         if cleaner is not None:
-            if it.get("retired") or it.get("merged_into"):
-                raise BadRequest("retired or merged items cannot be sent home")
-            if not cleaner.strip():
-                raise BadRequest("say who is taking it home")
             if to_user_id or event or reservation_id:
                 raise BadRequest("sending gear home takes only a cleaner and a note")
-            if it.get("status") != "out" or not it.get("movement"):
-                raise BadRequest("not out; check it out first")
-            if it["movement"].get("cleaner"):
-                raise Conflict("already at a cleaner's home")
-            movement_id = new_ulid()
-            holder = it.get("holder_id") or who.user_id
-            payload = {
-                "holder_id": holder,
-                "event": it["movement"].get("event"),
-                "reservation_id": it["movement"].get("reservation_id"),
-                "supersedes": it["movement"]["id"],
-                "cleaner": cleaner.strip(),
-            }
-            drafts = [_draft("item", it["id"], "checked_out", payload, movement_id)]
-            if note and note.strip():
-                drafts.append(
-                    _draft("item", it["id"], "note_added", {"text": note.strip(), "movement_id": movement_id})
-                )
-            _push(conn, who, drafts)
-            return {"item_id": it["id"], "holder": views.user_name(state, holder), "cleaner": payload["cleaner"]}
+            return _send_single_home(conn, who, state, it, cleaner, note)
         if reservation_id is not None:
             _reservation(state, reservation_id)
         if it.get("retired"):
@@ -1803,7 +1793,6 @@ def transfer(
                 "event": previous.get("event"),
                 "reservation_id": previous.get("reservation_id"),
                 "supersedes": previous["id"],
-                "cleaner": previous["cleaner"],
             }
         drafts = [_draft("item", it["id"], "checked_out", payload, movement_id)]
         if note and note.strip():
@@ -1877,8 +1866,6 @@ def correct_event(item_id: str, event: str | None = None) -> dict[str, Any]:
             raise BadRequest("only gear that is out has an event to correct")
         if movement.get("reservation_id"):
             raise BadRequest("this is packed for a reservation; use link_out_to_reservation to move it")
-        if movement.get("cleaner"):
-            raise BadRequest("this is out for cleaning and has no event (FR-OUT-46)")
         payload = {"movement_id": movement["id"], "event": (event or "").strip() or None, "reservation_id": None}
         _push(conn, who, [_draft("item", it["id"], "event_corrected", payload)])
         return {"item_id": it["id"], "event": payload["event"]}
@@ -1907,12 +1894,12 @@ def correct_cleaner(item_id: str, cleaner: str, was: str | None = None) -> dict[
             ]
             if not lots:
                 raise BadRequest(f"no one named {was.strip()} has any of it")
-            targets = [lot["id"] for lot in lots]
+            targets = list(dict.fromkeys(lot.get("cleaning_id") or lot["id"] for lot in lots))
         else:
             movement = it.get("movement") or {}
             if it.get("status") != "out" or not movement.get("cleaner"):
                 raise BadRequest("only gear out for cleaning has a cleaner to correct")
-            targets = [movement["id"]]
+            targets = [movement.get("cleaning_id") or movement["id"]]
         drafts = [
             _draft("item", it["id"], "cleaner_corrected", {"movement_id": t, "cleaner": cleaner.strip()})
             for t in targets
@@ -1962,16 +1949,27 @@ def back_from_cleaning(
         return {"item_id": it["id"], **({"count": payload["count"]} if payload else {})}
 
 
-def send_home_to_clean(item_id: str, cleaner: str, count: Count, holder_id: str | None = None) -> dict[str, Any]:
-    """Part of a pool that is out goes home with a family to clean (FR-OUT-46). It stays out to its Scouter, under
-    its event, and is read under `cleaner` from now on. `count` comes from what `holder_id` (you, by default) has out
-    and that is not already at a family. A single item goes with transfer and its `cleaner`.
+def send_home_to_clean(
+    item_id: str,
+    cleaner: str,
+    count: Count | None = None,
+    holder_id: str | None = None,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """Gear that is out goes home with a family to clean (FR-OUT-46). It stays out to its Scouter, under its
+    event, and is read under `cleaner` from now on. A pool needs `count`, from what `holder_id` (you, by default)
+    has out and that is not already at a family. A single item takes neither `count` nor `holder_id`.
+    `note` rides on the move.
     """
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)
         if not views.is_pool(it):
-            raise BadRequest("only a pool goes home by count; for a single item, call transfer with a cleaner")
+            if count is not None or holder_id is not None:
+                raise BadRequest("count and holder_id are only for a pool")
+            return _send_single_home(conn, who, state, it, cleaner, note)
+        if count is None:
+            raise BadRequest("a pool goes home by count; say how many")
         if not cleaner.strip():
             raise BadRequest("say who is taking it home")
         holder = holder_id or who.user_id
@@ -1989,7 +1987,11 @@ def send_home_to_clean(item_id: str, cleaner: str, count: Count, holder_id: str 
         payload: dict[str, Any] = {"cleaner": cleaner.strip(), "count": count}
         if holder != who.user_id:
             payload["holder_id"] = holder
-        _push(conn, who, [_draft("item", it["id"], "cleaning_started", payload)])
+        event_id = new_ulid()
+        drafts = [_draft("item", it["id"], "cleaning_started", payload, event_id)]
+        if note and note.strip():
+            drafts.append(_draft("item", it["id"], "note_added", {"text": note.strip(), "movement_id": event_id}))
+        _push(conn, who, drafts)
         return {"item_id": it["id"], "count": count, "cleaner": payload["cleaner"]}
 
 

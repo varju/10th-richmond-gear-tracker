@@ -11,5 +11,11 @@ What the app does differently.
   return from a stack names whose share it is, and What is out shows the cleaner. **Back from cleaning** marks it back
   with the Scouter. Gear is sent home once it is out, not while it is in, and keeps its event and reservation, but is
   not counted as packed while it is at a cleaner's home. A stack counts as packed only what is still out for the event.
+- A single item sent home keeps its days out and its place in the history, which reads "Sent home with", and an open
+  double check-out stays open.
+- A stack's line on an event no longer grows when some come back or go home and the same number is packed again.
+- Cleaner suggestions include names from stacks and from single items sent home.
+- A stack's page can change the name of a family its share was sent home with.
+- Correcting a cleaner's name renames the whole share, and does nothing once the gear is back.
 
 ## Chores

@@ -256,8 +256,12 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
             raise Rejected("a pool says whose lots are back (FR-OUT-51)")
     if entity_type == "item" and kind == "cleaning_started":
         item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
-        if not item.get("pool"):
-            raise Rejected("only a pool goes home by count; a single item goes with a check-out (FR-OUT-46)")
+        payload = incoming.get("payload")
+        payload = payload if isinstance(payload, dict) else {}
+        if bool(item.get("pool")) != (payload.get("count") is not None):
+            raise Rejected("a pool goes home by count, a single item without one (FR-OUT-46)")
+        if not item.get("pool") and not payload.get("movement_id"):
+            raise Rejected("a single item says which check-out it goes home from (FR-OUT-46)")
     if entity_type == "item" and kind == "recounted":
         item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
         if not item.get("pool"):

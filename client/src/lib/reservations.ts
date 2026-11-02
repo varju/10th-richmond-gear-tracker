@@ -25,7 +25,7 @@ import {
 } from "./inventory";
 import { eventNameKey, tidyName } from "./calendar";
 import { correctEvent } from "./movement";
-import type { Fields, Movement, PoolLot, PoolReservations, State } from "./replay";
+import type { Fields, Movement, PoolLot, State } from "./replay";
 import type { Store } from "./store";
 import { localDate } from "./time";
 import { newUlid } from "./ulid";
@@ -243,6 +243,13 @@ const wentOut = (it: Item, r: Pick<Reservation, "id">): boolean =>
   it.status === "out" && it.movement?.reservation_id === r.id;
 const ticked = (it: Item, r: Pick<Reservation, "id">): boolean => wentOut(it, r) && !it.movement?.cleaner;
 
+/** How much of a stack is out under the reservation and not at a family's home (FR-RES-36). Mirrored by pool_packed in views.py. */
+const poolPacked = (it: Item, r: Pick<Reservation, "id">): number =>
+  poolLots(it)
+    .flatMap((o) => o.lots)
+    .filter((l) => l.reservation_id === r.id && !l.cleaner)
+    .reduce((n, l) => n + l.count, 0);
+
 /**
  * The items a reservation names, as they stand today: a merged duplicate means
  * its survivor (FR-INV-13), and a deleted record is not there at all
@@ -267,13 +274,8 @@ export function remaining(state: State, r: Reservation): Remaining {
   const generics = r.generics.map((g) => {
     const generic = item(state, g.item_id) ?? ({ id: g.item_id, name: "(unknown item)" } as Item);
     if (isPool(generic)) {
-      // What is still out under this reservation and not at a family's home (FR-RES-36): the lots, not
-      // pool_reservations, which only ever grows and so still counts what came back.
-      const done = poolLots(generic)
-        .flatMap((o) => o.lots)
-        .filter((l) => l.reservation_id === r.id && !l.cleaner)
-        .reduce((n, l) => n + l.count, 0);
-      return { generic, quantity: g.quantity, done: Math.min(done, g.quantity) };
+      // The lots, not pool_reservations, which only ever grows and so still counts what came back.
+      return { generic, quantity: g.quantity, done: Math.min(poolPacked(generic, r), g.quantity) };
     }
     // Any unretired unit of the generic counts, except one the reservation names: that one is its own line.
     const done = unitsOf(state, g.item_id).filter((u) => !u.retired && !chosen.has(u.id) && ticked(u, r)).length;
@@ -377,7 +379,7 @@ export type ListChange = { kind: "item"; item_id: string } | { kind: "quantity";
  * What a check-out under this camp's event has to add to the gear list, once it
  * has happened (FR-RES-07). Nothing, when the item is already named or fills a
  * generic line that had room. A unit whose full line it overflows raises that
- * line by one; a pool's line grows to what this camp has taken of it; anything
+ * line by one; a pool's line grows to what is packed for this camp; anything
  * else joins by name.
  */
 export function extraChange(state: State, r: Reservation, itemId: string): ListChange | null {
@@ -387,8 +389,8 @@ export function extraChange(state: State, r: Reservation, itemId: string): ListC
   const it = item(state, id);
   if (!it) return null;
   if (isPool(it)) {
-    // A pool ticks off by count (FR-RES-13), read off the raw entity like remaining() does.
-    const taken = ((state.item?.[id]?.pool_reservations as PoolReservations | undefined) ?? {})[r.id] ?? 0;
+    // A pool ticks off by count (FR-RES-13): the line grows to what is packed now, as remaining() counts it.
+    const taken = poolPacked(it, r);
     const line = r.generics.find((g) => g.item_id === id);
     return taken > (line?.quantity ?? 0) ? { kind: "quantity", item_id: id, quantity: taken } : null;
   }

@@ -62,6 +62,14 @@ test("a check-in after the conflict closes it", async () => {
   expect(hasOpenConflict(store.state, tent)).toBe(false);
 });
 
+test("sending the item home does not close the conflict (FR-OFF-10, FR-OUT-46)", async () => {
+  await store.receive([bob(), carol()], 2);
+  clock = 10_000;
+  await mv.sendItemHome(store, tent, { cleaner: "Smith" });
+  expect(openConflicts(store.state).map((c) => c.later.holder_id)).toEqual(["carol"]);
+  expect(openConflicts(store.state)[0]!.item.movement?.cleaner).toBe("Smith");
+});
+
 test("a transfer after the conflict closes it; a transfer is never a conflict itself (FR-OUT-12)", async () => {
   await store.receive([bob(), carol()], 2);
   clock = 10_000;

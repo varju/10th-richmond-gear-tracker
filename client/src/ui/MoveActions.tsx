@@ -1,6 +1,14 @@
 import { type ReactNode, useCallback, useState } from "react";
 import type { Item } from "../lib/inventory";
-import { addNote, backFromCleaning, checkIn, checkOut, transfer, type TransferOptions } from "../lib/movement";
+import {
+  addNote,
+  backFromCleaning,
+  checkIn,
+  checkOut,
+  sendItemHome,
+  transfer,
+  type TransferOptions,
+} from "../lib/movement";
 import { openRepairs, raiseTicket } from "../lib/repairs";
 import { type Session, sessionEvent } from "../lib/session";
 import type { Store } from "../lib/store";
@@ -168,7 +176,7 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
   const sendHome = (name: string): Pending => ({
     kind: "Sent home",
     cleaner: name,
-    act: (o) => transfer(store, it.id, { note: o.note, packing: o.packing, cleaner: name }),
+    act: (o) => sendItemHome(store, it.id, { note: o.note, packing: o.packing, cleaner: name }),
   });
 
   const asking = question(children);

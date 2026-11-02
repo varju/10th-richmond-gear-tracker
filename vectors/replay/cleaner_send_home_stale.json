@@ -1,0 +1,75 @@
+{
+  "name": "a send-home naming a check-out that has ended leaves a later check-out without a cleaner (FR-OUT-46)",
+  "events": [
+    {
+      "id": "00000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "holder_id": "alice"
+      }
+    },
+    {
+      "id": "00000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_in",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": {}
+    },
+    {
+      "id": "00000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "checked_out",
+      "actor_id": "bob",
+      "device_id": "b",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "payload": {
+        "holder_id": "bob"
+      }
+    },
+    {
+      "id": "00000000000000000000000004",
+      "entity_type": "item",
+      "entity_id": "tent-1",
+      "type": "cleaning_started",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 4000,
+      "payload": {
+        "cleaner": "Smith",
+        "movement_id": "00000000000000000000000001"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "tent-1": {
+        "status": "out",
+        "holder_id": "bob",
+        "since": 3000,
+        "movement": {
+          "id": "00000000000000000000000003",
+          "type": "checked_out",
+          "holder_id": "bob",
+          "event": null,
+          "reservation_id": null,
+          "actor_id": "bob",
+          "device_id": "b",
+          "at": 3000
+        }
+      }
+    }
+  }
+}

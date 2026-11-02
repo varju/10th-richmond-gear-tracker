@@ -59,7 +59,8 @@ test("a move that fails is reported, the fault text is kept for a retry, and no 
 
 test("Send home to clean needs a name, offers recent ones, and keeps the Scouter as holder (FR-OUT-46, FR-OUT-48)", async () => {
   const other = await act.createItem(store, { name: "Tent 2" });
-  await mv.checkOut(store, other, { cleaner: "Smith family" });
+  await mv.checkOut(store, other);
+  await mv.sendItemHome(store, other, { cleaner: "Smith family" });
   await mv.checkIn(store, other);
   await mv.checkOut(store, tent, { event: "Camp" });
   const onMoved = vi.fn();
@@ -85,7 +86,8 @@ test("Send home to clean is not offered for gear that is in", () => {
 });
 
 test("Back from cleaning clears the family and leaves the Scouter holding it (FR-OUT-51)", async () => {
-  await mv.checkOut(store, tent, { cleaner: "Smith family" });
+  await mv.checkOut(store, tent);
+  await mv.sendItemHome(store, tent, { cleaner: "Smith family" });
   const onMoved = vi.fn();
   renderInShell(<MoveActions store={store} it={item(store.state, tent)!} onMoved={onMoved} />);
 

@@ -785,13 +785,38 @@ test("a check-out under a planned event's name links to it and joins its list (F
   expect(inv.item(store.state, f.t1)!.movement).toMatchObject({ reservation_id: null });
 });
 
+test("a stack's line does not grow when some come back and are packed again (FR-RES-13)", async () => {
+  clock = Date.UTC(2026, 9, 1, 18);
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  const id = await res.createReservation(store, { ...fall, items: [], generics: [{ item_id: bowls, quantity: 5 }] });
+  const line = () => res.reservation(store.state, id)!.generics[0]!.quantity;
+
+  await mv.checkOutPool(store, bowls, { count: 5, event: "Fall Camp" });
+  await mv.checkInPool(store, bowls, { count: 2 });
+  await mv.checkOutPool(store, bowls, { count: 2, event: "Fall Camp" });
+  expect(line()).toBe(5);
+  expect(res.isPacked(res.remaining(store.state, res.reservation(store.state, id)!))).toBe(true);
+});
+
+test("a stack's line does not grow when some go home and replacements are packed (FR-RES-13, FR-RES-36)", async () => {
+  clock = Date.UTC(2026, 9, 1, 18);
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  const id = await res.createReservation(store, { ...fall, items: [], generics: [{ item_id: bowls, quantity: 5 }] });
+
+  await mv.checkOutPool(store, bowls, { count: 5, event: "Fall Camp" });
+  await mv.sendHomeFromPool(store, bowls, { cleaner: "Smith", count: 2 });
+  await mv.checkOutPool(store, bowls, { count: 2, event: "Fall Camp" });
+  expect(res.reservation(store.state, id)!.generics[0]!.quantity).toBe(5);
+  expect(res.isPacked(res.remaining(store.state, res.reservation(store.state, id)!))).toBe(true);
+});
+
 test("gear out for cleaning is not packed for its event (FR-RES-36)", async () => {
   const f = await fixture();
   const r = await res.createReservation(store, { ...fall, items: [f.stove], generics: [] });
   await mv.checkOut(store, f.stove, { event: "Fall Camp", reservation_id: r });
   expect(res.isPacked(res.remaining(store.state, res.reservation(store.state, r)!))).toBe(true);
 
-  await mv.transfer(store, f.stove, { cleaner: "Smith" });
+  await mv.sendItemHome(store, f.stove, { cleaner: "Smith" });
   const rem = res.remaining(store.state, res.reservation(store.state, r)!);
   expect(rem.items.map(shown)).toEqual(["Stove"]);
   expect(res.isPacked(rem)).toBe(false);

@@ -136,6 +136,19 @@ test("history lists movements and notes together, newest first (FR-INV-09)", asy
   expect(screen.getAllByText("Offline: what this device knows, the last 90 days.")).toHaveLength(2);
 });
 
+test("a single item sent home reads Sent home, with the corrected name (FR-OUT-46, FR-OUT-50)", async () => {
+  await mv.checkOut(store, tent);
+  const sent = await mv.sendItemHome(store, tent, { cleaner: "Smth" });
+  await mv.correctCleaner(store, tent, sent.id, "Smith");
+  renderInShell(<ItemPage store={store} id={tent} />);
+
+  const rows = [...historyList().querySelectorAll(":scope > li")];
+  expect(rows.map((r) => r.textContent)).toEqual([
+    "Sent home with Smith by Alice · 2025-08-31 17:00",
+    "Checked out by Alice · 2025-08-31 17:00",
+  ]);
+});
+
 test("a note is corrected in place and the correction is appended (FR-OUT-16)", async () => {
   const note = await mv.addNote(store, tent, "handed to a Scout");
   renderInShell(<ItemPage store={store} id={tent} />);

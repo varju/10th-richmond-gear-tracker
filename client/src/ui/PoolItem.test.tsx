@@ -25,6 +25,10 @@ afterEach(() => unsaved.cancel());
 
 const user = userEvent.setup();
 const fact = (label: string) => (screen.getByText(label).nextElementSibling as HTMLElement).textContent;
+const shares = () =>
+  [...screen.getByText("Cleaning").nextElementSibling!.querySelectorAll(".cleaning-share > span")].map(
+    (x) => x.textContent,
+  );
 
 test("a pool page shows owned, in, and out by holder, and moves by count (FR-INV-36, FR-OUT-22, FR-OUT-23)", async () => {
   const bowls = await act.createPool(store, { name: "Bowls" }, 20);
@@ -293,13 +297,13 @@ test("a share of a stack goes home with a family, and a return names whose it is
     await user.click(send);
     await waitFor(() => expect(screen.queryByLabelText("Taken home by")).not.toBeInTheDocument());
   }
-  expect(fact("Cleaning")).toBe("Jones · 2, Smith · 4");
+  expect(shares()).toEqual(["Jones · 2", "Smith · 4"]);
 
   await user.click(screen.getByRole("button", { name: "Return" }));
   await user.selectOptions(screen.getByLabelText("Returned from"), "Jones · 2");
   expect(screen.getByLabelText("How many")).toHaveValue(2);
   await user.click(screen.getAllByRole("button", { name: "Return" })[0]!);
-  await waitFor(() => expect(fact("Cleaning")).toBe("Smith · 4"));
+  await waitFor(() => expect(shares()).toEqual(["Smith · 4"]));
 });
 
 test("part of a family's share comes back to the Scouter from the stack's page (FR-OUT-51)", async () => {
@@ -317,5 +321,30 @@ test("part of a family's share comes back to the Scouter from the stack's page (
   await user.type(count, "3");
   await user.click(screen.getAllByRole("button", { name: "Back from cleaning" })[0]!);
 
-  await waitFor(() => expect(fact("Cleaning")).toBe("Jones · 2, Smith · 1"));
+  await waitFor(() => expect(shares()).toEqual(["Jones · 2", "Smith · 1"]));
+});
+
+test("a family's name is corrected on the stack's page, for every Scouter's lots (FR-OUT-50)", async () => {
+  const bags = await act.createPool(store, { name: "Bags" }, 20);
+  await mv.checkOutPool(store, bags, { count: 4, event: "Camp" });
+  await mv.checkOutPool(store, bags, { count: 2, event: "Camp" });
+  await mv.sendHomeFromPool(store, bags, { count: 5, cleaner: "Smth" });
+  await store.setMeta({ user: carol });
+  await mv.checkOutPool(store, bags, { count: 3, event: "Camp" });
+  await mv.sendHomeFromPool(store, bags, { count: 3, cleaner: " smth" });
+  await store.setMeta({ user: alice });
+  navigate(`/items/${bags}`);
+  renderInShell(<ItemPage store={store} id={bags} />);
+
+  expect(shares()).toEqual(["Smth · 8"]);
+  await user.click(screen.getByRole("button", { name: "Change name" }));
+  const name = screen.getByLabelText("Taken home by");
+  await user.clear(name);
+  await user.type(name, "Smith");
+  await user.click(screen.getByRole("button", { name: "Save" }));
+
+  await waitFor(() => expect(shares()).toEqual(["Smith · 8"]));
+  const names = inv.poolLots(inv.item(store.state, bags)!).flatMap((o) => o.lots.map((l) => l.cleaner));
+  expect(names.filter(Boolean)).toEqual(["Smith", "Smith", "Smith"]);
+  expect(store.pending.filter((e) => e.type === "cleaner_corrected")).toHaveLength(2);
 });
