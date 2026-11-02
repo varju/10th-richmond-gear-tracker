@@ -59,3 +59,5 @@ changelog.
       All Items screen.
 - [ ] When creating a generic item, if I say we have several I should be able to indicate the count we have.
 - [ ] URLs within item descriptions should be clickable. Consider a simple markdown renderer?
+- [ ] Generic items don't have their own purchase date today, only their parent generic does. The parent's date should
+      be used as a default, but we should be able to override per item.
