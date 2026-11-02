@@ -19,5 +19,7 @@ What the app does differently.
 - Correcting a cleaner's name renames the whole share, and does nothing once the gear is back.
 - A recount's reason is optional.
 - An event's gear lists are in alphabetical order. Lists sorted by name put 2 before 10.
+- Scanning an unassigned code no longer emphasises one choice. "Another of…" is now "Add a unit of…", and shows only
+  when there is something to add a unit of.
 
 ## Chores

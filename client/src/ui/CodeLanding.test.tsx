@@ -68,14 +68,27 @@ test("a sticker on a merged duplicate opens the survivor (FR-INV-13)", async () 
   await waitFor(() => expect(location.pathname).toBe(`/items/${tent}`));
 });
 
-test("an unassigned code offers another of something we have several of (FR-INV-24)", async () => {
+test("an unassigned code offers to add a unit of something we have several of (FR-INV-24)", async () => {
   const user = userEvent.setup();
   await act.createGeneric(store, { name: "4-person tent" });
   navigate("/scan");
   navigate("/g/CCCCCCCCCC");
   render(<CodeLanding store={store} code="CCCCCCCCCC" />);
-  await user.click(screen.getByRole("button", { name: "Another of…" }));
+  const names = screen
+    .getAllByRole("button")
+    .filter((b) => !b.closest("header"))
+    .map((b) => b.textContent);
+  expect(names).toEqual(["Add a unit of…", "Create a new item", "Put it on an existing item", "Scan again"]);
+  await user.click(screen.getByRole("button", { name: "Add a unit of…" }));
   expect(location.pathname).toBe("/another/CCCCCCCCCC");
+});
+
+test("an unassigned code does not offer to add a unit when there is nothing to add one to", async () => {
+  await act.createPool(store, { name: "Pegs" }, 20);
+  navigate("/g/CCCCCCCCCC");
+  render(<CodeLanding store={store} code="CCCCCCCCCC" />);
+  expect(screen.getByRole("button", { name: "Create a new item" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Add a unit of…" })).not.toBeInTheDocument();
 });
 
 test("the code screen steps aside, so back from what it opens returns to the scanner", async () => {

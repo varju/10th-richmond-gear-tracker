@@ -66,7 +66,7 @@ filter shows them already.
 Tick **We have several of these** on **New item**, then pick one:
 
 - **Labelled one by one,** for tents. This saves the name, such as "Tent". Each tent is a unit with its own number and
-  code: scan a fresh code, tap **Another of…**, and pick the name. Or open the name's page and tap **Add a unit**.
+  code: scan a fresh code, tap **Add a unit of…**, and pick the name. Or open the name's page and tap **Add a unit**.
 - **A stack we count,** for mugs. Say how many. Nobody labels each mug; people check out a count.
 
 Starting from a scanned code, the tick saves the name and the item in your hand becomes #1.

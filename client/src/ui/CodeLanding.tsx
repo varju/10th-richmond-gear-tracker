@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { seen } from "../lib/actions";
-import { code as codeOf, codeStatus, resolveItem } from "../lib/inventory";
+import { code as codeOf, codeStatus, recentGenerics, resolveItem } from "../lib/inventory";
 import { back, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
@@ -43,9 +43,11 @@ export function CodeLanding({ store, code }: { store: Store; code: string }) {
         back="/"
         actions={
           <>
-            <button type="button" className="primary" onClick={() => navigate(`/another/${code}`, true)}>
-              Another of…
-            </button>
+            {recentGenerics(state, 1).length > 0 && (
+              <button type="button" onClick={() => navigate(`/another/${code}`, true)}>
+                Add a unit of…
+              </button>
+            )}
             <button type="button" onClick={() => navigate(`/items/new?code=${code}`, true)}>
               Create a new item
             </button>

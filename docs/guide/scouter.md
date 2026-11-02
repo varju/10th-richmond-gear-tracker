@@ -30,7 +30,7 @@ Search for it first. It may already be in the app, or have lost its sticker.
 - **Not there.** Stick a code on it, scan it, and tap **Create a new item**. Type its name, pick a home, and tap
   **Save**. A name is enough if you are in a hurry.
 - **One of several,** like tents. Tick **We have several of these** before you save; this one becomes #1. For the next,
-  scan its code, tap **Another of…**, and tap the name. Type the number first if one is already written on the gear.
+  scan its code, tap **Add a unit of…**, and tap the name. Type the number first if one is already written on the gear.
 - **Counted gear,** like mugs or tent pegs. Do not sticker each one. Tap **New item** on the home screen, tick **We have
   several of these**, pick **A stack we count**, and say how many. Then put one code on the bin: scan it, tap **Put it
   on an existing item**, and pick the stack.
