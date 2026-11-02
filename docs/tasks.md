@@ -63,3 +63,12 @@ changelog.
       Generics use an inconsistent method of counting. Make Generics render the same, using in/out instead of units/in,
       in the Status column. Put the collapse/expand arrow somewhere more subtle, in the main row.
 - [ ] Event gear list: offer check-out order as a sort option, if people miss it.
+- [ ] Clicking "Back home from cleaning" responds so quickly that I accidentally clicked Return immediately after. Hard
+      to use reliably.
+- [ ] Improve support for long term loans. e.g. our troop Scouter has the scout flagpole and badge box at home for the
+      whole school year. We still want to know where that gear is, but perhaps don't want to see it on the "What's out"
+      screen by default.
+- [ ] Consider whether there are too many buttons for beginners. Some of our Scouters likely just want to check gear in
+      and out, and don't need all the extra capabilities related to managing the gear.
+- [ ] Consider how we could make better use of the pictures. e.g. could the picture be shown during checkout so you can
+      be sure you have the right item? If there's only one picture, should that be the item's thumbnail?
