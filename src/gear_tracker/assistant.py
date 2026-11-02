@@ -1621,6 +1621,8 @@ def check_out(
         if not pool and it.get("status") == "out":
             raise Conflict(f"already out with {views.user_name(state, it.get('holder_id'))}")
         if cleaner is not None:
+            if it.get("retired") or it.get("merged_into"):
+                raise BadRequest("retired or merged items cannot be sent home")
             if not cleaner.strip():
                 raise BadRequest("say who is taking it home")
             if (event or "").strip() or reservation_id:
@@ -1740,13 +1742,37 @@ def transfer(
     event: str | None = None,
     note: str | None = None,
     reservation_id: str | None = None,
+    cleaner: str | None = None,
 ) -> dict[str, Any]:
     """Move an item that is out to a new holder without it coming back first: to you when `to_user_id` is
     left out (take over, FR-OUT-12), or to another active member (FR-OUT-26); list_members has their ids.
-    `event` is what it is going to now. It names the check-out it replaces, so it is not a conflict."""
+    `event` is what it is going to now. It names the check-out it replaces, so it is not a conflict.
+    `cleaner` sends gear that is out home with that person to clean (FR-OUT-46): its holder stays the
+    holder, and it takes no other argument."""
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)
+        if cleaner is not None:
+            if it.get("retired") or it.get("merged_into"):
+                raise BadRequest("retired or merged items cannot be sent home")
+            if not cleaner.strip():
+                raise BadRequest("say who is taking it home")
+            if to_user_id or event or reservation_id:
+                raise BadRequest("sending gear home takes only a cleaner and a note")
+            if it.get("status") != "out" or not it.get("movement"):
+                raise BadRequest("not out; check it out first")
+            if it["movement"].get("cleaner"):
+                raise Conflict("already at a cleaner's home")
+            movement_id = new_ulid()
+            holder = it.get("holder_id") or who.user_id
+            payload = {"holder_id": holder, "supersedes": it["movement"]["id"], "cleaner": cleaner.strip()}
+            drafts = [_draft("item", it["id"], "checked_out", payload, movement_id)]
+            if note and note.strip():
+                drafts.append(
+                    _draft("item", it["id"], "note_added", {"text": note.strip(), "movement_id": movement_id})
+                )
+            _push(conn, who, drafts)
+            return {"item_id": it["id"], "holder": views.user_name(state, holder), "cleaner": payload["cleaner"]}
         if reservation_id is not None:
             _reservation(state, reservation_id)
         if it.get("retired"):

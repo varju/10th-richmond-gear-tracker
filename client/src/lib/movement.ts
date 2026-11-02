@@ -229,6 +229,8 @@ export async function recount(store: Store, itemId: string, count: number, reaso
 export interface TransferOptions extends MoveOptions {
   /** Who gets it (FR-OUT-26). Defaults to whoever is signed in: a take-over (FR-OUT-12). */
   to?: string;
+  /** Who takes it home to clean (FR-OUT-46); the holder stays the holder. */
+  cleaner?: string;
 }
 
 /**
@@ -243,6 +245,19 @@ export async function transfer(store: Store, itemId: string, options: TransferOp
   if (it.merged_into) throw new Error("merged into another item");
   const previous = it.movement as Movement | undefined;
   if (it.status !== "out" || !previous) throw new Error("not out; check it out instead");
+  const sentHome = cleanerName(options);
+  if (sentHome) {
+    if (previous.cleaner) throw new Error("already at a cleaner's home");
+    if (options.to) throw new Error("sending gear home does not change who holds it");
+    return move(
+      store,
+      itemId,
+      "checked_out",
+      { holder_id: it.holder_id ?? actor(store), supersedes: previous.id, cleaner: sentHome },
+      options.note,
+      options.packing ? undefined : {},
+    );
+  }
   const to = options.to ?? actor(store);
   if (to === it.holder_id) throw new Error("they already have it");
   if (previous.cleaner) {

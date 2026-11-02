@@ -361,3 +361,12 @@ test("cleaning ending shows in the history and carries a note (FR-OUT-51)", asyn
   expect(latest?.type).toBe("cleaning_ended");
   expect(latest?.notes.map((n) => n.text)).toEqual(["zip stiff"]);
 });
+
+test("gear already out can be sent home, keeping the Scouter as holder (FR-OUT-46)", async () => {
+  await mv.checkOut(store, tent, { event: "Camp" });
+  const sent = await mv.transfer(store, tent, { cleaner: " Smith family " });
+  expect(sent.payload).toMatchObject({ holder_id: "alice", cleaner: "Smith family" });
+  expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice" });
+  expect(item(store.state, tent)?.movement?.cleaner).toBe("Smith family");
+  await expect(mv.transfer(store, tent, { cleaner: "Jones" })).rejects.toThrow("already at a cleaner");
+});

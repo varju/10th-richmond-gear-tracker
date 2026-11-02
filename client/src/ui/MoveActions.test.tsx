@@ -61,6 +61,7 @@ test("Send home to clean needs a name, offers recent ones, and keeps the Scouter
   const other = await act.createItem(store, { name: "Tent 2" });
   await mv.checkOut(store, other, { cleaner: "Smith family" });
   await mv.checkIn(store, other);
+  await mv.checkOut(store, tent, { event: "Camp" });
   const onMoved = vi.fn();
   renderInShell(<MoveActions store={store} it={item(store.state, tent)!} onMoved={onMoved} />);
 
@@ -76,6 +77,11 @@ test("Send home to clean needs a name, offers recent ones, and keeps the Scouter
   await waitFor(() => expect(onMoved).toHaveBeenCalledWith("Sent home", undefined, "Smith family"));
   expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice" });
   expect(item(store.state, tent)?.movement?.cleaner).toBe("Smith family");
+});
+
+test("Send home to clean is not offered for gear that is in", () => {
+  renderInShell(<MoveActions store={store} it={item(store.state, tent)!} onMoved={vi.fn()} />);
+  expect(screen.queryByRole("button", { name: "Send home to clean" })).toBeNull();
 });
 
 test("Back from cleaning clears the family and leaves the Scouter holding it (FR-OUT-51)", async () => {

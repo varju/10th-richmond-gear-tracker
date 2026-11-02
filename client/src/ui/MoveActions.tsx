@@ -168,7 +168,7 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
   const sendHome = (name: string): Pending => ({
     kind: "Sent home",
     cleaner: name,
-    act: (o) => checkOut(store, it.id, { note: o.note, packing: o.packing, cleaner: name }),
+    act: (o) => transfer(store, it.id, { note: o.note, packing: o.packing, cleaner: name }),
   });
 
   const asking = question(children);
@@ -288,7 +288,7 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
               </button>
             </div>
           )}
-          {canTake && session === undefined && !typing && (
+          {out && movable && !it.movement?.cleaner && session === undefined && !typing && (
             <div className="row minors">
               <button type="button" className="minor" disabled={busy} onClick={() => setCleaner("")}>
                 Send home to clean

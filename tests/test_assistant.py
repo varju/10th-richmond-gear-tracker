@@ -1910,3 +1910,22 @@ def test_gear_out_for_cleaning_keeps_its_cleaner_through_a_transfer_and_has_no_e
     assistant.transfer(tools["t1"], bob)
     unit = assistant.get_item(tools["t1"])
     assert unit["holder"] == "Bob" and unit["cleaner"] == "Smith"
+
+
+def test_gear_that_is_out_is_sent_home_with_a_transfer(tools):
+    with pytest.raises(BadRequest):
+        assistant.transfer(tools["t1"], cleaner="Smith")  # not out yet
+    assistant.check_out(tools["t1"], event="Fall Camp")
+    with pytest.raises(BadRequest):
+        assistant.transfer(tools["t1"], cleaner="  ")
+    assistant.transfer(tools["t1"], cleaner=" Smith family ", note="clean the fly")
+    unit = assistant.get_item(tools["t1"])
+    assert unit["holder"] == "Alice" and unit["cleaner"] == "Smith family"
+    with pytest.raises(Conflict):
+        assistant.transfer(tools["t1"], cleaner="Jones")
+
+
+def test_sending_gear_home_leaves_its_holder_alone(tools):
+    assistant.check_out(tools["t2"])
+    assistant.transfer(tools["t2"], cleaner="Smith")
+    assert assistant.get_item(tools["t2"])["holder"] == "Alice"
