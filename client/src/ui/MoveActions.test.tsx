@@ -77,3 +77,15 @@ test("Send home to clean needs a name, offers recent ones, and keeps the Scouter
   expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice" });
   expect(item(store.state, tent)?.movement?.cleaner).toBe("Smith family");
 });
+
+test("Back from cleaning clears the family and leaves the Scouter holding it (FR-OUT-51)", async () => {
+  await mv.checkOut(store, tent, { cleaner: "Smith family" });
+  const onMoved = vi.fn();
+  renderInShell(<MoveActions store={store} it={item(store.state, tent)!} onMoved={onMoved} />);
+
+  await user.click(screen.getByRole("button", { name: "Back from cleaning" }));
+
+  await waitFor(() => expect(onMoved).toHaveBeenCalledWith("Back from cleaning", undefined, undefined));
+  expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice" });
+  expect(item(store.state, tent)?.movement?.cleaner).toBeUndefined();
+});

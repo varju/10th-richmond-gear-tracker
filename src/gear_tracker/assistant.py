@@ -1884,6 +1884,47 @@ def correct_cleaner(item_id: str, cleaner: str, was: str | None = None) -> dict[
         return {"item_id": it["id"], "cleaner": cleaner.strip(), "corrected": len(drafts)}
 
 
+def back_from_cleaning(
+    item_id: str, cleaner: str | None = None, count: Count | None = None, holder_id: str | None = None
+) -> dict[str, Any]:
+    """Cleaned gear is back with the Scouter who sent it home (FR-OUT-51). Still out to them; no longer with the family.
+
+    A single item needs only `item_id`. A pool needs `cleaner`, the family's name as get_item lists it;
+    `count` defaults to all that family has of `holder_id`'s (you, by default).
+    """
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, item_id)
+        payload: dict[str, Any] = {}
+        if views.is_pool(it):
+            if not cleaner or not cleaner.strip():
+                raise BadRequest("a pool has several cleaners; say whose share is back in `cleaner`")
+            holder = holder_id or who.user_id
+            key = cleaner_key(cleaner)
+            have = sum(
+                lot["count"]
+                for out in views.pool_lots(it)
+                if out["holder_id"] == holder
+                for lot in out["lots"]
+                if lot.get("cleaner") and cleaner_key(lot["cleaner"]) == key
+            )
+            if not have:
+                raise BadRequest(f"no one named {cleaner.strip()} has any of it under that Scouter")
+            if count is not None and count > have:
+                raise BadRequest(f"{cleaner.strip()} has only {have}")
+            payload = {"cleaner": cleaner.strip(), "count": count or have}
+            if holder != who.user_id:
+                payload["holder_id"] = holder
+        else:
+            if cleaner is not None or count is not None or holder_id is not None:
+                raise BadRequest("cleaner, count and holder_id are only for a pool")
+            movement = it.get("movement") or {}
+            if it.get("status") != "out" or not movement.get("cleaner"):
+                raise BadRequest("it is not out for cleaning")
+        _push(conn, who, [_draft("item", it["id"], "cleaning_ended", payload)])
+        return {"item_id": it["id"], **({"count": payload["count"]} if payload else {})}
+
+
 def stock_check(location_id: str, seen: list[str], sub_location: str | None = None) -> dict[str, Any]:
     """Check one location, or one shelf of it, against what was seen there (FR-RPT-09).
 
@@ -2484,6 +2525,7 @@ TOOLS = [
     settle_conflict,
     correct_event,
     correct_cleaner,
+    back_from_cleaning,
     stock_check,
     get_notifications,
     set_notifications,

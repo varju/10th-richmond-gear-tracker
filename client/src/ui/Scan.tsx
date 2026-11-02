@@ -283,7 +283,7 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
                 moved.current.set(card.id, Date.now());
                 // An extra taken during a reservation session joins its gear list (FR-RES-07).
                 // Gear handed to someone else is not packed for it (FR-OUT-26).
-                if (booked && kind !== "Returned" && kind !== "Sent home" && !to)
+                if (booked && kind !== "Returned" && kind !== "Sent home" && kind !== "Back from cleaning" && !to)
                   void addExtra(store, booked.id, card.id);
               }}
               onSaved={(message) => {

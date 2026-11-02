@@ -160,6 +160,15 @@ class CleanerCorrection(Payload):
     cleaner: Annotated[str, AfterValidator(_trimmed_name)]
 
 
+class CleaningEnded(Payload):
+    """Cleaned gear is back with the Scouter who sent it home (FR-OUT-51). A pool names whose lots (`cleaner`),
+    how many (`count`), and whose they are (`holder_id`, default the actor); a single item names nothing."""
+
+    cleaner: Annotated[str, AfterValidator(_trimmed_name)] | None = None
+    count: Annotated[int, Field(ge=1)] | None = None
+    holder_id: NonEmpty | None = None
+
+
 class CheckOut(Payload):
     """Who has it, for which event (FR-OUT-04). `supersedes` names the check-out this one knowingly replaces:
     a transfer (FR-OUT-12), not a conflict (FR-OFF-10). `count` is set only for a pool (FR-OUT-22): it adds to
@@ -415,6 +424,11 @@ class CleanerCorrected(_ItemOnly):
     payload: CleanerCorrection
 
 
+class CleaningEndedEvent(_ItemOnly):
+    type: Literal["cleaning_ended"]
+    payload: CleaningEnded
+
+
 class ItemAdded(_ReservationOnly):
     type: Literal["item_added"]
     payload: ItemRef
@@ -500,6 +514,7 @@ IncomingEvent = Annotated[
     | NoteDeleted
     | EventCorrected
     | CleanerCorrected
+    | CleaningEndedEvent
     | ItemAdded
     | ItemRemoved
     | QuantityChanged
@@ -524,6 +539,7 @@ EVENT_TYPES = frozenset(
         "note_deleted",
         "event_corrected",
         "cleaner_corrected",
+        "cleaning_ended",
         "item_added",
         "item_removed",
         "quantity_changed",

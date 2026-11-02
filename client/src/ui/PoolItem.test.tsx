@@ -300,3 +300,20 @@ test("a share of a stack goes home with a family, and a return names whose it is
   await user.click(screen.getAllByRole("button", { name: "Return" })[0]!);
   await waitFor(() => expect(fact("Cleaning")).toBe("Smith · 4"));
 });
+
+test("part of a family's share comes back to the Scouter from the stack's page (FR-OUT-51)", async () => {
+  const bags = await act.createPool(store, { name: "Bags" }, 20);
+  await mv.checkOutPool(store, bags, { count: 4, cleaner: "Smith" });
+  await mv.checkOutPool(store, bags, { count: 2, cleaner: "Jones" });
+  navigate(`/items/${bags}`);
+  renderInShell(<ItemPage store={store} id={bags} />);
+
+  await user.click(screen.getByRole("button", { name: "Back from cleaning" }));
+  await user.selectOptions(screen.getByLabelText("Back from"), "Smith · 4");
+  const count = screen.getByLabelText("How many");
+  await user.clear(count);
+  await user.type(count, "3");
+  await user.click(screen.getAllByRole("button", { name: "Back from cleaning" })[0]!);
+
+  await waitFor(() => expect(fact("Cleaning")).toBe("Smith · 1, Jones · 2"));
+});

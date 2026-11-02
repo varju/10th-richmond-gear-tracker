@@ -53,6 +53,9 @@ export type State = Record<string, Record<string, Fields>>;
 //                                             new cleaner. A checked_out with a cleaner adds it to its lot;
 //                                             a checked_in with one comes off that cleaner's lots first
 //                                             (returnLots).
+//   cleaning_ended {cleaner?, count?,         cleaned gear is back with its Scouter (FR-OUT-51). A single
+//                   holder_id?}                item's movement loses its cleaner. A pool's `count` of
+//                                             that holder's lots under `cleaner` lose it (endCleaning).
 //   recounted   {count, reason}              pool_in = count. pool_out is untouched (FR-INV-35);
 //                                             anyone signed in may record one.
 //
@@ -170,6 +173,32 @@ export function returnLots(lots: PoolLot[], before: number, count: number, clean
   return kept.filter((l) => l.count > 0);
 }
 
+/** A holder's lots after `count` of those under `cleaner` come back (FR-OUT-51). Mirrors end_cleaning in replay.py. */
+export function endCleaning(
+  lots: PoolLot[],
+  count: number,
+  cleaner: string | null | undefined,
+  newId: string,
+): PoolLot[] {
+  if (!cleaner) return lots.map((l) => ({ ...l }));
+  const key = cleanerKey(cleaner);
+  let left = count;
+  const out: PoolLot[] = [];
+  for (const lot of lots) {
+    if (left > 0 && lot.cleaner && cleanerKey(lot.cleaner) === key) {
+      const n = Math.min(lot.count, left);
+      left -= n;
+      const { cleaner: _gone, ...back } = lot;
+      if (n === lot.count) out.push(back);
+      else {
+        out.push({ ...lot, count: lot.count - n });
+        out.push({ ...back, id: newId, count: n });
+      }
+    } else out.push({ ...lot });
+  }
+  return out;
+}
+
 /** A file on the server. Never the bytes: those are fetched when online (FR-INV-11). */
 export interface Photo {
   id: string;
@@ -194,6 +223,7 @@ export const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set([
   "quantity_changed",
   "event_corrected",
   "cleaner_corrected",
+  "cleaning_ended",
   "note_added",
   "note_corrected",
   "note_deleted",
@@ -312,6 +342,22 @@ export function apply(entity: Fields, event: ReplayEvent): void {
         const fixed = list.map((l) => (l.id === p.movement_id ? { ...l, cleaner: p.cleaner as string } : l));
         entity.pool_lots = { ...lots, [holderId]: fixed };
         break;
+      }
+      break;
+    }
+    case "cleaning_ended": {
+      if (p.count != null) {
+        const holderId = (p.holder_id as string | undefined) ?? event.actor_id;
+        const lots = (entity.pool_lots ?? {}) as PoolLots;
+        if (lots[holderId]) {
+          entity.pool_lots = {
+            ...lots,
+            [holderId]: endCleaning(lots[holderId], p.count as number, p.cleaner as string | undefined, event.id),
+          };
+        }
+      } else {
+        const current = entity.movement as Movement | null | undefined;
+        if (entity.status === "out" && current) delete current.cleaner;
       }
       break;
     }

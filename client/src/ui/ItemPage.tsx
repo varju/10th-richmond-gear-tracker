@@ -43,7 +43,15 @@ import {
   unitsOf,
 } from "../lib/inventory";
 import { itemReservations } from "../lib/itemReservations";
-import { checkInPool, checkOutPool, correctCleaner, correctEvent, type HistoryEntry, recount } from "../lib/movement";
+import {
+  backFromCleaning,
+  checkInPool,
+  checkOutPool,
+  correctCleaner,
+  correctEvent,
+  type HistoryEntry,
+  recount,
+} from "../lib/movement";
 import { openRepairs, raiseTicket, type Repair, repairsFor, stateLabel } from "../lib/repairs";
 import { type Log, useRecord } from "../lib/record";
 import { cleanerKey, type Movement, type Note, type State } from "../lib/replay";
@@ -1447,6 +1455,21 @@ function returnShares(it: Item, holderId: string | null) {
   return ordinary > 0 ? [{ key: "", count: ordinary }, ...cleaning] : cleaning;
 }
 
+/** Each Scouter's share of the pool at a family's home, by family (FR-OUT-51). */
+function cleaningLots(it: Item) {
+  const found: { holder_id: string; key: string; cleaner: string; count: number }[] = [];
+  for (const held of poolLots(it)) {
+    for (const lot of held.lots) {
+      if (!lot.cleaner) continue;
+      const key = cleanerKey(lot.cleaner);
+      const share = found.find((x) => x.holder_id === held.holder_id && x.key === key);
+      if (share) share.count += lot.count;
+      else found.push({ holder_id: held.holder_id, key, cleaner: tidyName(lot.cleaner), count: lot.count });
+    }
+  }
+  return found;
+}
+
 /** Who has some of the pool at home to clean, with how many, across every holder (FR-OUT-46). */
 function cleaningShares(it: Item) {
   const found = new Map<string, { cleaner: string; count: number }>();
@@ -1479,10 +1502,10 @@ export function PoolActions({
   it: Item;
   session?: Session;
   /** What was done, and which way it went: a scan during a packing session grows the reservation on "out". */
-  onMoved: (message: string, kind: "out" | "in" | "recount") => void;
+  onMoved: (message: string, kind: "out" | "in" | "recount" | "back") => void;
   children?: React.ReactNode;
 }) {
-  const [mode, setMode] = useState<"out" | "in" | "recount" | "home" | null>(null);
+  const [mode, setMode] = useState<"out" | "in" | "recount" | "home" | "back" | null>(null);
   const [count, setCount] = useState("1");
   // Who is taking the stack home to clean (FR-OUT-46), and, on a return, whose share comes back (FR-OUT-47).
   const [cleaner, setCleaner] = useState("");
@@ -1512,7 +1535,7 @@ export function PoolActions({
     return (list.find((x) => x.key === key) ?? list[0])?.count ?? holderCount(id);
   };
 
-  function begin(next: "out" | "in" | "recount" | "home") {
+  function begin(next: "out" | "in" | "recount" | "home" | "back") {
     if (next === "out")
       askThen((s) => {
         setRecorded(s);
@@ -1521,7 +1544,7 @@ export function PoolActions({
     else open(next);
   }
 
-  function open(next: "out" | "in" | "recount" | "home") {
+  function open(next: "out" | "in" | "recount" | "home" | "back") {
     setMode(next);
     setError(null);
     setReason("");
@@ -1531,6 +1554,8 @@ export function PoolActions({
       setHolder(def);
       setFrom(shares(def)[0]?.key ?? "");
       setCount(String(shareCount(def, shares(def)[0]?.key ?? "") || 1));
+    } else if (next === "back") {
+      pickAtHome(`${atHome[0]?.holder_id}\0${atHome[0]?.key}`);
     } else {
       setHolder(null);
       setCount(next === "recount" ? String(counts.in) : "1");
@@ -1542,6 +1567,16 @@ export function PoolActions({
     setFrom(shares(id)[0]?.key ?? "");
     setCount(String(shareCount(id, shares(id)[0]?.key ?? "") || 1));
   }
+
+  // Gear at a family's home, by who sent it (FR-OUT-51).
+  const atHome = cleaningLots(it);
+  function pickAtHome(value: string) {
+    const [id = "", key = ""] = value.split("\0");
+    setHolder(id);
+    setFrom(key);
+    setCount(String(atHome.find((x) => x.holder_id === id && x.key === key)?.count ?? 1));
+  }
+  const homeShare = atHome.find((x) => x.holder_id === holder && x.key === from);
 
   function pickShare(key: string) {
     setFrom(key);
@@ -1568,6 +1603,12 @@ export function PoolActions({
         });
       } else if (mode === "home") {
         await checkOutPool(store, it.id, { count: amount, cleaner });
+      } else if (mode === "back") {
+        await backFromCleaning(store, it.id, {
+          cleaner: homeShare?.cleaner,
+          count: amount,
+          holder_id: homeShare?.holder_id,
+        });
       } else if (mode === "in")
         await checkInPool(store, it.id, {
           count: amount,
@@ -1586,9 +1627,11 @@ export function PoolActions({
         ? `Checked out ${amount}`
         : mode === "home"
           ? `Sent home ${amount} to ${cleaner.trim()}`
-          : mode === "in"
-            ? `Returned ${amount}`
-            : `Recounted to ${amount}`;
+          : mode === "back"
+            ? `Back from ${homeShare?.cleaner ?? "cleaning"} ${amount}`
+            : mode === "in"
+              ? `Returned ${amount}`
+              : `Recounted to ${amount}`;
     setBusy(false);
     setMode(null);
     onMoved(`${label} · ${displayName(state, it)}`, mode === "home" ? "out" : mode);
@@ -1644,6 +1687,19 @@ export function PoolActions({
           </select>
         </label>
       )}
+      {mode === "back" && (
+        <label className="tight">
+          <span>Back from</span>
+          <select value={`${holder}\0${from}`} onChange={(e) => pickAtHome(e.target.value)}>
+            {atHome.map((x) => (
+              <option key={`${x.holder_id}\0${x.key}`} value={`${x.holder_id}\0${x.key}`}>
+                {x.cleaner} · {x.count}
+                {x.holder_id !== me ? ` (${userName(state, x.holder_id)})` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {mode === "home" && <CleanerField store={store} value={cleaner} onChange={setCleaner} disabled={busy} />}
       {mode && (
         <label className="tight">
@@ -1652,7 +1708,7 @@ export function PoolActions({
             type="number"
             inputMode="numeric"
             min={mode === "recount" ? 0 : 1}
-            max={mode === "in" ? share?.count ?? holderCount(holder) : undefined}
+            max={mode === "in" ? share?.count ?? holderCount(holder) : mode === "back" ? homeShare?.count : undefined}
             step={1}
             autoFocus
             value={count}
@@ -1688,7 +1744,15 @@ export function PoolActions({
             disabled={busy || !validCount || needsName || (mode === "recount" && reason.trim() === "")}
             onClick={() => void submit(n)}
           >
-            {mode === "out" ? "Check out" : mode === "home" ? "Send home" : mode === "in" ? "Return" : "Recount"}
+            {mode === "out"
+              ? "Check out"
+              : mode === "home"
+                ? "Send home"
+                : mode === "back"
+                  ? "Back from cleaning"
+                  : mode === "in"
+                    ? "Return"
+                    : "Recount"}
           </button>
           <button type="button" onClick={() => setMode(null)}>
             Cancel
@@ -1707,6 +1771,11 @@ export function PoolActions({
           <button type="button" onClick={() => begin("recount")}>
             Recount
           </button>
+          {atHome.length > 0 && (
+            <button type="button" onClick={() => begin("back")}>
+              Back from cleaning
+            </button>
+          )}
           {session === undefined && counts.in > 0 && (
             <button type="button" className="minor" onClick={() => begin("home")}>
               Send home to clean

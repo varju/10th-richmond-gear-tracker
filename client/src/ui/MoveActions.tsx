@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useState } from "react";
 import type { Item } from "../lib/inventory";
-import { addNote, checkIn, checkOut, transfer, type TransferOptions } from "../lib/movement";
+import { addNote, backFromCleaning, checkIn, checkOut, transfer, type TransferOptions } from "../lib/movement";
 import { openRepairs, raiseTicket } from "../lib/repairs";
 import { type Session, sessionEvent } from "../lib/session";
 import type { Store } from "../lib/store";
@@ -12,7 +12,7 @@ import { TransferPicker } from "./TransferPicker";
 /** How long a "Checked out · Tent 1" strip stays up. */
 export const CONFIRM_MS = 1500;
 
-export type MoveKind = "Checked out" | "Returned" | "Transferred" | "Sent home";
+export type MoveKind = "Checked out" | "Returned" | "Transferred" | "Sent home" | "Back from cleaning";
 
 /** A message that clears itself after `ms`. A newer message is left alone. */
 export function useFlash(ms: number): [string | null, (message: string) => void] {
@@ -154,6 +154,7 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
 
   const checkOutMove: Pending = { kind: "Checked out", act: (o) => checkOut(store, it.id, o) };
   const returnMove: Pending = { kind: "Returned", act: (o) => checkIn(store, it.id, o) };
+  const backMove: Pending = { kind: "Back from cleaning", act: () => backFromCleaning(store, it.id) };
   const takeOver: Pending = { kind: "Transferred", act: (o) => transfer(store, it.id, o) };
   const handTo = (to: string): Pending => ({
     kind: "Transferred",
@@ -242,8 +243,18 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
             </button>
           )}
           {canTake && showEvent && <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>}
+          {out && movable && it.movement?.cleaner && (
+            <button type="button" className="primary" disabled={busy} onClick={() => start(backMove, false)}>
+              Back from cleaning
+            </button>
+          )}
           {out && !theirs && (
-            <button type="button" className="primary" disabled={busy} onClick={() => start(returnMove, false)}>
+            <button
+              type="button"
+              className={it.movement?.cleaner ? undefined : "primary"}
+              disabled={busy}
+              onClick={() => start(returnMove, false)}
+            >
               Return
             </button>
           )}

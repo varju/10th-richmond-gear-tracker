@@ -328,3 +328,28 @@ test("a transfer of gear at a cleaner's home keeps the cleaner (FR-OUT-46)", asy
   expect(moved.payload).toMatchObject({ holder_id: "bob", cleaner: "Smith" });
   expect(item(store.state, tent)).toMatchObject({ holder_id: "bob", movement: { cleaner: "Smith", event: null } });
 });
+
+test("cleaned gear comes back to the Scouter, who still holds it (FR-OUT-51)", async () => {
+  await expect(mv.backFromCleaning(store, tent)).rejects.toThrow("not out for cleaning");
+  await mv.checkOut(store, tent, { cleaner: "Smith" });
+  await mv.backFromCleaning(store, tent);
+  expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice" });
+  expect(item(store.state, tent)?.movement?.cleaner).toBeUndefined();
+});
+
+test("part of a family's share of a stack comes back; the counts do not move (FR-OUT-51)", async () => {
+  const pool = await act.createPool(store, { name: "Bags" }, 20);
+  await mv.checkOutPool(store, pool, { count: 4, cleaner: "Smith" });
+  await mv.checkOutPool(store, pool, { count: 2, cleaner: "Jones" });
+  await expect(mv.backFromCleaning(store, pool, { cleaner: "Smith", count: 5 })).rejects.toThrow("only 4");
+  await expect(mv.backFromCleaning(store, pool, { cleaner: "Nobody" })).rejects.toThrow();
+  await mv.backFromCleaning(store, pool, { cleaner: " smith", count: 3 });
+
+  const it = item(store.state, pool)!;
+  expect(it.pool_out).toEqual({ alice: 6 });
+  expect(it.pool_lots!.alice!.map((l) => [l.cleaner ?? null, l.count])).toEqual([
+    ["Smith", 1],
+    [null, 3],
+    ["Jones", 2],
+  ]);
+});

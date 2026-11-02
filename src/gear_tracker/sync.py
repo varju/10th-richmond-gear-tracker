@@ -253,6 +253,14 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
                 raise Rejected("retired items cannot be checked out (FR-INV-04)")
             if item.get("merged_into"):
                 raise Rejected("this item was merged into another (FR-INV-13)")
+    if entity_type == "item" and kind == "cleaning_ended":
+        item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
+        payload = incoming.get("payload")
+        payload = payload if isinstance(payload, dict) else {}
+        if bool(item.get("pool")) != (payload.get("count") is not None):
+            raise Rejected("a pool ends cleaning by count, a single item without one (FR-OUT-51)")
+        if payload.get("count") is not None and not payload.get("cleaner"):
+            raise Rejected("a pool says whose lots are back (FR-OUT-51)")
     if entity_type == "item" and kind == "recounted":
         item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
         if not item.get("pool"):

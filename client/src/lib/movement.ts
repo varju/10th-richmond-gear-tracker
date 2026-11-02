@@ -4,7 +4,7 @@
  * syncs afterwards (FR-OFF-03).
  */
 import { seen } from "./actions";
-import { aliases, isPool, item, type Item, poolCounts } from "./inventory";
+import { aliases, isPool, item, type Item, poolCounts, poolLots } from "./inventory";
 import * as notes from "./notes";
 import type { Log } from "./record";
 import { eventNameKey, tidyName } from "./calendar";
@@ -179,6 +179,41 @@ export async function checkInPool(store: Store, itemId: string, options: PoolChe
   const cleaner = cleanerName(options);
   if (cleaner) payload.cleaner = cleaner;
   return move(store, itemId, "checked_in", payload, options.note, options.packing ? undefined : {});
+}
+
+export interface BackFromCleaning {
+  /** A pool only: whose share, how many, and which Scouter's it was. */
+  cleaner?: string;
+  count?: number;
+  holder_id?: string;
+}
+
+/**
+ * Cleaned gear is back with the Scouter who sent it home (FR-OUT-51). They still hold it; the family no
+ * longer does. A single item needs no detail; a pool names the family and a count.
+ */
+export async function backFromCleaning(store: Store, itemId: string, options: BackFromCleaning = {}) {
+  const found = item(store.state, itemId);
+  if (!found) throw new Error("no such item");
+  const it = isPool(found) ? found : current(store, itemId);
+  const payload: Record<string, unknown> = {};
+  if (isPool(it)) {
+    const held = poolLots(it).find((o) => o.holder_id === (options.holder_id ?? actor(store)));
+    const key = cleanerKey(options.cleaner ?? "");
+    const has = (held?.lots ?? [])
+      .filter((l) => l.cleaner && cleanerKey(l.cleaner) === key)
+      .reduce((n, l) => n + l.count, 0);
+    if (!key || has === 0) throw new Error("no one by that name has any of it");
+    const count = options.count ?? has;
+    if (!Number.isInteger(count) || count < 1) throw new Error("pick a count of at least 1");
+    if (count > has) throw new Error(`only ${has} at ${options.cleaner!.trim()}`);
+    payload.cleaner = options.cleaner!.trim();
+    payload.count = count;
+    if (options.holder_id && options.holder_id !== actor(store)) payload.holder_id = options.holder_id;
+  } else if (it.status !== "out" || !it.movement?.cleaner) {
+    throw new Error("not out for cleaning");
+  }
+  return move(store, itemId, "cleaning_ended", payload);
 }
 
 /** How many are in right now, with a reason (FR-INV-35). What is already out is untouched; anyone signed in may record one. */

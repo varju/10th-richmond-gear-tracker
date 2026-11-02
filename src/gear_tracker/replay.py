@@ -60,6 +60,10 @@ State = dict[str, dict[str, dict[str, Any]]]
 #                                             new cleaner. A checked_out with a cleaner adds it to its lot;
 #                                             a checked_in with one comes off that cleaner's lots first
 #                                             (return_lots).
+#   cleaning_ended {cleaner?, count?,         cleaned gear is back with its Scouter (FR-OUT-51). A single
+#                   holder_id?}                item's movement loses its cleaner. A pool's `count` of
+#                                             that holder's lots under `cleaner` lose it (end_cleaning).
+#                                             Counts and holders do not change.
 #   recounted   {count, reason}              pool_in = count. pool_out is untouched (FR-INV-35);
 #                                             anyone signed in may record one.
 #
@@ -138,6 +142,31 @@ def return_lots(lots: list[dict[str, Any]], before: int, count: int, cleaner: st
     take(lambda lot: not lot.get("cleaner"))
     take(lambda lot: True)
     return [lot for lot in kept if lot["count"] > 0]
+
+
+def end_cleaning(lots: list[dict[str, Any]], count: int, cleaner: str | None, new_id: str) -> list[dict[str, Any]]:
+    """A holder's lots after `count` of those under `cleaner` come back (FR-OUT-51). Mirrors endCleaning in replay.ts.
+
+    Oldest first. A lot that comes back whole keeps its id; a part of one takes `new_id`, and the rest stays.
+    """
+    if not cleaner:
+        return [dict(lot) for lot in lots]
+    key = cleaner_key(cleaner)
+    left = count
+    out: list[dict[str, Any]] = []
+    for lot in lots:
+        if left > 0 and lot.get("cleaner") and cleaner_key(lot["cleaner"]) == key:
+            n = min(lot["count"], left)
+            left -= n
+            back = {k: v for k, v in lot.items() if k != "cleaner"}
+            if n == lot["count"]:
+                out.append(back)
+            else:
+                out.append({**lot, "count": lot["count"] - n})
+                out.append({**back, "id": new_id, "count": n})
+        else:
+            out.append(dict(lot))
+    return out
 
 
 def _correct_cleaner(entity: dict[str, Any], p: dict[str, Any]) -> None:
@@ -252,6 +281,17 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             if movement is not None and movement["id"] == p["movement_id"]:
                 movement["cleaner"] = p["cleaner"]
             _correct_cleaner(entity, p)
+        case "cleaning_ended":
+            if p.get("count") is not None:
+                holder_id = p.get("holder_id") or event.actor_id
+                lots = dict(entity.get("pool_lots", {}))
+                if holder_id in lots:
+                    lots[holder_id] = end_cleaning(lots[holder_id], p["count"], p.get("cleaner"), event.id)
+                    entity["pool_lots"] = lots
+            else:
+                movement = entity.get("movement")
+                if entity.get("status") == "out" and movement is not None:
+                    movement.pop("cleaner", None)
         case "note_added":
             note = {"id": event.id, "text": p["text"], "actor_id": event.actor_id, "at": event.effective_at}
             if p.get("movement_id") is not None:

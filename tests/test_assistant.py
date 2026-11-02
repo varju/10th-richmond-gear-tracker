@@ -1876,6 +1876,32 @@ def test_pool_shares_go_home_with_different_families(tools, pool_id):
         assistant.correct_cleaner(pool_id, "Smith-Lee")  # a pool needs `was`
 
 
+def test_cleaned_gear_comes_back_to_the_scouter(tools, pool_id):
+    with pytest.raises(BadRequest):
+        assistant.back_from_cleaning(tools["t1"])  # not out for cleaning
+    assistant.check_out(tools["t1"], cleaner="Smith")
+    assistant.back_from_cleaning(tools["t1"])
+    unit = assistant.get_item(tools["t1"])
+    assert unit["holder"] == "Alice" and "cleaner" not in unit
+    assert assistant.whats_out()["holders"][0]["items"][0].get("cleaner") is None
+
+    assistant.check_out(pool_id, count=4, cleaner="Smith")
+    assistant.check_out(pool_id, count=2, cleaner="Jones")
+    with pytest.raises(BadRequest):
+        assistant.back_from_cleaning(pool_id)  # a pool needs a name
+    with pytest.raises(BadRequest):
+        assistant.back_from_cleaning(pool_id, "Smith", count=5)
+    assistant.back_from_cleaning(pool_id, " smith", count=3)
+    assert assistant.get_item(pool_id)["cleaners"] == [
+        {"cleaner": "Smith", "count": 1},
+        {"cleaner": "Jones", "count": 2},
+    ]
+    lines = {
+        (e.get("cleaner"), e["count"]) for e in assistant.whats_out()["holders"][0]["items"] if e["item_id"] == pool_id
+    }
+    assert lines == {(None, 3), ("Smith", 1), ("Jones", 2)}
+
+
 def test_gear_out_for_cleaning_keeps_its_cleaner_through_a_transfer_and_has_no_event(tools, bob):
     assistant.check_out(tools["t1"], cleaner="Smith")
     with pytest.raises(BadRequest):

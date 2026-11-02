@@ -73,8 +73,9 @@ you.
 
 Scan it and tap **Send home to clean**. Type who is taking it; the name is required, and names used lately appear as you
 type. You stay the holder, so it stays on your list until it is back. For a stack, give the count; send each family's
-share on its own. When the gear comes back, tap **Return**. If several families have some, pick whose share it is. To
-fix a typo, open the item and tap **Change name**.
+share on its own. When a parent brings it back, tap **Back from cleaning**; it stays with you and leaves the family. For
+a stack, pick the family and the count. When it goes back to the locker, tap **Return**. To fix a typo, open the item
+and tap **Change name**.
 
 ### Hand gear to someone else
 
