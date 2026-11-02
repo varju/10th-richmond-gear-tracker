@@ -50,8 +50,8 @@ not been scanned. Tap **Seen** beside a row for gear with no code, or a sticker 
 
 ### Recount a stack
 
-Open the stack and tap **Recount**. Say how many are in the locker right now, and why: a delivery, a breakage, a proper
-count. It resets what is on the shelf; what people already have out is untouched.
+Open the stack and tap **Recount**. Say how many are in the locker right now. Why is optional: a delivery, a breakage, a
+proper count. It resets what is on the shelf; what people already have out is untouched.
 
 ## Items
 

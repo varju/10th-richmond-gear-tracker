@@ -431,7 +431,7 @@ def _history(conn: sqlite3.Connection, state: dict[str, Any], item_id: str) -> l
             payload["cleaner"] = renamed[row["id"]]
         if payload.get("cleaner"):
             entry["cleaner"] = payload["cleaner"]
-        if "reason" in payload:
+        if payload.get("reason"):
             entry["reason"] = payload["reason"]
         out.append(entry)
     return out
@@ -1702,7 +1702,7 @@ def check_in(
         return {"item_id": it["id"], "status": "in", "home": views.home_label(state, it)}
 
 
-def recount(item_id: str, count: Annotated[StrictInt, Field(ge=0)], reason: str) -> dict[str, Any]:
+def recount(item_id: str, count: Annotated[StrictInt, Field(ge=0)], reason: str | None = None) -> dict[str, Any]:
     """Record how many of a pool are in right now (FR-INV-35). Anyone signed in; pool only.
 
     What each holder has out is unchanged; owned becomes this count plus what is out.
@@ -1712,9 +1712,7 @@ def recount(item_id: str, count: Annotated[StrictInt, Field(ge=0)], reason: str)
         it = _item(state, item_id)
         if not views.is_pool(it):
             raise BadRequest("recount is only for a pool")
-        if not reason.strip():
-            raise BadRequest("say why")
-        _push(conn, who, [_draft("item", it["id"], "recounted", {"count": count, "reason": reason.strip()})])
+        _push(conn, who, [_draft("item", it["id"], "recounted", {"count": count, "reason": reason})])
         counts = views.pool_counts(_item(_state(conn), item_id))
         return {"item_id": it["id"], "in": counts["in"], "owned": counts["owned"]}
 

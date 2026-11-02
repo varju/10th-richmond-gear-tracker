@@ -1429,8 +1429,12 @@ def test_recount_sets_what_is_on_the_shelf_and_leaves_what_is_out(tools, pool_id
 
     with pytest.raises(BadRequest):
         assistant.recount(tools["stove"], count=1, reason="why not")
-    with pytest.raises(BadRequest):
-        assistant.recount(pool_id, count=1, reason="   ")
+    assistant.recount(pool_id, count=4)
+    assistant.recount(pool_id, count=5, reason="   ")
+    recounts = [h for h in assistant.get_item(pool_id)["history"] if h["type"] == "recounted"]
+    assert [h["count"] for h in recounts] == [5, 4, 3]
+    assert "reason" not in recounts[0] and "reason" not in recounts[1]
+    assert recounts[2]["reason"] == "shelf count"
 
 
 def test_a_reservation_records_who_created_it_and_when(tools):

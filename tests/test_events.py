@@ -415,12 +415,12 @@ def test_a_check_in_carries_an_optional_holder_and_count_for_a_pool():
         validate(incoming(type="checked_in", payload={"holder_id": "", "count": 1}))
 
 
-def test_a_recount_names_a_count_and_a_reason():
+def test_a_recount_names_a_count_and_may_give_a_reason():
     validate(incoming(type="recounted", payload={"count": 5, "reason": "shelf check"}))
     with pytest.raises(Rejected, match="count: Input should be greater than or equal to 0"):
         validate(incoming(type="recounted", payload={"count": -1, "reason": "shelf check"}))
-    with pytest.raises(Rejected, match="reason: String should have at least 1 character"):
-        validate(incoming(type="recounted", payload={"count": 5, "reason": ""}))
+    for payload in ({"count": 5}, {"count": 5, "reason": ""}, {"count": 5, "reason": "  "}):
+        assert validate(incoming(type="recounted", payload=payload)).payload_dict()["reason"] is None
     with pytest.raises(Rejected, match="recounted applies only to items"):
         validate(
             incoming(

@@ -155,13 +155,16 @@ test("a pool moves by count: several people can have some out at once (FR-OUT-22
   await expect(mv.checkOutPool(store, bowls, { count: 0 })).rejects.toThrow("at least 1");
 });
 
-test("a recount sets what is in right now, with a reason; what is out is untouched (FR-INV-35)", async () => {
+test("a recount sets what is in right now, with or without a reason; what is out is untouched (FR-INV-35)", async () => {
   const bowls = await act.createPool(store, { name: "Bowls" }, 20);
   await mv.checkOutPool(store, bowls, { count: 5 });
   await mv.recount(store, bowls, 12, "counted on the shelf");
   expect(item(store.state, bowls)).toMatchObject({ pool_in: 12, pool_out: { alice: 5 } });
 
-  await expect(mv.recount(store, bowls, 12, " ")).rejects.toThrow("say why");
+  for (const blank of [undefined, "", " "]) {
+    const none = await mv.recount(store, bowls, 9, blank);
+    expect(none.payload).toEqual({ count: 9 });
+  }
   await expect(mv.recount(store, bowls, -1, "why")).rejects.toThrow("zero or more");
   await expect(mv.recount(store, tent, 1, "why")).rejects.toThrow("not a pool");
 });

@@ -39,8 +39,6 @@ changelog.
 - [ ] iPhone check-out: after picking an event, changing it does not show the autocomplete until the page is scrolled
       sideways.
 - [ ] Scanning an unknown code: the emphasised "another of" button confuses users. De-emphasise it or reword it.
-- [ ] Recount: make the reason optional. Users enter rough counts from home, then correct them quickly when counting for
-      real.
 - [ ] An event created during check-out should be a real event, the same as a precreated reservation. No "Add" step
       afterwards.
 - [ ] Back button revisits screens already seen. Example: add a generic item, add an instance, add a QR code. Back shows

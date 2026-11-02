@@ -74,7 +74,7 @@ State = dict[str, dict[str, dict[str, Any]]]
 #                                              `since` stay. Otherwise ignored.
 #   checked_out superseding a movement that has a cleaner, with none of its own, keeps that cleaner and
 #   `cleaning_id` (a transfer of gear at a cleaner's, FR-OUT-46).
-#   recounted   {count, reason}              pool_in = count. pool_out is untouched (FR-INV-35);
+#   recounted   {count, reason?}             pool_in = count. pool_out is untouched (FR-INV-35);
 #                                             anyone signed in may record one.
 #
 # A pool's `movement` is kept up to date like any item's, with `count` added (see `_movement`),

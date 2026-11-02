@@ -17,5 +17,6 @@ What the app does differently.
 - Cleaner suggestions include names from stacks and from single items sent home.
 - A stack's page can change the name of a family its share was sent home with.
 - Correcting a cleaner's name renames the whole share, and does nothing once the gear is back.
+- A recount's reason is optional.
 
 ## Chores

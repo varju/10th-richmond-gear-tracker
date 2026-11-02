@@ -59,16 +59,40 @@ test("a pool page shows owned, in, and out by holder, and moves by count (FR-INV
   await waitFor(() => expect(inv.poolCounts(inv.item(store.state, bowls)!).in).toBe(20));
   expect(inv.poolCounts(inv.item(store.state, bowls)!).out).toEqual([]);
 
-  // Recount: prefilled with what is in now, and needs a reason.
+  // Recount: prefilled with what is in now, and the reason is optional.
   await user.click(screen.getByRole("button", { name: "Recount" }));
   expect(screen.getByLabelText("How many")).toHaveValue(20);
-  expect(screen.getByRole("button", { name: "Recount" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Recount" })).toBeEnabled();
   await user.clear(screen.getByLabelText("How many"));
   await user.type(screen.getByLabelText("How many"), "18");
-  await user.type(screen.getByLabelText("Why"), "counted on the shelf");
+  await user.type(screen.getByLabelText("Why (optional)"), "counted on the shelf");
   await user.click(screen.getByRole("button", { name: "Recount" }));
   await waitFor(() => expect(inv.item(store.state, bowls)?.pool_in).toBe(18));
   expect(await screen.findByText(/Recounted to 18 by Alice: counted on the shelf/)).toBeInTheDocument();
+});
+
+test("a recount needs no reason, and its history line has no colon (FR-INV-35)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  navigate(`/items/${bowls}`);
+  renderInShell(<ItemPage store={store} id={bowls} />);
+
+  await user.click(screen.getByRole("button", { name: "Recount" }));
+  await user.clear(screen.getByLabelText("How many"));
+  await user.type(screen.getByLabelText("How many"), "17");
+  await user.click(screen.getByRole("button", { name: "Recount" }));
+  await waitFor(() => expect(inv.item(store.state, bowls)?.pool_in).toBe(17));
+  const line = await screen.findByText(/Recounted to 17 by Alice · /);
+  expect(line.textContent).not.toMatch(/null|by Alice:/);
+});
+
+test("a blank count cannot be recounted", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  navigate(`/items/${bowls}`);
+  renderInShell(<ItemPage store={store} id={bowls} />);
+
+  await user.click(screen.getByRole("button", { name: "Recount" }));
+  await user.clear(screen.getByLabelText("How many"));
+  expect(screen.getByRole("button", { name: "Recount" })).toBeDisabled();
 });
 
 test("taking more than are in warns, and never blocks (FR-OUT-22)", async () => {

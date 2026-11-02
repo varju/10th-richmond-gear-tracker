@@ -680,7 +680,7 @@ export function describeMovement(state: State, e: HistoryEntry): string {
   const who = userName(state, e.actor_id);
   const when = localMinute(e.at);
   // A pool's lines carry a count instead of the whole item (FR-INV-34, FR-INV-35).
-  if (e.type === "recounted") return `Recounted to ${e.count} by ${who}: ${e.reason} · ${when}`;
+  if (e.type === "recounted") return `Recounted to ${e.count} by ${who}${e.reason ? `: ${e.reason}` : ""} · ${when}`;
   if (e.type === "cleaning_ended") {
     return `Back from ${e.cleaner ? e.cleaner : "cleaning"}${
       e.count != null ? ` · ${e.count}` : ""
@@ -1340,7 +1340,7 @@ function withoutName(values: ItemInput): Partial<ItemInput> {
 
 /**
  * A counted stack (FR-INV-34): owned, in, and out by holder, checked out and
- * returned by count, recounted with a reason. No units, and neither "Group
+ * returned by count, recounted, optionally with a reason. No units, and neither "Group
  * with" nor "Make this a single item": a pool is not a name for units. It may
  * still carry a code, bound to the container that holds the stack (FR-TAG-15).
  */
@@ -1623,7 +1623,7 @@ export function PoolActions({
     setCount(String(shareCount(holder, key) || 1));
   }
 
-  const n = Number(count.trim());
+  const n = count.trim() === "" ? NaN : Number(count.trim());
   const valid = (amount: number) => Number.isInteger(amount) && (mode === "recount" ? amount >= 0 : amount >= 1);
   const validCount = valid(n);
   // What the signed-in Scouter has out that is not yet at a family (FR-OUT-46).
@@ -1635,7 +1635,7 @@ export function PoolActions({
   const needsName = mode === "home" && cleaner.trim() === "";
 
   async function submit(amount: number) {
-    if (!mode || !valid(amount) || (mode === "recount" && reason.trim() === "") || needsName || overSend) return;
+    if (!mode || !valid(amount) || needsName || overSend) return;
     setBusy(true);
     setError(null);
     try {
@@ -1768,9 +1768,9 @@ export function PoolActions({
       )}
       {mode === "recount" && (
         <label>
-          <span>Why</span>
+          <span>Why (optional)</span>
           <textarea
-            aria-label="Why"
+            aria-label="Why (optional)"
             rows={2}
             placeholder="e.g. counted on the shelf"
             value={reason}
@@ -1791,7 +1791,7 @@ export function PoolActions({
           <button
             type="button"
             className="primary"
-            disabled={busy || !validCount || needsName || overSend || (mode === "recount" && reason.trim() === "")}
+            disabled={busy || !validCount || needsName || overSend}
             onClick={() => void submit(n)}
           >
             {mode === "out"

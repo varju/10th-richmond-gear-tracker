@@ -262,13 +262,12 @@ export async function sendHomeFromPool(store: Store, itemId: string, options: Se
   return move(store, itemId, "cleaning_started", payload, options.note);
 }
 
-/** How many are in right now, with a reason (FR-INV-35). What is already out is untouched; anyone signed in may record one. */
-export async function recount(store: Store, itemId: string, count: number, reason: string) {
+/** How many are in right now, with an optional reason (FR-INV-35). What is already out is untouched; anyone signed in may record one. */
+export async function recount(store: Store, itemId: string, count: number, reason?: string) {
   poolItem(store, itemId);
   if (!Number.isInteger(count) || count < 0) throw new Error("pick a count of zero or more");
-  const why = reason.trim();
-  if (!why) throw new Error("say why");
-  return move(store, itemId, "recounted", { count, reason: why });
+  const why = reason?.trim();
+  return move(store, itemId, "recounted", why ? { count, reason: why } : { count });
 }
 
 export interface TransferOptions extends MoveOptions {

@@ -67,7 +67,7 @@ export type State = Record<string, Record<string, Fields>>;
 //   cleaning_ended {cleaner?, count?,         cleaned gear is back with its Scouter (FR-OUT-51). A single
 //                   holder_id?}                item's movement loses its cleaner and cleaning_id. A pool's `count` of
 //                                             that holder's lots under `cleaner` lose it (endCleaning).
-//   recounted   {count, reason}              pool_in = count. pool_out is untouched (FR-INV-35);
+//   recounted   {count, reason?}             pool_in = count. pool_out is untouched (FR-INV-35);
 //                                             anyone signed in may record one.
 //
 // A pool's `movement` is kept up to date like any item's, with `count` added (see `movement`),

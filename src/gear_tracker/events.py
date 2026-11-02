@@ -205,10 +205,10 @@ class CheckIn(Payload):
 
 
 class Recount(Payload):
-    """How many are in right now, and why (FR-INV-35). Anyone may record one; `pool_out` is untouched."""
+    """How many are in right now, and optionally why (FR-INV-35). Anyone may record one; `pool_out` is untouched."""
 
     count: Annotated[int, Field(ge=0)]
-    reason: NonEmpty
+    reason: Annotated[str | None, BeforeValidator(_blank_is_none)] = None
 
 
 class CodeBinding(Payload):
@@ -471,7 +471,7 @@ class CheckedIn(_ItemOnly):
 
 
 class Recounted(_ItemOnly):
-    """A pool's count, put right, with a reason (FR-INV-35). The sync layer refuses this off a pool (FR-INV-34)."""
+    """A pool's count, put right, with an optional reason (FR-INV-35). Refused off a pool (FR-INV-34)."""
 
     type: Literal["recounted"]
     payload: Recount
