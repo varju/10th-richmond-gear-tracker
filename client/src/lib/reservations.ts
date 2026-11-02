@@ -236,10 +236,12 @@ export interface Remaining {
 
 /**
  * Out under a check-out that named this reservation (FR-RES-13). Not the event: an event name
- * repeats year to year, and would read next year's camp as already packed on day one.
+ * repeats year to year, and would read next year's camp as already packed on day one. Gear at a
+ * cleaner's home is not with the camp, so it is not packed (FR-RES-36).
  */
-const ticked = (it: Item, r: Pick<Reservation, "id">): boolean =>
+const wentOut = (it: Item, r: Pick<Reservation, "id">): boolean =>
   it.status === "out" && it.movement?.reservation_id === r.id;
+const ticked = (it: Item, r: Pick<Reservation, "id">): boolean => wentOut(it, r) && !it.movement?.cleaner;
 
 /**
  * The items a reservation names, as they stand today: a merged duplicate means
@@ -268,7 +270,11 @@ export function remaining(state: State, r: Reservation): Remaining {
       // pool_reservations accumulates at replay (FR-RES-13): a second visit for the same
       // reservation adds to done, it does not replace it. Read off the raw entity: Item does not carry it.
       const poolReservations = (state.item?.[g.item_id]?.pool_reservations as PoolReservations | undefined) ?? {};
-      const done = poolReservations[r.id] ?? 0;
+      const atCleaners = poolLots(generic)
+        .flatMap((o) => o.lots)
+        .filter((l) => l.reservation_id === r.id && l.cleaner)
+        .reduce((n, l) => n + l.count, 0);
+      const done = Math.max(0, (poolReservations[r.id] ?? 0) - atCleaners);
       return { generic, quantity: g.quantity, done: Math.min(done, g.quantity) };
     }
     // Any unretired unit of the generic counts, except one the reservation names: that one is its own line.
@@ -390,7 +396,7 @@ export function extraChange(state: State, r: Reservation, itemId: string): ListC
   }
   const line = it.parent_id ? r.generics.find((g) => g.item_id === it.parent_id) : undefined;
   if (!line) return { kind: "item", item_id: id };
-  const done = unitsOf(state, line.item_id).filter((u) => !named.has(u.id) && ticked(u, r)).length;
+  const done = unitsOf(state, line.item_id).filter((u) => !named.has(u.id) && wentOut(u, r)).length;
   return done > line.quantity ? { kind: "quantity", item_id: line.item_id, quantity: line.quantity + 1 } : null;
 }
 

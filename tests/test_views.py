@@ -328,3 +328,39 @@ def test_what_is_out_splits_a_pool_by_event():
     }
     rows = what_is_out(state, now=0)["holders"][0]["items"]
     assert [(r["event"], r["count"]) for r in rows] == [("Fall Camp", 5), ("Meeting", 1), (None, 2)]
+
+
+def test_remaining_does_not_count_gear_at_a_cleaners_home_as_packed():
+    """FR-RES-36."""
+    lot = {"id": "m1", "count": 3, "event": "Fall Camp", "reservation_id": "r-fall", "at": 1}
+    state = {
+        "item": {
+            "stove": {
+                "name": "Stove",
+                "status": "out",
+                "movement": {"id": "m2", "reservation_id": "r-fall", "cleaner": "Smith"},
+            },
+            "bowls": {
+                "name": "Bowls",
+                "generic": True,
+                "pool": True,
+                "pool_in": 1,
+                "pool_out": {"alice": 3},
+                "pool_lots": {"alice": [{**lot, "cleaner": "Smith"}]},
+                "pool_reservations": {"r-fall": 3},
+            },
+        },
+        "reservation": {
+            "r-fall": {
+                "event": "Fall Camp",
+                "starts": "2026-10-02",
+                "ends": "2026-10-04",
+                "items": ["stove"],
+                "generics": [{"item_id": "bowls", "quantity": 3}],
+            }
+        },
+    }
+    rem = remaining(state, state["reservation"]["r-fall"] | {"id": "r-fall"})
+    assert [row["item_id"] for row in rem["items"]] == ["stove"]
+    assert rem["items"][0]["cleaner"] == "Smith"
+    assert rem["generics"][0]["done"] == 0

@@ -113,7 +113,10 @@ export function ReservationPage({
   const packMark = (itemId: string) => {
     if (r.cancelled) return "";
     const id = resolveItem(state, itemId);
-    return packed.has(id) ? "Packed" : unpacked.has(id) ? "Not packed" : "";
+    if (packed.has(id)) return "Packed";
+    if (!unpacked.has(id)) return "";
+    const cleaner = rem.items.find((it) => it.id === id)?.movement?.cleaner;
+    return cleaner ? `Not packed · with ${cleaner} to clean` : "Not packed";
   };
   const anyPacked = packed.size > 0 || rem.generics.some((g) => g.done >= g.quantity);
   const filtering = notPacked && !r.cancelled;

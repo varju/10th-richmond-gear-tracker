@@ -449,8 +449,12 @@ def named_items(state: State, r: Fields) -> list[str]:
 
 def _ticked(it: Fields, reservation_id: str) -> bool:
     """Out under a check-out that named this reservation (FR-RES-13). Not the event: an event
-    name repeats year to year, and would read next year's camp as already packed on day one."""
-    return it.get("status") == "out" and (it.get("movement") or {}).get("reservation_id") == reservation_id
+    name repeats year to year, and would read next year's camp as already packed on day one.
+    Gear at a cleaner's home is not with the camp, so it is not packed (FR-RES-36)."""
+    movement = it.get("movement") or {}
+    return (
+        it.get("status") == "out" and movement.get("reservation_id") == reservation_id and not movement.get("cleaner")
+    )
 
 
 def remaining(state: State, r: Fields) -> dict[str, Any]:
@@ -466,7 +470,13 @@ def remaining(state: State, r: Fields) -> dict[str, Any]:
         if is_pool(generic):
             # pool_reservations accumulates at replay (FR-RES-13): a second visit for the same
             # reservation adds to done, it does not replace it.
-            done = (generic.get("pool_reservations") or {}).get(reservation_id, 0)
+            at_cleaners = sum(
+                lot["count"]
+                for out in pool_lots(generic)
+                for lot in out["lots"]
+                if lot.get("reservation_id") == reservation_id and lot.get("cleaner")
+            )
+            done = max(0, (generic.get("pool_reservations") or {}).get(reservation_id, 0) - at_cleaners)
         else:
             # Any unretired unit of the generic counts, except one the reservation names: that one is its own line.
             done = sum(
@@ -491,7 +501,10 @@ def remaining(state: State, r: Fields) -> dict[str, Any]:
 
 
 def _packing_row(state: State, it: Fields) -> Fields:
-    return {"item_id": it["id"], "name": display_name(state, it), "home": home_label(state, it)}
+    row = {"item_id": it["id"], "name": display_name(state, it), "home": home_label(state, it)}
+    if it.get("status") == "out" and (it.get("movement") or {}).get("cleaner"):
+        row["cleaner"] = it["movement"]["cleaner"]
+    return row
 
 
 def is_packed(rem: dict[str, Any]) -> bool:

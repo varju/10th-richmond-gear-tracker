@@ -784,3 +784,18 @@ test("a check-out under a planned event's name links to it and joins its list (F
   await mv.checkOut(store, f.t1, { event: "Fall Camp" });
   expect(inv.item(store.state, f.t1)!.movement).toMatchObject({ reservation_id: null });
 });
+
+test("gear out for cleaning is not packed for its event (FR-RES-36)", async () => {
+  const f = await fixture();
+  const r = await res.createReservation(store, { ...fall, items: [f.stove], generics: [] });
+  await mv.checkOut(store, f.stove, { event: "Fall Camp", reservation_id: r });
+  expect(res.isPacked(res.remaining(store.state, res.reservation(store.state, r)!))).toBe(true);
+
+  await mv.transfer(store, f.stove, { cleaner: "Smith" });
+  const rem = res.remaining(store.state, res.reservation(store.state, r)!);
+  expect(rem.items.map(shown)).toEqual(["Stove"]);
+  expect(res.isPacked(rem)).toBe(false);
+
+  await mv.backFromCleaning(store, f.stove);
+  expect(res.isPacked(res.remaining(store.state, res.reservation(store.state, r)!))).toBe(true);
+});
