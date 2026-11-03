@@ -62,7 +62,7 @@ sorts by any column and keeps search and the filters in view. Click a name's uni
 filter shows them already.
 
 A description can use `**bold**`, `*italic*`, `[a link](https://example.org)` and lines starting with `- ` for a bullet
-list. A web address on its own becomes a link too.
+list. A web address on its own becomes a link too. A backslash before a `*` shows the star as typed.
 
 ### Several of the same thing
 

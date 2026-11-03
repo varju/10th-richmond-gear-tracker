@@ -10,8 +10,7 @@ const NAVY = "#001a70";
 
 // --- The user guide (NFR-USE-11) ---------------------------------------------------------
 //
-// docs/guide/*.md becomes HTML here, at build time, so no markdown parser ships
-// to the browser. The app imports "virtual:guide"; see src/guide.d.ts.
+// docs/guide/*.md becomes HTML here, at build time. The app imports "virtual:guide"; see src/guide.d.ts.
 
 const GUIDE_DIR = resolve(import.meta.dirname, "../docs/guide");
 

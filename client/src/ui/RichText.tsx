@@ -1,38 +1,35 @@
 import { Fragment, type ReactNode } from "react";
+import { Lexer, Tokenizer, type Token, type Tokens } from "marked";
 
-// Descriptions show a small Markdown subset: **bold**, *italic*, [text](url) links, "- " bullet lists, and bare http(s)
-// URLs. Everything else shows as typed. Each scan jumps past what it finds and remembers a failed search, so the
-// whole parse is linear.
-const URL_RE = /https?:\/\/[^\s<>“”‘’…—]+/iy;
-const LINK_RE = /\[([^[\]]+)\]\(((?:[^\s()]|\([^\s()]*\))+)\)/y;
-const WORD = /\w/;
-const LN = /[\p{L}\p{N}]/u;
-const SPACE = /\s/;
-const TRAILING = new Set([".", ",", ";", ":", "!", "?", "'", '"', "*", "`"]);
+// Marked is quadratic or recursive on some inputs, so long text is not parsed.
+const MAX_LENGTH = 5000;
+// Deeper nesting overflows React's stack, so past this the text shows as typed.
+const MAX_DEPTH = 16;
+class NoDefs extends Tokenizer {
+  override def(): undefined {
+    return undefined;
+  }
+}
+const OPTIONS = { gfm: true, breaks: true, tokenizer: new NoDefs() };
+const PUNCT_THEN_CURLY = /[.,;:!?'"]*[“”‘’…—]/;
+const TRAILING = new Set([".", ",", ";", ":", "!", "?", "'", '"', "*"]);
 const PAIRS: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
+const ALNUM_END = /[\p{L}\p{N}]$/u;
+const ALNUM_START = /^[\p{L}\p{N}]/u;
+const OPENS_EMPHASIS = /^[\p{L}\p{N}[*]/u;
 
 function trimUrl(raw: string): string {
-  const open: Record<string, number> = { "(": 0, "[": 0, "{": 0 };
-  const close: Record<string, number> = { ")": 0, "]": 0, "}": 0 };
-  for (const ch of raw) {
-    if (ch in open) open[ch] = (open[ch] ?? 0) + 1;
-    else if (ch in close) close[ch] = (close[ch] ?? 0) + 1;
-  }
+  const count: Record<string, number> = {};
+  for (const ch of raw) if (ch in PAIRS || Object.values(PAIRS).includes(ch)) count[ch] = (count[ch] ?? 0) + 1;
   let end = raw.length;
   while (end > 0) {
     const last = raw.charAt(end - 1);
-    if (TRAILING.has(last)) {
-      end--;
-      continue;
-    }
     const opener = PAIRS[last];
-    const closers = close[last] ?? 0;
-    if (opener !== undefined && closers > (open[opener] ?? 0)) {
-      close[last] = closers - 1;
+    if (TRAILING.has(last)) end--;
+    else if (opener !== undefined && (count[last] ?? 0) > (count[opener] ?? 0)) {
+      count[last] = (count[last] ?? 0) - 1;
       end--;
-    } else {
-      break;
-    }
+    } else break;
   }
   return raw.slice(0, end);
 }
@@ -46,149 +43,158 @@ function isLink(url: string): boolean {
   }
 }
 
-export type Node =
-  | { t: "text"; text: string }
-  | { t: "link"; text: string; href: string }
-  | { t: "b"; kids: Node[] }
-  | { t: "i"; kids: Node[] };
-export type Block = { ul: Node[][] } | { p: Node[] };
-
 const isUrl = (url: string) => /^https?:\/\//i.test(url) && isLink(url);
 
-function inline(s: string, prev: string, bold = true, ital = true): Node[] {
-  const out: Node[] = [];
-  let from = 0;
-  let boldFail = false;
-  let italFail = false;
-  const flush = (to: number) => {
-    if (to > from) out.push({ t: "text", text: s.slice(from, to) });
-  };
-  const before = (i: number) => (i === 0 ? prev : s.charAt(i - 1));
-  let i = 0;
-  while (i < s.length) {
-    const c = s.charAt(i);
-    if (c === "[") {
-      LINK_RE.lastIndex = i;
-      const m = LINK_RE.exec(s);
-      if (m && isUrl(m[2] as string) && !(m[1] as string).includes("://")) {
-        flush(i);
-        out.push({ t: "link", text: m[1] as string, href: m[2] as string });
-        i = from = i + m[0].length;
-        continue;
-      }
-    } else if (c === "h" || c === "H") {
-      URL_RE.lastIndex = i;
-      const m = URL_RE.exec(s);
-      if (m) {
-        const cut = m[0].indexOf("](");
-        const raw = cut < 0 ? m[0] : m[0].slice(0, cut);
-        const url = trimUrl(raw);
-        if (WORD.test(before(i)) || !isLink(url)) {
-          i += raw.length;
-        } else {
-          flush(i);
-          out.push({ t: "link", text: url, href: url });
-          i = from = i + url.length;
-        }
-        continue;
-      }
-    } else if (c === "*") {
-      const two = s.charAt(i + 1) === "*";
-      const n = i + (two ? 2 : 1);
-      const next = s.charAt(n);
-      const third = two && next === "*" && s.charAt(n + 1) !== "*" && /[\p{L}\p{N}[]/u.test(s.charAt(n + 1));
-      if (
-        (two ? bold && !boldFail : ital && !italFail) &&
-        (third || (next !== "*" && /[\p{L}\p{N}[]/u.test(next))) &&
-        !WORD.test(before(i))
-      ) {
-        let p = n + 1;
-        let close = -1;
-        for (;;) {
-          let k = s.indexOf(two ? "**" : "*", p);
-          if (k < 0) break;
-          if (!two && s.charAt(k + 1) === "*") {
-            p = k + 2;
-            continue;
-          }
-          if (two && s.charAt(k + 2) === "*") {
-            if (s.charAt(k + 3) === "*") {
-              p = k + 4;
-              continue;
-            }
-            k++;
-          }
-          if (SPACE.test(s.charAt(k - 1)) || LN.test(s.charAt(k + (two ? 2 : 1)))) p = k + 1;
-          else {
-            close = k;
-            break;
-          }
-        }
-        if (close >= 0) {
-          flush(i);
-          const t = two ? "b" : "i";
-          out.push({ t, kids: inline(s.slice(n, close), "*", t === "i" && bold, t === "b" && ital) });
-          i = from = close + (n - i);
-          continue;
-        }
-        if (two) boldFail = true;
-        else italFail = true;
-      }
-      i = n;
-      continue;
-    }
-    i++;
+const kids = (t: Token): Token[] => (t as { tokens?: Token[] }).tokens ?? [];
+
+function anchor(href: string, text: string, inner: ReactNode, key: number): ReactNode | null {
+  if (!isUrl(href) || (text.includes("://") && text !== href)) return null;
+  return (
+    <a key={key} href={href} target="_blank" rel="noopener noreferrer">
+      {inner}
+    </a>
+  );
+}
+
+function linkNode(t: Tokens.Link, key: number, depth: number): ReactNode {
+  if (!t.text.trim()) return t.raw;
+  return anchor(t.href, t.text, inline(kids(t), depth + 1), key) ?? t.raw;
+}
+
+// A bare URL runs on through curly quotes and closing punctuation. The part past the URL is lexed again, with
+// everything after it, so later links and emphasis still work.
+function bareLink(t: Tokens.Link, prev: Token | undefined, key: number): [ReactNode, string] | null {
+  if (prev && /\w$/.test(prev.raw)) return null;
+  const m = PUNCT_THEN_CURLY.exec(t.raw);
+  const head = trimUrl(m ? t.raw.slice(0, m.index) : t.raw);
+  const prefix = t.href.endsWith(t.raw) ? t.href.slice(0, t.href.length - t.raw.length) : "";
+  const a = head ? anchor(prefix + head, head, head, key) : null;
+  return a ? [a, t.raw.slice(head.length)] : null;
+}
+
+function emphasis(t: Token, key: number, i: number, tokens: Token[], depth: number): ReactNode {
+  const n = t.type === "em" ? 1 : 2;
+  const inner = inline(kids(t), depth + 1);
+  const asText =
+    t.raw.startsWith("*") &&
+    ((i > 0 && ALNUM_END.test(tokens[i - 1]?.raw ?? "")) ||
+      ALNUM_START.test(tokens[i + 1]?.raw ?? "") ||
+      !OPENS_EMPHASIS.test(t.raw.slice(n)));
+  if (asText) {
+    return (
+      <Fragment key={key}>
+        {t.raw.slice(0, n)}
+        {inner}
+        {t.raw.slice(-n)}
+      </Fragment>
+    );
   }
-  flush(s.length);
+  return t.type === "em" ? <em key={key}>{inner}</em> : <strong key={key}>{inner}</strong>;
+}
+
+function inline(input: Token[], depth: number): ReactNode {
+  let tokens = input;
+  if (depth > MAX_DEPTH) throw new Error("too deep");
+  const out: ReactNode[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i] as Token;
+    switch (t.type) {
+      case "strong":
+      case "em":
+        out.push(emphasis(t, out.length, i, tokens, depth));
+        break;
+      case "escape":
+        out.push(<Fragment key={out.length}>{t.text === "*" || t.text === "_" ? t.text : t.raw}</Fragment>);
+        break;
+      case "text":
+        out.push(<Fragment key={out.length}>{kids(t).length ? inline(kids(t), depth) : t.raw}</Fragment>);
+        break;
+      case "link": {
+        const l = t as Tokens.Link;
+        if (l.raw !== l.text) {
+          out.push(linkNode(l, out.length, depth));
+          break;
+        }
+        const bare = bareLink(l, tokens[i - 1], out.length);
+        if (!bare) {
+          out.push(l.raw);
+          break;
+        }
+        out.push(bare[0]);
+        if (bare[1]) {
+          tokens = Lexer.lexInline(
+            bare[1] +
+              tokens
+                .slice(i + 1)
+                .map((k) => k.raw)
+                .join(""),
+            OPTIONS,
+          );
+          i = -1;
+        }
+        break;
+      }
+      default:
+        out.push(<Fragment key={out.length}>{t.raw}</Fragment>);
+    }
+  }
   return out;
 }
 
-export function parseRich(text: string): Block[] {
-  const blocks: Block[] = [];
-  let para: Node[] | null = null;
-  let list: Node[][] | null = null;
-  for (const line of text.split("\n")) {
-    if (/^[-*] .*\S/.test(line)) {
-      para = null;
-      if (!list) blocks.push({ ul: (list = []) });
-      list.push(inline(line.slice(2), " "));
-    } else {
-      list = null;
-      if (para) para.push({ t: "text", text: "\n" });
-      else blocks.push({ p: (para = []) });
-      for (const n of inline(line, " ")) para.push(n);
-    }
-  }
-  return blocks;
+const typed = (raw: string) => inline(Lexer.lexInline(raw, OPTIONS), 0);
+
+function simpleList(t: Token): boolean {
+  const l = t as Tokens.List;
+  if (l.type !== "list" || l.ordered) return false;
+  return l.items.every(
+    (item) =>
+      item.text.trim() !== "" && item.tokens.every((k) => k.type === "text" || k.type === "paragraph" || simpleList(k)),
+  );
 }
 
-function nodes(ns: Node[]): ReactNode {
-  return ns.map((n, i) => {
-    if (n.t === "text") return <Fragment key={i}>{n.text}</Fragment>;
-    if (n.t === "b") return <strong key={i}>{nodes(n.kids)}</strong>;
-    if (n.t === "i") return <em key={i}>{nodes(n.kids)}</em>;
-    return (
-      <a key={i} href={n.href} target="_blank" rel="noopener noreferrer">
-        {n.text}
-      </a>
-    );
+function list(t: Tokens.List, depth: number): ReactNode {
+  if (depth > MAX_DEPTH) throw new Error("too deep");
+  return (
+    <ul>
+      {t.items.map((item, i) => (
+        <li key={i}>
+          {item.tokens.map((k, j) =>
+            k.type === "list" ? (
+              <Fragment key={j}>{list(k as Tokens.List, depth + 1)}</Fragment>
+            ) : (
+              <Fragment key={j}>{inline(kids(k), depth + 1)}</Fragment>
+            ),
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function blocks(text: string): ReactNode {
+  const all = Lexer.lex(text, OPTIONS);
+  return all.map((t, i) => {
+    if (t.type === "paragraph") {
+      const next = all[i + 1];
+      const nl = t.raw.endsWith("\n") && next && !simpleList(next) ? "\n" : "";
+      return (
+        <Fragment key={i}>
+          {inline(kids(t), 0)}
+          {nl}
+        </Fragment>
+      );
+    }
+    if (t.type === "space") return <Fragment key={i}>{t.raw}</Fragment>;
+    if (simpleList(t)) return <Fragment key={i}>{list(t as Tokens.List, 0)}</Fragment>;
+    return <Fragment key={i}>{typed(t.raw)}</Fragment>;
   });
 }
 
 export function RichText({ text }: { text: string }) {
-  return (
-    <>
-      {parseRich(text).map((b, i) =>
-        "ul" in b ? (
-          <ul key={i}>
-            {b.ul.map((li, j) => (
-              <li key={j}>{nodes(li)}</li>
-            ))}
-          </ul>
-        ) : (
-          <Fragment key={i}>{nodes(b.p)}</Fragment>
-        ),
-      )}
-    </>
-  );
+  if (text.length > MAX_LENGTH) return <>{text}</>;
+  try {
+    return <>{blocks(text)}</>;
+  } catch {
+    return <>{text}</>;
+  }
 }

@@ -23,6 +23,7 @@ What the app does differently.
   when there is something to add a unit of.
 - After a move on a single item's page, the move buttons pause briefly so a second tap cannot undo it.
 - Back from changing the check-out event returns to Events.
-- An item's description can have bold, italic, links and bullet lists, and a URL in it is a link.
+- An item's description can have bold, italic, links and bullet lists, and a URL in it is a link. A backslash shows a
+  star as typed, and a description over 5,000 characters shows as typed.
 
 ## Chores
