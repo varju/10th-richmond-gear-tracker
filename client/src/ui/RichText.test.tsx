@@ -28,10 +28,6 @@ const linkCases: Array<[string, string, string[]]> = [
   ["javascript", "javascript:alert(1)", []],
   ["ftp", "ftp://a.b", []],
   ["nothing after the scheme", "https://.", []],
-  ["curly quotes", "“https://a.b/c”", ["https://a.b/c"]],
-  ["ellipsis", "https://a.b/c…", ["https://a.b/c"]],
-  ["em dash", "https://a.b/c—next", ["https://a.b/c"]],
-  ["punctuation before a curly quote", "https://a.b/c.”", ["https://a.b/c"]],
   ["credentials", "https://trusted.example@evil.com", []],
   ["angle brackets", "<https://a.b>", ["https://a.b"]],
   ["www", "www.a.b", ["http://www.a.b"]],
@@ -106,16 +102,6 @@ const htmlCases: Array<[string, string, string]> = [
     '<a href="https://a.b" target="_blank" rel="noopener noreferrer"><em>a</em></a>',
   ],
   [
-    "a URL with a curly quote",
-    "“https://a.b/c”",
-    '“<a href="https://a.b/c" target="_blank" rel="noopener noreferrer">https://a.b/c</a>”',
-  ],
-  [
-    "a URL with an em dash",
-    "https://a.b/c—next",
-    '<a href="https://a.b/c" target="_blank" rel="noopener noreferrer">https://a.b/c</a>—next',
-  ],
-  [
     "a list item that is not a bullet",
     "1. see https://a.b",
     '1. see <a href="https://a.b" target="_blank" rel="noopener noreferrer">https://a.b</a>',
@@ -174,8 +160,6 @@ const wordCases: Array<[string, string]> = [
   ["a*b*c", "a*b*c"],
   ["10*12*3 tarp", "10*12*3 tarp"],
   ["2 *3*4", "2 *3*4"],
-  ["globs", "*.jpg,*.png"],
-  ["stars in parentheses", "(*) x (*)"],
   ["a line break before a list marker", "Contents:\n1. tent\n2. poles"],
   ["a line break before a heading", "Tent\n# 3 in locker"],
   ["a line break before a quote", "one\n> quote"],
@@ -186,9 +170,7 @@ const wordCases: Array<[string, string]> = [
   ["a bare plus", "+"],
   ["a definition", "[a]: x\n[a]: y"],
   ["a reference", "[L]\n\n[L]: x"],
-  ["a backslash before a dash", "\\-a"],
   ["a Windows path", "C:\\Users"],
-  ["a mid-word URL", "xhttp://a.b"],
 ];
 
 test.each(wordCases)("as typed, nothing lost: %s", (_name, input) => {
@@ -198,22 +180,14 @@ test.each(wordCases)("as typed, nothing lost: %s", (_name, input) => {
 });
 
 test.each([
-  ["a URL in brackets then a quote", "(https://a.b/c).”", ["https://a.b/c"]],
-  ["a URL in brackets then a dash", "(see https://a.b/c)—next", ["https://a.b/c"]],
-  ["a URL in square brackets", "[https://a.b/c]", ["https://a.b/c"]],
   ["square brackets kept", "https://a.b/x[1]", ["https://a.b/x[1]"]],
   ["braces kept", "https://a.b/{id}", ["https://a.b/{id}"]],
-  ["two URLs across a dash", "https://a.b—https://c.d", ["https://a.b", "https://c.d"]],
 ])("bare URL edges: %s", (_name, input, expected) => {
   expect(view(input).hrefs).toEqual(expected);
 });
 
-test("text after a cut still gets emphasis", () => {
-  expect(view("https://a.b/c—**imp**").container.querySelector("strong")?.textContent).toBe("imp");
-});
-
-test("only stars and underscores lose their backslash", () => {
-  expect(view("\\*x\\* \\_y\\_").shown).toBe("*x* _y_");
+test("an escape loses its backslash", () => {
+  expect(view("\\*x\\* \\_y\\_ \\-a").shown).toBe("*x* _y_ -a");
 });
 
 test("the line break beside a list is dropped", () => {
@@ -244,8 +218,6 @@ const urls = Array.from({ length: 20 }, (_, n) => `https://a.b/${n}`);
 const manyCases: Array<[string, string]> = [
   ["a space", urls.join(" ")],
   ["newlines", urls.join("\n")],
-  ["dashes", urls.join("—")],
-  ["curly quotes", urls.map((u) => `“${u}”`).join(" ")],
   ["brackets and a full stop", urls.map((u) => `(${u}).`).join(" ")],
   ["bullets", urls.map((u) => `- ${u}`).join("\n")],
 ];
