@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   categories,
   categoryNames,
@@ -11,7 +11,7 @@ import {
 } from "../lib/inventory";
 import { filterParams, readFilter, withQuery } from "../lib/listUrl";
 import { openRepairs } from "../lib/repairs";
-import { entryState, navigate, restoringScroll, setEntryState, useRoute } from "../lib/router";
+import { entryState, hrefOf, navigate, restoringScroll, setEntryState, useRoute } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { FilterFields } from "./Filters";
@@ -79,6 +79,22 @@ function sortKey(store: Store, row: Row, key: Key): string {
     case "flags":
       return rowFlags(store, row).join(" ");
   }
+}
+
+function ItemLink({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <a
+      className="link"
+      href={hrefOf(`/items/${id}`)}
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        navigate(`/items/${id}`);
+      }}
+    >
+      {children}
+    </a>
+  );
 }
 
 /**
@@ -212,9 +228,7 @@ function ItemRows({ store, row, showCategory, open, onToggle }: RowProps) {
       <tr>
         <td>
           <div className="name">
-            <button className="link" type="button" onClick={() => navigate(`/items/${row.item.id}`)}>
-              {row.name}
-            </button>
+            <ItemLink id={row.item.id}>{row.name}</ItemLink>
             {row.kind === "generic" && row.units.length === 0 && <span className="muted small">{counts}</span>}
             {row.kind === "generic" && row.units.length > 0 && (
               <button
@@ -245,9 +259,7 @@ function ItemRows({ store, row, showCategory, open, onToggle }: RowProps) {
         row.units.map((unit) => (
           <tr key={unit.id} className="unit">
             <td>
-              <button className="link" type="button" onClick={() => navigate(`/items/${unit.id}`)}>
-                {displayName(state, unit)}
-              </button>
+              <ItemLink id={unit.id}>{displayName(state, unit)}</ItemLink>
             </td>
             {showCategory && <td>{categoryNames(state, unit)}</td>}
             <td>{homeLabel(state, unit)}</td>

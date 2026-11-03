@@ -38,7 +38,7 @@ test("the inventory is a table that sorts, with a generic's units folded under i
   await expect(page.getByLabel("Search")).toBeFocused();
 
   // Shut until opened (FR-INV-25).
-  const unit = table.getByRole("button", { name: "Tent, 4-person #1", exact: true });
+  const unit = table.getByRole("link", { name: "Tent, 4-person #1", exact: true });
   const fold = table.getByRole("button", { name: /, Tent, 4-person$/ });
   await expect(fold).toHaveAttribute("aria-expanded", "false");
   await expect(unit).toBeHidden();
@@ -52,7 +52,7 @@ test("the inventory is a table that sorts, with a generic's units folded under i
   await expect(unit).toBeVisible();
   // Whole numbers first and in numeric order, then text (FR-INV-23). The demo
   // carries a #10 and a "3b" so this is a real sort, not 1 through 6.
-  const units = await table.getByRole("button", { name: /^Tent, 4-person #/ }).allInnerTexts();
+  const units = await table.getByRole("link", { name: /^Tent, 4-person #/ }).allInnerTexts();
   expect(units.map((t) => t.replace(/^Tent, 4-person #| \(.*\)$/g, ""))).toEqual([
     "1",
     "2",
@@ -77,11 +77,39 @@ test("back from an item returns to where the table was scrolled", async ({ page 
   expect(await page.evaluate(() => window.scrollY)).toBe(400);
 
   // Dispatched, not clicked: a click would first scroll the row into view.
-  await page.getByRole("table").getByRole("button", { name: "Tent, 4-person #1", exact: true }).dispatchEvent("click");
+  await page.getByRole("table").getByRole("link", { name: "Tent, 4-person #1", exact: true }).dispatchEvent("click");
   await expect(page).toHaveURL(/\/items\/./);
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page.getByRole("table")).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(400);
+});
+
+test("an item name in the table is a link: plain click stays, middle-click opens a new page", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/items");
+  const table = page.getByRole("table");
+  await expect(table).toBeVisible();
+  await page.getByLabel("Search").fill("tent, 4-person");
+  const unit = table.getByRole("link", { name: "Tent, 4-person #1", exact: true });
+  await expect(unit).toBeVisible();
+  const href = await unit.getAttribute("href");
+  expect(href).toMatch(/\/items\/./);
+
+  const opened = page.context().waitForEvent("page");
+  await unit.click({ button: "middle" });
+  const popup = await opened;
+  await popup.waitForLoadState();
+  expect(new URL(popup.url()).pathname).toBe(href);
+  await expect(popup.getByRole("heading", { name: "Tent, 4-person #1" })).toBeVisible();
+  await popup.close();
+  await expect(page).not.toHaveURL(/\/items\/./);
+  await expect(table).toBeVisible();
+
+  let extra = 0;
+  page.context().on("page", () => extra++);
+  await unit.click();
+  await expect(page).toHaveURL(/\/items\/./);
+  expect(extra).toBe(0);
 });

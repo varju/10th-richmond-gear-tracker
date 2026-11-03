@@ -589,8 +589,9 @@ label.check span {
   color: var(--navy);
 }
 
-/* A link that is a button: no border, underlined, still a 44 px target. */
-button.link {
+/* A link, or a button that looks like one: no border, underlined, still a 44 px target. */
+button.link,
+a.link {
   min-height: 44px;
   padding: 0;
   border: 0;
@@ -600,6 +601,11 @@ button.link {
   font-weight: 500;
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+a.link {
+  display: inline-flex;
+  align-items: center;
 }
 
 /* The report on paper: white page, dark ink, no controls (FR-SET-01). */
@@ -1383,6 +1389,10 @@ h3.section.small {
   vertical-align: middle;
 }
 
+.grid a.link {
+  vertical-align: middle;
+}
+
 .grid th button.link {
   color: var(--muted);
   text-decoration: none;
@@ -1607,6 +1617,7 @@ button.unit-fold {
   }
 
   button.link,
+  a.link,
   .grid th button.link {
     color: #000;
     text-decoration: none;

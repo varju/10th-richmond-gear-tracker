@@ -28,8 +28,10 @@ export function depth(): number {
   return typeof state?.depth === "number" ? state.depth : 0;
 }
 
+export const hrefOf = (path: string): string => BASE + path;
+
 export function navigate(path: string, replace = false): void {
-  const href = BASE + path;
+  const href = hrefOf(path);
   // A replace on the same screen (a search as it is typed) keeps its place; anything else starts at the top.
   const same = replace && parseRoute(location.pathname).path === parseRoute(path, "").path;
   restoring?.();

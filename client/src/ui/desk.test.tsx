@@ -1,4 +1,4 @@
-import { act as reactAct, render, screen, within } from "@testing-library/react";
+import { act as reactAct, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, expect, test } from "vitest";
@@ -10,7 +10,7 @@ import { openDb } from "../lib/db";
 import { checkOut } from "../lib/movement";
 import * as rep from "../lib/repairs";
 import { createReservation, todayIso } from "../lib/reservations";
-import { back, navigate } from "../lib/router";
+import { back, BASE, navigate } from "../lib/router";
 import { Store } from "../lib/store";
 import { localDate } from "../lib/time";
 import { desk, PHONE, setWidth } from "./widthTestKit";
@@ -189,12 +189,12 @@ test("the inventory is a table, sortable, a generic's units folded under it", as
   mount();
   const user = userEvent.setup();
 
-  // The name is the first button in a row.
+  // The name is the first link in a row.
   const names = () =>
     within(screen.getByRole("table"))
       .getAllByRole("row")
       .slice(1)
-      .map((r) => within(r).getAllByRole("button")[0]!.textContent);
+      .map((r) => within(r).getAllByRole("link")[0]!.textContent);
   // A generic's units stay shut until its count is clicked (FR-INV-25).
   expect(names()).toEqual(["3x3 tarp", "Stove", "Tent 1"]);
   const fold = screen.getByRole("button", { name: "2 units · 2 in, 3x3 tarp" });
@@ -212,6 +212,30 @@ test("the inventory is a table, sortable, a generic's units folded under it", as
   expect(screen.getByRole("columnheader", { name: /Home/ })).toHaveAttribute("aria-sort", "ascending");
 });
 
+test("an item name in the table is a link, and a modified click is left to the browser", async () => {
+  const f = await fixture();
+  navigate("/items");
+  mount();
+  const user = userEvent.setup();
+  const link = within(screen.getByRole("table")).getByRole("link", { name: "Stove" });
+  expect(link).toHaveAttribute("href", `${BASE}/items/${f.stove}`);
+
+  // The test document follows an unhandled link, so stop it after the app has had its say.
+  const left: boolean[] = [];
+  const watch = (e: Event) => {
+    left.push(!e.defaultPrevented);
+    e.preventDefault();
+  };
+  document.addEventListener("click", watch);
+  for (const key of ["ctrlKey", "metaKey", "shiftKey", "altKey"]) fireEvent.click(link, { [key]: true });
+  document.removeEventListener("click", watch);
+  expect(left).toEqual([true, true, true, true]);
+  expect(location.pathname).toBe("/items");
+
+  await user.click(link);
+  expect(location.pathname).toBe(`/items/${f.stove}`);
+});
+
 test("a Category column appears once one exists, and sorts (FR-SET-07)", async () => {
   const f = await fixture();
   const camp = await act.createCategory(store, "Camp kitchen");
@@ -226,7 +250,7 @@ test("a Category column appears once one exists, and sorts (FR-SET-07)", async (
   const category = (rowName: string) => {
     const row = within(screen.getByRole("table"))
       .getAllByRole("row")
-      .find((r) => within(r).queryByRole("button", { name: rowName }));
+      .find((r) => within(r).queryByRole("link", { name: rowName }));
     return cells(row!)[1];
   };
   expect(category("Stove")).toBe("Camp kitchen");
@@ -239,7 +263,7 @@ test("a Category column appears once one exists, and sorts (FR-SET-07)", async (
     within(screen.getByRole("table"))
       .getAllByRole("row")
       .slice(1)
-      .map((r) => within(r).getAllByRole("button")[0]!.textContent);
+      .map((r) => within(r).getAllByRole("link")[0]!.textContent);
   // Ascending: the uncategorised generic and its units sort first, then by category name.
   expect(names()).toEqual(["3x3 tarp", "3x3 tarp #1", "3x3 tarp #2", "Stove", "Tent 1"]);
 });
@@ -267,7 +291,7 @@ test("a search opens the generics it shows, and folds by hand come back with the
   // Shut, but still flagged.
   const tarpRow = within(screen.getByRole("table"))
     .getAllByRole("row")
-    .find((r) => within(r).queryByRole("button", { name: "3x3 tarp" }))!;
+    .find((r) => within(r).queryByRole("link", { name: "3x3 tarp" }))!;
   expect(within(tarpRow).getByText("Missing")).toBeInTheDocument();
   // Nothing to open, so nothing to click.
   expect(screen.getByText("0 units · 0 in")).toBeInTheDocument();
@@ -284,7 +308,7 @@ test("a search opens the generics it shows, and folds by hand come back with the
   await user.clear(screen.getByLabelText("Search"));
   expect(fold()).toHaveAttribute("aria-expanded", "true");
 
-  await user.click(screen.getByRole("button", { name: "3x3 tarp #1" }));
+  await user.click(screen.getByRole("link", { name: "3x3 tarp #1" }));
   expect(location.pathname).toBe(`/items/${f.first}`);
   back("/");
   expect(await screen.findByRole("button", { name: "2 units · 1 in, 3x3 tarp" })).toHaveAttribute(
@@ -340,7 +364,7 @@ test("the table's search, filter and sort live in the URL, and back brings them 
   await user.selectOptions(screen.getByLabelText("Location"), f.cold);
   expect(location.pathname + location.search).toBe(`/items?q=t&location=${f.cold}&sort=home&dir=down`);
 
-  await user.click(screen.getByRole("button", { name: "Tent 1" }));
+  await user.click(screen.getByRole("link", { name: "Tent 1" }));
   expect(location.pathname).toBe(`/items/${f.tent}`);
 
   // One step back, however many keystrokes went into the search.
