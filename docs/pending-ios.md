@@ -22,5 +22,6 @@ What the app does differently.
 - Scanning an unassigned code no longer emphasises one choice. "Another of…" is now "Add a unit of…", and shows only
   when there is something to add a unit of.
 - After a move on a single item's page, the move buttons pause briefly so a second tap cannot undo it.
+- Back from changing the check-out event returns to Events.
 
 ## Chores

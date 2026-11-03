@@ -1,14 +1,17 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { cleanup, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import * as act from "../lib/actions";
 import * as inv from "../lib/inventory";
 import * as mv from "../lib/movement";
 import * as res from "../lib/reservations";
+import { IDBFactory } from "fake-indexeddb";
+import { openDb } from "../lib/db";
 import { navigate } from "../lib/router";
-import type { Store } from "../lib/store";
+import { Store } from "../lib/store";
+import { type Shell, ShellContext } from "../shell";
 import { newUlid } from "../lib/ulid";
 import { unsaved } from "../lib/unsaved";
 import { openStore } from "./codeTestKit";
@@ -65,10 +68,105 @@ test("the Events page shows the event check-outs go to, and changes it", async (
   await user.click(screen.getByRole("button", { name: "Create" }));
   expect(await screen.findByText("Check-outs go to: Apple Day")).toBeInTheDocument();
   expect(store.meta.session_event).toBe("Apple Day");
+  await waitFor(() => expect(location.search).toBe(""));
 
   await user.click(screen.getByRole("button", { name: "Change" }));
   await user.click(screen.getByRole("button", { name: "No event" }));
   expect(await screen.findByText("Check-outs have no event")).toBeInTheDocument();
+});
+
+test("Back from changing the check-out event returns to Events", async () => {
+  navigate("/items");
+  navigate("/events");
+  renderInShell(<Reservations store={store} />, () => T0);
+  await user.click(screen.getByRole("button", { name: "Change" }));
+  expect(await screen.findByLabelText("Event")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(await screen.findByText("Check-outs have no event")).toBeInTheDocument();
+  expect(location.pathname).toBe("/events");
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  await waitFor(() => expect(location.pathname).toBe("/items"));
+});
+
+test("a cold load of the event picker goes back to Events", async () => {
+  history.replaceState({ depth: 0 }, "", "/events?change=1");
+  renderInShell(<Reservations store={store} />, () => T0);
+  expect(await screen.findByLabelText("Event")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(await screen.findByText("Check-outs have no event")).toBeInTheDocument();
+  expect(location.pathname).toBe("/events");
+  expect(location.search).toBe("");
+});
+
+test("cancelling the event picker stays on Events", async () => {
+  navigate("/events");
+  renderInShell(<Reservations store={store} />, () => T0);
+  await user.click(screen.getByRole("button", { name: "Change" }));
+  await user.click(await screen.findByRole("button", { name: "Cancel" }));
+  expect(await screen.findByText("Check-outs have no event")).toBeInTheDocument();
+  expect(location.pathname).toBe("/events");
+});
+
+test("while the picker is open the event rows and New event are not shown", async () => {
+  navigate("/events");
+  renderInShell(<Reservations store={store} />, () => T0);
+  expect(screen.getByRole("button", { name: "New event" })).toBeInTheDocument();
+  expect(screen.getByText(/Fall Camp/)).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Change" }));
+  expect(await screen.findByLabelText("Event")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "New event" })).not.toBeInTheDocument();
+  expect(screen.queryByText(/Fall Camp/)).not.toBeInTheDocument();
+  expect(screen.queryByText("No events.")).not.toBeInTheDocument();
+});
+
+test("a pick after a cold load of the event picker lands on Events", async () => {
+  history.replaceState({ depth: 0 }, "", "/events?change=1");
+  renderInShell(<Reservations store={store} />, () => T0);
+  await user.click(await screen.findByRole("button", { name: "No event" }));
+  expect(await screen.findByText("Check-outs have no event")).toBeInTheDocument();
+  expect(location.pathname).toBe("/events");
+  expect(location.search).toBe("");
+});
+
+test("an event that cannot be saved shows the error and leaves the picker usable", async () => {
+  const db = await openDb("closed", new IDBFactory());
+  const broken = await Store.open(db, () => 1);
+  db.close();
+  const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  navigate("/events?change=1");
+  renderInShell(<Reservations store={broken} />, () => T0);
+  await user.click(await screen.findByRole("button", { name: "No event" }));
+  expect(await screen.findByRole("alert")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "No event" })).toBeEnabled();
+  expect(location.search).toBe("?change=1");
+  logged.mockRestore();
+});
+
+test("the menu closes when only the query changes", async () => {
+  navigate("/events?change=1");
+  const shell: Shell = {
+    busy: false,
+    manualBusy: false,
+    outcome: null,
+    now: () => T0,
+    sync: async () => undefined,
+    syncNow: async () => undefined,
+    signOut: async () => {},
+    store,
+  };
+  render(
+    <ShellContext value={shell}>
+      <Reservations store={store} />
+    </ShellContext>,
+  );
+  await user.click(screen.getByRole("button", { name: "Menu" }));
+  expect(screen.getByRole("navigation", { name: "Menu" })).toBeInTheDocument();
+  navigate("/events");
+  await waitFor(() => expect(screen.queryByRole("navigation", { name: "Menu" })).not.toBeInTheDocument());
 });
 
 test("the list says No events only when there are none", async () => {

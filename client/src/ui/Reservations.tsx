@@ -8,7 +8,7 @@ import {
   unplanned,
   upcoming,
 } from "../lib/reservations";
-import { navigate } from "../lib/router";
+import { back, navigate, useRoute } from "../lib/router";
 import { sessionEvent, setSessionEvent } from "../lib/session";
 import type { Store } from "../lib/store";
 import { useShell } from "../shell";
@@ -105,11 +105,8 @@ function UnplannedRows({ store, list, now }: { store: Store; list: Unplanned[]; 
   );
 }
 
-/** The event this device's check-outs record, with a way to change it (FR-OUT-05). */
-function CurrentEvent({ store }: { store: Store }) {
-  const { now } = useShell();
-  const { event } = sessionEvent(store.meta, now());
-  const [editing, setEditing] = useState(false);
+/** The picker for the event this device's check-outs record; it is open while the address has `change`. */
+function ChangeEvent({ store, event }: { store: Store; event: string | undefined }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,33 +115,33 @@ function CurrentEvent({ store }: { store: Store }) {
     setBusy(true);
     try {
       await setSessionEvent(store, name);
-      setEditing(false);
-      setError(null);
+      if (new URLSearchParams(location.search).has("change")) back("/events");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not change the event");
-    } finally {
       setBusy(false);
     }
   }
 
-  if (editing) {
-    return (
-      <EventPicker
-        store={store}
-        label="Check-out event"
-        busy={busy}
-        error={error}
-        lastUsed={store.meta.session_event}
-        hide={event}
-        onPick={(name) => void pick(name)}
-        onCancel={() => setEditing(false)}
-      />
-    );
-  }
+  return (
+    <EventPicker
+      store={store}
+      label="Check-out event"
+      busy={busy}
+      error={error}
+      lastUsed={store.meta.session_event}
+      hide={event}
+      onPick={(name) => void pick(name)}
+      onCancel={() => back("/events")}
+    />
+  );
+}
+
+/** The event this device's check-outs record, with a way to change it (FR-OUT-05). */
+function CurrentEvent({ event }: { event: string | undefined }) {
   return (
     <div className="session">
       <span>{event ? `Check-outs go to: ${event}` : "Check-outs have no event"}</span>
-      <button type="button" className="minor" onClick={() => setEditing(true)}>
+      <button type="button" className="minor" onClick={() => navigate("/events?change=1")}>
         Change
       </button>
     </div>
@@ -159,7 +156,16 @@ export function Reservations({ store }: { store: Store }) {
   const ahead = upcoming(store.state, today);
   const gone = past(store.state, today);
   const loose = unplanned(store, now());
+  const changing = useRoute().query.has("change");
+  const { event } = sessionEvent(store.meta, now());
 
+  if (changing) {
+    return (
+      <Page title="Events" back="/events">
+        <ChangeEvent store={store} event={event} />
+      </Page>
+    );
+  }
   return (
     <Page
       title="Events"
@@ -170,7 +176,7 @@ export function Reservations({ store }: { store: Store }) {
         </button>
       }
     >
-      <CurrentEvent store={store} />
+      <CurrentEvent event={event} />
       {ahead.length === 0 && gone.length === 0 && loose.length === 0 && <p>No events.</p>}
       {ahead.length > 0 && <Rows list={ahead} />}
       {loose.length > 0 && <UnplannedRows store={store} list={loose} now={now} />}

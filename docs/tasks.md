@@ -53,8 +53,6 @@ changelog.
 - [ ] "Enter QR code manually" shows the internal ID, which is not printed on the sticker. Ask for what the sticker
       shows, or drop the ID from the screen. Check what is printed first.
 - [ ] Desktop edition: From the Inventory listing, middle-clicking on an item should open it in a new window.
-- [ ] Navigation bug: Events > Check-outs have no event: Change > Back. Should return to Events screen, but returns to
-      All Items screen.
 - [ ] When creating a generic item, if I say we have several I should be able to indicate the count we have.
 - [ ] URLs within item descriptions should be clickable. Consider a simple markdown renderer?
 - [ ] Generic items don't have their own purchase date today, only their parent generic does. The parent's date should
@@ -70,3 +68,5 @@ changelog.
       and out, and don't need all the extra capabilities related to managing the gear.
 - [ ] Consider how we could make better use of the pictures. e.g. could the picture be shown during checkout so you can
       be sure you have the right item? If there's only one picture, should that be the item's thumbnail?
+- [ ] Item page, Change event: Back leaves the item instead of closing the picker. Same fix as the check-out event
+      picker on Events.

@@ -28,7 +28,8 @@ export function Page({ title, back, children, actions }: Props) {
   const menu = Boolean(store) && !wide;
 
   // A link followed from the menu must land on that screen with the menu closed.
-  useEffect(() => setOpen(false), [route.path]);
+  const search = route.query.toString();
+  useEffect(() => setOpen(false), [route.path, search]);
 
   return (
     <>
