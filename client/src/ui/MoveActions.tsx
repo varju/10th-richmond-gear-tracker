@@ -65,6 +65,7 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
   const [fault, setFault] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [justMoved, settle] = useFlash(CONFIRM_MS);
   const [picking, setPicking] = useState(false);
   // The name being typed for gear sent home to clean (FR-OUT-46); null when not asking.
   const [cleaner, setCleaner] = useState<string | null>(null);
@@ -124,11 +125,13 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
       } catch (e) {
         setError(`Moved, but the problem was not recorded: ${e instanceof Error ? e.message : "unknown error"}`);
         setBusy(false);
+        settle(kind);
         onMoved(kind, to, cleanerName);
         return;
       }
     }
     setBusy(false);
+    settle(kind);
     onMoved(kind, to, cleanerName);
   }
 
@@ -157,6 +160,8 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
     if (saved.length > 0) onSaved?.(saved.join(", "));
   }
 
+  // Buttons shift under the finger, so a second tap would record the opposite move.
+  const holding = busy || justMoved !== null;
   const typing = note !== null || fault !== null;
   const typed = (note?.trim() ?? "") !== "" || (fault?.trim() ?? "") !== "";
 
@@ -249,13 +254,13 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
       ) : (
         <>
           {canTake && (
-            <button type="button" className="primary" disabled={busy} onClick={() => start(checkOutMove, true)}>
+            <button type="button" className="primary" disabled={holding} onClick={() => start(checkOutMove, true)}>
               Check out
             </button>
           )}
           {canTake && showEvent && <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>}
           {out && movable && it.movement?.cleaner && (
-            <button type="button" className="primary" disabled={busy} onClick={() => start(backMove, false)}>
+            <button type="button" className="primary" disabled={holding} onClick={() => start(backMove, false)}>
               Back from cleaning
             </button>
           )}
@@ -263,7 +268,7 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
             <button
               type="button"
               className={it.movement?.cleaner ? undefined : "primary"}
-              disabled={busy}
+              disabled={holding}
               onClick={() => start(returnMove, false)}
             >
               Return
@@ -272,10 +277,10 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
           {/* Equal weight, no default: this phone's record of who has it may be stale (FR-OUT-06). */}
           {theirs && (
             <div className="row moves">
-              <button type="button" disabled={busy} onClick={() => start(returnMove, false)}>
+              <button type="button" disabled={holding} onClick={() => start(returnMove, false)}>
                 Return
               </button>
-              <button type="button" disabled={busy} onClick={() => start(takeOver, true)}>
+              <button type="button" disabled={holding} onClick={() => start(takeOver, true)}>
                 Take over
               </button>
             </div>

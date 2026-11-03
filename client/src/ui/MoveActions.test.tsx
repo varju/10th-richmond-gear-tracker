@@ -1,12 +1,13 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 import * as act from "../lib/actions";
 import { item } from "../lib/inventory";
 import * as mv from "../lib/movement";
 import type { Store } from "../lib/store";
 import { openStore } from "./codeTestKit";
-import { MoveActions } from "./MoveActions";
+import { CONFIRM_MS, MoveActions } from "./MoveActions";
 import { alice, renderInShell, seedUsers, inSession } from "./moveTestKit";
 
 // The move buttons, and the note or fault that can ride on a move (FR-OUT-13, FR-REP-01).
@@ -96,4 +97,48 @@ test("Back from cleaning clears the family and leaves the Scouter holding it (FR
   await waitFor(() => expect(onMoved).toHaveBeenCalledWith("Back from cleaning", undefined, undefined));
   expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice" });
   expect(item(store.state, tent)?.movement?.cleaner).toBeUndefined();
+});
+
+test("the move buttons pause after a move, so a second tap cannot undo it (FR-OUT-52)", async () => {
+  await mv.checkOut(store, tent);
+  await mv.sendItemHome(store, tent, { cleaner: "Smith family" });
+  function Page() {
+    const [, setTick] = useState(0);
+    return <MoveActions store={store} it={item(store.state, tent)!} onMoved={() => setTick((n) => n + 1)} />;
+  }
+  renderInShell(<Page />);
+
+  await user.click(screen.getByRole("button", { name: "Back from cleaning" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Return" })).toBeDisabled());
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice" });
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Return" })).toBeEnabled(), {
+    timeout: CONFIRM_MS + 1000,
+  });
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  await waitFor(() => expect(item(store.state, tent)?.status).toBe("in"));
+});
+
+test("a move that fails does not pause the buttons", async () => {
+  const stale = item(store.state, tent)!;
+  renderInShell(<MoveActions store={store} it={stale} onMoved={vi.fn()} />);
+  await mv.checkOut(store, tent);
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("already out");
+  expect(screen.getByRole("button", { name: "Check out" })).toBeEnabled();
+});
+
+test("Return is disabled straight after a check-out", async () => {
+  function Page() {
+    const [, setTick] = useState(0);
+    return <MoveActions store={store} it={item(store.state, tent)!} onMoved={() => setTick((n) => n + 1)} />;
+  }
+  renderInShell(<Page />);
+
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Return" })).toBeDisabled());
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  expect(item(store.state, tent)?.status).toBe("out");
 });
