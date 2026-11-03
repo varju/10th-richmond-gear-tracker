@@ -23,5 +23,6 @@ What the app does differently.
   when there is something to add a unit of.
 - After a move on a single item's page, the move buttons pause briefly so a second tap cannot undo it.
 - Back from changing the check-out event returns to Events.
+- A URL in an item's description is a link.
 
 ## Chores

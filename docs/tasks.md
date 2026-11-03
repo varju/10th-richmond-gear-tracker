@@ -54,7 +54,6 @@ changelog.
       shows, or drop the ID from the screen. Check what is printed first.
 - [ ] Desktop edition: From the Inventory listing, middle-clicking on an item should open it in a new window.
 - [ ] When creating a generic item, if I say we have several I should be able to indicate the count we have.
-- [ ] URLs within item descriptions should be clickable. Consider a simple markdown renderer?
 - [ ] Generic items don't have their own purchase date today, only their parent generic does. The parent's date should
       be used as a default, but we should be able to override per item.
 - [ ] Generics render differently in All Items view than Countables. Countables have their in/out under Status, while

@@ -728,3 +728,16 @@ test("a move packed for a reservation links to it instead of offering a correcti
   await user.click(screen.getByRole("button", { name: "Fall camp" }));
   expect(location.pathname).toBe(`/events/${r}`);
 });
+
+test("a URL in a description is a link; no description shows a dash", async () => {
+  const manual = await act.createItem(store, { name: "Stove", description: "Manual: https://a.b/stove." });
+  navigate(`/items/${manual}`);
+  const first = renderInShell(<ItemPage store={store} id={manual} />);
+  expect(await screen.findByRole("link", { name: "https://a.b/stove" })).toHaveAttribute("href", "https://a.b/stove");
+  first.unmount();
+
+  navigate(`/items/${tent}`);
+  const { container } = renderInShell(<ItemPage store={store} id={tent} />);
+  await screen.findByText("Description");
+  expect(container.querySelector("dd.prose")?.textContent).toBe("—");
+});
