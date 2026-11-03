@@ -25,5 +25,6 @@ What the app does differently.
 - Back from changing the check-out event returns to Events.
 - An item's description can have bold, italic, links and bullet lists, and a URL in it is a link. A backslash shows a
   star as typed, and a description over 5,000 characters shows as typed.
+- Back from changing an item's event returns to the item.
 
 ## Chores

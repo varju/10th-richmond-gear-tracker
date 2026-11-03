@@ -1,14 +1,16 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { IDBFactory } from "fake-indexeddb";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import * as act from "../lib/actions";
 import { DAY_MS } from "../lib/clock";
 import { currentCode, generics, item, nameOf, unitsOf } from "../lib/inventory";
 import * as mv from "../lib/movement";
 import * as rep from "../lib/repairs";
 import * as res from "../lib/reservations";
+import { openDb } from "../lib/db";
 import { navigate } from "../lib/router";
-import type { Store } from "../lib/store";
+import { Store } from "../lib/store";
 import { SESSION_MS } from "../lib/session";
 import { unsaved } from "../lib/unsaved";
 import { openStore } from "./codeTestKit";
@@ -676,15 +678,16 @@ test("the item page corrects the event it is out under, appended, offline (FR-OU
   expect(screen.getByText("Event").nextElementSibling).toHaveTextContent("Spring camp");
 
   await user.click(screen.getByRole("button", { name: "Change event" }));
-  const picker = screen.getByRole("region", { name: "Correct event" });
+  const picker = await screen.findByRole("region", { name: "Correct event" });
   await user.type(within(picker).getByLabelText("Event"), "fall");
   await user.click(within(picker).getByRole("button", { name: /Fall camp.*Used before/ }));
   expect(await screen.findByRole("button", { name: "Change event" })).toBeInTheDocument();
+  expect(location.search).toBe("");
   expect(screen.getByText("Event").nextElementSibling).toHaveTextContent("Fall camp");
 
   await user.click(screen.getByRole("button", { name: "Change event" }));
   await user.click(
-    within(screen.getByRole("region", { name: "Correct event" })).getByRole("button", { name: "No event" }),
+    within(await screen.findByRole("region", { name: "Correct event" })).getByRole("button", { name: "No event" }),
   );
   await screen.findByRole("button", { name: "Change event" });
   expect(store.pending.filter((e) => e.type === "event_corrected").map((e) => e.payload)).toEqual([
@@ -703,15 +706,163 @@ test("the correction hides the event already recorded, and offers Last used only
   renderInShell(<ItemPage store={store} id={tent} />);
   await user.click(screen.getByRole("button", { name: "Change event" }));
   const picker = () => screen.getByRole("region", { name: "Correct event" });
+  await screen.findByRole("region", { name: "Correct event" });
   expect(picker()).not.toHaveTextContent("Last used");
   await user.type(within(picker()).getByLabelText("Event"), "camp");
   expect(within(picker()).queryByRole("button", { name: /Spring camp/ })).not.toBeInTheDocument();
   expect(within(picker()).getByRole("button", { name: /Scout camp/ })).toBeInTheDocument();
   await user.click(within(picker()).getByRole("button", { name: "Cancel" }));
+  await screen.findByRole("button", { name: "Change event" });
 
   await inSession(store, "Cub camp");
-  await user.click(screen.getByRole("button", { name: "Change event" }));
+  await user.click(await screen.findByRole("button", { name: "Change event" }));
+  await screen.findByRole("region", { name: "Correct event" });
   expect(within(picker()).getByRole("button", { name: /Cub camp.*Last used/ })).toBeInTheDocument();
+});
+
+test("Back from changing the event returns to the item", async () => {
+  await mv.checkOut(store, tent, { event: "Spring camp" });
+  navigate("/items");
+  navigate(`/items/${tent}`);
+  renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Change event" }));
+  expect(await screen.findByRole("region", { name: "Correct event" })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(await screen.findByRole("button", { name: "Change event" })).toBeInTheDocument();
+  expect(location.pathname).toBe(`/items/${tent}`);
+  expect(location.search).toBe("");
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  await waitFor(() => expect(location.pathname).toBe("/items"));
+});
+
+test("a cold load of the event picker goes back to the item", async () => {
+  await mv.checkOut(store, tent, { event: "Spring camp" });
+  history.replaceState({ depth: 0 }, "", `/items/${tent}?change=1`);
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(await screen.findByRole("region", { name: "Correct event" })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(await screen.findByRole("button", { name: "Change event" })).toBeInTheDocument();
+  expect(location.pathname).toBe(`/items/${tent}`);
+  expect(location.search).toBe("");
+});
+
+test("cancelling the event picker stays on the item", async () => {
+  await mv.checkOut(store, tent, { event: "Spring camp" });
+  renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Change event" }));
+  await user.click(await screen.findByRole("button", { name: "Cancel" }));
+  expect(await screen.findByRole("button", { name: "Change event" })).toBeInTheDocument();
+  expect(location.pathname).toBe(`/items/${tent}`);
+  expect(location.search).toBe("");
+});
+
+test("a pick after a cold load of the event picker lands on the item", async () => {
+  await mv.checkOut(store, tent, { event: "Spring camp" });
+  history.replaceState({ depth: 0 }, "", `/items/${tent}?change=1`);
+  renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(await screen.findByRole("button", { name: "No event" }));
+  expect(await screen.findByRole("button", { name: "Change event" })).toBeInTheDocument();
+  expect(location.pathname).toBe(`/items/${tent}`);
+  expect(location.search).toBe("");
+  expect(screen.getByText("Event").nextElementSibling).toHaveTextContent("None");
+});
+
+test("an event that cannot be saved shows the error and leaves the picker usable", async () => {
+  const db = await openDb("closed", new IDBFactory());
+  const broken = await Store.open(db, () => 1_756_684_800_000);
+  await broken.setMeta({ token: "t", user: { id: "alice", name: "Alice", role: "admin", active: true } });
+  const id = await act.createItem(broken, { name: "Stove" });
+  await mv.checkOut(broken, id, { event: "Spring camp" });
+  db.close();
+  const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    navigate(`/items/${id}?change=1`);
+    renderInShell(<ItemPage store={broken} id={id} />);
+    await user.click(await screen.findByRole("button", { name: "No event" }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "No event" })).toBeEnabled();
+    expect(location.search).toBe("?change=1");
+  } finally {
+    logged.mockRestore();
+  }
+});
+
+test("the event picker is ignored on an item that is in", async () => {
+  navigate(`/items/${tent}?change=1`);
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(await screen.findByRole("button", { name: "Edit" })).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Correct event" })).not.toBeInTheDocument();
+  await waitFor(() => expect(location.search).toBe(""));
+});
+
+test("the event picker is ignored on an item packed for a reservation", async () => {
+  const r = await res.createReservation(store, {
+    event: "Fall camp",
+    starts: "2026-11-01",
+    ends: "2026-11-02",
+    items: [],
+    generics: [],
+  });
+  await mv.checkOut(store, tent, { event: "Fall camp", reservation_id: r, packing: true });
+  navigate(`/items/${tent}?change=1`);
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(await screen.findByRole("button", { name: "Fall camp" })).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Correct event" })).not.toBeInTheDocument();
+  await waitFor(() => expect(location.search).toBe(""));
+});
+
+test("an item returned while the event picker is open drops it, and a later check-out does not bring it back", async () => {
+  await mv.checkOut(store, tent, { event: "Spring camp" });
+  renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Change event" }));
+  expect(await screen.findByRole("region", { name: "Correct event" })).toBeInTheDocument();
+
+  await mv.checkIn(store, tent, {});
+  expect(await screen.findByRole("button", { name: "Edit" })).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Correct event" })).not.toBeInTheDocument();
+  await waitFor(() => expect(location.search).toBe(""));
+
+  await mv.checkOut(store, tent, { event: "Fall camp" });
+  expect(await screen.findByRole("button", { name: "Change event" })).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Correct event" })).not.toBeInTheDocument();
+});
+
+test("Change event asks first when a cleaner name is half typed", async () => {
+  await mv.checkOut(store, tent);
+  await mv.sendItemHome(store, tent, { cleaner: "Smith" });
+  withDialog();
+  await user.click(screen.getByRole("button", { name: "Change name" }));
+  await user.type(screen.getByRole("textbox"), "x");
+  await user.click(screen.getByRole("button", { name: "Change event" }));
+  expect(await dialog()).toBeInTheDocument();
+  expect(location.search).toBe("");
+  expect(screen.queryByRole("region", { name: "Correct event" })).not.toBeInTheDocument();
+});
+
+test("while the event picker is open the move buttons are not shown", async () => {
+  await mv.checkOut(store, tent, { event: "Spring camp" });
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(screen.getByRole("button", { name: "Return" })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Change event" }));
+  expect(await screen.findByRole("region", { name: "Correct event" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Return" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+});
+
+test("Change event asks first when a note is half typed", async () => {
+  await mv.checkOut(store, tent, { event: "Spring camp" });
+  withDialog();
+  await user.click(screen.getByText(/^History/));
+  await user.click(screen.getAllByRole("button", { name: "Add note" })[0]!);
+  await user.type(screen.getByLabelText("New note"), "pole bent");
+  await user.click(screen.getByRole("button", { name: "Change event" }));
+  expect(await dialog()).toBeInTheDocument();
+  expect(location.search).toBe("");
+  expect(screen.queryByRole("region", { name: "Correct event" })).not.toBeInTheDocument();
 });
 
 test("a move packed for a reservation links to it instead of offering a correction (FR-OUT-41)", async () => {

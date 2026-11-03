@@ -84,11 +84,19 @@ interface Props {
   id: string;
 }
 
+/** The movement an item is out under when its event can be corrected here; null when it is in or packed for a reservation. */
+function correctableMovement(it: Item | undefined): Movement | null {
+  if (!it || it.status !== "out" || !it.movement) return null;
+  return typeof it.movement.reservation_id === "string" ? null : it.movement;
+}
+
 /** One item: what it is, where it lives, who has it, and what has happened to it (FR-INV-09). */
 export function ItemPage({ store, id }: Props) {
   useStore(store);
   const { now, api } = useShell();
-  const openInEdit = useRoute().query.get("edit") === "1";
+  const route = useRoute();
+  const openInEdit = route.query.get("edit") === "1";
+  const changingEvent = route.query.has("change");
   const [editing, setEditing] = useState(openInEdit);
   const [merging, setMerging] = useState(false);
   const [grouping, setGrouping] = useState(false);
@@ -101,6 +109,11 @@ export function ItemPage({ store, id }: Props) {
   // not (FR-INV-31). Asked for once here, drawn by both blocks below. A merged
   // duplicate's events belong to the survivor, so its ids come too.
   const record = useRecord(store, "item", aliases(state, id), api);
+
+  const stale = changingEvent && Boolean(it) && !correctableMovement(it);
+  useEffect(() => {
+    if (stale) navigate(`/items/${id}`, true);
+  }, [stale, id]);
 
   useEffect(() => {
     if (openInEdit) setEditing(true);
@@ -239,6 +252,15 @@ export function ItemPage({ store, id }: Props) {
         photos={<Photos store={store} on={onItem} />}
         changes={<ChangesSection store={store} id={id} record={record} />}
       />
+    );
+  }
+
+  if (changingEvent && correctableMovement(it)) {
+    return (
+      <Page title="Item" back={`/items/${id}`}>
+        <h2 className="item-title">{displayName(state, it)}</h2>
+        <ChangeOutEvent store={store} it={it} />
+      </Page>
     );
   }
 
@@ -452,6 +474,7 @@ function CleanerName({
   const [draft, setDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useUnsaved(draft !== null && draft.trim() !== name);
 
   async function submit() {
     if (draft === null) return;
@@ -515,25 +538,9 @@ function OutCleaner({ store, it }: { store: Store; it: Item }) {
  * from there, so it links to the reservation instead.
  */
 function OutEvent({ store, it }: { store: Store; it: Item }) {
-  const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const m = it.movement as Movement;
   const event = typeof m.event === "string" ? m.event : null;
   const linked = typeof m.reservation_id === "string" ? reservation(store.state, m.reservation_id) : undefined;
-
-  async function pick(name: string | undefined) {
-    setBusy(true);
-    setError(null);
-    try {
-      if ((name ?? null) !== event) await correctEvent(store, it.id, m.id, name ?? null);
-      setEditing(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not change the event");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   if (typeof m.reservation_id === "string") {
     return (
@@ -542,27 +549,47 @@ function OutEvent({ store, it }: { store: Store; it: Item }) {
       </button>
     );
   }
-  if (editing) {
-    return (
-      <EventPicker
-        store={store}
-        label="Correct event"
-        busy={busy}
-        error={error}
-        lastUsed={sessionEvent(store.meta, store.now()).event}
-        hide={event}
-        onPick={(name) => void pick(name)}
-        onCancel={() => setEditing(false)}
-      />
-    );
-  }
   return (
     <>
       {event ?? "None"}{" "}
-      <button type="button" className="minor" onClick={() => setEditing(true)}>
+      <button type="button" className="minor" onClick={() => guard(() => navigate(`/items/${it.id}?change=1`))}>
         Change event
       </button>
     </>
+  );
+}
+
+/** The picker for the event the item is out under; it is open while the address has `change`. */
+function ChangeOutEvent({ store, it }: { store: Store; it: Item }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const m = it.movement as Movement;
+  const event = typeof m.event === "string" ? m.event : null;
+
+  async function pick(name: string | undefined) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if ((name ?? null) !== event) await correctEvent(store, it.id, m.id, name ?? null);
+      if (new URLSearchParams(location.search).has("change")) back(`/items/${it.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not change the event");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <EventPicker
+      store={store}
+      label="Correct event"
+      busy={busy}
+      error={error}
+      lastUsed={sessionEvent(store.meta, store.now()).event}
+      hide={event}
+      onPick={(name) => void pick(name)}
+      onCancel={() => back(`/items/${it.id}`)}
+    />
   );
 }
 

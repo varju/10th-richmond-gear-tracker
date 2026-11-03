@@ -67,5 +67,3 @@ changelog.
       and out, and don't need all the extra capabilities related to managing the gear.
 - [ ] Consider how we could make better use of the pictures. e.g. could the picture be shown during checkout so you can
       be sure you have the right item? If there's only one picture, should that be the item's thumbnail?
-- [ ] Item page, Change event: Back leaves the item instead of closing the picker. Same fix as the check-out event
-      picker on Events.
