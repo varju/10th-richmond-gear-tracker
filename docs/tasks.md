@@ -19,7 +19,15 @@ changelog.
       day daylight saving ended: the rolled file was named 2026-10-30, not 2026-10-31. Likely cause, not confirmed: it
       takes "yesterday" as now minus a flat 86,400 seconds.
 - [ ] Fix the flaky "signed in already, a link says who is signed in" in `client/src/ui/Join.test.tsx`. It failed once
-      in a full run, then passed three runs on its own and the next full run. Cause not yet known.
+      in a full run, then passed three runs on its own and the next full run. Cause not yet known; it may be timing, as
+      the machine was busy with other work.
+- [ ] Fix the flaky "an Admin merges a duplicate into the item it doubles, and lands on the survivor (FR-INV-13)" in
+      `client/src/ui/ItemPage.test.tsx`. It failed once in a full run: `merged_into` was still undefined right after a
+      `waitFor` on the pathname. It then passed later full runs. Likely a timing race, as the machine was busy with
+      other work.
+- [ ] Fix the flaky "a pool page shows owned, in, and out by holder, and moves by count (FR-INV-36, FR-OUT-22,
+      FR-OUT-23)" in `client/src/ui/PoolItem.test.tsx`. It failed once in a full run, then passed later full runs. The
+      error was not captured. It may be timing, as the machine was busy with other work.
 
 ## Groups of items
 
