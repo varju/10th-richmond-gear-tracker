@@ -12,6 +12,7 @@ import {
 import { filterParams, readFilter, withQuery } from "../lib/listUrl";
 import { openRepairs } from "../lib/repairs";
 import { entryState, hrefOf, navigate, restoringScroll, setEntryState, useRoute } from "../lib/router";
+import { NATIVE } from "../lib/server";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { FilterFields } from "./Filters";
@@ -81,7 +82,14 @@ function sortKey(store: Store, row: Row, key: Key): string {
   }
 }
 
-function ItemLink({ id, children }: { id: string; children: ReactNode }) {
+export function ItemLink({ id, children, native = NATIVE }: { id: string; children: ReactNode; native?: boolean }) {
+  if (native) {
+    return (
+      <button className="link" type="button" onClick={() => navigate(`/items/${id}`)}>
+        {children}
+      </button>
+    );
+  }
   return (
     <a
       className="link"

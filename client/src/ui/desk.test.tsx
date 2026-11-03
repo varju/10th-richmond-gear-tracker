@@ -13,6 +13,7 @@ import { createReservation, todayIso } from "../lib/reservations";
 import { back, BASE, navigate } from "../lib/router";
 import { Store } from "../lib/store";
 import { localDate } from "../lib/time";
+import { ItemLink } from "./ItemTable";
 import { desk, PHONE, setWidth } from "./widthTestKit";
 
 // The desk layout (NFR-USE-10): a sidebar, a home that opens on exceptions,
@@ -233,6 +234,21 @@ test("an item name in the table is a link, and a modified click is left to the b
   expect(location.pathname).toBe("/items");
 
   await user.click(link);
+  expect(location.pathname).toBe(`/items/${f.stove}`);
+});
+
+test("in the app an item name stays a button", async () => {
+  const f = await fixture();
+  navigate("/items");
+  render(
+    <ItemLink id={f.stove} native>
+      Stove
+    </ItemLink>,
+  );
+  expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  const button = screen.getByRole("button", { name: "Stove" });
+  expect(button).not.toHaveAttribute("href");
+  await userEvent.setup().click(button);
   expect(location.pathname).toBe(`/items/${f.stove}`);
 });
 
