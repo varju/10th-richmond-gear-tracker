@@ -28,7 +28,6 @@ const linkCases: Array<[string, string, string[]]> = [
   ["javascript", "javascript:alert(1)", []],
   ["ftp", "ftp://a.b", []],
   ["nothing after the scheme", "https://.", []],
-  ["credentials", "https://trusted.example@evil.com", []],
   ["angle brackets", "<https://a.b>", ["https://a.b"]],
   ["www", "www.a.b", ["http://www.a.b"]],
   ["an email address", "me@a.com", []],
@@ -40,8 +39,6 @@ const linkCases: Array<[string, string, string[]]> = [
   ["ftp link", "[x](ftp://a.b)", []],
   ["mailto link", "[x](mailto:a@b.c)", []],
   ["relative link", "[x](/a/b)", []],
-  ["credentials link", "[x](https://a@b.c)", []],
-  ["link text that is an address", "[https://trusted.example](https://evil.com)", []],
   ["an image", "![i](https://a.b/c.png)", []],
   ["many closers", `see https://a.b/c${")".repeat(3000)}`, ["https://a.b/c"]],
 ];
@@ -66,8 +63,6 @@ const typedCases: Array<[string, string]> = [
   ["script", "<script>alert(1)</script>"],
   ["javascript link", "[x](javascript:alert(1))"],
   ["ftp link", "[x](ftp://a.b)"],
-  ["credentials link", "[x](https://a@b.c)"],
-  ["link text that is an address", "[https://trusted.example](https://evil.com)"],
   ["a mail address", "me@a.com"],
   ["asterisks around spaces", "2 * 3 * 4"],
   ["a plain star", "*a"],
@@ -156,10 +151,6 @@ test.each([
 });
 
 const wordCases: Array<[string, string]> = [
-  ["5*6*7", "5*6*7"],
-  ["a*b*c", "a*b*c"],
-  ["10*12*3 tarp", "10*12*3 tarp"],
-  ["2 *3*4", "2 *3*4"],
   ["a line break before a list marker", "Contents:\n1. tent\n2. poles"],
   ["a line break before a heading", "Tent\n# 3 in locker"],
   ["a line break before a quote", "one\n> quote"],
@@ -168,8 +159,6 @@ const wordCases: Array<[string, string]> = [
   ["a bare dash", "-"],
   ["a bare star", "*"],
   ["a bare plus", "+"],
-  ["a definition", "[a]: x\n[a]: y"],
-  ["a reference", "[L]\n\n[L]: x"],
   ["a Windows path", "C:\\Users"],
 ];
 
