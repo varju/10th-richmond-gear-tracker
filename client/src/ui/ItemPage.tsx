@@ -73,7 +73,7 @@ import { boughtLabel, plural, statusLabel, userName } from "./labels";
 import { CleanerField } from "./CleanerField";
 import { EventPicker, useEventQuestion } from "./EventChoice";
 import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
-import { LinkedText } from "./LinkedText";
+import { RichText } from "./RichText";
 import { AddNote, NoteLine, NoteList } from "./Notes";
 import { Page } from "./Page";
 import { Photos } from "./Photos";
@@ -376,7 +376,7 @@ export function ItemPage({ store, id }: Props) {
               </>
             )}
             <dt>Description</dt>
-            <dd className="prose">{it.description ? <LinkedText text={it.description} /> : "—"}</dd>
+            <dd className="prose">{it.description ? <RichText text={it.description} /> : "—"}</dd>
             {mergedFrom.length > 0 && (
               <>
                 <dt>Merged from</dt>
@@ -1438,7 +1438,7 @@ function PoolPage({
           </>
         )}
         <dt>Description</dt>
-        <dd className="prose">{it.description ? <LinkedText text={it.description} /> : "—"}</dd>
+        <dd className="prose">{it.description ? <RichText text={it.description} /> : "—"}</dd>
       </dl>
 
       <details className="fold">
@@ -1933,7 +1933,7 @@ function GenericPage({
           </>
         )}
         <dt>Description</dt>
-        <dd className="prose">{it.description ? <LinkedText text={it.description} /> : "—"}</dd>
+        <dd className="prose">{it.description ? <RichText text={it.description} /> : "—"}</dd>
       </dl>
 
       <details className="fold">

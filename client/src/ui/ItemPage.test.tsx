@@ -729,6 +729,14 @@ test("a move packed for a reservation links to it instead of offering a correcti
   expect(location.pathname).toBe(`/events/${r}`);
 });
 
+test("a description shows bold and bullets", async () => {
+  const id = await act.createItem(store, { name: "Stove", description: "**Gas** only\n- hose\n- lighter" });
+  navigate(`/items/${id}`);
+  const { container } = renderInShell(<ItemPage store={store} id={id} />);
+  expect(await screen.findByText("Gas", { selector: "strong" })).toBeInTheDocument();
+  expect(container.querySelectorAll("dd.prose li")).toHaveLength(2);
+});
+
 test("a URL in a description is a link; no description shows a dash", async () => {
   const manual = await act.createItem(store, { name: "Stove", description: "Manual: https://a.b/stove." });
   navigate(`/items/${manual}`);

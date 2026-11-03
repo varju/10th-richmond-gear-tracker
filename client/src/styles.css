@@ -655,6 +655,12 @@ button.link {
   overflow-wrap: anywhere;
 }
 
+.facts .prose ul {
+  margin: 4px 0;
+  padding-left: 20px;
+  list-style: disc;
+}
+
 /* One merged-from record: where it went, and the way back (FR-INV-13). */
 .facts .merged-line {
   display: flex;
