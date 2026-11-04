@@ -60,7 +60,7 @@ import { cleanerKey, type Movement, type Note, type State } from "../lib/replay"
 import { tidyName } from "../lib/calendar";
 import { isOverdue } from "../lib/reports";
 import { reservation, todayIso } from "../lib/reservations";
-import { back, navigate, useRoute } from "../lib/router";
+import { back, entryState, navigate, setEntryState, useRoute } from "../lib/router";
 import { timeline, type TimelineEntry } from "../lib/timeline";
 import type { Store } from "../lib/store";
 import { localDate, localMinute } from "../lib/time";
@@ -265,6 +265,7 @@ export function ItemPage({ store, id }: Props) {
   }
 
   const reserved = itemReservations(state, it, todayIso(now()));
+  const unitParent = parentOf(state, it);
 
   return (
     <Page
@@ -298,6 +299,9 @@ export function ItemPage({ store, id }: Props) {
             <button type="button" onClick={() => setMerging(true)}>
               This is a duplicate record…
             </button>
+          )}
+          {unitParent && takesUnits(unitParent) && !it.retired && (
+            <AddAnotherUnit store={store} genericId={unitParent.id} />
           )}
         </>
       }
@@ -590,6 +594,42 @@ function ChangeOutEvent({ store, it }: { store: Store; it: Item }) {
       onPick={(name) => void pick(name)}
       onCancel={() => back(`/items/${it.id}`)}
     />
+  );
+}
+
+/** Add another unit without going back to the generic (FR-INV-45). */
+function AddAnotherUnit({ store, genericId }: { store: Store; genericId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function add() {
+    // The new page remounts this button, so a double tap's second tap is held by the new history entry.
+    const at = entryState("unitAdded");
+    if (busy || (typeof at === "number" && Date.now() - at < CONFIRM_MS)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const id = await addUnit(store, genericId);
+      navigate(`/items/${id}`);
+      setEntryState("unitAdded", Date.now());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not add a unit");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button type="button" disabled={busy} onClick={() => guard(() => void add())}>
+        Add another unit
+      </button>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </>
   );
 }
 

@@ -272,7 +272,7 @@ function Screen({
         // Another of a generic, or something on its own (FR-INV-24).
         return parent ? <NewUnit store={store} parent={parent} code={code} /> : <NewItem store={store} code={code} />;
       }
-      return <ItemPage store={store} id={second} />;
+      return <ItemPage key={second} store={store} id={second} />;
     case "scan":
       return <Scan store={store} />;
     case "out":

@@ -1,14 +1,18 @@
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { IDBFactory } from "fake-indexeddb";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import * as act from "../lib/actions";
+import { openDb } from "../lib/db";
 import * as inv from "../lib/inventory";
 import * as mv from "../lib/movement";
-import { navigate } from "../lib/router";
-import type { Store } from "../lib/store";
+import { navigate, setEntryState, useRoute } from "../lib/router";
+import { Store } from "../lib/store";
 import { unsaved } from "../lib/unsaved";
 import { openStore } from "./codeTestKit";
 import { ItemPage } from "./ItemPage";
+import { LeaveDialog } from "./LeaveDialog";
+import { CONFIRM_MS } from "./MoveActions";
 import { alice, renderInShell, seedUsers } from "./moveTestKit";
 import { NewUnit } from "./NewItem";
 
@@ -120,4 +124,122 @@ test("a new unit is offered the next number, and takes the generic's home (FR-IN
   const made = inv.unitsOf(store.state, tents)[1]!;
   expect(inv.displayName(store.state, made)).toBe("4-person tent #3b (patched fly)");
   expect(made).toMatchObject({ home_location_id: cold, number: "3b" });
+});
+
+// Routes the way App does: one ItemPage per id, so local state does not carry over.
+function Routed({ store }: { store: Store }) {
+  const id = useRoute().segments[1]!;
+  return (
+    <>
+      <ItemPage key={id} store={store} id={id} />
+      <LeaveDialog />
+    </>
+  );
+}
+
+const addAnother = () => screen.queryByRole("button", { name: "Add another unit" });
+
+test("a unit's page adds another unit of its generic and lands on it (FR-INV-45)", async () => {
+  const tents = await act.createGeneric(store, { name: "4-person tent", home_location_id: cold });
+  const first = await act.addUnit(store, tents);
+  navigate("/items");
+  navigate(`/items/${first}`);
+  renderInShell(<Routed store={store} />);
+
+  await user.click(screen.getByRole("button", { name: "Add another unit" }));
+  await waitFor(() => expect(inv.unitsOf(store.state, tents)).toHaveLength(2));
+  const second = inv.unitsOf(store.state, tents)[1]!.id;
+  await waitFor(() => expect(location.pathname).toBe(`/items/${second}`));
+
+  // Once the hold has passed, the new page's button works.
+  setEntryState("unitAdded", undefined);
+  await user.click(await screen.findByRole("button", { name: "Add another unit" }));
+  await waitFor(() => expect(inv.unitsOf(store.state, tents)).toHaveLength(3));
+  const third = inv.unitsOf(store.state, tents)[2]!.id;
+  await waitFor(() => expect(location.pathname).toBe(`/items/${third}`));
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  await waitFor(() => expect(location.pathname).toBe(`/items/${second}`));
+});
+
+test("a second tap on the new unit's page right after the first adds nothing more", async () => {
+  const tents = await act.createGeneric(store, { name: "4-person tent", home_location_id: cold });
+  const first = await act.addUnit(store, tents);
+  navigate(`/items/${first}`);
+  renderInShell(<Routed store={store} />);
+
+  await user.click(screen.getByRole("button", { name: "Add another unit" }));
+  await waitFor(() => expect(location.pathname).not.toBe(`/items/${first}`));
+  const second = inv.unitsOf(store.state, tents)[1]!.id;
+  expect(location.pathname).toBe(`/items/${second}`);
+  await user.click(await screen.findByRole("button", { name: "Add another unit" }));
+  expect(inv.unitsOf(store.state, tents)).toHaveLength(2);
+  expect(location.pathname).toBe(`/items/${second}`);
+
+  await new Promise((r) => setTimeout(r, CONFIRM_MS));
+  await user.click(screen.getByRole("button", { name: "Add another unit" }));
+  await waitFor(() => expect(inv.unitsOf(store.state, tents)).toHaveLength(3));
+});
+
+test("Add another unit is only on a live unit under a live generic (FR-INV-45)", async () => {
+  const tents = await act.createGeneric(store, { name: "4-person tent", home_location_id: cold });
+  const unit = await act.addUnit(store, tents);
+  const single = await act.createItem(store, { name: "Stove" });
+  const old = await act.createGeneric(store, { name: "Old tarp" });
+  const oldUnit = await act.addUnit(store, old);
+  await act.retireItem(store, oldUnit);
+  await act.retireItem(store, old);
+  await act.unretireItem(store, oldUnit);
+  const retired = await act.addUnit(store, tents);
+  await act.retireItem(store, retired);
+
+  for (const id of [retired, oldUnit, single, tents]) {
+    cleanup();
+    navigate(`/items/${id}`);
+    renderInShell(<Routed store={store} />);
+    expect(await screen.findByRole("heading", { level: 2 })).toBeInTheDocument();
+    expect(addAnother()).not.toBeInTheDocument();
+  }
+  expect(screen.getByRole("button", { name: "Add a unit" })).toBeInTheDocument();
+
+  cleanup();
+  navigate(`/items/${unit}`);
+  renderInShell(<Routed store={store} />);
+  expect(addAnother()).toBeInTheDocument();
+});
+
+test("a half-typed note asks before Add another unit creates anything", async () => {
+  const tents = await act.createGeneric(store, { name: "4-person tent", home_location_id: cold });
+  const first = await act.addUnit(store, tents);
+  navigate(`/items/${first}`);
+  renderInShell(<Routed store={store} />);
+
+  await user.click(screen.getByText(/^History/));
+  await user.click(screen.getAllByRole("button", { name: "Add note" })[0]!);
+  await user.type(screen.getByLabelText("New note"), "muddy");
+  await user.click(screen.getByRole("button", { name: "Add another unit" }));
+  expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+  expect(inv.unitsOf(store.state, tents)).toHaveLength(1);
+  expect(location.pathname).toBe(`/items/${first}`);
+});
+
+test("a unit that cannot be saved shows the error and leaves the button usable", async () => {
+  const db = await openDb("closed", new IDBFactory());
+  const broken = await Store.open(db, () => 1);
+  await broken.setMeta({ token: "t", user: { id: "alice", name: "Alice", role: "admin", active: true } });
+  const tents = await act.createGeneric(broken, { name: "4-person tent" });
+  const first = await act.addUnit(broken, tents);
+  const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    navigate(`/items/${first}`);
+    renderInShell(<Routed store={broken} />);
+    await screen.findByRole("heading", { level: 2 });
+    db.close();
+    await user.click(screen.getByRole("button", { name: "Add another unit" }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add another unit" })).toBeEnabled();
+    expect(location.pathname).toBe(`/items/${first}`);
+  } finally {
+    logged.mockRestore();
+  }
 });

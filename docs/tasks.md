@@ -52,7 +52,6 @@ changelog.
       afterwards.
 - [ ] Back button revisits screens already seen. Example: add a generic item, add an instance, add a QR code. Back shows
       the instance twice before the generic.
-- [ ] Generics: allow adding another instance while viewing an existing instance.
 - [ ] Add a duplicate-item button that opens an editable copy before saving, for items that differ only slightly (a
       title, say).
 - [ ] Consumables, for example propane tanks that are refilled. An item can have an optional empty (base) weight.
