@@ -43,6 +43,10 @@ changelog.
 ## User testing feedback
 
 - [ ] Adding a unit: offer to assign a QR code straight away. It is the likely next step and costs too many clicks now.
+      Deferred: it is already two taps (**Add a unit**, then **Add QR code**), so a prompt on the new unit's page is
+      easier to spot but saves none. Fewer taps means opening the scanner straight after adding, with a way to skip, or
+      a second "Add a unit and scan" button. The scanner opens the camera at a desk too, and it has **Type a code
+      instead**.
 - [ ] Check-out gives too little confirmation. A user did not realise the item was already checked out.
 - [ ] Some saves ask for more confirmation than they need, for example converting an item to a generic. Review which
       saves confirm and make them consistent.
