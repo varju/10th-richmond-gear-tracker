@@ -24,11 +24,12 @@ State = dict[str, dict[str, dict[str, Any]]]
 # (>= 0). It has no units (sync.py refuses that); it may carry a code, bound to the container that
 # holds the stack rather than to a labelled unit (FR-TAG-15). Its `status` stays "in" and
 # `holder_id` null forever; the counts below carry the truth. Owned is `pool_in` plus the sum
-# of every count in `pool_out`; it is never stored.
+# of every count in `pool_out` plus `pool_missing`; it is never stored.
 #
 # Derived fields, in DERIVED_FIELDS so a device cannot set them directly:
 #   pool_in          int                          what is on the shelf right now
 #   pool_out         {holder_id: int > 0}         what each holder has; a holder back at zero is removed
+#   pool_missing     int >= 0                     owned but lost; absent until the first pool_missing (FR-INV-46)
 #   pool_lots        {holder_id: [lot]}           which check-outs each holder's count came from, oldest first:
 #                                                  {id, count, event, reservation_id, at, cleaner?, cleaning_id?}
 #                                                  Lot ids are unique. `cleaning_id` is the cleaning_started that
@@ -55,6 +56,9 @@ State = dict[str, dict[str, dict[str, Any]]]
 #                                             max(0, pool_out[holder] - count), removed at 0;
 #                                             pool_in += count (FR-OUT-23). A return says nothing of
 #                                             which event, so it comes off the holder's oldest lots.
+#                                             A return of more than the holder has out takes the excess off
+#                                             pool_missing, up to what is missing (FR-INV-50); pool_in
+#                                             still gains the whole count.
 #   event_corrected {movement_id, event?,    a lot from that check-out moves to the new event, and its
 #                    reservation_id?}         count moves between pool_reservations entries.
 #   cleaner_corrected {movement_id, cleaner}  every lot, and the item's movement, that still has a cleaner and
@@ -76,6 +80,15 @@ State = dict[str, dict[str, dict[str, Any]]]
 #   `cleaning_id` (a transfer of gear at a cleaner's, FR-OUT-46).
 #   recounted   {count, reason?}             pool_in = count. pool_out is untouched (FR-INV-35);
 #                                             anyone signed in may record one.
+#   pool_missing {count, holder_id?, cleaner?} `taken` = min(count, pool_out[holder]); the holder defaults to
+#                                             the actor. pool_out[holder] -= taken (removed at 0);
+#                                             pool_missing += taken; lots change as in a pool checked_in
+#                                             with `taken`. pool_in is untouched (FR-INV-46). Nothing
+#                                             changes if `taken` is 0.
+#   pool_written_off {count, reason?}        gone = min(count, pool_missing); pool_missing -= gone. pool_in and
+#                                             pool_out are untouched, so owned drops by `gone` (FR-INV-49).
+#   pool_found  {count}                      found = min(count, pool_missing); pool_missing -= found;
+#                                             pool_in += found (FR-INV-47).
 #
 # A pool's `movement` is kept up to date like any item's, with `count` added (see `_movement`),
 # so the item's History can read "Alice checked out 10" straight off the log.
@@ -100,6 +113,7 @@ DERIVED_FIELDS = frozenset(
         "pool_out",
         "pool_reservations",
         "pool_lots",
+        "pool_missing",
         "deactivated_at",
     }
 )
@@ -414,21 +428,12 @@ def apply(entity: dict[str, Any], event: Event) -> None:
                 # The count offered is what the holder has out; returning fewer leaves the rest against
                 # them (FR-OUT-23). The holder defaults to whoever is returning it.
                 holder_id = p.get("holder_id") or event.actor_id
-                pool_out = dict(entity.get("pool_out", {}))
-                before = pool_out.get(holder_id, 0)
-                remaining = max(0, before - p["count"])
-                if remaining:
-                    pool_out[holder_id] = remaining
-                else:
-                    pool_out.pop(holder_id, None)
-                entity["pool_out"] = pool_out
+                before = _release(entity, holder_id, p["count"], p.get("cleaner"))
                 entity["pool_in"] = entity.get("pool_in", 0) + p["count"]
-                lots = dict(entity.get("pool_lots", {}))
-                if remaining:
-                    lots[holder_id] = return_lots(lots.get(holder_id, []), before, p["count"], p.get("cleaner"))
-                else:
-                    lots.pop(holder_id, None)
-                entity["pool_lots"] = lots
+                # Returning more than the holder has out can only be a count marked missing elsewhere (FR-INV-50).
+                cleared = min(max(0, p["count"] - before), entity.get("pool_missing", 0))
+                if cleared:
+                    entity["pool_missing"] -= cleared
                 movement = _movement(event)
                 movement["holder_id"] = holder_id
                 entity["movement"] = movement
@@ -440,6 +445,22 @@ def apply(entity: dict[str, Any], event: Event) -> None:
         case "recounted":
             # How many are in right now; what is already out is untouched (FR-INV-35).
             entity["pool_in"] = p["count"]
+        case "pool_missing":
+            # Clamped to what the holder has out, so two devices marking the same one is safe.
+            holder_id = p.get("holder_id") or event.actor_id
+            taken = min(p["count"], entity.get("pool_out", {}).get(holder_id, 0))
+            if taken:
+                _release(entity, holder_id, taken, p.get("cleaner"))
+                entity["pool_missing"] = entity.get("pool_missing", 0) + taken
+        case "pool_written_off":
+            gone = min(p["count"], entity.get("pool_missing", 0))
+            if gone:
+                entity["pool_missing"] = entity.get("pool_missing", 0) - gone
+        case "pool_found":
+            found = min(p["count"], entity.get("pool_missing", 0))
+            if found:
+                entity["pool_missing"] = entity.get("pool_missing", 0) - found
+                entity["pool_in"] = entity.get("pool_in", 0) + found
         case "photo_added":
             # The file is on the server; this is what a device knows about it (FR-INV-11).
             entity.setdefault("photos", []).append(
@@ -465,6 +486,26 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             entity["item_id"] = None
         case other:
             raise UnknownEventType(other)
+
+
+def _release(entity: dict[str, Any], holder_id: str, count: int, cleaner: str | None) -> int:
+    """Take `count` off a holder's count and lots, as a return does; the rest stays against them.
+    Returns what the holder had out before."""
+    pool_out = dict(entity.get("pool_out", {}))
+    before = pool_out.get(holder_id, 0)
+    remaining = max(0, before - count)
+    if remaining:
+        pool_out[holder_id] = remaining
+    else:
+        pool_out.pop(holder_id, None)
+    entity["pool_out"] = pool_out
+    lots = dict(entity.get("pool_lots", {}))
+    if remaining:
+        lots[holder_id] = return_lots(lots.get(holder_id, []), before, count, cleaner)
+    else:
+        lots.pop(holder_id, None)
+    entity["pool_lots"] = lots
+    return before
 
 
 def _movement(event: Event) -> dict[str, Any]:

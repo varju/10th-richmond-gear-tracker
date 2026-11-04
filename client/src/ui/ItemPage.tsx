@@ -47,6 +47,9 @@ import {
   backFromCleaning,
   sendHomeFromPool,
   checkInPool,
+  markPoolFound,
+  markPoolMissing,
+  writeOffPool,
   checkOutPool,
   correctCleaner,
   correctEvent,
@@ -647,6 +650,8 @@ function DeleteItem({ store, it }: { store: Store; it: Item }) {
   const admin = store.admin;
   const blocked = it.status === "out" || (it.generic && unitsOf(store.state, it.id).length > 0);
   if (!admin || blocked) return null;
+  if (isPool(it) && poolCounts(it).missing > 0)
+    return <p className="muted small">Cannot delete: mark it found or write it off first.</p>;
 
   async function remove() {
     if (!asked) {
@@ -749,6 +754,13 @@ export function describeMovement(state: State, e: HistoryEntry): string {
   const when = localMinute(e.at);
   // A pool's lines carry a count instead of the whole item (FR-INV-34, FR-INV-35).
   if (e.type === "recounted") return `Recounted to ${e.count} by ${who}${e.reason ? `: ${e.reason}` : ""} · ${when}`;
+  if (e.type === "pool_missing") {
+    const from = e.holder_id && e.holder_id !== e.actor_id ? ` from ${userName(state, e.holder_id)}` : "";
+    return `Marked ${e.count} missing${from} by ${who} · ${when}`;
+  }
+  if (e.type === "pool_written_off")
+    return `Wrote off ${e.count} by ${who}${e.reason ? `: ${e.reason}` : ""} · ${when}`;
+  if (e.type === "pool_found") return `Found ${e.count} by ${who} · ${when}`;
   if (e.type === "cleaning_ended") {
     return `Back from ${e.cleaner ? e.cleaner : "cleaning"}${
       e.count != null ? ` · ${e.count}` : ""
@@ -1407,7 +1419,7 @@ function withoutName(values: ItemInput): Partial<ItemInput> {
 }
 
 /**
- * A counted stack (FR-INV-34): owned, in, and out by holder, checked out and
+ * A counted stack (FR-INV-34): owned, in, missing, and out by holder, checked out and
  * returned by count, recounted, optionally with a reason. No units, and neither "Group
  * with" nor "Make this a single item": a pool is not a name for units. It may
  * still carry a code, bound to the container that holds the stack (FR-TAG-15).
@@ -1479,6 +1491,12 @@ function PoolPage({
             ? "None"
             : counts.out.map((o) => `${userName(state, o.holder_id)} · ${o.count}`).join(", ")}
         </dd>
+        {counts.missing > 0 && (
+          <>
+            <dt>Missing</dt>
+            <dd>{counts.missing}</dd>
+          </>
+        )}
         {cleaningShares(it).length > 0 && (
           <>
             <dt>Cleaning</dt>
@@ -1593,9 +1611,11 @@ function cleaningShares(it: Item) {
   return [...found.values()];
 }
 
+type PoolMode = "out" | "in" | "recount" | "home" | "back" | "missing" | "found" | "writeoff";
+
 /**
- * Check out, return, and recount a pool, by count (FR-OUT-22, FR-OUT-23,
- * FR-INV-35). Taking more than are in warns, never blocks. A check-out asks
+ * Check out, return, recount, and mark missing or found a pool, by count (FR-OUT-22, FR-OUT-23,
+ * FR-INV-35, FR-INV-46, FR-INV-47). Taking more than are in warns, never blocks. A check-out asks
  * the session's event first, as any check-out does (FR-OUT-05), unless
  * `session` is a reservation's packing session (FR-RES-03).
  */
@@ -1610,10 +1630,10 @@ export function PoolActions({
   it: Item;
   session?: Session;
   /** What was done, and which way it went: a scan during a packing session grows the reservation on "out". */
-  onMoved: (message: string, kind: "out" | "in" | "recount" | "back") => void;
+  onMoved: (message: string, kind: "out" | "in" | "recount" | "back" | "missing" | "found" | "writeoff") => void;
   children?: React.ReactNode;
 }) {
-  const [mode, setMode] = useState<"out" | "in" | "recount" | "home" | "back" | null>(null);
+  const [mode, setMode] = useState<PoolMode | null>(null);
   const [count, setCount] = useState("1");
   // Who is taking the stack home to clean (FR-OUT-46), and, on a return, whose share comes back (FR-OUT-47).
   const [cleaner, setCleaner] = useState("");
@@ -1643,7 +1663,7 @@ export function PoolActions({
     return (list.find((x) => x.key === key) ?? list[0])?.count ?? holderCount(id);
   };
 
-  function begin(next: "out" | "in" | "recount" | "home" | "back") {
+  function begin(next: PoolMode) {
     if (next === "out")
       askThen((s) => {
         setRecorded(s);
@@ -1652,16 +1672,16 @@ export function PoolActions({
     else open(next);
   }
 
-  function open(next: "out" | "in" | "recount" | "home" | "back") {
+  function open(next: PoolMode) {
     setMode(next);
     setError(null);
     setReason("");
     setCleaner("");
-    if (next === "in") {
+    if (next === "in" || next === "missing") {
       const def = mine > 0 ? me ?? null : counts.out[0]?.holder_id ?? me ?? null;
       setHolder(def);
       setFrom(shares(def)[0]?.key ?? "");
-      setCount(String(shareCount(def, shares(def)[0]?.key ?? "") || 1));
+      setCount(next === "missing" ? "1" : String(shareCount(def, shares(def)[0]?.key ?? "") || 1));
     } else if (next === "back") {
       pickAtHome(`${atHome[0]?.holder_id}\0${atHome[0]?.key}`);
     } else {
@@ -1673,7 +1693,7 @@ export function PoolActions({
   function pickHolder(id: string) {
     setHolder(id);
     setFrom(shares(id)[0]?.key ?? "");
-    setCount(String(shareCount(id, shares(id)[0]?.key ?? "") || 1));
+    setCount(mode === "missing" ? "1" : String(shareCount(id, shares(id)[0]?.key ?? "") || 1));
   }
 
   // Gear at a family's home, by who sent it (FR-OUT-51).
@@ -1688,7 +1708,7 @@ export function PoolActions({
 
   function pickShare(key: string) {
     setFrom(key);
-    setCount(String(shareCount(holder, key) || 1));
+    if (mode !== "missing") setCount(String(shareCount(holder, key) || 1));
   }
 
   const n = count.trim() === "" ? NaN : Number(count.trim());
@@ -1729,6 +1749,14 @@ export function PoolActions({
           cleaner: share?.cleaner,
           packing: session !== undefined,
         });
+      else if (mode === "missing")
+        await markPoolMissing(store, it.id, {
+          count: amount,
+          holder_id: holder ?? undefined,
+          cleaner: share?.cleaner,
+        });
+      else if (mode === "found") await markPoolFound(store, it.id, amount);
+      else if (mode === "writeoff") await writeOffPool(store, it.id, amount, reason);
       else await recount(store, it.id, amount, reason);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not record it");
@@ -1744,7 +1772,13 @@ export function PoolActions({
             ? `Back from ${homeShare?.cleaner ?? "cleaning"} ${amount}`
             : mode === "in"
               ? `Returned ${amount}`
-              : `Recounted to ${amount}`;
+              : mode === "missing"
+                ? `Marked ${amount} missing`
+                : mode === "found"
+                  ? `Found ${amount}`
+                  : mode === "writeoff"
+                    ? `Wrote off ${amount}`
+                    : `Recounted to ${amount}`;
     setBusy(false);
     setMode(null);
     onMoved(`${label} · ${displayName(state, it)}`, mode === "home" ? "out" : mode);
@@ -1781,7 +1815,7 @@ export function PoolActions({
           Only {counts.in} in. This takes it into overdraw.
         </p>
       )}
-      {mode === "in" && needsHolderPick && (
+      {(mode === "in" || mode === "missing") && needsHolderPick && (
         <label className="tight">
           <span>Who</span>
           <select value={holder ?? ""} onChange={(e) => pickHolder(e.target.value)}>
@@ -1793,9 +1827,9 @@ export function PoolActions({
           </select>
         </label>
       )}
-      {mode === "in" && shareList.length > 1 && (
+      {(mode === "in" || mode === "missing") && shareList.length > 1 && (
         <label className="tight">
-          <span>Returned from</span>
+          <span>{mode === "missing" ? "Missing from" : "Returned from"}</span>
           <select value={share?.key ?? ""} onChange={(e) => pickShare(e.target.value)}>
             {shareList.map((x) => (
               <option key={x.key} value={x.key}>
@@ -1826,7 +1860,15 @@ export function PoolActions({
             type="number"
             inputMode="numeric"
             min={mode === "recount" ? 0 : 1}
-            max={mode === "in" ? share?.count ?? holderCount(holder) : mode === "back" ? homeShare?.count : undefined}
+            max={
+              mode === "in" || mode === "missing"
+                ? share?.count ?? holderCount(holder)
+                : mode === "back"
+                  ? homeShare?.count
+                  : mode === "found" || mode === "writeoff"
+                    ? counts.missing
+                    : undefined
+            }
             step={1}
             autoFocus
             value={count}
@@ -1834,13 +1876,13 @@ export function PoolActions({
           />
         </label>
       )}
-      {mode === "recount" && (
+      {(mode === "recount" || mode === "writeoff") && (
         <label>
           <span>Why (optional)</span>
           <textarea
             aria-label="Why (optional)"
             rows={2}
-            placeholder="e.g. counted on the shelf"
+            placeholder={mode === "writeoff" ? "e.g. left at camp" : "e.g. counted on the shelf"}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
           />
@@ -1870,7 +1912,13 @@ export function PoolActions({
                   ? "Back from cleaning"
                   : mode === "in"
                     ? "Return"
-                    : "Recount"}
+                    : mode === "missing"
+                      ? "Mark missing"
+                      : mode === "found"
+                        ? "Found"
+                        : mode === "writeoff"
+                          ? "Write off"
+                          : "Recount"}
           </button>
           <button type="button" onClick={() => setMode(null)}>
             Cancel
@@ -1889,6 +1937,21 @@ export function PoolActions({
           <button type="button" onClick={() => begin("recount")}>
             Recount
           </button>
+          {counts.out.length > 0 && (
+            <button type="button" onClick={() => begin("missing")}>
+              Mark missing
+            </button>
+          )}
+          {counts.missing > 0 && (
+            <button type="button" onClick={() => begin("found")}>
+              Found
+            </button>
+          )}
+          {counts.missing > 0 && (
+            <button type="button" onClick={() => begin("writeoff")}>
+              Write off
+            </button>
+          )}
           {atHome.length > 0 && (
             <button type="button" onClick={() => begin("back")}>
               Back from cleaning

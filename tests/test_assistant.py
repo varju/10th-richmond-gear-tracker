@@ -550,7 +550,7 @@ def test_check_in_clears_missing(db_path, tools):
 def test_a_generic_or_a_pool_cannot_be_marked_missing(tools, pool_id):
     with pytest.raises(BadRequest, match="one of its units does"):
         assistant.mark_missing(tools["tents"])
-    with pytest.raises(BadRequest, match="use recount"):
+    with pytest.raises(BadRequest, match="use mark_pool_missing"):
         assistant.mark_missing(pool_id)
 
 
@@ -674,6 +674,17 @@ def test_a_pool_with_stock_out_cannot_be_deleted_or_merged(db_path, admin_tools)
         assistant.delete_item(pool)
     with pytest.raises(BadRequest):
         assistant.merge_items(pool, admin_tools["stove"])
+
+
+def test_a_pool_with_a_missing_count_cannot_be_deleted_until_it_is_settled(db_path, admin_tools):
+    with open_db(db_path) as conn:
+        pool = _new(conn, "item", {"name": "Tent pegs", "generic": True, "pool": True, "quantity": 40})
+    assistant.check_out(pool, count=2)
+    assistant.mark_pool_missing(pool, count=2)
+    with pytest.raises(BadRequest, match="mark it found or write it off first"):
+        assistant.delete_item(pool)
+    assistant.write_off_pool(pool, count=2)
+    assert assistant.delete_item(pool)["deleted"] is True
 
 
 def test_get_item_shows_the_current_code(db_path, tools):
@@ -1435,6 +1446,83 @@ def test_recount_sets_what_is_on_the_shelf_and_leaves_what_is_out(tools, pool_id
     assert [h["count"] for h in recounts] == [5, 4, 3]
     assert "reason" not in recounts[0] and "reason" not in recounts[1]
     assert recounts[2]["reason"] == "shelf count"
+
+
+def test_mark_pool_missing_takes_a_count_off_the_holder_and_keeps_it_owned(tools, pool_id):
+    assistant.check_out(pool_id, count=12)
+    assistant.check_in(pool_id, count=11)
+    result = assistant.mark_pool_missing(pool_id, count=1)
+    assert result == {"item_id": pool_id, "in": 19, "missing": 1, "owned": 20}
+    got = assistant.get_item(pool_id)
+    assert got["out"] == [] and got["missing"] == 1 and got["owned"] == 20
+    assert assistant.whats_out()["holders"] == []
+    row = next(r for r in assistant.search_items(status="missing")["rows"] if r["name"] == "Tent pegs")
+    assert row["missing"] == 1
+    assert [h["type"] for h in got["history"]][:1] == ["pool_missing"]
+    assert got["history"][0]["count"] == 1
+
+
+def test_mark_pool_missing_refuses_what_the_holder_does_not_have(tools, pool_id, bob):
+    with pytest.raises(BadRequest, match="you have none"):
+        assistant.mark_pool_missing(pool_id, count=1)
+    assistant.check_out(pool_id, count=3)
+    with pytest.raises(BadRequest, match="only 3 out"):
+        assistant.mark_pool_missing(pool_id, count=4)
+    with pytest.raises(BadRequest, match="Bob has none"):
+        assistant.mark_pool_missing(pool_id, count=1, holder_id=BOB)
+    with pytest.raises(BadRequest, match="a stack marks a count missing"):
+        assistant.mark_pool_missing(tools["stove"], count=1)
+    with pytest.raises(BadRequest, match="say whose share"):
+        assistant.mark_pool_missing(pool_id, count=1, cleaner="  ")
+
+
+def test_mark_pool_missing_for_another_holder(db_path, tools, pool_id, bob):
+    with open_db(db_path) as conn:
+        events.append_server(conn, BOB, "item", pool_id, "checked_out", {"holder_id": BOB, "event": None, "count": 5})
+    result = assistant.mark_pool_missing(pool_id, count=2, holder_id=BOB)
+    assert result["missing"] == 2
+    assert assistant.get_item(pool_id)["out"] == [{"holder_id": BOB, "holder": "Bob", "count": 3}]
+
+
+def test_mark_pool_found_puts_a_missing_count_back_in(tools, pool_id):
+    assistant.check_out(pool_id, count=4)
+    assistant.mark_pool_missing(pool_id, count=3)
+    with pytest.raises(BadRequest, match="only 3 are missing"):
+        assistant.mark_pool_found(pool_id, count=4)
+    result = assistant.mark_pool_found(pool_id, count=2)
+    assert result == {"item_id": pool_id, "in": 18, "missing": 1, "owned": 20}
+    assistant.mark_pool_found(pool_id, count=1)
+    with pytest.raises(BadRequest, match="none of this is missing"):
+        assistant.mark_pool_found(pool_id, count=1)
+    with pytest.raises(BadRequest, match="only a pool"):
+        assistant.mark_pool_found(tools["stove"], count=1)
+    assert "missing" not in assistant.get_item(pool_id)
+
+
+def test_write_off_pool_drops_missing_gear_from_owned(tools, pool_id):
+    assistant.check_out(pool_id, count=4)
+    with pytest.raises(BadRequest, match="none of this is missing"):
+        assistant.write_off_pool(pool_id, count=1)
+    assistant.mark_pool_missing(pool_id, count=3)
+    with pytest.raises(BadRequest, match="only 3 are missing"):
+        assistant.write_off_pool(pool_id, count=4)
+    with pytest.raises(BadRequest, match="only a pool"):
+        assistant.write_off_pool(tools["stove"], count=1)
+    result = assistant.write_off_pool(pool_id, count=2, reason="left at camp")
+    assert result == {"item_id": pool_id, "in": 16, "missing": 1, "owned": 18}
+    assistant.write_off_pool(pool_id, count=1)
+    got = assistant.get_item(pool_id)
+    assert got["owned"] == 17 and "missing" not in got
+    written = [h for h in got["history"] if h["type"] == "pool_written_off"]
+    assert [h["count"] for h in written] == [1, 2]
+    assert written[1]["reason"] == "left at camp" and "reason" not in written[0]
+
+
+def test_a_recount_with_a_missing_count_owns_the_recount_plus_out_plus_missing(tools, pool_id):
+    assistant.check_out(pool_id, count=5)
+    assistant.mark_pool_missing(pool_id, count=2)
+    assert assistant.recount(pool_id, count=10) == {"item_id": pool_id, "in": 10, "owned": 15}
+    assert assistant.get_item(pool_id)["owned"] == 15
 
 
 def test_a_reservation_records_who_created_it_and_when(tools):

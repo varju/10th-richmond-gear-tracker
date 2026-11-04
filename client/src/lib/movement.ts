@@ -270,6 +270,52 @@ export async function recount(store: Store, itemId: string, count: number, reaso
   return move(store, itemId, "recounted", why ? { count, reason: why } : { count });
 }
 
+export interface PoolMissingOptions {
+  count: number;
+  /** Whose count it was; defaults to the actor (FR-INV-46). */
+  holder_id?: string;
+  /** Whose share of the pool it was (FR-OUT-47). It comes off that cleaner's lots first. */
+  cleaner?: string;
+}
+
+/**
+ * Some of a pool that is out cannot be found (FR-INV-46). It comes off the holder's count and stays owned.
+ * More than the holder has out is refused; replay would clamp it, but the person should hear it.
+ */
+export async function markPoolMissing(store: Store, itemId: string, options: PoolMissingOptions) {
+  const it = poolItem(store, itemId);
+  if (!Number.isInteger(options.count) || options.count < 1) throw new Error("pick a count of at least 1");
+  const holder = options.holder_id ?? actor(store);
+  const has = poolCounts(it).out.find((o) => o.holder_id === holder)?.count ?? 0;
+  if (has === 0) throw new Error(`nothing out to ${holder}`);
+  if (options.count > has) throw new Error(`only ${has} out to ${holder}`);
+  const payload: Record<string, unknown> = { count: options.count };
+  if (holder !== actor(store)) payload.holder_id = holder;
+  if (options.cleaner !== undefined) payload.cleaner = cleanerName(options.cleaner);
+  return move(store, itemId, "pool_missing", payload);
+}
+
+/** A count of a pool's missing gear turned up and goes back in (FR-INV-47). Anyone signed in may record one. */
+export async function markPoolFound(store: Store, itemId: string, count: number) {
+  const it = poolItem(store, itemId);
+  if (!Number.isInteger(count) || count < 1) throw new Error("pick a count of at least 1");
+  const missing = poolCounts(it).missing;
+  if (missing === 0) throw new Error("none of it is missing");
+  if (count > missing) throw new Error(`only ${missing} missing`);
+  return move(store, itemId, "pool_found", { count });
+}
+
+/** A count of a pool's missing gear is written off for good (FR-INV-49). It leaves the quantity owned. */
+export async function writeOffPool(store: Store, itemId: string, count: number, reason?: string) {
+  const it = poolItem(store, itemId);
+  if (!Number.isInteger(count) || count < 1) throw new Error("pick a count of at least 1");
+  const missing = poolCounts(it).missing;
+  if (missing === 0) throw new Error("none of it is missing");
+  if (count > missing) throw new Error(`only ${missing} missing`);
+  const why = reason?.trim();
+  return move(store, itemId, "pool_written_off", why ? { count, reason: why } : { count });
+}
+
 export interface TransferOptions extends MoveOptions {
   /** Who gets it (FR-OUT-26). Defaults to whoever is signed in: a take-over (FR-OUT-12). */
   to?: string;
@@ -507,7 +553,15 @@ const sameKey = (name: string | null | undefined) => eventNameKey(name ?? "");
 
 export interface HistoryEntry {
   id: string;
-  type: "checked_out" | "checked_in" | "recounted" | "cleaning_ended" | "cleaning_started";
+  type:
+    | "checked_out"
+    | "checked_in"
+    | "recounted"
+    | "pool_missing"
+    | "pool_found"
+    | "pool_written_off"
+    | "cleaning_ended"
+    | "cleaning_started";
   actor_id: string;
   holder_id: string | null;
   event: string | null;
@@ -516,7 +570,7 @@ export interface HistoryEntry {
   notes: Note[];
   /** Set on a pool's line (FR-INV-34, FR-INV-35): how many this checked-out or checked-in carried, or a recount's new count. */
   count?: number;
-  /** Set only on a "recounted" line (FR-INV-35): why. */
+  /** Set only on a "recounted" or "pool_written_off" line (FR-INV-35, FR-INV-49): why. */
   reason?: string | null;
   /** Set when the gear went home to be cleaned (FR-OUT-46), as its last correction reads. */
   cleaner?: string;
@@ -525,7 +579,7 @@ export interface HistoryEntry {
 /**
  * The item's movements, newest first, each with its notes (FR-INV-09). A merged
  * duplicate's movements belong to the survivor (FR-INV-13). A pool's recounts
- * are here too, alongside its checked-out and checked-in lines (FR-INV-35).
+ * and missing counts are here too, alongside its checked-out and checked-in lines (FR-INV-35).
  */
 export function history(log: Log, itemId: string): HistoryEntry[] {
   const notes = aliases(log.state, itemId).flatMap((id) => (item(log.state, id)?.notes ?? []) as Note[]);
@@ -544,6 +598,9 @@ export function history(log: Log, itemId: string): HistoryEntry[] {
         e.type === "checked_out" ||
         e.type === "checked_in" ||
         e.type === "recounted" ||
+        e.type === "pool_missing" ||
+        e.type === "pool_found" ||
+        e.type === "pool_written_off" ||
         e.type === "cleaning_ended" ||
         e.type === "cleaning_started",
     )

@@ -71,6 +71,84 @@ test("a pool page shows owned, in, and out by holder, and moves by count (FR-INV
   expect(await screen.findByText(/Recounted to 18 by Alice: counted on the shelf/)).toBeInTheDocument();
 });
 
+test("12 PFDs go out, 11 come back: mark the one missing, then find it (FR-INV-46, FR-INV-47)", async () => {
+  const pfds = await act.createPool(store, { name: "PFDs" }, 12);
+  await mv.checkOutPool(store, pfds, { count: 12 });
+  navigate(`/items/${pfds}`);
+  renderInShell(<ItemPage store={store} id={pfds} />);
+
+  expect(screen.queryByRole("button", { name: "Found" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  await user.clear(screen.getByLabelText("How many"));
+  await user.type(screen.getByLabelText("How many"), "11");
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  await waitFor(() => expect(inv.item(store.state, pfds)?.pool_in).toBe(11));
+  expect(fact("Out")).toBe("Alice · 1");
+
+  await user.click(screen.getByRole("button", { name: "Mark missing" }));
+  expect(screen.getByLabelText("How many")).toHaveValue(1);
+  await user.click(screen.getByRole("button", { name: "Mark missing" }));
+  await waitFor(() => expect(inv.item(store.state, pfds)?.pool_missing).toBe(1));
+  expect(await screen.findByText("Marked 1 missing · PFDs")).toBeInTheDocument();
+  expect(fact("Owned")).toBe("12");
+  expect(fact("In")).toBe("11");
+  expect(fact("Missing")).toBe("1");
+  expect(fact("Out")).toBe("None");
+  expect(screen.queryByRole("button", { name: "Mark missing" })).not.toBeInTheDocument();
+  expect(await screen.findByText(/Marked 1 missing by Alice · /)).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Found" }));
+  expect(screen.getByLabelText("How many")).toHaveValue(1);
+  expect(screen.getByLabelText("How many")).toHaveAttribute("max", "1");
+  await user.click(screen.getByRole("button", { name: "Found" }));
+  await waitFor(() => expect(inv.item(store.state, pfds)?.pool_in).toBe(12));
+  expect(await screen.findByText("Found 1 · PFDs")).toBeInTheDocument();
+  expect(fact("In")).toBe("12");
+  expect(screen.queryByText("Missing")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Found" })).not.toBeInTheDocument();
+  expect(await screen.findByText(/Found 1 by Alice · /)).toBeInTheDocument();
+});
+
+test("missing gear is written off with a reason, and leaves what is owned (FR-INV-49)", async () => {
+  const pfds = await act.createPool(store, { name: "PFDs" }, 12);
+  await mv.checkOutPool(store, pfds, { count: 1 });
+  await mv.markPoolMissing(store, pfds, { count: 1 });
+  navigate(`/items/${pfds}`);
+  renderInShell(<ItemPage store={store} id={pfds} />);
+
+  expect(fact("Missing")).toBe("1");
+  await user.click(screen.getByRole("button", { name: "Write off" }));
+  expect(screen.getByLabelText("How many")).toHaveValue(1);
+  expect(screen.getByLabelText("How many")).toHaveAttribute("max", "1");
+  await user.type(screen.getByLabelText("Why (optional)"), "left at camp");
+  await user.click(screen.getByRole("button", { name: "Write off" }));
+  await waitFor(() => expect(inv.item(store.state, pfds)?.pool_missing).toBe(0));
+  expect(await screen.findByText("Wrote off 1 · PFDs")).toBeInTheDocument();
+  expect(fact("Owned")).toBe("11");
+  expect(screen.queryByText("Missing")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Found" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Write off" })).not.toBeInTheDocument();
+  expect(await screen.findByText(/Wrote off 1 by Alice: left at camp · /)).toBeInTheDocument();
+});
+
+test("a share held by someone else is marked missing through Who (FR-INV-46)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  await mv.checkOutPool(store, bowls, { count: 2 });
+  await store.setMeta({ user: { id: "carol", name: "Carol", role: "user", active: true } });
+  await mv.checkOutPool(store, bowls, { count: 3 });
+  await store.setMeta({ user: alice });
+  navigate(`/items/${bowls}`);
+  renderInShell(<ItemPage store={store} id={bowls} />);
+
+  await user.click(screen.getByRole("button", { name: "Mark missing" }));
+  await user.selectOptions(screen.getByLabelText("Who"), "carol");
+  expect(screen.getByLabelText("How many")).toHaveValue(1);
+  await user.click(screen.getByRole("button", { name: "Mark missing" }));
+  await waitFor(() => expect(inv.item(store.state, bowls)?.pool_missing).toBe(1));
+  expect(inv.item(store.state, bowls)?.pool_out).toEqual({ alice: 2, carol: 2 });
+  expect(await screen.findByText(/Marked 1 missing from Carol by Alice · /)).toBeInTheDocument();
+});
+
 test("a recount needs no reason, and its history line has no colon (FR-INV-35)", async () => {
   const bowls = await act.createPool(store, { name: "Bowls" }, 20);
   navigate(`/items/${bowls}`);

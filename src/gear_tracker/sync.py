@@ -266,6 +266,16 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
         item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
         if not item.get("pool"):
             raise Rejected("recount is only for a pool (FR-INV-35)")
+    if entity_type == "item" and kind in ("pool_missing", "pool_found", "pool_written_off"):
+        item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
+        if item.get("deleted"):
+            raise Rejected("this item was deleted")
+        if not item.get("pool"):
+            if kind == "pool_missing":
+                raise Rejected("a stack marks a count missing, a unit uses Missing (FR-INV-46)")
+            if kind == "pool_written_off":
+                raise Rejected("only a stack writes off a count (FR-INV-49)")
+            raise Rejected("only a stack marks a count found (FR-INV-47)")
     if entity_type == "repair" and kind != "created":
         ticket_id = str(incoming.get("entity_id"))
         ticket = derived.get_entity(conn, "repair", ticket_id) or {}

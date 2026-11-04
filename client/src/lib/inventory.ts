@@ -29,6 +29,8 @@ export interface Item {
   quantity?: number;
   /** What is on the shelf right now. Set only on a pool (FR-INV-34). */
   pool_in?: number;
+  /** Owned but lost, for a pool. Absent until the first one is marked missing (FR-INV-46). */
+  pool_missing?: number;
   /** Holder id to count, for what is checked out of a pool. Holders at zero are absent (FR-INV-34). */
   pool_out?: PoolOut;
   /** Reservation id to count checked out for it, never reduced by a return. Set only on a pool (FR-RES-13). */
@@ -187,16 +189,18 @@ export interface PoolHolderCount {
 export interface PoolCounts {
   owned: number;
   in: number;
+  missing: number;
   out: PoolHolderCount[];
 }
 
-/** Owned, in, and out by holder for a pool (FR-INV-36). `owned` is `in` plus every holder's count. */
+/** Owned, in, missing, and out by holder for a pool (FR-INV-36). `owned` is `in`, `missing` and every holder's count. */
 export function poolCounts(it: Item): PoolCounts {
   const poolIn = it.pool_in ?? 0;
   const out = Object.entries(it.pool_out ?? {})
     .filter(([, count]) => count > 0)
     .map(([holder_id, count]) => ({ holder_id, count }));
-  return { owned: poolIn + out.reduce((sum, o) => sum + o.count, 0), in: poolIn, out };
+  const missing = it.pool_missing ?? 0;
+  return { owned: poolIn + out.reduce((sum, o) => sum + o.count, 0) + missing, in: poolIn, missing, out };
 }
 
 /**
@@ -409,8 +413,8 @@ export function search(state: State, filter: Filter): Item[] {
 /**
  * Candidates for binding a code (FR-TAG-07): everything search() finds, plus
  * a pool's own container, which is a generic and so absent from search()
- * (FR-TAG-15). A pool has no "out" or "missing" state, so a status filter
- * other than "in" drops it the way it drops a retired item.
+ * (FR-TAG-15). A status filter other than "in" drops a pool the way it
+ * drops a retired item.
  */
 export function bindTargets(state: State, filter: Filter): Item[] {
   const words = terms(filter.query);
@@ -444,7 +448,7 @@ export interface PoolRow {
   kind: "pool";
   item: Item;
   name: string;
-  /** Owned, in, and out by holder (FR-INV-36). */
+  /** Owned, in, missing, and out by holder (FR-INV-36). */
   pool: PoolCounts;
 }
 
@@ -461,8 +465,8 @@ export type Row = SingleRow | GenericRow | PoolRow;
 /**
  * A pool has no units for search() to filter, so it is matched here: on its
  * home and shelf, its categories, and its counts. "in" means stock on the
- * shelf, "out" means anything checked out to a holder. "missing" never
- * matches; a pool has no such state. Twin of pool_wanted in views.py.
+ * shelf, "out" means anything checked out to a holder, "missing" means a
+ * missing count above zero. Twin of pool_wanted in views.py.
  */
 function poolWanted(state: State, pool: Item, filter: Filter): boolean {
   if (filter.location_id && pool.home_location_id !== filter.location_id) return false;
@@ -471,7 +475,8 @@ function poolWanted(state: State, pool: Item, filter: Filter): boolean {
   const counts = poolCounts(pool);
   if (filter.status === "in") return counts.in > 0;
   if (filter.status === "out") return counts.out.length > 0;
-  return filter.status !== "missing";
+  if (filter.status === "missing") return counts.missing > 0;
+  return true;
 }
 
 export function rows(state: State, filter: Filter): Row[] {

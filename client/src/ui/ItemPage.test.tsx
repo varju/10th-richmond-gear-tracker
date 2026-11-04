@@ -665,6 +665,20 @@ test("only an Admin may delete, and only an item that is in (FR-INV-32)", async 
   expect(screen.queryByRole("button", { name: "Delete for good…" })).not.toBeInTheDocument();
 });
 
+test("a stack with a missing count cannot be deleted until it is settled (FR-INV-32, FR-INV-46)", async () => {
+  const pegs = await act.createPool(store, { name: "Pegs" }, 10);
+  navigate(`/items/${pegs}?edit=1`);
+  const { unmount } = renderInShell(<ItemPage store={store} id={pegs} />);
+  expect(screen.getByRole("button", { name: "Delete for good…" })).toBeInTheDocument();
+  unmount();
+
+  await mv.checkOutPool(store, pegs, { count: 1 });
+  await mv.markPoolMissing(store, pegs, { count: 1 });
+  renderInShell(<ItemPage store={store} id={pegs} />);
+  expect(screen.queryByRole("button", { name: "Delete for good…" })).not.toBeInTheDocument();
+  expect(screen.getByText("Cannot delete: mark it found or write it off first.")).toBeInTheDocument();
+});
+
 test("the item page corrects the event it is out under, appended, offline (FR-OUT-41, FR-RES-27)", async () => {
   await res.createReservation(store, {
     event: "Fall camp",

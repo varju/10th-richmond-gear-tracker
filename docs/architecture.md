@@ -501,6 +501,16 @@ and any return that names nobody, comes off the part no lot explains, then the o
 ignores `cleaner` shows the right totals and differs only in which lot a count is filed under. Both fields are optional,
 so older builds keep syncing.
 
+A stack that comes back short records the loss with `pool_missing {count, holder_id?, cleaner?}` (FR-INV-46). Replay
+takes the count, clamped to what the holder has out, off that holder as a return does, files the lots the same way, and
+adds it to `pool_missing` instead of `pool_in`. Clamping keeps two devices marking the same one safe.
+`pool_found {count}` (FR-INV-47) moves up to that many from `pool_missing` back into `pool_in`. Owned is in, out and
+missing together. `pool_written_off {count, reason?}` (FR-INV-49) drops up to that many from `pool_missing` for good, so
+owned falls. The field is absent until the first mark, so existing vectors do not change, and an older build skips
+`pool_missing`, `pool_found` and `pool_written_off`. Until it updates, it shows a missing count as still out to the
+holder, and its return of that count clears the missing count: a return of more than the holder has out takes the excess
+off `pool_missing` (FR-INV-50).
+
 The session event (FR-OUT-05) is a device setting in `meta`, for plain scanning. Any check-out or transfer, on the scan
 card or the item page, asks for it when no session is running, offering the last one used. `session_event_at` records
 when it was last set or answered. A move moves it on in the same write, if the `meta` read in that transaction says the

@@ -31,10 +31,6 @@ changelog.
 
 ## Groups of items
 
-- [ ] Bug: a stack cannot record missing gear. A bag of PFDs comes back one short, and the Scouter has no way to say the
-      last one is missing. Returning fewer leaves the rest out under their name (FR-OUT-23), and a recount changes only
-      what is in (FR-INV-35), so that one stays out to them for good. Unlike a unit (FR-INV-19), a stack has no missing
-      state. Needs a requirement and an MCP tool in `assistant.py`.
 - [ ] Question to consider: A canoe trailer is both storage and an item that can be checked out. Today its contents
       still show as in at the yard when it is out. Deferred until the group has used pools for PFD bags.
 

@@ -17,12 +17,13 @@ export type State = Record<string, Record<string, Fields>>;
 // (>= 0). It has no units (the server refuses that); it may carry a code, bound to the container
 // that holds the stack rather than to a labelled unit (FR-TAG-15). Its `status` stays "in" and
 // `holder_id` null forever; the counts below carry the truth. Owned is `pool_in` plus the sum
-// of every count in `pool_out`; it is never stored. Read both through `poolCounts` and
+// of every count in `pool_out` plus `pool_missing`; it is never stored. Read both through `poolCounts` and
 // `isPool` in inventory.ts, not directly.
 //
 // Derived fields, never set by a device:
 //   pool_in           number                          what is on the shelf right now
 //   pool_out          Record<holder_id, number>       what each holder has; a holder back at zero is removed
+//   pool_missing      number (>= 0)                   owned but lost; absent until the first pool_missing (FR-INV-46)
 //   pool_reservations Record<reservation_id, number>  how many went out for each reservation, ever
 //                                                      (FR-RES-13). A checked_out that carries a
 //                                                      reservation_id adds to it, event_corrected moves
@@ -49,6 +50,9 @@ export type State = Record<string, Record<string, Fields>>;
 //                                             max(0, pool_out[holder] - count), removed at 0;
 //                                             pool_in += count (FR-OUT-23). A return says nothing of
 //                                             which event, so it comes off the holder's oldest lots.
+//                                             A return of more than the holder has out takes the excess off
+//                                             pool_missing, up to what is missing (FR-INV-50); pool_in
+//                                             still gains the whole count.
 //   event_corrected {movement_id, event?,    a lot from that check-out moves to the new event, and its
 //                    reservation_id?}         count moves between pool_reservations entries.
 //   cleaner_corrected {movement_id, cleaner}  every lot, and the item's movement, that still has a cleaner and
@@ -69,6 +73,15 @@ export type State = Record<string, Record<string, Fields>>;
 //                                             that holder's lots under `cleaner` lose it (endCleaning).
 //   recounted   {count, reason?}             pool_in = count. pool_out is untouched (FR-INV-35);
 //                                             anyone signed in may record one.
+//   pool_missing {count, holder_id?, cleaner?} `taken` = min(count, pool_out[holder]); the holder defaults to
+//                                             the actor. pool_out[holder] -= taken (removed at 0);
+//                                             pool_missing += taken; lots change as in a pool checked_in
+//                                             with `taken`. pool_in is untouched (FR-INV-46). Nothing
+//                                             changes if `taken` is 0.
+//   pool_written_off {count, reason?}        gone = min(count, pool_missing); pool_missing -= gone. pool_in and
+//                                             pool_out are untouched, so owned drops by `gone` (FR-INV-49).
+//   pool_found  {count}                      found = min(count, pool_missing); pool_missing -= found;
+//                                             pool_in += found (FR-INV-47).
 //
 // A pool's `movement` is kept up to date like any item's, with `count` added (see `movement`),
 // so the item's History can read "Alice checked out 10" straight off the log.
@@ -269,6 +282,9 @@ export const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set([
   "checked_out",
   "checked_in",
   "recounted",
+  "pool_missing",
+  "pool_found",
+  "pool_written_off",
   "photo_added",
   "photo_removed",
   "code_bound",
@@ -507,18 +523,11 @@ export function apply(entity: Fields, event: ReplayEvent): void {
         // them (FR-OUT-23). The holder defaults to whoever is returning it.
         const holderId = (p.holder_id as string | undefined) ?? event.actor_id;
         const count = p.count as number;
-        const poolOut = { ...((entity.pool_out ?? {}) as PoolOut) };
-        const before = poolOut[holderId] ?? 0;
-        const remaining = Math.max(0, before - count);
-        if (remaining) poolOut[holderId] = remaining;
-        else delete poolOut[holderId];
-        entity.pool_out = poolOut;
+        const before = release(entity, holderId, count, p.cleaner as string | undefined);
         entity.pool_in = ((entity.pool_in as number | undefined) ?? 0) + count;
-        const lots = { ...((entity.pool_lots ?? {}) as PoolLots) };
-        if (remaining)
-          lots[holderId] = returnLots(lots[holderId] ?? [], before, count, p.cleaner as string | undefined);
-        else delete lots[holderId];
-        entity.pool_lots = lots;
+        // Returning more than the holder has out can only be a count marked missing elsewhere (FR-INV-50).
+        const cleared = Math.min(Math.max(0, count - before), (entity.pool_missing as number | undefined) ?? 0);
+        if (cleared) entity.pool_missing = (entity.pool_missing as number) - cleared;
         const m = movement(event);
         m.holder_id = holderId;
         entity.movement = m;
@@ -534,6 +543,29 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       // How many are in right now; what is already out is untouched (FR-INV-35).
       entity.pool_in = p.count as number;
       break;
+    case "pool_missing": {
+      // Clamped to what the holder has out, so two devices marking the same one is safe.
+      const holderId = (p.holder_id as string | undefined) ?? event.actor_id;
+      const taken = Math.min(p.count as number, ((entity.pool_out ?? {}) as PoolOut)[holderId] ?? 0);
+      if (!taken) break;
+      release(entity, holderId, taken, p.cleaner as string | undefined);
+      entity.pool_missing = ((entity.pool_missing as number | undefined) ?? 0) + taken;
+      break;
+    }
+    case "pool_written_off": {
+      const missing = (entity.pool_missing as number | undefined) ?? 0;
+      const gone = Math.min(p.count as number, missing);
+      if (gone) entity.pool_missing = missing - gone;
+      break;
+    }
+    case "pool_found": {
+      const missing = (entity.pool_missing as number | undefined) ?? 0;
+      const found = Math.min(p.count as number, missing);
+      if (!found) break;
+      entity.pool_missing = missing - found;
+      entity.pool_in = ((entity.pool_in as number | undefined) ?? 0) + found;
+      break;
+    }
     case "photo_added":
       // The file is on the server; this is what a device knows about it (FR-INV-11).
       photos(entity).push({
@@ -596,6 +628,21 @@ function correctLot(entity: Fields, p: Fields): void {
     entity.pool_lots = { ...lots, [holderId]: list.map((l) => (l === lot ? fixed : l)) };
     return;
   }
+}
+
+/** Takes `count` off a holder's count and lots, as a return does; the rest stays against them. Returns what they had out. */
+function release(entity: Fields, holderId: string, count: number, cleaner: string | undefined): number {
+  const poolOut = { ...((entity.pool_out ?? {}) as PoolOut) };
+  const before = poolOut[holderId] ?? 0;
+  const remaining = Math.max(0, before - count);
+  if (remaining) poolOut[holderId] = remaining;
+  else delete poolOut[holderId];
+  entity.pool_out = poolOut;
+  const lots = { ...((entity.pool_lots ?? {}) as PoolLots) };
+  if (remaining) lots[holderId] = returnLots(lots[holderId] ?? [], before, count, cleaner);
+  else delete lots[holderId];
+  entity.pool_lots = lots;
+  return before;
 }
 
 function movement(event: ReplayEvent): Movement {

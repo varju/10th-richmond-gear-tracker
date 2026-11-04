@@ -27,6 +27,8 @@ What the app does differently.
   star as typed, and a description over 5,000 characters shows as typed.
 - Back from changing an item's event returns to the item.
 - A unit's page can add another unit of the same generic.
+- A stack that comes back short has **Mark missing**, **Found** and **Write off**. The missing count stays owned until
+  written off, and is shown on the stack's page and list row. The Missing filter finds it.
 - The item list shows a generic's units as in and out, the same as a stack, plus how many are missing.
 
 ## Chores

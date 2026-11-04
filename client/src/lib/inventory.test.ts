@@ -47,9 +47,20 @@ test("isPool and poolCounts read a pool's counts, a holder back at zero left out
     pool_out: { bob: 3, carol: 0 },
   };
   expect(inv.isPool(bowls)).toBe(true);
-  expect(inv.poolCounts(bowls)).toEqual({ owned: 7, in: 4, out: [{ holder_id: "bob", count: 3 }] });
+  expect(inv.poolCounts(bowls)).toEqual({
+    owned: 7,
+    in: 4,
+    missing: 0,
+    out: [{ holder_id: "bob", count: 3 }],
+  });
   expect(inv.isPool({ id: "tent-1", name: "Tent" })).toBe(false);
-  expect(inv.poolCounts({ id: "bowls", pool_in: 10 })).toEqual({ owned: 10, in: 10, out: [] });
+  expect(inv.poolCounts({ id: "bowls", pool_in: 10 })).toEqual({ owned: 10, in: 10, missing: 0, out: [] });
+  expect(inv.poolCounts({ ...bowls, pool_missing: 2 })).toEqual({
+    owned: 9,
+    in: 4,
+    missing: 2,
+    out: [{ holder_id: "bob", count: 3 }],
+  });
 });
 
 test("search matches every word against the name, not the home (FR-INV-07)", async () => {
@@ -163,7 +174,7 @@ test("a pool is its own row, with in and out counts instead of units (FR-INV-36)
     ["single", "Tent 2"],
   ]);
   const row = list[0] as inv.PoolRow;
-  expect(row.pool).toEqual({ owned: 20, in: 14, out: [{ holder_id: "alice", count: 6 }] });
+  expect(row.pool).toEqual({ owned: 20, in: 14, missing: 0, out: [{ holder_id: "alice", count: 6 }] });
   // A pool's own quantity counts as that many things, not one generic row.
   expect(inv.countItems(list)).toBe(23);
   expect(f.stove).toBeTruthy();
@@ -179,6 +190,11 @@ test("a pool matches a location filter on its home and a status filter on its co
   await mv.checkOutPool(store, bowls, { count: 20 });
   expect(names({ status: "out" })).toContain("Bowls");
   expect(names({ status: "in" })).not.toContain("Bowls");
+  expect(names({ status: "missing" })).not.toContain("Bowls");
+  await mv.markPoolMissing(store, bowls, { count: 1 });
+  expect(names({ status: "missing" })).toContain("Bowls");
+  expect(names({ status: "out" })).toContain("Bowls");
+  await mv.markPoolFound(store, bowls, 1);
   expect(names({ status: "missing" })).not.toContain("Bowls");
 });
 
@@ -239,7 +255,7 @@ test("a single item becomes a counted stack, the way it becomes a generic (FR-IN
 
   const pool = inv.item(store.state, poolId)!;
   expect(pool).toMatchObject({ name: "Stove", generic: true, pool: true, pool_in: 20, pool_out: {} });
-  expect(inv.poolCounts(pool)).toEqual({ owned: 20, in: 20, out: [] });
+  expect(inv.poolCounts(pool)).toEqual({ owned: 20, in: 20, missing: 0, out: [] });
   // The original record folds into the pool, like a duplicate: its sticker and history stay reachable.
   expect(inv.item(store.state, f.stove)?.merged_into).toBe(poolId);
   expect(inv.currentCode(store.state, poolId)?.id).toBe("ABCDEFGH23");

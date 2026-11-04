@@ -1,0 +1,117 @@
+{
+  "name": "a found count goes back in; more than are missing is clamped (FR-INV-47)",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "pfds",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "name": "PFDs",
+        "generic": true,
+        "pool": true,
+        "quantity": 12
+      }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "pfds",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": {
+        "holder_id": "bob",
+        "count": 3
+      }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "pfds",
+      "type": "pool_missing",
+      "actor_id": "dave",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "payload": {
+        "holder_id": "bob",
+        "count": 2
+      }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "item",
+      "entity_id": "pfds",
+      "type": "pool_found",
+      "actor_id": "dave",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 4000,
+      "payload": {
+        "count": 1
+      }
+    },
+    {
+      "id": "01000000000000000000000005",
+      "entity_type": "item",
+      "entity_id": "pfds",
+      "type": "pool_found",
+      "actor_id": "dave",
+      "device_id": "a",
+      "device_seq": 5,
+      "effective_at": 5000,
+      "payload": {
+        "count": 9
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "pfds": {
+        "name": "PFDs",
+        "generic": true,
+        "pool": true,
+        "quantity": 12,
+        "added_at": 1000,
+        "modified_at": 1000,
+        "status": "in",
+        "holder_id": null,
+        "pool_in": 11,
+        "pool_out": {
+          "bob": 1
+        },
+        "pool_reservations": {},
+        "pool_lots": {
+          "bob": [
+            {
+              "id": "01000000000000000000000002",
+              "count": 1,
+              "event": null,
+              "reservation_id": null,
+              "at": 2000
+            }
+          ]
+        },
+        "movement": {
+          "id": "01000000000000000000000002",
+          "type": "checked_out",
+          "holder_id": "bob",
+          "event": null,
+          "reservation_id": null,
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 2000,
+          "count": 3
+        },
+        "pool_missing": 0
+      }
+    }
+  }
+}

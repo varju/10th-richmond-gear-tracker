@@ -12,9 +12,13 @@ export function statusLabel(state: State, it: Item): string {
   return it.status === "out" ? `Out · ${userName(state, it.holder_id)}` : "In";
 }
 
-/** A generic's or pool's units as "2 in · 1 out", plus "· 1 missing" for a generic with any. */
+/** A generic's or pool's units as "2 in · 1 out", plus "· 1 missing" for one with any. */
 export function countsLabel(row: Row & { kind: "generic" | "pool" }): string {
-  if (row.kind === "pool") return `${row.pool.in} in · ${row.pool.owned - row.pool.in} out`;
+  if (row.kind === "pool") {
+    const { in: n, out, missing } = row.pool;
+    const away = out.reduce((sum, o) => sum + o.count, 0);
+    return `${n} in · ${away} out${missing > 0 ? ` · ${missing} missing` : ""}`;
+  }
   const { in: n, out, missing } = row.counts;
   return `${n} in · ${out} out${missing > 0 ? ` · ${missing} missing` : ""}`;
 }

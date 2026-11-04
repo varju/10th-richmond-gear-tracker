@@ -135,6 +135,25 @@ def test_a_pool_row_carries_quantity_owned_in_and_out(db):
     assert by_id["bowls"]["code"] == ""
 
 
+def test_a_pool_row_with_nothing_missing_says_zero(db):
+    state = seeded(db)
+    by_id = rows_by_id(inventory_csv.export(state))
+    row = by_id["bowls"]
+    assert [row["quantity"], row["in"], row["out"], row["missing"]] == ["12", "9", "3", "0"]
+
+
+def test_a_pool_with_a_missing_count_exports_and_reimports_cleanly(db):
+    state = seeded(db)
+    events.append_server(db, ACTOR, "item", "bowls", "pool_missing", {"holder_id": "bob", "count": 1})
+    state = derived.snapshot(db)
+    text = inventory_csv.export(state)
+    row = rows_by_id(text)["bowls"]
+    assert [row["quantity"], row["in"], row["out"], row["missing"]] == ["12", "9", "2", "1"]
+    assert int(row["in"]) + int(row["out"]) + int(row["missing"]) == int(row["quantity"])
+    plan = inventory_csv.plan(state, text)
+    assert plan.errors == [] and plan.adds == [] and plan.changes == []
+
+
 def test_a_non_pool_row_leaves_the_pool_columns_empty(db):
     state = seeded(db)
     by_id = rows_by_id(inventory_csv.export(state))
@@ -142,6 +161,7 @@ def test_a_non_pool_row_leaves_the_pool_columns_empty(db):
     assert by_id["trailer"]["quantity"] == ""
     assert by_id["trailer"]["in"] == ""
     assert by_id["trailer"]["out"] == ""
+    assert by_id["trailer"]["missing"] == ""
     assert by_id["tarp"]["quantity"] == ""
 
 

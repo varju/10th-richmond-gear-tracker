@@ -211,6 +211,28 @@ class Recount(Payload):
     reason: Annotated[str | None, BeforeValidator(_blank_is_none)] = None
 
 
+class PoolMissing(Payload):
+    """A count of a pool that is out and cannot be found (FR-INV-46). Same shape as a pool return:
+    `holder_id` defaults to the actor."""
+
+    holder_id: NonEmpty | None = None
+    count: Annotated[int, Field(ge=1)]
+    cleaner: Annotated[str, AfterValidator(_trimmed_name)] | None = None
+
+
+class PoolFound(Payload):
+    """A count of a pool's missing gear, found (FR-INV-47). It goes back in."""
+
+    count: Annotated[int, Field(ge=1)]
+
+
+class PoolWrittenOff(Payload):
+    """A count of a pool's missing gear, written off for good (FR-INV-49). It leaves the quantity owned."""
+
+    count: Annotated[int, Field(ge=1)]
+    reason: Annotated[str | None, BeforeValidator(_blank_is_none)] = None
+
+
 class CodeBinding(Payload):
     item_id: NonEmpty
 
@@ -477,6 +499,27 @@ class Recounted(_ItemOnly):
     payload: Recount
 
 
+class PoolMissingEvent(_ItemOnly):
+    """Refused off a pool (FR-INV-46)."""
+
+    type: Literal["pool_missing"]
+    payload: PoolMissing
+
+
+class PoolFoundEvent(_ItemOnly):
+    """Refused off a pool (FR-INV-47)."""
+
+    type: Literal["pool_found"]
+    payload: PoolFound
+
+
+class PoolWrittenOffEvent(_ItemOnly):
+    """Refused off a pool (FR-INV-49)."""
+
+    type: Literal["pool_written_off"]
+    payload: PoolWrittenOff
+
+
 class _PhotoBearer(_Incoming):
     @model_validator(mode="after")
     def _items_and_tickets(self):
@@ -538,6 +581,9 @@ IncomingEvent = Annotated[
     | CheckedOut
     | CheckedIn
     | Recounted
+    | PoolMissingEvent
+    | PoolFoundEvent
+    | PoolWrittenOffEvent
     | CodeBound
     | CodeReleased
     | PhotoAdded
@@ -564,6 +610,9 @@ EVENT_TYPES = frozenset(
         "checked_out",
         "checked_in",
         "recounted",
+        "pool_missing",
+        "pool_found",
+        "pool_written_off",
         "code_bound",
         "code_released",
         "photo_added",

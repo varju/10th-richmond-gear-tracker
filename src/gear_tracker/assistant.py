@@ -21,9 +21,10 @@ strict, so a JSON `"3"` or `true` sent for one is refused rather than quietly co
 the event layer refuses it.
 
 **A pool moves by count.** Some gear is a counted stack rather than named units, like tent pegs
-(FR-INV-34). `check_out`, `check_in` and `recount` move it by `count`, not by item id alone; the
-server refuses a count on anything else and refuses a pool without one. `get_item` on a pool
-reports owned, in, and out by holder in place of units and a code (FR-INV-36, FR-MCP-08).
+(FR-INV-34). `check_out`, `check_in`, `recount`, `mark_pool_missing`, `mark_pool_found` and `write_off_pool` move it by
+`count`, not by item id alone; the server refuses a count on anything else and refuses a pool without one.
+`get_item` on a pool reports owned, in, missing and out by holder in place of units and a code
+(FR-INV-36, FR-MCP-08).
 
 **An Admin's token unlocks an Admin's work** (FR-MCP-10): users, standing join links, mail, group
 settings, calendar feeds, locations, categories (adding one is anyone's job), printed codes,
@@ -102,8 +103,10 @@ assistant. Users, standing join links, mail, group settings, calendar feeds, loc
 categories, printed codes, CSV import, deleting an item, and merging duplicates
 are an Admin's job in the app, and are here too when the signed-in person is an Admin; a User's token is
 refused the same way the app refuses a User. A pool is gear kept as a counted stack, not named
-units; check_out, check_in and recount move it by count. A planned event in the app is a reservation
-here; `event` is its name. Everything else a person does in the app is here too, except deleting their own account."""
+units; check_out, check_in, recount, mark_pool_missing, mark_pool_found and
+write_off_pool move it by count. A planned event in the app is a reservation here; `event` is its name.
+Everything else a person does in the app is here too,
+except deleting their own account."""
 
 
 @dataclass(frozen=True)
@@ -317,6 +320,8 @@ def _row(state: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
                 for o in counts["out"]
             ],
         }
+        if counts["missing"]:
+            out["missing"] = counts["missing"]
     else:
         out = {
             "kind": "generic",
@@ -386,14 +391,17 @@ def _item_reservations(state: dict[str, Any], it: dict[str, Any]) -> list[dict[s
 
 def _history(conn: sqlite3.Connection, state: dict[str, Any], item_id: str) -> list[dict[str, Any]]:
     """The item's last few movements, newest first (FR-INV-09). A merged duplicate's movements come
-    too, and, for a pool, its recounts alongside its checked_out/checked_in (FR-INV-36)."""
+    too, and, for a pool, its recounts and missing counts alongside its checked_out/checked_in (FR-INV-36)."""
     ids = views.aliases(state, item_id)
     marks = ",".join("?" * len(ids))
     rows = conn.execute(
         f"""
         SELECT * FROM events
         WHERE entity_type = 'item' AND entity_id IN ({marks})
-        AND type IN ('checked_out', 'checked_in', 'recounted', 'cleaning_ended', 'cleaning_started')
+        AND type IN (
+            'checked_out', 'checked_in', 'recounted', 'pool_missing', 'pool_found', 'pool_written_off',
+            'cleaning_ended', 'cleaning_started'
+        )
         ORDER BY effective_at DESC, device_id DESC, device_seq DESC LIMIT ?
         """,
         (*ids, HISTORY_SHOWN),
@@ -479,6 +487,8 @@ def get_item(item_id: str) -> dict[str, Any]:
             counts = views.pool_counts(it)
             out["owned"] = counts["owned"]
             out["in"] = counts["in"]
+            if counts["missing"]:
+                out["missing"] = counts["missing"]
             out["out"] = [
                 {"holder_id": o["holder_id"], "holder": views.user_name(state, o["holder_id"]), "count": o["count"]}
                 for o in counts["out"]
@@ -504,7 +514,7 @@ def get_item(item_id: str) -> dict[str, Any]:
             out["code"] = code_id
         out["open_tickets"] = [_ticket_brief(state, t) for t in views.repairs_for(state, it["id"]) if views.is_open(t)]
         out["reservations"] = _item_reservations(state, it)
-        # A pool keeps its history (its check-outs, check-ins, and recounts); an ordinary generic
+        # A pool keeps its history (its check-outs, check-ins, recounts, and missing counts); an ordinary generic
         # never moves, so it has none.
         out["history"] = [] if it.get("generic") and not views.is_pool(it) else _history(conn, state, it["id"])
         out["notes"] = [
@@ -895,7 +905,8 @@ def create_item(
     once and each one becomes a numbered unit under it (FR-INV-21). Add those
     with add_unit. `pool` is for a counted stack instead, like tent pegs
     (FR-INV-34): give `quantity`, and it moves by count through check_out,
-    check_in and recount, with no units of its own though assign_code can still
+    check_in, recount, mark_pool_missing, mark_pool_found and write_off_pool, with no units of its own though
+    assign_code can still
     put one code on the container (FR-TAG-15); `pool` implies `generic`.
     `category_ids` puts it in any number of groups of similar gear (FR-SET-07);
     call list_categories for the ids.
@@ -1009,7 +1020,7 @@ def mark_missing(item_id: str) -> dict[str, Any]:
         state = _state(conn)
         it = _item(state, item_id)
         if views.is_pool(it):
-            raise BadRequest("a pool is stock, use recount")
+            raise BadRequest("a pool is stock, use mark_pool_missing")
         if it.get("generic"):
             raise BadRequest("a generic does not go missing; one of its units does")
         if it.get("missing"):
@@ -1083,6 +1094,8 @@ def delete_item(item_id: str) -> dict[str, Any]:
             raise BadRequest("this item was merged into another")
         if views.has_gear_out(state, it):
             raise BadRequest("return it first")
+        if views.is_pool(it) and views.pool_counts(it)["missing"]:
+            raise BadRequest("mark it found or write it off first")
         if it.get("generic") and views.units_of(state, item_id):
             raise BadRequest("delete its units first")
         released = views.codes_for(state, item_id)
@@ -1705,7 +1718,7 @@ def check_in(
 def recount(item_id: str, count: Annotated[StrictInt, Field(ge=0)], reason: str | None = None) -> dict[str, Any]:
     """Record how many of a pool are in right now (FR-INV-35). Anyone signed in; pool only.
 
-    What each holder has out is unchanged; owned becomes this count plus what is out.
+    What each holder has out is unchanged; owned becomes this count plus what is out and what is missing.
     """
     with _open() as (conn, who):
         state = _state(conn)
@@ -1715,6 +1728,70 @@ def recount(item_id: str, count: Annotated[StrictInt, Field(ge=0)], reason: str 
         _push(conn, who, [_draft("item", it["id"], "recounted", {"count": count, "reason": reason})])
         counts = views.pool_counts(_item(_state(conn), item_id))
         return {"item_id": it["id"], "in": counts["in"], "owned": counts["owned"]}
+
+
+def mark_pool_missing(
+    item_id: str, count: Count, holder_id: str | None = None, cleaner: str | None = None
+) -> dict[str, Any]:
+    """Say a count of a pool cannot be found (FR-INV-46). Anyone signed in; pool only.
+
+    It comes off the holder's count, you unless `holder_id` names someone else who has some out
+    (get_item lists them). It stays in owned and is left out of whats_out. `cleaner` says whose
+    share of the pool it was (FR-OUT-47). mark_pool_found brings a count back.
+    """
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, item_id)
+        if not views.is_pool(it):
+            raise BadRequest("a stack marks a count missing, a unit uses mark_missing")
+        holder = holder_id or who.user_id
+        have = next((o["count"] for o in views.pool_counts(it)["out"] if o["holder_id"] == holder), 0)
+        whose = "you have" if holder == who.user_id else f"{views.user_name(state, holder)} has"
+        if not have:
+            raise BadRequest(f"{whose} none of this out")
+        if count > have:
+            raise BadRequest(f"{whose} only {have} out")
+        payload: dict[str, Any] = {"count": count}
+        if holder != who.user_id:
+            payload["holder_id"] = holder
+        if cleaner is not None:
+            if not cleaner.strip():
+                raise BadRequest("say whose share was lost")
+            payload["cleaner"] = cleaner.strip()
+        _push(conn, who, [_draft("item", it["id"], "pool_missing", payload)])
+        counts = views.pool_counts(_item(_state(conn), item_id))
+        return {"item_id": it["id"], "in": counts["in"], "missing": counts["missing"], "owned": counts["owned"]}
+
+
+def _settle_missing(item_id: str, count: int, type_: str, payload: dict[str, Any], not_a_pool: str) -> dict[str, Any]:
+    """Found or written off: a count of a pool's missing gear, never more than is missing."""
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, item_id)
+        if not views.is_pool(it):
+            raise BadRequest(not_a_pool)
+        missing = views.pool_counts(it)["missing"]
+        if not missing:
+            raise BadRequest("none of this is missing")
+        if count > missing:
+            raise BadRequest(f"only {missing} are missing")
+        _push(conn, who, [_draft("item", it["id"], type_, payload)])
+        counts = views.pool_counts(_item(_state(conn), item_id))
+        return {"item_id": it["id"], "in": counts["in"], "missing": counts["missing"], "owned": counts["owned"]}
+
+
+def mark_pool_found(item_id: str, count: Count) -> dict[str, Any]:
+    """Say a count of a pool's missing gear turned up (FR-INV-47). Anyone signed in; pool only. It goes back in."""
+    return _settle_missing(item_id, count, "pool_found", {"count": count}, "only a pool has a count to find")
+
+
+def write_off_pool(item_id: str, count: Count, reason: str | None = None) -> dict[str, Any]:
+    """Write off a count of a pool's missing gear for good (FR-INV-49). Anyone signed in; pool only.
+
+    It leaves owned; the log keeps the record. `reason` is optional.
+    """
+    payload = {"count": count, "reason": reason}
+    return _settle_missing(item_id, count, "pool_written_off", payload, "only a pool has a count to write off")
 
 
 def list_members() -> dict[str, Any]:
@@ -2587,6 +2664,9 @@ TOOLS = [
     check_out,
     check_in,
     recount,
+    mark_pool_missing,
+    mark_pool_found,
+    write_off_pool,
     list_members,
     transfer,
     list_conflicts,

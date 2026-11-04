@@ -38,6 +38,7 @@ COLUMNS = [
     "quantity",
     "in",
     "out",
+    "missing",
 ]
 
 EDITABLE = (
@@ -131,6 +132,7 @@ def _row(state: State, it: dict[str, Any]) -> list[str]:
         "" if counts is None else str(counts["owned"]),
         "" if counts is None else str(counts["in"]),
         "" if counts is None else str(sum(o["count"] for o in counts["out"])),
+        "" if counts is None else str(counts["missing"]),
     ]
 
 

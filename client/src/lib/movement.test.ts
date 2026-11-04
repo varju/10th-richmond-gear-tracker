@@ -169,6 +169,68 @@ test("a recount sets what is in right now, with or without a reason; what is out
   await expect(mv.recount(store, tent, 1, "why")).rejects.toThrow("not a pool");
 });
 
+test("marking a count missing takes it off the holder and keeps it owned; found puts it back (FR-INV-46, FR-INV-47)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  await mv.checkOutPool(store, bowls, { count: 5 });
+  const lost = await mv.markPoolMissing(store, bowls, { count: 2 });
+  expect(lost.payload).toEqual({ count: 2 });
+  expect(item(store.state, bowls)).toMatchObject({ pool_in: 15, pool_out: { alice: 3 }, pool_missing: 2 });
+  expect(poolCounts(item(store.state, bowls)!)).toMatchObject({ owned: 20, in: 15, missing: 2 });
+
+  const found = await mv.markPoolFound(store, bowls, 1);
+  expect(found.payload).toEqual({ count: 1 });
+  expect(item(store.state, bowls)).toMatchObject({ pool_in: 16, pool_out: { alice: 3 }, pool_missing: 1 });
+});
+
+test("a missing count for another holder names them, and a recount keeps owned honest (FR-INV-46, FR-INV-35)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  await mv.checkOutPool(store, bowls, { count: 5 });
+  await store.setMeta({ user: { id: "carol", name: "Carol", role: "user", active: true } });
+  const lost = await mv.markPoolMissing(store, bowls, { holder_id: "alice", count: 5 });
+  expect(lost.payload).toEqual({ count: 5, holder_id: "alice" });
+  expect(item(store.state, bowls)).toMatchObject({ pool_in: 15, pool_out: {}, pool_missing: 5 });
+
+  await mv.recount(store, bowls, 10);
+  expect(poolCounts(item(store.state, bowls)!)).toMatchObject({ owned: 15, in: 10, missing: 5, out: [] });
+});
+
+test("missing and found are refused for what the holder does not have, and for what is not missing", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  await mv.checkOutPool(store, bowls, { count: 5 });
+  await expect(mv.markPoolMissing(store, bowls, { count: 6 })).rejects.toThrow("only 5 out to alice");
+  await expect(mv.markPoolMissing(store, bowls, { holder_id: "carol", count: 1 })).rejects.toThrow(
+    "nothing out to carol",
+  );
+  await expect(mv.markPoolMissing(store, bowls, { count: 0 })).rejects.toThrow("at least 1");
+  await expect(mv.markPoolMissing(store, bowls, { count: 1.5 })).rejects.toThrow("at least 1");
+  await expect(mv.markPoolMissing(store, tent, { count: 1 })).rejects.toThrow("not a pool");
+  await expect(mv.markPoolFound(store, bowls, 1)).rejects.toThrow("none of it is missing");
+  await mv.markPoolMissing(store, bowls, { count: 2 });
+  await expect(mv.markPoolFound(store, bowls, 3)).rejects.toThrow("only 2 missing");
+  await expect(mv.markPoolFound(store, bowls, 0)).rejects.toThrow("at least 1");
+  await expect(mv.markPoolFound(store, tent, 1)).rejects.toThrow("not a pool");
+  expect(item(store.state, bowls)).toMatchObject({ pool_in: 15, pool_out: { alice: 3 }, pool_missing: 2 });
+  expect(mv.history(store, bowls).map((e) => [e.type, e.count])).toEqual([
+    ["pool_missing", 2],
+    ["checked_out", 5],
+  ]);
+});
+
+test("writing off missing gear drops it from owned, with an optional reason; refusals match found (FR-INV-49)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  await expect(mv.writeOffPool(store, bowls, 1)).rejects.toThrow("none of it is missing");
+  await mv.checkOutPool(store, bowls, { count: 5 });
+  await mv.markPoolMissing(store, bowls, { count: 3 });
+  await expect(mv.writeOffPool(store, bowls, 4)).rejects.toThrow("only 3 missing");
+  await expect(mv.writeOffPool(store, bowls, 0)).rejects.toThrow("at least 1");
+  await expect(mv.writeOffPool(store, tent, 1)).rejects.toThrow("not a pool");
+  const off = await mv.writeOffPool(store, bowls, 2, " left at camp ");
+  expect(off.payload).toEqual({ count: 2, reason: "left at camp" });
+  expect((await mv.writeOffPool(store, bowls, 1, " ")).payload).toEqual({ count: 1 });
+  expect(poolCounts(item(store.state, bowls)!)).toMatchObject({ owned: 17, in: 15, missing: 0 });
+  expect(mv.history(store, bowls)[1]).toMatchObject({ type: "pool_written_off", count: 2, reason: "left at camp" });
+});
+
 test("returning more than a holder has out is refused, and so is returning nothing (FR-OUT-23)", async () => {
   const bowls = await act.createPool(store, { name: "Bowls" }, 20);
   await mv.checkOutPool(store, bowls, { count: 5 });

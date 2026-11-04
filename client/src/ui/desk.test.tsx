@@ -7,6 +7,7 @@ import * as act from "../lib/actions";
 import { createApi, type ServerEvent } from "../lib/api";
 import { DAY_MS } from "../lib/clock";
 import { openDb } from "../lib/db";
+import * as mv from "../lib/movement";
 import { checkOut } from "../lib/movement";
 import * as rep from "../lib/repairs";
 import { createReservation, todayIso } from "../lib/reservations";
@@ -295,6 +296,32 @@ test("a generic shows its units as in and out under Status", async () => {
   expect(within(row).getByText("1 in · 1 out")).toBeInTheDocument();
 });
 
+test("a pool shows its missing count and a Missing flag only when it has some", async () => {
+  const f = await fixture();
+  const bowls = await act.createPool(store, { name: "Bowls", home_location_id: f.cold }, 10);
+  await checkOut(store, f.first, { event: "Fall Camp" });
+  await mv.checkOutPool(store, bowls, { count: 3 });
+  navigate("/items");
+  mount();
+  const rowOf = () =>
+    within(screen.getByRole("table"))
+      .getAllByRole("row")
+      .find((r) => within(r).queryByRole("link", { name: "Bowls" }))!;
+  expect(within(rowOf()).getByText("7 in · 3 out")).toBeInTheDocument();
+  expect(within(rowOf()).queryByText("Missing")).not.toBeInTheDocument();
+
+  await reactAct(async () => {
+    await mv.markPoolMissing(store, bowls, { count: 1 });
+  });
+  expect(within(rowOf()).getByText("7 in · 2 out · 1 missing")).toBeInTheDocument();
+  expect(within(rowOf()).getByText("Missing")).toBeInTheDocument();
+
+  const user = userEvent.setup();
+  await user.selectOptions(screen.getByLabelText("Status"), "missing");
+  expect(within(screen.getByRole("table")).queryByRole("link", { name: "3x3 tarp" })).not.toBeInTheDocument();
+  expect(within(screen.getByRole("table")).getByRole("link", { name: "Bowls" })).toBeInTheDocument();
+});
+
 test("the table narrows by search and by filter", async () => {
   await fixture();
   navigate("/items");
@@ -372,6 +399,20 @@ test("the phone list shows a generic's counts, and missing only when there are s
   reactAct(() => navigate("/items"));
   expect(screen.getByRole("button", { name: /3x3 tarp/ })).toHaveTextContent("1 in · 1 out · 1 missing");
   expect(screen.getByRole("button", { name: /Cups/ })).toHaveTextContent(/^Cups1 in · 0 out$/);
+});
+
+test("the phone list shows a pool's missing count only when it has some", async () => {
+  const f = await fixture();
+  const bowls = await act.createPool(store, { name: "Bowls", home_location_id: f.cold }, 10);
+  await mv.checkOutPool(store, bowls, { count: 3 });
+  setWidth(PHONE);
+  mount();
+  reactAct(() => navigate("/items"));
+  expect(screen.getByRole("button", { name: /Bowls/ })).toHaveTextContent(/^Bowls7 in · 3 out$/);
+  await reactAct(async () => {
+    await mv.markPoolMissing(store, bowls, { count: 2 });
+  });
+  expect(screen.getByRole("button", { name: /Bowls/ })).toHaveTextContent("7 in · 1 out · 2 missing");
 });
 
 test("sorting by Status compares the counts as numbers", async () => {

@@ -1,0 +1,92 @@
+{
+  "name": "a return of more than the holder has out clears the excess from missing, and pool_in gains it all (FR-INV-50)",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "pfds",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "name": "PFDs",
+        "generic": true,
+        "pool": true,
+        "quantity": 12
+      }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "pfds",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": {
+        "holder_id": "bob",
+        "count": 3
+      }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "pfds",
+      "type": "pool_missing",
+      "actor_id": "dave",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "payload": {
+        "holder_id": "bob",
+        "count": 1
+      }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "item",
+      "entity_id": "pfds",
+      "type": "checked_in",
+      "actor_id": "bob",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 4000,
+      "payload": {
+        "count": 3
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "pfds": {
+        "name": "PFDs",
+        "generic": true,
+        "pool": true,
+        "quantity": 12,
+        "added_at": 1000,
+        "modified_at": 1000,
+        "status": "in",
+        "holder_id": null,
+        "pool_in": 12,
+        "pool_out": {},
+        "pool_reservations": {},
+        "pool_lots": {},
+        "movement": {
+          "id": "01000000000000000000000004",
+          "type": "checked_in",
+          "holder_id": "bob",
+          "event": null,
+          "reservation_id": null,
+          "actor_id": "bob",
+          "device_id": "a",
+          "at": 4000,
+          "count": 3
+        },
+        "pool_missing": 0
+      }
+    }
+  }
+}

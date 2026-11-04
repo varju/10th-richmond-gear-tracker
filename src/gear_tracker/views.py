@@ -164,13 +164,15 @@ def is_pool(it: Fields) -> bool:
 
 
 def pool_counts(it: Fields) -> Fields:
-    """Owned, in, and out by holder (FR-INV-36). Mirrors poolCounts in inventory.ts. Holders at zero are absent."""
+    """Owned, in, missing, and out by holder (FR-INV-36). Mirrors poolCounts in inventory.ts. Holders at zero are
+    absent. Owned is in, out and missing together."""
     pool_in = it.get("pool_in") or 0
     out = [
         {"holder_id": holder_id, "count": count} for holder_id, count in (it.get("pool_out") or {}).items() if count > 0
     ]
-    owned = pool_in + sum(o["count"] for o in out)
-    return {"owned": owned, "in": pool_in, "out": out}
+    missing = it.get("pool_missing") or 0
+    owned = pool_in + sum(o["count"] for o in out) + missing
+    return {"owned": owned, "in": pool_in, "missing": missing, "out": out}
 
 
 def pool_lots(it: Fields) -> list[Fields]:
@@ -277,15 +279,16 @@ def rows(
     def pool_wanted(pool: Fields) -> bool:
         """A pool has no units for search() to filter, so it is matched here: on its home for a
         location filter, and on its counts for a status filter ("in" means stock on the shelf,
-        "out" means anything checked out to a holder). "missing" never matches; a pool has no
-        such state."""
+        "out" means anything checked out to a holder, "missing" means a missing count above zero)."""
         if location_id is not None and pool.get("home_location_id") != location_id:
             return False
         if status == "in":
             return (pool.get("pool_in") or 0) > 0
         if status == "out":
             return any(count > 0 for count in (pool.get("pool_out") or {}).values())
-        return status != "missing"
+        if status == "missing":
+            return (pool.get("pool_missing") or 0) > 0
+        return True
 
     for generic in items(state):
         if not generic.get("generic") or generic.get("merged_into") or generic["id"] in by_parent:

@@ -61,7 +61,7 @@ function flagsOf(store: Store, it: Item): string[] {
 /** A generic shows its units' flags, so a shut one still says what needs a look. */
 function rowFlags(store: Store, row: Row): string[] {
   if (row.kind === "single") return flagsOf(store, row.item);
-  if (row.kind === "pool") return [];
+  if (row.kind === "pool") return row.pool.missing > 0 ? ["Missing"] : [];
   const all = row.units.flatMap((u) => flagsOf(store, u));
   return ["Repair", "Missing"].filter((f) => all.includes(f));
 }

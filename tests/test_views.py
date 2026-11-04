@@ -27,11 +27,16 @@ def test_is_pool():
 def test_pool_counts_owned_in_and_out_by_holder():
     """Owned is in plus every holder's count (FR-INV-36); a holder back at zero is not listed."""
     it = {"pool_in": 4, "pool_out": {"bob": 3, "carol": 0}}
-    assert pool_counts(it) == {"owned": 7, "in": 4, "out": [{"holder_id": "bob", "count": 3}]}
+    assert pool_counts(it) == {"owned": 7, "in": 4, "missing": 0, "out": [{"holder_id": "bob", "count": 3}]}
 
 
 def test_pool_counts_with_nothing_out():
-    assert pool_counts({"pool_in": 10}) == {"owned": 10, "in": 10, "out": []}
+    assert pool_counts({"pool_in": 10}) == {"owned": 10, "in": 10, "missing": 0, "out": []}
+
+
+def test_pool_counts_owned_includes_what_is_missing():
+    it = {"pool_in": 4, "pool_out": {"bob": 3}, "pool_missing": 2}
+    assert pool_counts(it) == {"owned": 9, "in": 4, "missing": 2, "out": [{"holder_id": "bob", "count": 3}]}
 
 
 def test_rows_matches_a_pool_to_a_location_filter():
@@ -46,16 +51,17 @@ def test_rows_matches_a_pool_to_a_location_filter():
 
 
 def test_rows_matches_a_pool_to_a_status_filter():
-    """ "in" means stock on the shelf; "out" means anything checked out; "missing" never matches a pool."""
+    """ "in" means stock on the shelf; "out" means anything checked out; "missing" means a missing count above zero."""
     state = {
         "item": {
             "bowls": {"name": "Bowls", "generic": True, "pool": True, "pool_in": 3, "pool_out": {"bob": 4}},
             "cups": {"name": "Cups", "generic": True, "pool": True, "pool_in": 0, "pool_out": {}},
+            "pegs": {"name": "Pegs", "generic": True, "pool": True, "pool_in": 9, "pool_missing": 1},
         }
     }
-    assert [r["name"] for r in rows(state, status="in")] == ["Bowls"]
+    assert [r["name"] for r in rows(state, status="in")] == ["Bowls", "Pegs"]
     assert [r["name"] for r in rows(state, status="out")] == ["Bowls"]
-    assert rows(state, status="missing") == []
+    assert [r["name"] for r in rows(state, status="missing")] == ["Pegs"]
 
 
 def test_what_is_out_lists_a_pool_once_per_holder():
@@ -247,7 +253,7 @@ def test_rows_gives_a_pool_its_own_kind_and_counts_with_no_units():
     state = {"item": {"bowls": {"name": "Bowls", "generic": True, "pool": True, "pool_in": 5}}}
     row = rows(state)[0]
     assert row["kind"] == "pool"
-    assert row["counts"] == {"owned": 5, "in": 5, "out": []}
+    assert row["counts"] == {"owned": 5, "in": 5, "missing": 0, "out": []}
     assert "units" not in row
 
 

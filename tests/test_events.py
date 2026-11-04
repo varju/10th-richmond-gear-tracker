@@ -415,6 +415,29 @@ def test_a_check_in_carries_an_optional_holder_and_count_for_a_pool():
         validate(incoming(type="checked_in", payload={"holder_id": "", "count": 1}))
 
 
+def test_a_missing_or_found_count_is_at_least_one():
+    validate(incoming(type="pool_missing", payload={"count": 1}))
+    validate(incoming(type="pool_missing", payload={"count": 2, "holder_id": "bob", "cleaner": "Smith"}))
+    validate(incoming(type="pool_found", payload={"count": 1}))
+    for kind in ("pool_missing", "pool_found"):
+        with pytest.raises(Rejected, match="count: Input should be greater than or equal to 1"):
+            validate(incoming(type=kind, payload={"count": 0}))
+        with pytest.raises(Rejected, match=f"{kind} applies only to items"):
+            validate(incoming(entity_type="reservation", entity_id="res-1", type=kind, payload={"count": 1}))
+    with pytest.raises(Rejected, match="holder_id: String should have at least 1 character"):
+        validate(incoming(type="pool_missing", payload={"count": 1, "holder_id": ""}))
+
+
+def test_a_write_off_is_at_least_one_and_may_give_a_reason():
+    validate(incoming(type="pool_written_off", payload={"count": 1}))
+    event = validate(incoming(type="pool_written_off", payload={"count": 2, "reason": "  "}))
+    assert event.payload_dict()["reason"] is None
+    with pytest.raises(Rejected, match="count: Input should be greater than or equal to 1"):
+        validate(incoming(type="pool_written_off", payload={"count": 0}))
+    with pytest.raises(Rejected, match="pool_written_off applies only to items"):
+        validate(incoming(entity_type="reservation", entity_id="res-1", type="pool_written_off", payload={"count": 1}))
+
+
 def test_a_recount_names_a_count_and_may_give_a_reason():
     validate(incoming(type="recounted", payload={"count": 5, "reason": "shelf check"}))
     with pytest.raises(Rejected, match="count: Input should be greater than or equal to 0"):

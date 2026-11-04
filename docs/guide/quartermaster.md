@@ -53,6 +53,13 @@ not been scanned. Tap **Seen** beside a row for gear with no code, or a sticker 
 Open the stack and tap **Recount**. Say how many are in the locker right now. Why is optional: a delivery, a breakage, a
 proper count. It resets what is on the shelf; what people already have out is untouched.
 
+### A stack comes back one short
+
+Open the stack and tap **Mark missing**. Pick whose it was if more than one person has some out, and say how many. The
+count comes off that person's name, but the group still owns it. The stack's page shows **Missing**, and the Missing
+filter finds it. If it turns up, tap **Found** to put it back in. If it is gone for good, tap **Write off**, with a
+reason if you like. It leaves the count the group owns.
+
 ## Items
 
 ### Add an item

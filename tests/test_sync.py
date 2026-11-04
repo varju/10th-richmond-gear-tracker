@@ -581,6 +581,9 @@ def test_items_are_deleted_by_an_admin_and_then_cannot_move(db):
     assert reasons(db, ADMIN, out) == ["this item was deleted"]
     back = own(ADMIN, type="checked_in", payload={}, device_seq=4)
     assert reasons(db, ADMIN, back) == ["this item was deleted"]
+    for seq, kind in ((5, "pool_missing"), (6, "pool_found"), (7, "pool_written_off")):
+        late = own(ADMIN, type=kind, payload={"count": 1}, device_seq=seq)
+        assert reasons(db, ADMIN, late) == ["this item was deleted"]
 
     # Deleting released its codes; a phone that missed that does not bind one back on.
     events.append_server(db, "alice", "code", "ABCDEFGH23", "created", {}, now=T0)
@@ -803,6 +806,36 @@ def test_recount_is_only_for_a_pool(db):
     )
     ok = own(USER, entity_id="bowls", type="recounted", payload={"count": 15, "reason": "shelf check"}, device_seq=3)
     assert reasons(db, USER, ok) == []
+
+
+def test_missing_and_found_counts_are_only_for_a_pool(db):
+    push(db, USER, batch(USER, own(USER, type="created", payload={"name": "Tent"})), now=T0)
+    missing = own(USER, type="pool_missing", payload={"count": 1}, device_seq=2)
+    assert reasons(db, USER, missing) == ["a stack marks a count missing, a unit uses Missing (FR-INV-46)"]
+    found = own(USER, type="pool_found", payload={"count": 1}, device_seq=2)
+    assert reasons(db, USER, found) == ["only a stack marks a count found (FR-INV-47)"]
+
+    off = own(USER, type="pool_written_off", payload={"count": 1}, device_seq=2)
+    assert reasons(db, USER, off) == ["only a stack writes off a count (FR-INV-49)"]
+
+    push(
+        db,
+        USER,
+        batch(
+            USER,
+            own(
+                USER,
+                entity_id="bowls",
+                type="created",
+                payload={"name": "Bowls", "generic": True, "pool": True, "quantity": 20},
+                device_seq=2,
+            ),
+        ),
+        now=T0,
+    )
+    for seq, kind in ((3, "pool_missing"), (4, "pool_found"), (5, "pool_written_off")):
+        ok = own(USER, entity_id="bowls", type=kind, payload={"count": 1}, device_seq=seq)
+        assert reasons(db, USER, ok) == []
 
 
 def test_a_single_item_goes_home_without_a_count_and_a_pool_with_one(db):
