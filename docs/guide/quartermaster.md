@@ -82,13 +82,16 @@ Tick **We have several of these** on **New item**, then pick one:
 
 - **Labelled one by one,** for tents. This saves the name, such as "Tent". Each tent is a unit with its own number and
   code: scan a fresh code, tap **Add a unit of…**, and pick the name. Or open the name's page and tap **Add a unit**. A
-  unit's page has **Add another unit**.
+  unit's page has **Add another unit**. To make the units at once, give **How many**. Each is numbered from 1 and ready
+  for a code. It takes its code from its own page with **Add QR code**. **Filters** > **Needs** > **QR code** lists the
+  ones still without. Or scan a fresh code, tap **Add a unit of…**, and pick the name: the code goes on the next unit
+  waiting for one.
 - **A stack we count,** for mugs. Say how many. Nobody labels each mug; people check out a count.
 
 Starting from a scanned code, the tick saves the name and the item in your hand becomes #1.
 
-An item already saved as one thing? Open it, tap **Edit**, tick the same box, and pick one. It can become a stack only
-while it is checked in.
+An item already saved as one thing? Open it, tap **Edit**, tick the same box, and pick one. For labelled gear, **How
+many in all** makes the other units too. It can become a stack only while it is checked in.
 
 ### Photos
 

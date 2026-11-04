@@ -392,6 +392,19 @@ export const isNarrowing = (filter: Filter): boolean =>
 const boundItems = (state: State): Set<string> =>
   new Set(codes(state).flatMap((c) => (c.item_id ? [resolveItem(state, c.item_id)] : [])));
 
+const waiting = (it: Item, bound: Set<string>): boolean => !it.retired && !it.missing && !bound.has(it.id);
+
+/** Per generic, its units still waiting for a code, in number order: not retired, missing or merged (FR-INV-54). */
+export function unlabelledUnits(state: State): Map<string, Item[]> {
+  const bound = boundItems(state);
+  const out = new Map<string, Item[]>();
+  for (const g of generics(state)) {
+    const units = unitsOf(state, g.id).filter((u) => waiting(u, bound));
+    if (units.length) out.set(g.id, units);
+  }
+  return out;
+}
+
 /** True when the item lacks what `needs` names. A location that is gone counts as none. Twin of lacks in views.py. */
 function lacks(state: State, it: Item, needs: Needs, bound: Set<string>): boolean {
   if (needs === "code") return !bound.has(it.id);

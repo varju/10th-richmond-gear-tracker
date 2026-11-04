@@ -37,7 +37,6 @@ changelog.
 ## UI
 
 - [ ] Check out screen on iOS: Allow number pad to be hidden after entering the quantity for a counted stack
-- [ ] Edit item > We have several > Give count immediately?
 
 ## User testing feedback
 
@@ -64,7 +63,6 @@ changelog.
       spot forgotten gear. Needs a requirement and an MCP tool in `assistant.py`.
 - [ ] "Enter QR code manually" shows the internal ID, which is not printed on the sticker. Ask for what the sticker
       shows, or drop the ID from the screen. Check what is printed first.
-- [ ] When creating a generic item, if I say we have several I should be able to indicate the count we have.
 - [ ] Generic items don't have their own purchase date today, only their parent generic does. The parent's date should
       be used as a default, but we should be able to override per item.
 - [ ] Event gear list: offer check-out order as a sort option, if people miss it.

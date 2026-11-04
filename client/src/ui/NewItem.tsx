@@ -1,5 +1,16 @@
 import { useRef, useState } from "react";
-import { addUnit, bindCode, createGeneric, createItem, createPool, createUnit, type ItemInput } from "../lib/actions";
+import {
+  addUnit,
+  addUnits,
+  bindCode,
+  createGeneric,
+  createItem,
+  createPool,
+  createUnit,
+  MAX_NEW_UNITS,
+  type ItemInput,
+  validUnitCount,
+} from "../lib/actions";
 import { categories, displayName, item, nextNumber, numberTaken, takesUnits } from "../lib/inventory";
 import { back, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -29,6 +40,7 @@ export function NewItem({ store, code }: Props) {
   // Labelled one by one (units) or a stack we count (a pool); a pool never has a code (FR-INV-34).
   const [kind, setKind] = useState<"units" | "pool">("units");
   const [quantity, setQuantity] = useState("1");
+  const [unitCount, setUnitCount] = useState("");
   const [again, setAgain] = useState(false);
   const [keep, setKeep] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -38,8 +50,16 @@ export function NewItem({ store, code }: Props) {
   const asPool = several && kind === "pool" && !code;
   const qty = Number(quantity.trim());
   const validQuantity = Number.isInteger(qty) && qty >= 1;
+  const asUnits = several && !code && kind === "units";
+  const countText = unitCount.trim();
+  const count = Number(countText);
+  const hasCount = asUnits && countText !== "";
+  const validCount = !hasCount || validUnitCount(count);
   const dirty = several || (Object.keys(values) as (keyof ItemInput)[]).some((k) => values[k] !== baseline[k]);
-  useUnsaved(dirty, { save: () => create().then(() => true), canSave: name !== "" && (!asPool || validQuantity) });
+  useUnsaved(dirty, {
+    save: () => create().then(() => true),
+    canSave: name !== "" && (!asPool || validQuantity) && validCount,
+  });
 
   /** Returns what the walk should open next: the new generic or pool, or the thing the code went on. */
   async function create(): Promise<string> {
@@ -52,8 +72,10 @@ export function NewItem({ store, code }: Props) {
       } else if (several) {
         // A name several things share, and the one in hand as its first unit (FR-INV-26, S-BOOT-03).
         const genericId = await createGeneric(store, values);
-        if (!code) id = genericId;
-        else {
+        if (!code) {
+          id = genericId;
+          if (hasCount) await addUnits(store, genericId, count);
+        } else {
           const unitId = await addUnit(store, genericId);
           await bindCode(store, code, unitId);
           id = unitId;
@@ -89,6 +111,7 @@ export function NewItem({ store, code }: Props) {
       setSeveral(false);
       setKind("units");
       setQuantity("1");
+      setUnitCount("");
     }
     flash(`Saved · ${what}`);
     // The name is the one field that must differ; the cursor lands on it, ready to be typed over.
@@ -104,7 +127,7 @@ export function NewItem({ store, code }: Props) {
           className="primary"
           type="button"
           onClick={save}
-          disabled={saving || name === "" || (asPool && !validQuantity)}
+          disabled={saving || name === "" || (asPool && !validQuantity) || !validCount}
         >
           Save
         </button>
@@ -137,6 +160,17 @@ export function NewItem({ store, code }: Props) {
           </label>
         </div>
       )}
+      {asUnits && (
+        <label className="tight">
+          <span>How many</span>
+          <input type="text" inputMode="numeric" value={unitCount} onChange={(e) => setUnitCount(e.target.value)} />
+        </label>
+      )}
+      {!validCount && (
+        <p className="error" role="alert">
+          A whole number from 1 to {MAX_NEW_UNITS}.
+        </p>
+      )}
       {asPool && (
         <label className="tight">
           <span>How many</span>
@@ -156,7 +190,9 @@ export function NewItem({ store, code }: Props) {
           : several
             ? code
               ? "Saves the name, and this one as #1. The next scan offers another."
-              : "Saves the name on its own. Units come later, one per code."
+              : hasCount
+                ? "Saves the name and that many units, numbered from 1. Each takes its code later."
+                : "Saves the name on its own. Units come later, one per code."
             : "Tick this for gear the group has more than one of, like tents."}
       </p>
       {!code && (

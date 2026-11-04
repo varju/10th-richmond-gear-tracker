@@ -57,6 +57,75 @@ test("a single item becomes several: a new name above it, and it takes the numbe
   expect(inv.item(store.state, tent)).toMatchObject({ status: "out", parent_id: generic.id, number: "A" });
 });
 
+test("editing a single item into several can give the total: the rest are new units, in (FR-INV-53)", async () => {
+  const tent = await act.createItem(store, { name: "4-person tent", home_location_id: cold });
+  await mv.checkOut(store, tent, { event: "Fall Camp" });
+  navigate(`/items/${tent}?edit=1`);
+  renderInShell(<ItemPage store={store} id={tent} />);
+
+  await user.click(screen.getByLabelText("We have several of these"));
+  await user.clear(screen.getByLabelText("This one’s number"));
+  await user.type(screen.getByLabelText("This one’s number"), "A");
+  expect(screen.getByLabelText("How many in all")).toHaveValue("1");
+  await user.clear(screen.getByLabelText("How many in all"));
+  await user.type(screen.getByLabelText("How many in all"), "3");
+  expect(screen.getByRole("note")).toHaveTextContent("It adds 2 more, with the next numbers.");
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await user.click(screen.getByRole("button", { name: "Yes, make it several" }));
+
+  await waitFor(() => expect(inv.generics(store.state)).toHaveLength(1));
+  const generic = inv.generics(store.state)[0]!;
+  await waitFor(() => expect(inv.unitsOf(store.state, generic.id)).toHaveLength(3));
+  const units = inv.unitsOf(store.state, generic.id);
+  expect(units.map((u) => u.number).sort()).toEqual(["1", "2", "A"]);
+  expect(inv.item(store.state, tent)).toMatchObject({ status: "out", number: "A" });
+  expect(units.filter((u) => u.id !== tent).every((u) => u.status === "in")).toBe(true);
+});
+
+test("a retired item hides How many in all and makes no extra units", async () => {
+  const tent = await act.createItem(store, { name: "4-person tent", home_location_id: cold });
+  navigate(`/items/${tent}?edit=1`);
+  renderInShell(<ItemPage store={store} id={tent} />);
+
+  await user.click(screen.getByLabelText("We have several of these"));
+  await user.clear(screen.getByLabelText("How many in all"));
+  await user.type(screen.getByLabelText("How many in all"), "3");
+  await user.click(screen.getByLabelText("Retired"));
+  expect(screen.queryByLabelText("How many in all")).not.toBeInTheDocument();
+  expect(screen.getByRole("note")).not.toHaveTextContent("It adds");
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await user.click(screen.getByRole("button", { name: "Yes, make it several" }));
+
+  await waitFor(() => expect(inv.generics(store.state)).toHaveLength(1));
+  expect(inv.unitsOf(store.state, inv.generics(store.state)[0]!.id)).toHaveLength(1);
+});
+
+test("a count that is not a whole number stays in the field and disables Save", async () => {
+  const tent = await act.createItem(store, { name: "4-person tent", home_location_id: cold });
+  navigate(`/items/${tent}?edit=1`);
+  renderInShell(<ItemPage store={store} id={tent} />);
+
+  await user.click(screen.getByLabelText("We have several of these"));
+  await user.clear(screen.getByLabelText("How many in all"));
+  await user.type(screen.getByLabelText("How many in all"), "3x");
+  expect(screen.getByLabelText("How many in all")).toHaveValue("3x");
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+});
+
+test("an invalid total disables Save when editing into several", async () => {
+  const tent = await act.createItem(store, { name: "4-person tent", home_location_id: cold });
+  navigate(`/items/${tent}?edit=1`);
+  renderInShell(<ItemPage store={store} id={tent} />);
+
+  await user.click(screen.getByLabelText("We have several of these"));
+  await user.clear(screen.getByLabelText("How many in all"));
+  await user.type(screen.getByLabelText("How many in all"), "101");
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  expect(screen.getByRole("alert")).toHaveTextContent("A whole number from 1 to 100.");
+  await user.clear(screen.getByLabelText("How many in all"));
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+});
+
 test("a generic lists its units, adds one, and is retired only once they all are (FR-INV-27)", async () => {
   const tents = await act.createGeneric(store, { name: "4-person tent", home_location_id: cold });
   const one = await act.addUnit(store, tents);

@@ -157,6 +157,19 @@ export function addUnit(store: Store, genericId: string, number?: string): Promi
   });
 }
 
+export const MAX_NEW_UNITS = 100;
+export const validUnitCount = (n: number): boolean => Number.isInteger(n) && n >= 1 && n <= MAX_NEW_UNITS;
+
+/** `count` more units in a row, numbered on from the last (FR-INV-52). */
+export async function addUnits(store: Store, genericId: string, count: number): Promise<string[]> {
+  if (!validUnitCount(count)) {
+    throw new Error(`count must be a whole number from 1 to ${MAX_NEW_UNITS}`);
+  }
+  const ids: string[] = [];
+  for (let i = 0; i < count; i++) ids.push(await addUnit(store, genericId));
+  return ids;
+}
+
 /**
  * Mark a single item as generic (FR-INV-26). A new generic takes its name,
  * description, home and categories, since a unit reads its generic's

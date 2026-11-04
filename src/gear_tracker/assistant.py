@@ -902,6 +902,7 @@ def create_item(
     pool: StrictBool = False,
     quantity: Annotated[StrictInt, Field(ge=0)] | None = None,
     category_ids: list[str] | None = None,
+    units: UnitCount | None = None,
 ) -> dict[str, Any]:
     """Add gear to the inventory (FR-INV-01).
 
@@ -913,10 +914,13 @@ def create_item(
     assign_code can still
     put one code on the container (FR-TAG-15); `pool` implies `generic`.
     `category_ids` puts it in any number of groups of similar gear (FR-SET-07);
-    call list_categories for the ids.
+    call list_categories for the ids. `units` (generic only) also makes that many
+    numbered units, from 1 (FR-INV-52).
     """
     with _open() as (conn, who):
         state = _state(conn)
+        if units is not None and (not generic or pool):
+            raise BadRequest("units is only for a generic labelled one by one")
         if not name.strip():
             raise BadRequest("an item needs a name")
         if pool and quantity is None:
@@ -942,14 +946,49 @@ def create_item(
         if category_ids:
             payload["category_ids"] = _sorted_categories(state, category_ids)
         item_id = new_ulid()
-        _push(conn, who, [_draft("item", item_id, "created", payload)])
-        return {"item_id": item_id, "name": payload["name"], "generic": bool(payload.get("generic")), "pool": pool}
+        drafts = [_draft("item", item_id, "created", payload)]
+        unit_ids: list[str] = []
+        if units:
+            more, unit_ids = _unit_drafts({"id": item_id, **payload}, set(), units)
+            drafts += more
+        _push(conn, who, drafts)
+        result = {"item_id": item_id, "name": payload["name"], "generic": bool(payload.get("generic")), "pool": pool}
+        return {**result, "unit_ids": unit_ids} if unit_ids else result
+
+
+MAX_NEW_UNITS = 100
+UnitCount = Annotated[StrictInt, Field(ge=1, le=MAX_NEW_UNITS)]
 
 
 def _next_number(taken: set[str]) -> str:
     """One after the largest whole number in use, or "1" under an empty generic (FR-INV-23)."""
-    used = [int(n) for n in taken if n.isdigit()]
+    used = [int(n) for n in taken if n.isascii() and n.isdigit()]
     return str(max(used) + 1 if used else 1)
+
+
+def _unit_drafts(parent: dict[str, Any], taken: set[str], count: int) -> tuple[list[dict[str, Any]], list[str]]:
+    """`count` unit-created drafts under `parent`, numbered on from `taken`."""
+    taken = set(taken)
+    drafts, ids = [], []
+    for _ in range(count):
+        number = _next_number(taken)
+        taken.add(number)
+        unit_id = new_ulid()
+        ids.append(unit_id)
+        drafts.append(_draft("item", unit_id, "created", _unit_payload(parent, number)))
+    return drafts, ids
+
+
+def _unit_payload(parent: dict[str, Any], number: str, nickname: str | None = None) -> dict[str, Any]:
+    """A unit's created payload: its number, and its generic's home and shelf."""
+    payload: dict[str, Any] = {"parent_id": parent["id"], "number": number}
+    if nickname and nickname.strip():
+        payload["nickname"] = nickname.strip()
+    if parent.get("home_location_id"):
+        payload["home_location_id"] = parent["home_location_id"]
+    if parent.get("sub_location"):
+        payload["sub_location"] = parent["sub_location"]
+    return payload
 
 
 def add_unit(generic_id: str, number: str | None = None, nickname: str | None = None) -> dict[str, Any]:
@@ -974,15 +1013,8 @@ def add_unit(generic_id: str, number: str | None = None, nickname: str | None = 
             raise BadRequest("a unit needs a number")
         if number in taken:
             raise Conflict(f"#{number} is taken")
-        payload: dict[str, Any] = {"parent_id": parent["id"], "number": number}
-        if nickname and nickname.strip():
-            payload["nickname"] = nickname.strip()
-        if parent.get("home_location_id"):
-            payload["home_location_id"] = parent["home_location_id"]
-        if parent.get("sub_location"):
-            payload["sub_location"] = parent["sub_location"]
         unit_id = new_ulid()
-        _push(conn, who, [_draft("item", unit_id, "created", payload)])
+        _push(conn, who, [_draft("item", unit_id, "created", _unit_payload(parent, number, nickname))])
         return {"item_id": unit_id, "generic_id": parent["id"], "number": number}
 
 
@@ -1213,9 +1245,10 @@ def _make_generic_drafts(state: dict[str, Any], it: dict[str, Any], number: str)
     return generic_id, drafts
 
 
-def make_generic(item_id: str, number: str = "1") -> dict[str, Any]:
+def make_generic(item_id: str, number: str = "1", total: UnitCount = 1) -> dict[str, Any]:
     """Say the group owns several of a single item (FR-INV-26). A new generic takes its name, description,
-    home and categories; the item becomes its first unit, with this number, and keeps its code and history."""
+    home and categories; the item becomes its first unit, with this number, and keeps its code and history.
+    `total` makes `total - 1` more units with the next numbers (FR-INV-53)."""
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)
@@ -1225,8 +1258,11 @@ def make_generic(item_id: str, number: str = "1") -> dict[str, Any]:
             raise BadRequest("this is already one of several")
         first = _unit_number(number)
         generic_id, drafts = _make_generic_drafts(state, it, first)
+        more, unit_ids = _unit_drafts({"id": generic_id, **drafts[0]["payload"]}, {first}, total - 1)
+        drafts += more
         _push(conn, who, drafts)
-        return {"generic_id": generic_id, "item_id": it["id"], "number": first}
+        result = {"generic_id": generic_id, "item_id": it["id"], "number": first}
+        return {**result, "unit_ids": unit_ids} if unit_ids else result
 
 
 def group_items(item_id: str, other_id: str, number: str, other_number: str = "1") -> dict[str, Any]:

@@ -31,5 +31,8 @@ What the app does differently.
   written off, and is shown on the stack's page and list row. The Missing filter finds it.
 - The item list shows a generic's units as in and out, the same as a stack, plus how many are missing.
 - The item list has a **Needs** filter for gear with no QR code, no location, or no shelf.
+- A new item labelled one by one takes **How many** and makes that many units. Editing an item into several takes **How
+  many in all**.
+- Scanning a fresh code and picking a generic puts the code on its next unit waiting for one, before making a new unit.
 
 ## Chores

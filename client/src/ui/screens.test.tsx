@@ -368,6 +368,86 @@ test("ticking several saves the name and the one in hand as #1 (FR-INV-21, S-BOO
   expect(inv.currentCode(store.state, units[0]!.id)?.id).toBe("ABCDEFGH23");
 });
 
+test("a new generic with How many 3 makes units 1 to 3 at its home and opens the generic (FR-INV-52)", async () => {
+  const f = await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Name"), "Trangia");
+  await user.click(screen.getByLabelText("We have several of these"));
+  await user.selectOptions(screen.getByLabelText("Default home"), f.warm);
+  await user.type(screen.getByLabelText("How many"), "3");
+  expect(screen.getByText(/Saves the name and that many units, numbered from 1/)).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Save" }));
+
+  const generic = await waitFor(() => {
+    const g = inv.generics(store.state).find((x) => x.name === "Trangia");
+    expect(g).toBeDefined();
+    expect(inv.unitsOf(store.state, g!.id)).toHaveLength(3);
+    return g!;
+  });
+  const units = inv.unitsOf(store.state, generic.id);
+  expect(units.map((u) => u.number)).toEqual(["1", "2", "3"]);
+  expect(units.every((u) => u.home_location_id === f.warm)).toBe(true);
+  await waitFor(() => expect(location.pathname).toBe(`/items/${generic.id}`));
+});
+
+test("a blank How many makes no units", async () => {
+  await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Name"), "Trangia");
+  await user.click(screen.getByLabelText("We have several of these"));
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(inv.generics(store.state).some((g) => g.name === "Trangia")).toBe(true));
+  const generic = inv.generics(store.state).find((g) => g.name === "Trangia")!;
+  expect(inv.unitsOf(store.state, generic.id)).toEqual([]);
+});
+
+test("a How many of 101 disables Save and says why", async () => {
+  await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Name"), "Trangia");
+  await user.click(screen.getByLabelText("We have several of these"));
+  await user.type(screen.getByLabelText("How many"), "101");
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  expect(screen.getByRole("alert")).toHaveTextContent("A whole number from 1 to 100.");
+});
+
+test("a How many of 3x is kept as typed and disables Save", async () => {
+  await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Name"), "Trangia");
+  await user.click(screen.getByLabelText("We have several of these"));
+  await user.type(screen.getByLabelText("How many"), "3x");
+  expect(screen.getByLabelText("How many")).toHaveValue("3x");
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+});
+
+test("choosing a stack we count hides the unit count, and the pool still saves", async () => {
+  await fixture();
+  navigate("/items/new");
+  mount();
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Name"), "Bowls");
+  await user.click(screen.getByLabelText("We have several of these"));
+  await user.type(screen.getByLabelText("How many"), "3");
+  await user.click(screen.getByLabelText("A stack we count"));
+  expect(screen.getAllByLabelText("How many")).toHaveLength(1);
+  await user.clear(screen.getByLabelText("How many"));
+  await user.type(screen.getByLabelText("How many"), "20");
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(inv.items(store.state).some((i) => i.name === "Bowls")).toBe(true));
+  const bowls = inv.items(store.state).find((i) => i.name === "Bowls")!;
+  expect(bowls).toMatchObject({ pool: true, pool_in: 20 });
+  expect(inv.unitsOf(store.state, bowls.id)).toEqual([]);
+});
+
 test("choosing a stack we count saves a pool with a quantity, and takes no code (FR-INV-34)", async () => {
   await fixture();
   navigate("/items/new");

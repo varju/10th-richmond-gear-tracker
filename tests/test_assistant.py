@@ -1807,6 +1807,50 @@ def test_a_single_item_becomes_several_and_back_again(db_path, tools):
     assert entity(db_path, "item", made["generic_id"])["merged_into"] == tools["stove"]
 
 
+def test_create_item_makes_units_from_one(db_path, tools):
+    made = assistant.create_item(
+        "Trangia", home_location_id=tools["cold"], sub_location="Shelf 2", generic=True, units=3
+    )
+    assert len(made["unit_ids"]) == 3
+    for number, unit_id in enumerate(made["unit_ids"], start=1):
+        unit = entity(db_path, "item", unit_id)
+        assert unit["number"] == str(number) and unit["parent_id"] == made["item_id"]
+        assert unit["home_location_id"] == tools["cold"] and unit["sub_location"] == "Shelf 2"
+    assert "unit_ids" not in assistant.create_item("Pan", generic=True)
+
+
+def test_create_item_refuses_units_without_a_plain_generic(tools):
+    with pytest.raises(BadRequest, match="units is only for a generic"):
+        assistant.create_item("Axe", units=2)
+    with pytest.raises(BadRequest, match="units is only for a generic"):
+        assistant.create_item("Bowls", pool=True, quantity=4, units=2)
+
+
+@pytest.mark.parametrize("units", [0, 101])
+def test_create_item_refuses_units_out_of_range(units):
+    with pytest.raises(pydantic.ValidationError):
+        _arg_model("create_item").model_validate({"name": "Pan", "generic": True, "units": units})
+
+
+def test_make_generic_adds_units_with_the_next_numbers(db_path, tools):
+    made = assistant.make_generic(tools["stove"], number="A", total=3)
+    assert len(made["unit_ids"]) == 2
+    numbers = [entity(db_path, "item", i)["number"] for i in made["unit_ids"]]
+    assert numbers == ["1", "2"]
+    assert entity(db_path, "item", tools["stove"])["number"] == "A"
+    assert all(entity(db_path, "item", i)["parent_id"] == made["generic_id"] for i in made["unit_ids"])
+
+
+def test_make_generic_without_a_total_adds_none(tools):
+    assert "unit_ids" not in assistant.make_generic(tools["stove"])
+
+
+def test_make_generic_refuses_a_total_out_of_range():
+    for total in (0, 101):
+        with pytest.raises(pydantic.ValidationError):
+            _arg_model("make_generic").model_validate({"item_id": "x", "total": total})
+
+
 def test_making_an_item_generic_keeps_its_categories(db_path, tools):
     assistant.update_item(tools["stove"], assistant.ItemFields(category_ids=[tools["tents_cat"]]))
     made = assistant.make_generic(tools["stove"])
@@ -2129,3 +2173,9 @@ def test_a_pool_count_out_at_camp_goes_home_to_clean(tools, pool_id):
     assert sorted(lines, key=str) == [("Jones", 2, "Fall Camp"), ("Smith", 3, "Fall Camp")]
     assistant.back_from_cleaning(pool_id, "Smith", count=1)
     assert assistant.get_item(pool_id)["history"][0]["type"] == "cleaning_ended"
+
+
+def test_make_generic_numbers_on_from_a_superscript_digit(db_path, tools):
+    made = assistant.make_generic(tools["stove"], number="²", total=2)
+    assert entity(db_path, "item", tools["stove"])["number"] == "²"
+    assert [entity(db_path, "item", i)["number"] for i in made["unit_ids"]] == ["1"]

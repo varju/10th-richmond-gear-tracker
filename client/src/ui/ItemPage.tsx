@@ -4,6 +4,9 @@ import {
   deleteItem,
   groupWith,
   type ItemInput,
+  addUnits,
+  MAX_NEW_UNITS,
+  validUnitCount,
   makeGeneric,
   makePool,
   makeSingle,
@@ -1211,6 +1214,7 @@ function EditItem({
   const [firstNumber, setFirstNumber] = useState("1");
   const [kind, setKind] = useState<"units" | "pool">("units");
   const [quantity, setQuantity] = useState("1");
+  const [totalText, setTotalText] = useState("1");
   const [asked, setAsked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1224,7 +1228,13 @@ function EditItem({
   const asPool = several && kind === "pool" && canCount;
   const qty = Number(quantity.trim());
   const validQuantity = Number.isInteger(qty) && qty >= 1;
-  const canSave = unit ? numbered : named && (!several || (asPool ? validQuantity : firstNumber.trim() !== ""));
+  const askedTotal = Number(totalText.trim());
+  // A retired item makes no extra live units.
+  const total = nowRetired ? 1 : askedTotal;
+  const validTotal = nowRetired || (totalText.trim() !== "" && validUnitCount(askedTotal));
+  const canSave = unit
+    ? numbered
+    : named && (!several || (asPool ? validQuantity : firstNumber.trim() !== "" && validTotal));
   const dirty =
     nowRetired !== retired ||
     several ||
@@ -1241,7 +1251,10 @@ function EditItem({
       if (unit) await updateUnit(store, id, { number: n, nickname: nickname.trim() || null });
       await updateItem(store, id, unit ? withoutName(values) : values);
       if (asPool) target = await makePool(store, id, qty);
-      else if (several) await makeGeneric(store, id, firstNumber);
+      else if (several) {
+        const genericId = await makeGeneric(store, id, firstNumber);
+        if (total > 1) await addUnits(store, genericId, total - 1);
+      }
       if (nowRetired !== retired) await (nowRetired ? retireItem : unretireItem)(store, target);
       return target;
     } catch (e) {
@@ -1366,9 +1379,29 @@ function EditItem({
                 <span>This one’s number</span>
                 <input value={firstNumber} autoComplete="off" onChange={(e) => setFirstNumber(e.target.value)} />
               </label>
+              {!nowRetired && (
+                <label className="tight">
+                  <span>How many in all</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={totalText}
+                    onChange={(e) => {
+                      setTotalText(e.target.value);
+                      setAsked(false);
+                    }}
+                  />
+                </label>
+              )}
+              {!validTotal && (
+                <p className="error" role="alert">
+                  A whole number from 1 to {MAX_NEW_UNITS}.
+                </p>
+              )}
               <p className="notice" role="note">
                 {(values.name ?? "").trim()} becomes a name for several, and this one becomes #
                 {firstNumber.trim() || "?"} under it. Its code, movements and tickets stay where they are.
+                {validTotal && total > 1 ? ` It adds ${total - 1} more, with the next numbers.` : ""}
               </p>
             </>
           )}

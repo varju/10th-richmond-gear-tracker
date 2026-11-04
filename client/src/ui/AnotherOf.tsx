@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { addUnit, bindCode } from "../lib/actions";
-import { displayName, homeLabel, nextNumber, recentGenerics } from "../lib/inventory";
+import { displayName, homeLabel, nextNumber, recentGenerics, unlabelledUnits } from "../lib/inventory";
 import { back } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
@@ -9,9 +9,11 @@ import { Page } from "./Page";
 /**
  * Another unit of something we have several of, for the code just scanned
  * (FR-INV-24, S-BOOT-03). One list, most recently labelled first, with a
- * search for when it is long. A tap makes the unit with the next number and
- * the generic's home, puts the code on it, and goes back to the scanner. The
- * number can be typed first, for gear that already has one written on it.
+ * search for when it is long. A tap puts the code on the lowest-numbered unit
+ * still waiting for one (FR-INV-54); with none waiting it makes the unit with
+ * the next number and the generic's home first. The number can be typed first,
+ * for gear that already has one written on it: a waiting unit of that number
+ * takes the code, a free number makes a new unit.
  */
 export function AnotherOf({ store, code }: { store: Store; code: string }) {
   useStore(store);
@@ -23,6 +25,14 @@ export function AnotherOf({ store, code }: { store: Store; code: string }) {
   // Every keystroke re-renders; recentGenerics walks every item, so it is done once per state
   // change rather than once per keystroke.
   const recent = useMemo(() => recentGenerics(state, Infinity), [state]);
+  const waiting = useMemo(() => unlabelledUnits(state), [state]);
+  const typed = number.trim();
+
+  /** The unit that will take the code, if one is waiting. */
+  function target(genericId: string) {
+    const units = waiting.get(genericId) ?? [];
+    return typed ? units.find((u) => u.number === typed) : units[0];
+  }
   const results = recent.filter((g) => {
     const hay = displayName(state, g).toLowerCase();
     return words.every((w) => hay.includes(w));
@@ -30,7 +40,7 @@ export function AnotherOf({ store, code }: { store: Store; code: string }) {
 
   async function pick(genericId: string) {
     try {
-      const id = await addUnit(store, genericId, number.trim() || undefined);
+      const id = target(genericId)?.id ?? (await addUnit(store, genericId, typed || undefined));
       await bindCode(store, code, id);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not add it");
@@ -72,7 +82,12 @@ export function AnotherOf({ store, code }: { store: Store; code: string }) {
             <button type="button" className="row" onClick={() => void pick(g.id)}>
               <span>{displayName(state, g)}</span>
               <span className="muted">
-                {[`#${number.trim() || nextNumber(state, g.id)}`, homeLabel(state, g)].filter(Boolean).join(" · ")}
+                {[
+                  target(g.id) ? `#${target(g.id)!.number} · no code yet` : `#${typed || nextNumber(state, g.id)}`,
+                  homeLabel(state, g),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </span>
             </button>
           </li>
