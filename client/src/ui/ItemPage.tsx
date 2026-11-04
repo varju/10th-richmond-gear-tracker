@@ -75,10 +75,10 @@ import { type Session, sessionEvent } from "../lib/session";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { HomeFields, ItemFields, SEVERAL } from "./ItemFields";
-import { boughtLabel, plural, statusLabel, userName } from "./labels";
+import { boughtLabel, holdingLabel, plural, statusLabel, userName } from "./labels";
 import { CleanerField } from "./CleanerField";
 import { EventPicker, useEventQuestion } from "./EventChoice";
-import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
+import { CONFIRM_MS, MOVED_MS, MoveActions, useFlash } from "./MoveActions";
 import { RichText } from "./RichText";
 import { AddNote, NoteLine, NoteList } from "./Notes";
 import { Page } from "./Page";
@@ -107,7 +107,7 @@ export function ItemPage({ store, id }: Props) {
   const [merging, setMerging] = useState(false);
   const [grouping, setGrouping] = useState(false);
   const [moving, setMoving] = useState(false);
-  const [moved, confirm] = useFlash(CONFIRM_MS);
+  const [moved, confirm] = useFlash(MOVED_MS);
   const state = store.state;
   const it = item(state, id);
   const admin = store.admin;
@@ -325,6 +325,9 @@ export function ItemPage({ store, id }: Props) {
             {it.retired && <span className="badge">Retired</span>}
             {it.missing && <span className="badge">Missing</span>}
           </h2>
+          {it.status === "out" && !it.missing && (
+            <p className="held">{holdingLabel(state, it, store.meta.user?.id, now())}</p>
+          )}
           {it.missing && (
             <p className="notice" role="note">
               Missing. Scanning it or returning it clears this.
@@ -1477,7 +1480,7 @@ function PoolPage({
   record: Log | null;
 }) {
   const state = store.state;
-  const [moved, confirm] = useFlash(CONFIRM_MS);
+  const [moved, confirm] = useFlash(MOVED_MS);
   const onItem = { entity_type: "item", entity_id: id };
   const counts = poolCounts(it);
   const open = openRepairs(state, id);

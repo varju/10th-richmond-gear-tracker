@@ -810,9 +810,14 @@ main:has(> .viewfinder) {
 }
 
 /* Where it goes back, big enough to read from a trailer (FR-OUT-10). */
-.move-home {
+.move-home,
+.held {
   font-size: 22px;
   font-weight: 600;
+}
+
+.held {
+  margin: 0 0 12px;
 }
 
 .move-actions {
@@ -873,6 +878,11 @@ main:has(> .viewfinder) {
   color: var(--navy);
   font-weight: 600;
   text-align: center;
+}
+
+.confirmed::before {
+  content: "✓ ";
+  content: "✓ " / "";
 }
 
 .viewfinder .confirmed {

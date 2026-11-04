@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { IDBFactory } from "fake-indexeddb";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -84,6 +84,34 @@ test("Check out from the page records the session event and syncs (FR-OUT-02)", 
   expect(screen.getByRole("button", { name: "Return" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Check out" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Take over" })).not.toBeInTheDocument();
+});
+
+test("after Check out the page says who has it until it is returned (FR-OUT-54)", async () => {
+  await inSession(store, "Spring camp");
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(document.querySelector(".held")).toBeNull();
+
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+  await screen.findByText("Checked out · Tent 1");
+  expect(document.querySelector(".held")).toHaveTextContent(/^You have this/);
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Return" })).toBeEnabled(), { timeout: 3000 });
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  await waitFor(() => expect(item(store.state, tent)?.status).toBe("in"));
+  expect(document.querySelector(".held")).toBeNull();
+});
+
+test("an item out with someone else says so under its name; a missing one does not (FR-OUT-54)", async () => {
+  await mv.checkOut(store, tent, {});
+  await store.setMeta({ user: carol });
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(document.querySelector(".held")).toHaveTextContent(/^Out with Alice/);
+  expect(document.querySelector(".item-title")!.nextElementSibling).toBe(document.querySelector(".held"));
+  cleanup();
+
+  await act.markMissing(store, tent);
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(document.querySelector(".held")).toBeNull();
 });
 
 test("someone else's gear can be checked in or taken over, neither the default (FR-OUT-07, FR-OUT-12)", async () => {

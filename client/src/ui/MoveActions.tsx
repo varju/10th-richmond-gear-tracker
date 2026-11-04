@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import type { Item } from "../lib/inventory";
 import {
   addNote,
@@ -17,22 +17,32 @@ import { CleanerField } from "./CleanerField";
 import { useEventQuestion } from "./EventChoice";
 import { TransferPicker } from "./TransferPicker";
 
-/** How long a "Checked out · Tent 1" strip stays up. */
+/** How long the move buttons and the "Saved" strip hold after a tap. */
 export const CONFIRM_MS = 1500;
+
+/** How long a "Checked out · Tent 1" strip stays up. */
+export const MOVED_MS = 4000;
 
 export type MoveKind = "Checked out" | "Returned" | "Transferred" | "Sent home" | "Back from cleaning";
 
-/** A message that clears itself after `ms`. A newer message is left alone. */
-export function useFlash(ms: number): [string | null, (message: string) => void] {
+/** A message that clears itself after `ms`. A newer message restarts the time. */
+export function useFlash(ms: number): [string | null, (message: string) => void, () => void] {
   const [message, setMessage] = useState<string | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  const clear = useCallback(() => {
+    window.clearTimeout(timer.current);
+    setMessage(null);
+  }, []);
   const show = useCallback(
     (m: string) => {
+      window.clearTimeout(timer.current);
       setMessage(m);
-      window.setTimeout(() => setMessage((current) => (current === m ? null : current)), ms);
+      timer.current = window.setTimeout(() => setMessage(null), ms);
     },
     [ms],
   );
-  return [message, show];
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  return [message, show, clear];
 }
 
 interface Props {

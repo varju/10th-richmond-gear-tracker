@@ -105,6 +105,33 @@ test("an assigned code shows the card; Check out asks the event, offering the la
   });
 });
 
+test("the confirmation goes when the next card opens and does not return after Skip (FR-OUT-53)", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  await act.bindCode(store, "CCCCCCCCCC", stove);
+  renderInShell(<Scan store={store} />);
+  await typeCode("AAAAAAAAAA");
+  await user.click(within(card()).getByRole("button", { name: "Check out" }));
+  await noEvent();
+  expect(await screen.findByText("Checked out · Tent 1")).toBeInTheDocument();
+
+  await typeCode("CCCCCCCCCC");
+  expect(screen.getByRole("region", { name: "Stove" })).toBeInTheDocument();
+  expect(screen.queryByText(/^Checked out · Tent 1/)).not.toBeInTheDocument();
+  await user.click(within(screen.getByRole("region", { name: "Stove" })).getByRole("button", { name: "Skip" }));
+  expect(screen.queryByText(/^Checked out · Tent 1/)).not.toBeInTheDocument();
+});
+
+test("a bad code within the confirmation's time shows the warning over it (FR-OUT-53)", async () => {
+  renderInShell(<Scan store={store} />);
+  await typeCode("AAAAAAAAAA");
+  await user.click(within(card()).getByRole("button", { name: "Check out" }));
+  await noEvent();
+  await screen.findByText("Checked out · Tent 1");
+  await typeCode("ZZZZZZZZZZ");
+  expect(await screen.findByText("Not one of our codes")).toBeInTheDocument();
+  expect(screen.queryByText("Checked out · Tent 1")).not.toBeInTheDocument();
+});
+
 test("a moved item is silent for three seconds, then the same code offers Return as the default", async () => {
   renderInShell(<Scan store={store} />);
   await typeCode("AAAAAAAAAA");

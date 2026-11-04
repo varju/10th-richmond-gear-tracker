@@ -45,7 +45,6 @@ changelog.
       easier to spot but saves none. Fewer taps means opening the scanner straight after adding, with a way to skip, or
       a second "Add a unit and scan" button. The scanner opens the camera at a desk too, and it has **Type a code
       instead**.
-- [ ] Check-out gives too little confirmation. A user did not realise the item was already checked out.
 - [ ] Some saves ask for more confirmation than they need, for example converting an item to a generic. Review which
       saves confirm and make them consistent.
 - [ ] iPhone check-out: after picking an event, changing it does not show the autocomplete until the page is scrolled

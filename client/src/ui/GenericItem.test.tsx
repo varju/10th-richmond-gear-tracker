@@ -96,7 +96,9 @@ test("a retired item hides How many in all and makes no extra units", async () =
   await user.click(screen.getByRole("button", { name: "Save" }));
   await user.click(screen.getByRole("button", { name: "Yes, make it several" }));
 
-  await waitFor(() => expect(inv.generics(store.state)).toHaveLength(1));
+  await waitFor(() => expect(inv.item(store.state, tent)?.parent_id).toBeTruthy());
+  await waitFor(() => expect(inv.item(store.state, tent)?.retired).toBe(true));
+  expect(inv.generics(store.state)).toHaveLength(1);
   expect(inv.unitsOf(store.state, inv.generics(store.state)[0]!.id)).toHaveLength(1);
 });
 

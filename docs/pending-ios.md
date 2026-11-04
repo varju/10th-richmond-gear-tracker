@@ -34,5 +34,7 @@ What the app does differently.
 - A new item labelled one by one takes **How many** and makes that many units. Editing an item into several takes **How
   many in all**.
 - Scanning a fresh code and picking a generic puts the code on its next unit waiting for one, before making a new unit.
+- A move's confirmation stays up for 4 seconds, with a tick, and goes sooner on the scanner if the next card opens. A
+  single item's or unit's page shows who has it, under its name, while it is out.
 
 ## Chores

@@ -25,7 +25,7 @@ import { useStore } from "../useStore";
 import { PoolActions } from "./ItemPage";
 import { EventSuggestions, typedEvents } from "./EventChoice";
 import { holdingLabel, plural, statusLabel, userName } from "./labels";
-import { CONFIRM_MS, MoveActions, useFlash } from "./MoveActions";
+import { MOVED_MS, MoveActions, useFlash } from "./MoveActions";
 import { useLight, WithLight } from "./Light";
 import { Page } from "./Page";
 
@@ -58,7 +58,7 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const target = useRef<HTMLDivElement>(null);
   const [flash, say] = useFlash(FLASH_MS);
-  const [confirmed, confirm] = useFlash(CONFIRM_MS);
+  const [confirmed, confirm, clearConfirmed] = useFlash(MOVED_MS);
   // The read flash: green target, dimmed frame. It shows through the card opening, so a read is seen even where
   // the phone cannot buzz (iOS).
   const [read, flashRead] = useFlash(READ_MS);
@@ -86,6 +86,7 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
   const showCard = (id: string | null) => {
     cardOpen.current = id !== null;
     setCardItem(id);
+    if (id !== null) clearConfirmed();
     if (id !== null) scanner.current?.pause();
     else scanner.current?.resume();
   };
@@ -233,7 +234,7 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
             {flash}
           </p>
         )}
-        {confirmed && (
+        {confirmed && !flash && (
           <p className="confirmed" role="status">
             {confirmed}
           </p>
