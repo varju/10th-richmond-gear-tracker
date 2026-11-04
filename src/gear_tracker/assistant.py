@@ -448,6 +448,7 @@ def _history(conn: sqlite3.Connection, state: dict[str, Any], item_id: str) -> l
 # --- read tools ----------------------------------------------------------------------------------
 
 Status = Annotated[str, StringConstraints(pattern="^(in|out|missing)$")]
+Needs = Annotated[str, StringConstraints(pattern="^(code|location|shelf)$")]
 
 
 def search_items(
@@ -455,6 +456,7 @@ def search_items(
     location_id: str | None = None,
     status: Status | None = None,
     include_retired: StrictBool = False,
+    needs: Needs | None = None,
 ) -> dict[str, Any]:
     """Find gear by name or home (FR-INV-07).
 
@@ -462,10 +464,12 @@ def search_items(
     the group owns several of, with how many are in, and single items as rows of
     their own. `status` is "in", "out", or "missing". `include_retired` shows only
     retired gear, like the app's Show retired (FR-INV-05).
+    `needs` is "code", "location", or "shelf": only gear with no QR code, no location, or no shelf (FR-INV-51).
+    With `needs`, a row's unit counts cover the matching units, as with the other filters.
     """
     with _open() as (conn, _who):
         state = _state(conn)
-        rows = views.rows(state, query, location_id, status, include_retired)
+        rows = views.rows(state, query, location_id, status, include_retired, needs)
         return {"rows": [_row(state, row) for row in rows], "count": len(rows)}
 
 

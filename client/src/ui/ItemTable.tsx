@@ -5,6 +5,7 @@ import {
   displayName,
   type Filter,
   homeLabel,
+  isNarrowing,
   type Item,
   type Row,
   rows,
@@ -130,7 +131,7 @@ export function ItemTable({ store }: { store: Store }) {
   const columns = COLUMNS.filter((c) => c.key !== "category" || hasCategories);
   const [, refold] = useState(0);
   // A search or filter is looking for units, so it opens every generic it shows. Retired swaps the list; it does not narrow it.
-  const narrowed = Boolean(query || filter.location_id || filter.sub_location || filter.status || filter.category_id);
+  const narrowed = Boolean(query) || isNarrowing(filter);
   // Generics opened or shut by hand, by id: one set while browsing, another while narrowed.
   const looking = narrowed ? "narrowed" : "all";
   const allFolds = (entryState("folds") ?? {}) as Record<string, Record<string, boolean>>;

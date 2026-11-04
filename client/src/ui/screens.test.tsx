@@ -750,6 +750,35 @@ test("the Category filter and field appear only once a category exists, and the 
   expect(rows()).toEqual(["StoveWarm locker"]);
 });
 
+test("Needs > QR code narrows the phone list and stays in the URL (FR-INV-51)", async () => {
+  const f = await fixture();
+  await act.bindCode(store, "ABCDEFGH23", f.t1);
+  navigate("/items");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByText("Filters"));
+  await user.selectOptions(screen.getByLabelText("Needs"), "code");
+  expect(screen.getByText("Filters (1)")).toBeInTheDocument();
+  expect(location.search).toContain("needs=code");
+  expect(rows().join("|")).not.toContain("Tent 1");
+  expect(rows().join("|")).toContain("Stove");
+});
+
+test("Needs lists the units that match under their generic, and a tap opens one (FR-INV-51)", async () => {
+  const f = await fixture();
+  const tarps = await act.createGeneric(store, { name: "Tarp", home_location_id: f.cold });
+  const coded = await act.addUnit(store, tarps);
+  const bare = await act.addUnit(store, tarps);
+  await act.bindCode(store, "ABCDEFGH23", coded);
+  navigate("/items?needs=code");
+  mount();
+  const user = userEvent.setup();
+  expect(screen.getByRole("button", { name: /^Tarp #2/ })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^Tarp #1/ })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /^Tarp #2/ }));
+  expect(location.pathname).toBe(`/items/${bare}`);
+});
+
 test("a User has no Users link", async () => {
   await store.setMeta({ user: { id: "u2", name: "Bob", role: "user", active: true } });
   await fixture();

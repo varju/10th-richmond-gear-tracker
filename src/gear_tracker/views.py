@@ -103,6 +103,22 @@ def current_code(state: State, item_id: str) -> str | None:
     return next(iter(codes_for(state, item_id)), None)
 
 
+def bound_items(state: State) -> set[str]:
+    """Every item that has a code, through merges; a released code has no item. Agrees with current_code."""
+    return {resolve_item(state, f["item_id"]) for f in (state.get("code") or {}).values() if f.get("item_id")}
+
+
+def lacks(state: State, it: Fields, needs: str, bound: set[str]) -> bool:
+    """True when the item lacks what `needs` names. A location that is gone counts as none.
+    Twin of lacks in inventory.ts."""
+    if needs == "code":
+        return it["id"] not in bound
+    if needs == "location":
+        loc = (state.get("location") or {}).get(it.get("home_location_id") or "")
+        return loc is None or bool(loc.get("deleted"))
+    return not (it.get("sub_location") or "").strip()
+
+
 def number_key(it: Fields) -> tuple[int, int, str]:
     """Unit numbers as people read them: whole numbers first and in numeric order,
     so 2 comes before 10, then everything else as text. The twin of byNumber in inventory.ts."""
@@ -228,15 +244,19 @@ def search(
     location_id: str | None = None,
     status: str | None = None,
     retired: bool = False,
+    needs: str | None = None,
 ) -> list[Fields]:
     """Search as you type (FR-INV-07), over the things that move. Every word must appear somewhere."""
     words = [w for w in query.lower().split() if w]
+    bound = bound_items(state) if needs == "code" else set()
 
     def matches(it: Fields) -> bool:
         hay = f"{display_name(state, it)} {home_label(state, it)}".lower()
         return all(w in hay for w in words)
 
     def wanted(it: Fields) -> bool:
+        if needs is not None and not lacks(state, it, needs, bound):
+            return False
         if status is None:
             return True
         if status == "missing":
@@ -249,8 +269,8 @@ def search(
         if not it.get("merged_into")
         and bool(it.get("retired")) == retired
         and (location_id is None or it.get("home_location_id") == location_id)
-        and wanted(it)
         and matches(it)
+        and wanted(it)
     ]
     return sorted(found, key=lambda it: display_name(state, it))
 
@@ -261,13 +281,14 @@ def rows(
     location_id: str | None = None,
     status: str | None = None,
     retired: bool = False,
+    needs: str | None = None,
 ) -> list[Fields]:
     """The list: one row per generic with its counts, single items as rows of their own (FR-INV-25).
     A pool is its own row kind, with its counts instead of units (FR-INV-36)."""
     singles: list[Fields] = []
     pools: list[Fields] = []
     by_parent: dict[str, list[Fields]] = {}
-    for it in search(state, query, location_id, status, retired):
+    for it in search(state, query, location_id, status, retired, needs):
         parent = it.get("parent_id") if it.get("parent_id") in (state.get("item") or {}) else None
         if parent:
             by_parent.setdefault(parent, []).append(it)
@@ -275,12 +296,16 @@ def rows(
             singles.append({"kind": "single", "item": it, "name": display_name(state, it)})
 
     words = [w for w in query.lower().split() if w]
+    bound = bound_items(state) if needs == "code" else set()
 
     def pool_wanted(pool: Fields) -> bool:
         """A pool has no units for search() to filter, so it is matched here: on its home for a
-        location filter, and on its counts for a status filter ("in" means stock on the shelf,
-        "out" means anything checked out to a holder, "missing" means a missing count above zero)."""
+        location filter, on what it lacks for a needs filter, and on its counts for a status filter
+        ("in" means stock on the shelf, "out" means anything checked out to a holder,
+        "missing" means a missing count above zero)."""
         if location_id is not None and pool.get("home_location_id") != location_id:
+            return False
+        if needs is not None and not lacks(state, pool, needs, bound):
             return False
         if status == "in":
             return (pool.get("pool_in") or 0) > 0
@@ -308,7 +333,7 @@ def rows(
                         "counts": pool_counts(generic),
                     }
                 )
-        elif location_id is None and status is None:
+        elif location_id is None and status is None and needs is None:
             # An empty generic is still a row when only the search text is set, so one can be found and given units.
             by_parent[generic["id"]] = []
 

@@ -378,6 +378,28 @@ export interface Filter {
   status?: "in" | "out" | "missing";
   retired?: boolean;
   category_id?: string;
+  needs?: Needs;
+}
+
+export const NEEDS = ["code", "location", "shelf"] as const;
+export type Needs = (typeof NEEDS)[number];
+
+/** Whether a filter narrows by location, shelf, status, category or needs. Not the search text or retired. */
+export const isNarrowing = (filter: Filter): boolean =>
+  Boolean(filter.location_id || filter.sub_location || filter.status || filter.category_id || filter.needs);
+
+/** Every item that has a code, through merges: the set a "code" need is tested against. */
+const boundItems = (state: State): Set<string> =>
+  new Set(codes(state).flatMap((c) => (c.item_id ? [resolveItem(state, c.item_id)] : [])));
+
+/** True when the item lacks what `needs` names. A location that is gone counts as none. Twin of lacks in views.py. */
+function lacks(state: State, it: Item, needs: Needs, bound: Set<string>): boolean {
+  if (needs === "code") return !bound.has(it.id);
+  if (needs === "location") {
+    const loc = it.home_location_id ? state.location?.[it.home_location_id] : undefined;
+    return !loc || Boolean(loc.deleted);
+  }
+  return !it.sub_location?.trim();
 }
 
 const terms = (query: string | undefined): string[] => (query ?? "").toLowerCase().split(/\s+/).filter(Boolean);
@@ -399,6 +421,7 @@ function matches(state: State, it: Item, words: string[]): boolean {
  */
 export function search(state: State, filter: Filter): Item[] {
   const words = terms(filter.query);
+  const bound = filter.needs === "code" ? boundItems(state) : new Set<string>();
   return movable(state)
     .filter((it) => !it.merged_into)
     .filter((it) => Boolean(it.retired) === Boolean(filter.retired))
@@ -407,6 +430,7 @@ export function search(state: State, filter: Filter): Item[] {
     .filter((it) => !filter.status || (filter.status === "missing" ? Boolean(it.missing) : it.status === filter.status))
     .filter((it) => !filter.category_id || categoriesOf(state, it).includes(filter.category_id))
     .filter((it) => matches(state, it, words))
+    .filter((it) => !filter.needs || lacks(state, it, filter.needs, bound))
     .sort(byName(state));
 }
 
@@ -464,14 +488,15 @@ export type Row = SingleRow | GenericRow | PoolRow;
  */
 /**
  * A pool has no units for search() to filter, so it is matched here: on its
- * home and shelf, its categories, and its counts. "in" means stock on the
+ * home and shelf, its categories, what it lacks (needs), and its counts. "in" means stock on the
  * shelf, "out" means anything checked out to a holder, "missing" means a
  * missing count above zero. Twin of pool_wanted in views.py.
  */
-function poolWanted(state: State, pool: Item, filter: Filter): boolean {
+function poolWanted(state: State, pool: Item, filter: Filter, bound: Set<string>): boolean {
   if (filter.location_id && pool.home_location_id !== filter.location_id) return false;
   if (filter.sub_location && pool.sub_location !== filter.sub_location) return false;
   if (filter.category_id && !categoriesOf(state, pool).includes(filter.category_id)) return false;
+  if (filter.needs && !lacks(state, pool, filter.needs, bound)) return false;
   const counts = poolCounts(pool);
   if (filter.status === "in") return counts.in > 0;
   if (filter.status === "out") return counts.out.length > 0;
@@ -489,12 +514,13 @@ export function rows(state: State, filter: Filter): Row[] {
     else singles.push({ kind: "single", item: it, name: displayName(state, it) });
   }
   const words = terms(filter.query);
-  const unfiltered = !filter.location_id && !filter.sub_location && !filter.status && !filter.category_id;
+  const unfiltered = !isNarrowing(filter);
+  const bound = filter.needs === "code" ? boundItems(state) : new Set<string>();
   for (const g of generics(state)) {
     if (g.merged_into || Boolean(g.retired) !== Boolean(filter.retired)) continue;
     if (!matches(state, g, words)) continue;
     if (isPool(g)) {
-      if (poolWanted(state, g, filter))
+      if (poolWanted(state, g, filter, bound))
         pools.push({ kind: "pool", item: g, name: displayName(state, g), pool: poolCounts(g) });
     } else if (unfiltered && !byParent.has(g.id)) {
       byParent.set(g.id, []);

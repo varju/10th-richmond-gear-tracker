@@ -827,3 +827,47 @@ test("a category in use cannot be deleted, and the error names the items (FR-SET
   await act.deleteCategory(store, tents);
   expect(inv.categories(store.state)).toEqual([]);
 });
+
+test("the Needs filter finds single items, units and pools that lack a code, a location or a shelf (FR-INV-51)", async () => {
+  const f = await withUnits();
+  const bare = await act.createItem(store, { name: "Lantern" });
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  const shelved = await act.createPool(store, { name: "Mugs", home_location_id: f.cold, sub_location: "shelf 2" }, 4);
+  const empty = await act.createGeneric(store, { name: "Pegs", home_location_id: f.cold });
+  await act.bindCode(store, "ABCDEFGH23", f.t1);
+  await act.bindCode(store, "ABCDEFGH24", f.u1);
+  await act.bindCode(store, "ABCDEFGH25", shelved);
+  await act.updateItem(store, f.u2, { sub_location: "shelf 9" });
+  const listed = (needs: inv.Needs) =>
+    inv.rows(store.state, { needs }).map((r) => (r.kind === "generic" ? [r.name, r.units.length] : r.name));
+
+  expect(listed("code")).toEqual(expect.arrayContaining(["Bowls", "Lantern", "Stove", "Tent 2", ["4-person tent", 2]]));
+  expect(listed("code")).not.toContain("Tent 1");
+  expect(listed("code")).not.toContain("Mugs");
+  expect(listed("location")).toEqual(expect.arrayContaining(["Lantern", "Bowls"]));
+  expect(listed("location")).not.toContain("Tent 1");
+  expect(listed("shelf")).toEqual(expect.arrayContaining(["Lantern", "Bowls", "Stove"]));
+  expect(listed("shelf")).not.toContain("Tent 1");
+  expect(listed("shelf")).not.toContain("Mugs");
+  expect(listed("shelf")).toContainEqual(["4-person tent", 2]);
+  expect(inv.search(store.state, { needs: "shelf" }).map((i) => i.id)).not.toContain(f.u2);
+  expect(inv.rows(store.state, {}).map((r) => r.item.id)).toContain(empty);
+  for (const needs of ["code", "location", "shelf"] as const)
+    expect(inv.rows(store.state, { needs }).map((r) => r.item.id)).not.toContain(empty);
+
+  await act.releaseCode(store, "ABCDEFGH23");
+  expect(listed("code")).toContain("Tent 1");
+});
+
+test("the Needs filter counts a blank shelf and a deleted location as not set (FR-INV-51)", async () => {
+  const f = await fixture();
+  const stored = await act.createItem(store, {
+    name: "Rope",
+    home_location_id: "no-such-location",
+    sub_location: "  ",
+  });
+  const ids = (needs: inv.Needs) => inv.search(store.state, { needs }).map((i) => i.id);
+  expect(ids("shelf")).toContain(stored);
+  expect(ids("location")).toContain(stored);
+  expect(ids("location")).not.toContain(f.t1);
+});

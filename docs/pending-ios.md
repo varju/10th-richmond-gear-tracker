@@ -30,5 +30,6 @@ What the app does differently.
 - A stack that comes back short has **Mark missing**, **Found** and **Write off**. The missing count stays owned until
   written off, and is shown on the stack's page and list row. The Missing filter finds it.
 - The item list shows a generic's units as in and out, the same as a stack, plus how many are missing.
+- The item list has a **Needs** filter for gear with no QR code, no location, or no shelf.
 
 ## Chores

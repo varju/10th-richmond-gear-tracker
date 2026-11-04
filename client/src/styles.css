@@ -461,6 +461,11 @@ button.warn {
   padding: 0;
 }
 
+/* A generic's matching units, under its row. */
+.items.nested {
+  margin-left: 16px;
+}
+
 button.item {
   display: flex;
   flex-direction: column;

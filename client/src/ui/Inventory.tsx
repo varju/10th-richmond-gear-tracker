@@ -56,7 +56,7 @@ export function Inventory({ store }: Props) {
       ) : (
         <>
           <Filters store={store} filter={filter} onChange={(f) => show(query, f)} />
-          <ItemList store={store} list={list} />
+          <ItemList store={store} list={list} showUnits={Boolean(filter.needs)} />
         </>
       )}
     </Page>

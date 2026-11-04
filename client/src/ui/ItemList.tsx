@@ -1,4 +1,4 @@
-import { byCategory, categories, homeLabel, type Row } from "../lib/inventory";
+import { byCategory, categories, displayName, homeLabel, type Row } from "../lib/inventory";
 import { openRepairs } from "../lib/repairs";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -11,13 +11,13 @@ import { countsLabel, statusLabel } from "./labels";
  * Each heading is a fold, so a locker looking for one category can collapse
  * the rest.
  */
-export function ItemList({ store, list }: { store: Store; list: Row[] }) {
+export function ItemList({ store, list, showUnits }: { store: Store; list: Row[]; showUnits?: boolean }) {
   const state = store.state;
   if (categories(state).length === 0) {
     return (
       <ul className="items">
         {list.map((row) => (
-          <ItemRow key={row.item.id} store={store} row={row} />
+          <ItemRow key={row.item.id} store={store} row={row} showUnits={showUnits} />
         ))}
       </ul>
     );
@@ -32,7 +32,7 @@ export function ItemList({ store, list }: { store: Store; list: Row[] }) {
             </summary>
             <ul className="items">
               {g.rows.map((row) => (
-                <ItemRow key={row.item.id} store={store} row={row} />
+                <ItemRow key={row.item.id} store={store} row={row} showUnits={showUnits} />
               ))}
             </ul>
           </details>
@@ -42,7 +42,7 @@ export function ItemList({ store, list }: { store: Store; list: Row[] }) {
   );
 }
 
-function ItemRow({ store, row }: { store: Store; row: Row }) {
+function ItemRow({ store, row, showUnits }: { store: Store; row: Row; showUnits?: boolean }) {
   const state = store.state;
   return (
     <li>
@@ -63,6 +63,18 @@ function ItemRow({ store, row }: { store: Store; row: Row }) {
                 .join(" · ")}
         </span>
       </button>
+      {showUnits && row.kind === "generic" && (
+        <ul className="items nested">
+          {row.units.map((u) => (
+            <li key={u.id}>
+              <button className="item" type="button" onClick={() => navigate(`/items/${u.id}`)}>
+                <span className="item-name">{displayName(state, u)}</span>
+                <span className="muted small">{homeLabel(state, u)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </li>
   );
 }

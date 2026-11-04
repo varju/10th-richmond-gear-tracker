@@ -335,6 +335,20 @@ test("the table narrows by search and by filter", async () => {
   expect(screen.getByText("Nothing matches.")).toBeInTheDocument();
 });
 
+test("Needs > QR code narrows the table and stays in the URL (FR-INV-51)", async () => {
+  const f = await fixture();
+  await act.bindCode(store, "ABCDEFGH23", f.tent);
+  navigate("/items");
+  mount();
+  const user = userEvent.setup();
+  const table = () => within(screen.getByRole("table"));
+  expect(table().getByRole("link", { name: "Tent 1" })).toBeInTheDocument();
+  await user.selectOptions(screen.getByLabelText("Needs"), "code");
+  expect(table().queryByRole("link", { name: "Tent 1" })).not.toBeInTheDocument();
+  expect(table().getByRole("link", { name: "Stove" })).toBeInTheDocument();
+  expect(location.search).toContain("needs=code");
+});
+
 test("a search opens the generics it shows, and folds by hand come back with the search and the screen", async () => {
   const f = await fixture();
   await act.createGeneric(store, { name: "Pegs", home_location_id: f.cold });

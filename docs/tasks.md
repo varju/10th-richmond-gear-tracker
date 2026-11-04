@@ -36,7 +36,6 @@ changelog.
 
 ## UI
 
-- [ ] As quartermaster, how can I find items that have no QR code, or that have no location or shelf set?
 - [ ] Check out screen on iOS: Allow number pad to be hidden after entering the quantity for a counted stack
 - [ ] Edit item > We have several > Give count immediately?
 

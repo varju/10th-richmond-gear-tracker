@@ -393,6 +393,31 @@ def test_search_filters_by_location_and_status(tools):
     assert [r["name"] for r in assistant.search_items(location_id=tools["warm"])["rows"]] == ["Camp stove"]
 
 
+def test_search_filters_by_what_is_not_set_up(db_path, tools):
+    """FR-MCP-39."""
+    with open_db(db_path) as conn:
+        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "created", {})
+        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "code_bound", {"item_id": tools["stove"]})
+    assistant.update_item(tools["t1"], assistant.ItemFields(home_location_id=tools["cold"], sub_location="shelf 4"))
+
+    def found(needs):
+        return {r["name"]: r for r in assistant.search_items(needs=needs)["rows"]}
+
+    assert set(found("code")) == {"4-person tent"}
+    assert set(found("location")) == {"4-person tent"}
+    assert found("location")["4-person tent"]["units"] == 2
+    assert set(found("shelf")) == {"Camp stove", "4-person tent"}
+    assert found("shelf")["4-person tent"]["units"] == 2
+
+    assistant.unassign_code(tools["stove"])
+    assert set(found("code")) == {"Camp stove", "4-person tent"}
+
+
+def test_search_refuses_an_unknown_needs():
+    with pytest.raises(pydantic.ValidationError):
+        _arg_model("search_items").model_validate({"needs": "photo"})
+
+
 def test_get_item_carries_the_unit_its_generic_its_history_and_its_tickets(tools):
     assistant.check_out(tools["t1"], event="Fall Camp", note="one pole bent")
     assistant.raise_ticket(tools["t1"], "bent pole")

@@ -71,6 +71,11 @@ or filter shows them already.
 A description can use `**bold**`, `*italic*`, `[a link](https://example.org)` and lines starting with `- ` for a bullet
 list. A web address on its own becomes a link too. A backslash before a `*` shows the star as typed.
 
+### Find gear that is not set up
+
+Open **Filters** and set **Needs** to **QR code**, **Location** or **Shelf**. The list shows only gear that lacks it. A
+unit shows under its group. The table on a computer has the same filter.
+
 ### Several of the same thing
 
 Tick **We have several of these** on **New item**, then pick one:

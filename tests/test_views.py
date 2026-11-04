@@ -64,6 +64,63 @@ def test_rows_matches_a_pool_to_a_status_filter():
     assert [r["name"] for r in rows(state, status="missing")] == ["Pegs"]
 
 
+def test_rows_filters_by_what_is_not_set_up():
+    """FR-INV-51. Items, units and pools; a released code is no code; a generic shows for its matching units only."""
+    state = {
+        "location": {"cold": {"name": "Cold"}, "c": {"name": "C"}},
+        "item": {
+            "tent": {"id": "tent", "name": "Tent", "home_location_id": "cold", "sub_location": "shelf 4"},
+            "lamp": {"id": "lamp", "name": "Lamp"},
+            "stove": {"id": "stove", "name": "Stove", "home_location_id": "c"},
+            "bowls": {"id": "bowls", "name": "Bowls", "generic": True, "pool": True, "pool_in": 3},
+            "mugs": {
+                "id": "mugs",
+                "name": "Mugs",
+                "generic": True,
+                "pool": True,
+                "pool_in": 3,
+                "home_location_id": "cold",
+                "sub_location": "s1",
+            },
+            "pegs": {"id": "pegs", "name": "Pegs", "generic": True},
+            "tarp": {"id": "tarp", "name": "Tarp", "generic": True},
+            "tarp1": {"id": "tarp1", "parent_id": "tarp", "number": "1", "home_location_id": "c", "sub_location": "a"},
+            "tarp2": {"id": "tarp2", "parent_id": "tarp", "number": "2", "home_location_id": "c"},
+        },
+        "code": {
+            "C1": {"item_id": "tent", "bound_at": 1},
+            "C2": {"item_id": "mugs", "bound_at": 1},
+            "C3": {"item_id": "tarp1", "bound_at": 1},
+            "C4": {"item_id": None, "bound_at": 1},
+        },
+    }
+
+    def names(needs):
+        return [r["name"] for r in rows(state, needs=needs)]
+
+    assert names("code") == ["Bowls", "Lamp", "Stove", "Tarp"]
+    assert names("location") == ["Bowls", "Lamp"]
+    assert names("shelf") == ["Bowls", "Lamp", "Stove", "Tarp"]
+    assert "Pegs" in [r["name"] for r in rows(state)]
+    tarp = next(r for r in rows(state, needs="shelf") if r["name"] == "Tarp")
+    assert [u["id"] for u in tarp["units"]] == ["tarp2"]
+
+
+def test_rows_counts_a_blank_shelf_and_a_gone_location_as_not_set():
+    """FR-INV-51."""
+    state = {
+        "location": {"cold": {"name": "Cold"}, "shed": {"name": "Shed", "deleted": True}},
+        "item": {
+            "a": {"id": "a", "name": "A", "home_location_id": "cold", "sub_location": "  "},
+            "b": {"id": "b", "name": "B", "home_location_id": "shed", "sub_location": "s"},
+            "c": {"id": "c", "name": "C", "home_location_id": "nowhere", "sub_location": "s"},
+            "d": {"id": "d", "name": "D", "home_location_id": "cold", "sub_location": "s"},
+        },
+    }
+    assert [r["name"] for r in rows(state, needs="shelf")] == ["A"]
+    assert [r["name"] for r in rows(state, needs="location")] == ["B", "C"]
+
+
 def test_what_is_out_lists_a_pool_once_per_holder():
     """FR-RPT-11. A pool holder's entry carries a count, not days or an event: a count can be
     the sum of check-outs at different times under different events."""
