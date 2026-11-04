@@ -58,8 +58,8 @@ proper count. It resets what is on the shelf; what people already have out is un
 ### Add an item
 
 Tap **New item**, name it, pick a home, and tap **Save**. On a computer the button sits above the inventory table, which
-sorts by any column and keeps search and the filters in view. Click a name's unit count to show its units; a search or
-filter shows them already.
+sorts by any column and keeps search and the filters in view. Click the arrow beside a name to show its units; a search
+or filter shows them already.
 
 A description can use `**bold**`, `*italic*`, `[a link](https://example.org)` and lines starting with `- ` for a bullet
 list. A web address on its own becomes a link too. A backslash before a `*` shows the star as typed.

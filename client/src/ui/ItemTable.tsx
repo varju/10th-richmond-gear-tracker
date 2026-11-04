@@ -16,7 +16,7 @@ import { NATIVE } from "../lib/server";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { FilterFields } from "./Filters";
-import { plural, statusLabel } from "./labels";
+import { countsLabel, plural, statusLabel } from "./labels";
 import { Page } from "./Page";
 
 type Key = "name" | "category" | "home" | "status" | "flags";
@@ -48,11 +48,10 @@ function tableParams(text: string, filter: Filter, sort: Sort): URLSearchParams 
   return params;
 }
 
-/** A generic has no status of its own; its units carry it. A pool shows its counts. */
+/** A generic has no status of its own; its units carry it. A generic and a pool show their in and out counts. */
 const statusOf = (store: Store, row: Row): string => {
   if (row.kind === "single") return statusLabel(store.state, row.item);
-  if (row.kind === "pool") return `${row.pool.in} in · ${row.pool.owned - row.pool.in} out`;
-  return "";
+  return countsLabel(row);
 };
 
 function flagsOf(store: Store, it: Item): string[] {
@@ -146,7 +145,9 @@ export function ItemTable({ store }: { store: Store }) {
     navigate(withQuery("/items", tableParams(text, next, order)), true);
 
   const list = [...rows(state, { ...filter, query })].sort((a, b) => {
-    const order = sortKey(store, a, sort.key).localeCompare(sortKey(store, b, sort.key));
+    const order = sortKey(store, a, sort.key).localeCompare(sortKey(store, b, sort.key), undefined, {
+      numeric: sort.key === "status",
+    });
     return (sort.up ? order : -order) || a.name.localeCompare(b.name);
   });
 
@@ -230,23 +231,21 @@ interface RowProps {
 function ItemRows({ store, row, showCategory, open, onToggle }: RowProps) {
   const state = store.state;
   const flags = rowFlags(store, row);
-  const counts = row.kind === "generic" ? `${plural(row.counts.total, "unit")} · ${row.counts.in} in` : "";
   return (
     <>
       <tr>
         <td>
           <div className="name">
             <ItemLink id={row.item.id}>{row.name}</ItemLink>
-            {row.kind === "generic" && row.units.length === 0 && <span className="muted small">{counts}</span>}
             {row.kind === "generic" && row.units.length > 0 && (
               <button
                 className="unit-fold muted small"
                 type="button"
                 aria-expanded={open}
-                aria-label={`${counts}, ${row.name}`}
+                aria-label={`Units of ${row.name}`}
                 onClick={() => onToggle(row.item.id, open)}
               >
-                {counts} <span aria-hidden="true">{open ? "▾" : "▸"}</span>
+                <span aria-hidden="true">{open ? "▾" : "▸"}</span>
               </button>
             )}
           </div>

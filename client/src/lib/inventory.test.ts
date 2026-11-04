@@ -120,9 +120,35 @@ test("the list is one row per generic with counts, single items on their own (FR
     ["single", "Tent 2"],
   ]);
   const tents = list[0] as inv.GenericRow;
-  expect(tents.counts).toEqual({ total: 3, in: 2 });
+  expect(tents.counts).toEqual({ in: 2, out: 1, missing: 0 });
   expect(tents.units.map((u) => u.number)).toEqual(["1", "2", "7"]);
   expect(inv.countItems(list)).toBe(6);
+});
+
+test("a missing unit counts as neither in nor out", async () => {
+  const f = await withUnits();
+  await checkOut(store, f.u1, { event: "Fall Camp" });
+  await act.markMissing(store, f.u2);
+  await checkOut(store, f.u3, { event: "Fall Camp" });
+  await act.markMissing(store, f.u3);
+  const tents = inv.rows(store.state, {})[0] as inv.GenericRow;
+  expect(tents.counts).toEqual({ in: 0, out: 1, missing: 2 });
+});
+
+test("a unit in, a unit out and a unit missing each count once", async () => {
+  const f = await withUnits();
+  await checkOut(store, f.u1, { event: "Fall Camp" });
+  await act.markMissing(store, f.u2);
+  const tents = inv.rows(store.state, {})[0] as inv.GenericRow;
+  expect(tents.counts).toEqual({ in: 1, out: 1, missing: 1 });
+});
+
+test("a status filter narrows a generic's units but not its counts", async () => {
+  const f = await withUnits();
+  await checkOut(store, f.u1, { event: "Fall Camp" });
+  const tents = inv.rows(store.state, { status: "in" })[0] as inv.GenericRow;
+  expect(tents.units).toHaveLength(2);
+  expect(tents.counts).toEqual({ in: 2, out: 1, missing: 0 });
 });
 
 test("a pool is its own row, with in and out counts instead of units (FR-INV-36)", async () => {
@@ -164,7 +190,7 @@ test("filters apply to units, and show the generics that have any (FR-INV-25)", 
   expect((out[0] as inv.GenericRow).units.map((u) => u.id)).toEqual([f.u1]);
   // #7 was made without a home, so a location filter drops it from the row.
   const cold = inv.rows(store.state, { location_id: f.cold });
-  expect((cold[0] as inv.GenericRow).counts.total).toBe(2);
+  expect((cold[0] as inv.GenericRow).units).toHaveLength(2);
   // Searching the generic's name finds the row even with no units under it.
   const empty = await act.createGeneric(store, { name: "Dutch oven" });
   expect(inv.rows(store.state, { query: "dutch" }).map((r) => r.name)).toEqual(["Dutch oven"]);

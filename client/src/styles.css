@@ -1398,7 +1398,7 @@ h3.section.small {
   text-decoration: none;
 }
 
-/* Counts beside the name. A generic's opens and shuts its units. */
+/* A generic's arrow opens and shuts its units. */
 .grid .name {
   display: flex;
   flex-wrap: wrap;
@@ -1408,6 +1408,7 @@ h3.section.small {
 
 button.unit-fold {
   width: auto;
+  min-width: 44px;
   min-height: 44px;
   padding: 0;
   border: 0;

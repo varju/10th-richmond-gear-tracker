@@ -2,7 +2,7 @@ import { byCategory, categories, homeLabel, type Row } from "../lib/inventory";
 import { openRepairs } from "../lib/repairs";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
-import { plural, statusLabel } from "./labels";
+import { countsLabel, statusLabel } from "./labels";
 
 /**
  * The phone's list of gear: one tappable row each, name and home. The home
@@ -53,16 +53,14 @@ function ItemRow({ store, row }: { store: Store; row: Row }) {
           {row.kind === "single" && row.item.missing && <span className="badge">Missing</span>}
         </span>
         <span className="muted small">
-          {row.kind === "generic"
-            ? `${plural(row.counts.total, "unit")} · ${row.counts.in} in`
-            : row.kind === "pool"
-              ? `${row.pool.in} in · ${row.pool.owned - row.pool.in} out`
-              : [
-                  homeLabel(state, row.item),
-                  row.item.status === "out" && !row.item.missing ? statusLabel(state, row.item) : "",
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
+          {row.kind !== "single"
+            ? countsLabel(row)
+            : [
+                homeLabel(state, row.item),
+                row.item.status === "out" && !row.item.missing ? statusLabel(state, row.item) : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
         </span>
       </button>
     </li>

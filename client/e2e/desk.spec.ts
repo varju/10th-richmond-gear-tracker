@@ -39,7 +39,7 @@ test("the inventory is a table that sorts, with a generic's units folded under i
 
   // Shut until opened (FR-INV-25).
   const unit = table.getByRole("link", { name: "Tent, 4-person #1", exact: true });
-  const fold = table.getByRole("button", { name: /, Tent, 4-person$/ });
+  const fold = table.getByRole("button", { name: "Units of Tent, 4-person" });
   await expect(fold).toHaveAttribute("aria-expanded", "false");
   await expect(unit).toBeHidden();
   await fold.click();
@@ -72,7 +72,7 @@ test("back from an item returns to where the table was scrolled", async ({ page 
   await signIn(page);
   await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: "All items" }).click();
   await expect(page.getByRole("table")).toBeVisible();
-  await page.getByRole("button", { name: /, Tent, 4-person$/ }).click();
+  await page.getByRole("button", { name: "Units of Tent, 4-person" }).click();
   await page.evaluate(() => window.scrollTo(0, 400));
   expect(await page.evaluate(() => window.scrollY)).toBe(400);
 

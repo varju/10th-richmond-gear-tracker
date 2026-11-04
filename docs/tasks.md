@@ -68,9 +68,6 @@ changelog.
 - [ ] When creating a generic item, if I say we have several I should be able to indicate the count we have.
 - [ ] Generic items don't have their own purchase date today, only their parent generic does. The parent's date should
       be used as a default, but we should be able to override per item.
-- [ ] Generics render differently in All Items view than Countables. Countables have their in/out under Status, while
-      Generics use an inconsistent method of counting. Make Generics render the same, using in/out instead of units/in,
-      in the Status column. Put the collapse/expand arrow somewhere more subtle, in the main row.
 - [ ] Event gear list: offer check-out order as a sort option, if people miss it.
 - [ ] Improve support for long term loans. e.g. our troop Scouter has the scout flagpole and badge box at home for the
       whole school year. We still want to know where that gear is, but perhaps don't want to see it on the "What's out"

@@ -1,5 +1,5 @@
 /** Text the screens share. Pure functions over state. */
-import { type Item, userName } from "../lib/inventory";
+import { type Item, type Row, userName } from "../lib/inventory";
 import type { State } from "../lib/replay";
 import type { SyncOutcome } from "../lib/sync";
 import { ago } from "../lib/time";
@@ -10,6 +10,13 @@ export { userName };
 export function statusLabel(state: State, it: Item): string {
   if (it.missing) return "Missing";
   return it.status === "out" ? `Out · ${userName(state, it.holder_id)}` : "In";
+}
+
+/** A generic's or pool's units as "2 in · 1 out", plus "· 1 missing" for a generic with any. */
+export function countsLabel(row: Row & { kind: "generic" | "pool" }): string {
+  if (row.kind === "pool") return `${row.pool.in} in · ${row.pool.owned - row.pool.in} out`;
+  const { in: n, out, missing } = row.counts;
+  return `${n} in · ${out} out${missing > 0 ? ` · ${missing} missing` : ""}`;
 }
 
 /**

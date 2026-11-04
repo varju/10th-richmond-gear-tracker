@@ -196,9 +196,9 @@ test("the inventory is a table, sortable, a generic's units folded under it", as
       .getAllByRole("row")
       .slice(1)
       .map((r) => within(r).getAllByRole("link")[0]!.textContent);
-  // A generic's units stay shut until its count is clicked (FR-INV-25).
+  // A generic's units stay shut until its arrow is clicked (FR-INV-25).
   expect(names()).toEqual(["3x3 tarp", "Stove", "Tent 1"]);
-  const fold = screen.getByRole("button", { name: "2 units · 2 in, 3x3 tarp" });
+  const fold = screen.getByRole("button", { name: "Units of 3x3 tarp" });
   expect(fold).toHaveAttribute("aria-expanded", "false");
   await user.click(fold);
   expect(fold).toHaveAttribute("aria-expanded", "true");
@@ -274,7 +274,7 @@ test("a Category column appears once one exists, and sorts (FR-SET-07)", async (
   expect(category("3x3 tarp")).toBe("");
 
   await user.click(screen.getByRole("button", { name: /^Category/ }));
-  await user.click(screen.getByRole("button", { name: "2 units · 2 in, 3x3 tarp" }));
+  await user.click(screen.getByRole("button", { name: "Units of 3x3 tarp" }));
   const names = () =>
     within(screen.getByRole("table"))
       .getAllByRole("row")
@@ -282,6 +282,17 @@ test("a Category column appears once one exists, and sorts (FR-SET-07)", async (
       .map((r) => within(r).getAllByRole("link")[0]!.textContent);
   // Ascending: the uncategorised generic and its units sort first, then by category name.
   expect(names()).toEqual(["3x3 tarp", "3x3 tarp #1", "3x3 tarp #2", "Stove", "Tent 1"]);
+});
+
+test("a generic shows its units as in and out under Status", async () => {
+  const f = await fixture();
+  await checkOut(store, f.first, { event: "Fall Camp" });
+  navigate("/items");
+  mount();
+  const row = within(screen.getByRole("table"))
+    .getAllByRole("row")
+    .find((r) => within(r).queryByRole("link", { name: "3x3 tarp" }))!;
+  expect(within(row).getByText("1 in · 1 out")).toBeInTheDocument();
 });
 
 test("the table narrows by search and by filter", async () => {
@@ -310,10 +321,10 @@ test("a search opens the generics it shows, and folds by hand come back with the
     .find((r) => within(r).queryByRole("link", { name: "3x3 tarp" }))!;
   expect(within(tarpRow).getByText("Missing")).toBeInTheDocument();
   // Nothing to open, so nothing to click.
-  expect(screen.getByText("0 units · 0 in")).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "0 units · 0 in, Pegs" })).not.toBeInTheDocument();
+  expect(screen.getByText("0 in · 0 out")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Units of Pegs" })).not.toBeInTheDocument();
 
-  const fold = () => screen.getByRole("button", { name: "2 units · 1 in, 3x3 tarp" });
+  const fold = () => screen.getByRole("button", { name: "Units of 3x3 tarp" });
   await user.click(fold());
   expect(fold()).toHaveAttribute("aria-expanded", "true");
 
@@ -327,10 +338,7 @@ test("a search opens the generics it shows, and folds by hand come back with the
   await user.click(screen.getByRole("link", { name: "3x3 tarp #1" }));
   expect(location.pathname).toBe(`/items/${f.first}`);
   back("/");
-  expect(await screen.findByRole("button", { name: "2 units · 1 in, 3x3 tarp" })).toHaveAttribute(
-    "aria-expanded",
-    "true",
-  );
+  expect(await screen.findByRole("button", { name: "Units of 3x3 tarp" })).toHaveAttribute("aria-expanded", "true");
 });
 
 test("no camera, no Scan button", async () => {
@@ -350,6 +358,37 @@ test("an item page puts its facts beside its history", async () => {
   expect(columns).toHaveLength(2);
   expect(columns[0]!).toHaveTextContent("Cold locker / shelf 4");
   expect(columns[1]!).toHaveTextContent("History");
+});
+
+test("the phone list shows a generic's counts, and missing only when there are some", async () => {
+  const f = await fixture();
+  await checkOut(store, f.first, { event: "Fall Camp" });
+  const cups = await act.createGeneric(store, { name: "Cups", home_location_id: f.cold });
+  await act.addUnit(store, cups);
+  const lost = await act.addUnit(store, f.tarp);
+  await act.markMissing(store, lost);
+  setWidth(PHONE);
+  mount();
+  reactAct(() => navigate("/items"));
+  expect(screen.getByRole("button", { name: /3x3 tarp/ })).toHaveTextContent("1 in · 1 out · 1 missing");
+  expect(screen.getByRole("button", { name: /Cups/ })).toHaveTextContent(/^Cups1 in · 0 out$/);
+});
+
+test("sorting by Status compares the counts as numbers", async () => {
+  const f = await fixture();
+  const crates = await act.createGeneric(store, { name: "Crates", home_location_id: f.cold });
+  for (let i = 0; i < 10; i++) await act.addUnit(store, crates);
+  navigate("/items");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: /^Status/ }));
+  const rowText = () =>
+    within(screen.getByRole("table"))
+      .getAllByRole("row")
+      .map((r) => r.textContent ?? "");
+  const at = (s: string) => rowText().findIndex((t) => t.includes(s));
+  expect(at("2 in · 0 out")).toBeGreaterThan(0);
+  expect(at("2 in · 0 out")).toBeLessThan(at("10 in · 0 out"));
 });
 
 test("a phone keeps the list at /items, and has no sidebar", async () => {

@@ -437,7 +437,7 @@ export interface GenericRow {
   name: string;
   /** The units that matched, in number order. */
   units: Item[];
-  counts: { total: number; in: number };
+  counts: { in: number; out: number; missing: number };
 }
 
 export interface PoolRow {
@@ -497,13 +497,17 @@ export function rows(state: State, filter: Filter): Row[] {
   }
   const grouped: Row[] = [...byParent.entries()].map(([id, units]) => {
     const parent = item(state, id) ?? ({ id } as Item);
+    const all = unitsOf(state, id).filter((u) => Boolean(u.retired) === Boolean(filter.retired));
     return {
       kind: "generic",
       item: parent,
       name: displayName(state, parent),
       units: units.sort(byNumber),
-
-      counts: { total: units.length, in: units.filter((u) => u.status === "in" && !u.missing).length },
+      counts: {
+        in: all.filter((u) => u.status === "in" && !u.missing).length,
+        out: all.filter((u) => u.status === "out" && !u.missing).length,
+        missing: all.filter((u) => u.missing).length,
+      },
     };
   });
   return [...grouped, ...singles, ...pools].sort((a, b) => a.name.localeCompare(b.name));

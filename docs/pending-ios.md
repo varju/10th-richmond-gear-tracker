@@ -27,5 +27,6 @@ What the app does differently.
   star as typed, and a description over 5,000 characters shows as typed.
 - Back from changing an item's event returns to the item.
 - A unit's page can add another unit of the same generic.
+- The item list shows a generic's units as in and out, the same as a stack, plus how many are missing.
 
 ## Chores
