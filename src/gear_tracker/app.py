@@ -15,7 +15,7 @@ import time
 from collections.abc import AsyncGenerator, Callable, Iterator
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from typing import Annotated, Any, Literal, TextIO
@@ -161,6 +161,16 @@ class DailyLog(TimedRotatingFileHandler):
     def __init__(self, path: Path, delay: bool = False) -> None:
         super().__init__(path, when="midnight", backupCount=KEEP_LOG_DAYS, encoding="utf-8", delay=delay)
         self.setFormatter(logging.Formatter("%(message)s"))
+
+    # The stdlib's midnight rollover misnames and mistimes files across a clock change.
+    def computeRollover(self, currentTime: int) -> int:
+        tomorrow = date.fromtimestamp(currentTime) + timedelta(days=1)
+        return int(datetime.combine(tomorrow, datetime.min.time()).timestamp())
+
+    def rotation_filename(self, default_name: str) -> str:
+        """Named for the last day the file covers; rolloverAt is still that day's end."""
+        covered = date.fromtimestamp(self.rolloverAt) - timedelta(days=1)
+        return f"{self.baseFilename}.{covered:%Y-%m-%d}"
 
 
 class FailedSignIns(DailyLog):

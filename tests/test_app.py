@@ -7,8 +7,10 @@ import json
 import logging
 import os
 import re
-from datetime import datetime
+import time
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import Request
@@ -19,6 +21,7 @@ from gear_tracker.app import (
     ACCESS_LOG,
     ERROR_LOG,
     HOUR_MS,
+    KEEP_LOG_DAYS,
     DailyLog,
     FailedSignIns,
     access_logger,
@@ -1463,7 +1466,7 @@ def test_the_file_turns_over_at_midnight(db_path, failures):
         accounts.create_admin(conn, "Alex", "alex@example.org", "correct horse")
     failures.parent.mkdir(parents=True, exist_ok=True)
     failures.write_text("yesterday's line\n")
-    yesterday = datetime.now().timestamp() - 86_400
+    yesterday = datetime.combine(date.today() - timedelta(days=1), datetime.min.time().replace(hour=12)).timestamp()
     os.utime(failures, (yesterday, yesterday))
 
     TestClient(create_app(db_path)).post(
@@ -1476,6 +1479,100 @@ def test_the_file_turns_over_at_midnight(db_path, failures):
     assert len(lines_in(failures)) == 1
     log = FailedSignIns(failures)
     assert (log.when, log.backupCount) == ("MIDNIGHT", 30)
+
+
+@pytest.fixture
+def vancouver(monkeypatch):
+    monkeypatch.setenv("TZ", "America/Vancouver")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
+def local(text: str) -> float:
+    return datetime.fromisoformat(text).timestamp()
+
+
+@pytest.mark.parametrize(
+    ("now", "expected"),
+    [
+        ("2026-11-01 00:30", "2026-11-02 00:00"),
+        ("2026-11-01 01:30", "2026-11-02 00:00"),
+        ("2026-11-01 10:00", "2026-11-02 00:00"),
+        ("2027-03-14 01:30", "2027-03-15 00:00"),
+        ("2027-03-14 10:00", "2027-03-15 00:00"),
+        ("2026-06-10 10:00", "2026-06-11 00:00"),
+    ],
+)
+def test_the_log_turns_over_at_local_midnight_across_a_clock_change(vancouver, tmp_path, now, expected):
+    log = DailyLog(tmp_path / "x.log", delay=True)
+
+    assert log.computeRollover(int(local(now))) == local(expected)
+
+
+@pytest.mark.parametrize(
+    ("written", "rolled_on", "named"),
+    [
+        ("2026-10-31 10:00", "2026-11-01 10:00", "2026-10-31"),
+        ("2026-11-01 10:00", "2026-11-02 10:00", "2026-11-01"),
+        ("2027-03-14 10:00", "2027-03-15 10:00", "2027-03-14"),
+    ],
+)
+def test_a_rolled_log_is_named_for_the_day_it_covers(vancouver, monkeypatch, tmp_path, written, rolled_on, named):
+    path = tmp_path / "x.log"
+    path.write_text("line\n")
+    os.utime(path, (local(written), local(written)))
+    log = DailyLog(path)
+    monkeypatch.setattr(time, "time", lambda: local(rolled_on))
+
+    log.doRollover()
+    log.close()
+
+    assert (tmp_path / f"x.log.{named}").read_text() == "line\n"
+
+
+def test_a_rolled_log_is_named_for_its_day_where_the_clock_skips_midnight(monkeypatch, tmp_path):
+    monkeypatch.setenv("TZ", "America/Santiago")
+    time.tzset()
+    try:
+        zone = ZoneInfo("America/Santiago")
+        day = date(2026, 8, 1)
+        while datetime.fromtimestamp(datetime.combine(day, datetime.min.time(), zone).timestamp(), zone).hour == 0:
+            day += timedelta(days=1)
+        before = day - timedelta(days=1)
+        path = tmp_path / "x.log"
+        path.write_text("line\n")
+        written = datetime.combine(before, datetime.min.time().replace(hour=12)).timestamp()
+        os.utime(path, (written, written))
+        log = DailyLog(path)
+        monkeypatch.setattr(time, "time", lambda: written + 86_400)
+
+        log.doRollover()
+        log.close()
+
+        assert (tmp_path / f"x.log.{before:%Y-%m-%d}").exists()
+    finally:
+        monkeypatch.undo()
+        time.tzset()
+
+
+def test_old_rolled_logs_are_deleted_past_the_keep_limit(tmp_path):
+    path = tmp_path / "x.log"
+    path.write_text("line\n")
+    start = date(2026, 1, 1)
+    days = [start + timedelta(days=n) for n in range(KEEP_LOG_DAYS + 1)]
+    for day in days:
+        (tmp_path / f"x.log.{day:%Y-%m-%d}").write_text("old\n")
+    log = DailyLog(path)
+
+    log.doRollover()
+    log.close()
+
+    kept = sorted(p.name for p in tmp_path.glob("x.log.*"))
+    assert len(kept) == KEEP_LOG_DAYS
+    assert f"x.log.{days[0]:%Y-%m-%d}" not in kept
+    assert f"x.log.{days[1]:%Y-%m-%d}" not in kept
 
 
 def test_a_log_that_cannot_be_written_does_not_break_signing_in(real, db_path, failures):

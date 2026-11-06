@@ -15,9 +15,6 @@ changelog.
 - [ ] Fix the flaky "Only new ones leaves the earlier moves as they were (FR-OUT-40)" in
       `client/src/ui/ScanMove.test.tsx`. It failed once in a full run, then passed three runs on its own and two more
       full runs. Cause not yet known.
-- [ ] Fix the date-dependent `test_the_file_turns_over_at_midnight` in `tests/test_app.py`. It failed on 2026-11-01, the
-      day daylight saving ended: the rolled file was named 2026-10-30, not 2026-10-31. Likely cause, not confirmed: it
-      takes "yesterday" as now minus a flat 86,400 seconds.
 - [ ] Fix the flaky "signed in already, a link says who is signed in" in `client/src/ui/Join.test.tsx`. It failed once
       in a full run, then passed three runs on its own and the next full run. Cause not yet known; it may be timing, as
       the machine was busy with other work.
