@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import * as act from "../lib/actions";
 import { currentCode } from "../lib/inventory";
-import { navigate } from "../lib/router";
+import { depth, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { setVisibility } from "../lib/visibilityTestKit";
 import { openStore, printCodes } from "./codeTestKit";
@@ -55,11 +55,25 @@ test("something that is not a code is refused", async () => {
 });
 
 test("with ?for= an unassigned code is bound to the item (FR-TAG-04)", async () => {
+  navigate(`/items/${tent}`);
   navigate(`/scan?for=${tent}`);
   render(<Scan store={store} native />);
   await camera.scan("BBBBBBBBBB");
+  // Back to the page under the scanner, not a second copy of it.
+  await waitFor(() => expect(location.pathname).toBe(`/items/${tent}`));
+  expect(depth()).toBe(1);
+  expect(currentCode(store.state, tent)?.id).toBe("BBBBBBBBBB");
+});
+
+test("with ?for= a second code read right after the first is not bound", async () => {
+  await printCodes(store, ["CCCCCCCCCC"]);
+  navigate(`/items/${tent}`);
+  navigate(`/scan?for=${tent}`);
+  render(<Scan store={store} native />);
+  await Promise.all([camera.scan("BBBBBBBBBB"), camera.scan("CCCCCCCCCC")]);
   await waitFor(() => expect(location.pathname).toBe(`/items/${tent}`));
   expect(currentCode(store.state, tent)?.id).toBe("BBBBBBBBBB");
+  expect(store.pending.filter((e) => e.type === "code_bound" && e.entity_id === "CCCCCCCCCC")).toHaveLength(0);
 });
 
 test("with ?for= a code already on another item is refused", async () => {

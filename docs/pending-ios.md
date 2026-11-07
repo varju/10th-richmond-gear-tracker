@@ -42,5 +42,7 @@ What the app does differently.
 - On a stack's count panel, a tap off **How many** closes the number pad, and the button scrolls above the keyboard.
 - An item page offers **Duplicate…**, which opens a new item filled from it. A stack copies with a blank count; units
   have no Duplicate.
+- Back after adding a QR code to an item, or saving an edited event, returns to the page the person came from instead of
+  showing it twice.
 
 ## Chores

@@ -50,11 +50,6 @@ changelog.
       still out joins it and moves its end date out. Moves under it join its gear list. `check_out` in `assistant.py`
       does the same. FR-RES-28 stays for older app builds until none make unplanned events. Two offline phones may each
       make one of the same name; note it, do not solve it here.
-- [ ] Back button revisits screens already seen. Example: add a generic item, add an instance, add a QR code. Back shows
-      the instance twice before the generic. Cause: after binding, the scanner replaces itself with the item page
-      (`Scan.tsx`) instead of going back to the one under it. Plan: a screen that finishes and returns where it came
-      from calls `back()`, opening the page only when arrived cold. Check the other finishing screens (Bind, AnotherOf,
-      edit, merge, change). Test the example: Back goes unit to generic, and the unit page shows its new code.
 - [ ] Consumables, for example propane tanks that are refilled. An item can have an optional empty (base) weight.
       Check-in asks for the current weight and infers the amount left. "Unknown" must be allowed when there is no scale.
       Needs a requirement and an MCP tool in `assistant.py`. Plan: not propane-only; any item weighed to see what is

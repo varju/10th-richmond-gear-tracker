@@ -9,7 +9,8 @@ import { openDb } from "../lib/db";
 import * as inv from "../lib/inventory";
 import { checkOut } from "../lib/movement";
 import * as rep from "../lib/repairs";
-import { navigate } from "../lib/router";
+import * as res from "../lib/reservations";
+import { depth, navigate } from "../lib/router";
 import { Store } from "../lib/store";
 import { printCodes } from "./codeTestKit";
 import { stopWebCamera, webCamera } from "./scanTestKit";
@@ -1045,15 +1046,103 @@ test("a replacement sticker: back from the item goes home, not through the scann
 
   await user.type(screen.getByLabelText("Search"), "Tent 1");
   await user.click(screen.getByRole("button", { name: /Tent 1/ }));
+  const atItem = depth();
   await user.click(screen.getByRole("button", { name: "Add QR code" }));
   expect(location.pathname + location.search).toBe(`/scan?for=${f.t1}`);
 
   await read("ABCDEFGH23");
   await waitFor(() => expect(location.pathname).toBe(`/items/${f.t1}`));
   expect(inv.currentCode(store.state, f.t1)?.id).toBe("ABCDEFGH23");
+  expect(depth()).toBe(atItem);
 
   await user.click(screen.getByRole("button", { name: "Back" }));
-  expect(location.pathname).toBe(`/items/${f.t1}`);
-  await user.click(screen.getByRole("button", { name: "Back" }));
   expect(location.pathname).toBe("/");
+});
+
+test("adding a QR code to a new unit: back shows the unit once, with its code, then the generic", async () => {
+  await fixture();
+  const tents = await act.createGeneric(store, { name: "Dome tent" });
+  await printCodes(store, ["ABCDEFGH23"]);
+  const read = webCamera(decoder.next);
+  navigate(`/items/${tents}`);
+  mount();
+  const user = userEvent.setup();
+
+  await user.click(screen.getByRole("button", { name: "Add a unit" }));
+  await waitFor(() => expect(location.pathname).not.toBe(`/items/${tents}`));
+  const unit = location.pathname;
+  await user.click(screen.getByRole("button", { name: "Add QR code" }));
+  await read("ABCDEFGH23");
+  await waitFor(() => expect(location.pathname).toBe(unit));
+  // The page behind is drawn from the store, so it already shows the new code.
+  expect(screen.getByText("QR code").nextElementSibling).toHaveTextContent("Yes");
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(location.pathname).toBe(`/items/${tents}`);
+});
+
+test("saving an edited event goes back to the event page, once", async () => {
+  await fixture();
+  const fall = await res.createReservation(store, {
+    event: "Fall Camp",
+    starts: "2026-10-03",
+    ends: "2026-10-04",
+    items: [],
+    generics: [],
+  });
+  navigate("/events");
+  navigate(`/events/${fall}`);
+  mount();
+  const user = userEvent.setup();
+
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  expect(location.pathname).toBe(`/events/${fall}/edit`);
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(location.pathname).toBe(`/events/${fall}`));
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(location.pathname).toBe("/events");
+});
+
+const fallCamp = (extra: object = {}) =>
+  res.createReservation(store, {
+    event: "Fall Camp",
+    starts: "2026-10-03",
+    ends: "2026-10-04",
+    items: [],
+    generics: [],
+    ...extra,
+  });
+
+test("Cancel on the edit form goes back to the event page, once", async () => {
+  await fixture();
+  const fall = await fallCamp();
+  navigate("/events");
+  navigate(`/events/${fall}`);
+  mount();
+  const user = userEvent.setup();
+
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(location.pathname).toBe(`/events/${fall}`);
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(location.pathname).toBe("/events");
+});
+
+test("Cancel on the edit form, then Save in the dialog, lands on the event page, and Back goes on", async () => {
+  await fixture();
+  const fall = await fallCamp();
+  navigate("/events");
+  navigate(`/events/${fall}`);
+  mount();
+  const user = userEvent.setup();
+
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.clear(screen.getByLabelText("Event"));
+  await user.type(screen.getByLabelText("Event"), "Winter Camp");
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(location.pathname).toBe(`/events/${fall}`));
+  expect(await screen.findByText("Winter Camp")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(location.pathname).toBe("/events");
 });

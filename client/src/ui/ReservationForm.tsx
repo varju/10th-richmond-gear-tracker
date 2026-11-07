@@ -10,7 +10,7 @@ import {
   type ReservationInput,
   updateReservation,
 } from "../lib/reservations";
-import { navigate } from "../lib/router";
+import { back, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { guard, useUnsaved } from "../lib/unsaved";
 import { useWide } from "../lib/wide";
@@ -96,9 +96,9 @@ export function ReservationForm({ store, id, from }: Props) {
 
   const complete = values.event.trim() !== "" && values.starts !== "" && values.ends !== "";
   const dirty = JSON.stringify(values) !== JSON.stringify(start);
-  useUnsaved(dirty, { save, canSave: complete });
+  useUnsaved(dirty, { save: async () => (await persist()) !== null, canSave: complete });
 
-  const back = id ? `/events/${id}` : "/events";
+  const backTo = id ? `/events/${id}` : "/events";
   const near = nearby(state, values, id);
   const eventSuggestions = eventOpen ? typedEvents(store, values.event) : [];
 
@@ -112,28 +112,35 @@ export function ReservationForm({ store, id, from }: Props) {
     setEventOpen(false);
   }
 
-  async function save(): Promise<boolean> {
-    if (!complete) return false;
+  /** Writes the event and answers its id, or null when it could not be saved. */
+  async function persist(): Promise<string | null> {
+    if (!complete) return null;
     if (values.ends < values.starts) {
       setError("It ends before it starts.");
       setFault("ends");
-      return false;
+      return null;
     }
     // Blocked here, on this device's state (FR-RES-05). Two devices offline can both save; the page names the clash.
     const clashes = conflicts(state, values, id);
     if (clashes.length > 0) {
       setError(`Already reserved for ${clashes.map((c) => `${c.event} (${c.detail})`).join("; ")}.`);
-      return false;
+      return null;
     }
     setSaving(true);
     try {
-      const target = id ?? (await createReservation(store, values));
-      if (id) await updateReservation(store, id, values);
-      navigate(`/events/${target}`, true);
-      return true;
+      if (!id) return await createReservation(store, values);
+      await updateReservation(store, id, values);
+      return id;
     } finally {
       setSaving(false);
     }
+  }
+
+  async function save(): Promise<void> {
+    const target = await persist();
+    if (target === null) return;
+    if (id) back(backTo);
+    else navigate(`/events/${target}`, true);
   }
 
   const results: Row[] = query.trim()
@@ -249,7 +256,7 @@ export function ReservationForm({ store, id, from }: Props) {
           <button className="primary" type="button" onClick={() => void save()} disabled={saving || !complete}>
             Save
           </button>
-          <button type="button" onClick={() => guard(() => navigate(back))}>
+          <button type="button" onClick={() => guard(() => back(backTo))}>
             Cancel
           </button>
         </>

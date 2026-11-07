@@ -337,6 +337,7 @@ test("two camps saved on two devices are named against each other on the page (F
 });
 
 test("Edit opens the form with the reservation in it and saves changed fields only", async () => {
+  navigate(`/events/${fall}`);
   navigate(`/events/${fall}/edit`);
   renderInShell(<ReservationForm store={store} id={fall} />);
   expect(screen.getByLabelText("Event")).toHaveValue("Fall Camp");

@@ -70,6 +70,8 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
   // When each item was last moved here; a decode within RESCAN_MS of that is the camera still on the sticker.
   const moved = useRef(new Map<string, number>());
   const scanner = useRef<Scanner | null>(null);
+  // A replacement sticker binds once; the camera can read again before the screen has gone.
+  const bound = useRef(false);
   // The first check-out of a session asks its event (FR-OUT-05); a reservation's session has the reservation's (FR-RES-03).
   const packing: Session | undefined = booked ? { event: booked.event, reservation_id: booked.id } : undefined;
   const me = store.meta.user?.id;
@@ -110,18 +112,21 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
         if (itemId) await seen(store, itemId);
         return showCard(itemId);
       }
+      if (bound.current) return;
       confirmRead();
       flashRead("read");
       if (status !== "unassigned") {
         const owner = resolveItem(store.state, codeOf(store.state, id)?.item_id ?? "");
         return say(`That code is already on ${nameOf(store.state, owner)}`);
       }
+      bound.current = true;
       try {
         await bindCode(store, id, forItem);
       } catch (e) {
+        bound.current = false;
         return say(e instanceof Error ? e.message : "Could not bind the code");
       }
-      navigate(`/items/${forItem}`, true);
+      back(`/items/${forItem}`);
     },
     [store, forItem, say, flashRead],
   );
