@@ -4,7 +4,11 @@ __pycache__/
 .venv/
 *.egg-info/
 .pytest_cache/
+/coverage/
+.coverage
 .ruff_cache/
+
+/client/coverage/
 
 # Written beside the database by `make serve`.
 logs/

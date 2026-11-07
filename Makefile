@@ -1,6 +1,6 @@
 DB ?= gear.db
 
-.PHONY: setup test lint fmt migrate audit check client-install client-test client-build e2e serve ios image scan deploy logs start-over
+.PHONY: setup test lint fmt migrate audit check client-install client-test client-build e2e serve ios image scan deploy logs start-over coverage
 
 setup:
 	./bin/setup
@@ -40,6 +40,11 @@ e2e: client-build
 # The API with the built client in front of it, as deployed.
 serve: client-build
 	uv run gear-serve --db $(DB) --static client/dist
+
+# Line and branch coverage of the server and client unit tests, not the browser tests. Reports only.
+coverage:
+	uv run pytest --cov --cov-report=term-missing:skip-covered --cov-report=html:coverage/python
+	cd client && npx vitest run --coverage
 
 check: lint test client-test
 

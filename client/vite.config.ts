@@ -158,5 +158,11 @@ export default defineConfig({
     environment: "happy-dom",
     setupFiles: ["src/test-setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      include: ["src/**"],
+      exclude: ["**/*.test.*", "**/*TestKit.*", "src/test-setup.ts", "**/*.d.ts"],
+      reporter: ["text-summary", ["text", { skipFull: true }], "json-summary", "html"],
+    },
   },
 });

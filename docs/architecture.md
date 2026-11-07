@@ -999,6 +999,9 @@ Use a file, never `:memory:`. An in-memory database silently ignores `journal_mo
 [Why not a sync framework](#why-not-a-sync-framework). They are data, not code, so they cost almost nothing in either
 place, and they are the only thing keeping the two replays honest (NFR-MAINT-04).
 
+`make coverage` reports line and branch coverage for the server and client unit tests, not the browser tests. HTML lands
+in `coverage/python` and `client/coverage`. It reports only; nothing fails on low coverage.
+
 ### Browser tests
 
 These are the ones that cost seconds rather than milliseconds: a service worker, a real browser, and an offline toggle.

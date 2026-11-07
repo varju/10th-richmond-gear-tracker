@@ -31,6 +31,7 @@ dev = [
     "httpx2>=2.12.0",
     "aiosmtpd>=1.4.6",
     "pdfplumber>=0.11.10",
+    "pytest-cov>=7.1.0",
 ]
 
 [build-system]
@@ -51,3 +52,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.coverage.run]
+source = ["src/gear_tracker"]
+branch = true
