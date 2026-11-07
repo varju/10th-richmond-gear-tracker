@@ -8,7 +8,7 @@ import { aliases, isPool, item, type Item, poolCounts, poolLots } from "./invent
 import * as notes from "./notes";
 import type { Log } from "./record";
 import { eventNameKey, tidyName } from "./calendar";
-import { addExtra, plannedFor } from "./reservations";
+import { addExtra, extendToToday, makeEventToday, plannedFor, removeItem, reservation } from "./reservations";
 import { cleanerKey, type Movement, type Note, type ReplayEvent, replayOrder, type State } from "./replay";
 import { eventAsked, setSessionEvent } from "./session";
 import type { MoveSession, Store } from "./store";
@@ -47,13 +47,22 @@ function current(store: Store, itemId: string): Item {
 }
 
 /**
- * A plain check-out under an event's name belongs to that event when one is planned (FR-OUT-45). The
- * reservation is stamped on the move, and the gear joins its list once the move is made.
+ * A plain check-out under an event's name belongs to that event when one is planned (FR-OUT-45); when
+ * none is, one is made for today (FR-RES-38). The reservation is stamped on the move, and the gear
+ * joins its list once the move is made.
  */
-function planned(store: Store, options: { event?: string; reservation_id?: string; packing?: boolean }) {
+async function planned(store: Store, options: { event?: string; reservation_id?: string; packing?: boolean }) {
   if (options.reservation_id || options.packing) return { id: options.reservation_id ?? null, extra: false };
-  const r = plannedFor(store.state, options.event, () => store.now());
-  return { id: r?.id ?? null, extra: !!r };
+  const name = options.event ? tidyName(options.event) : "";
+  if (!name) return { id: null, extra: false };
+  const r = plannedFor(store.state, name, () => store.now());
+  return { id: r?.id ?? (await makeEventToday(store, name)), extra: true };
+}
+
+/** The gear joins the reservation's list, and an ended reservation runs to today (FR-RES-39). */
+async function join(store: Store, reservationId: string, itemId: string) {
+  await extendToToday(store, reservationId);
+  await addExtra(store, reservationId, itemId);
 }
 
 /** Every move goes through here. One given `session` keeps a running plain session going (FR-OUT-38). */
@@ -79,7 +88,7 @@ export async function checkOut(store: Store, itemId: string, options: MoveOption
   if (it.retired) throw new Error("retired items cannot be checked out");
   if (it.merged_into) throw new Error("merged into another item");
   if (it.status === "out") throw new Error("already out; transfer it instead");
-  const link = planned(store, options);
+  const link = await planned(store, options);
   const movement = await move(
     store,
     itemId,
@@ -92,7 +101,7 @@ export async function checkOut(store: Store, itemId: string, options: MoveOption
     options.note,
     options.packing ? undefined : { event: options.event?.trim() || null },
   );
-  if (link.extra && link.id) await addExtra(store, link.id, itemId);
+  if (link.extra && link.id) await join(store, link.id, itemId);
   return movement;
 }
 
@@ -135,7 +144,7 @@ export async function checkOutPool(store: Store, itemId: string, options: PoolCh
   const it = poolItem(store, itemId);
   if (it.retired) throw new Error("retired items cannot be checked out");
   if (!Number.isInteger(options.count) || options.count < 1) throw new Error("pick a count of at least 1");
-  const link = planned(store, options);
+  const link = await planned(store, options);
   const movement = await move(
     store,
     itemId,
@@ -149,7 +158,7 @@ export async function checkOutPool(store: Store, itemId: string, options: PoolCh
     options.note,
     options.packing ? undefined : { event: options.event?.trim() || null },
   );
-  if (link.extra && link.id) await addExtra(store, link.id, itemId);
+  if (link.extra && link.id) await join(store, link.id, itemId);
   return movement;
 }
 
@@ -352,7 +361,7 @@ export async function transfer(store: Store, itemId: string, options: TransferOp
       options.packing ? undefined : {},
     );
   }
-  const link = planned(store, options);
+  const link = await planned(store, options);
   const movement = await move(
     store,
     itemId,
@@ -366,7 +375,7 @@ export async function transfer(store: Store, itemId: string, options: TransferOp
     options.note,
     options.packing ? undefined : { event: options.event?.trim() || null },
   );
-  if (link.extra && link.id) await addExtra(store, link.id, itemId);
+  if (link.extra && link.id) await join(store, link.id, itemId);
   return movement;
 }
 
@@ -405,6 +414,38 @@ export async function correctEvent(
     actor_id: actor(store),
     payload: { movement_id: movementId, event: event?.trim() || null, reservation_id: reservationId ?? null },
   });
+}
+
+/**
+ * Put right the event the item is out under (FR-OUT-41). A move linked to a reservation relinks to the
+ * reservation of the new name, made for today when none takes it, as a check-out would (FR-RES-38).
+ * The old reservation keeps its dates, but loses the item when only this check-out added it to the
+ * list. Nothing is relinked for "no event", or for a move no reservation took.
+ */
+export async function changeEvent(store: Store, itemId: string, name: string | null) {
+  const it = current(store, itemId);
+  const m = it.movement as Movement | undefined;
+  if (it.status !== "out" || !m) throw new Error("only gear that is out has an event to correct");
+  const event = name ? tidyName(name) : "";
+  const old = typeof m.reservation_id === "string" ? m.reservation_id : null;
+  if (!old) return correctEvent(store, itemId, m.id, event || null);
+  const matched = event ? plannedFor(store.state, event, () => store.now())?.id : undefined;
+  const target = event ? matched ?? (await makeEventToday(store, event)) : null;
+  if (target === old) return;
+  const corrected = await correctEvent(store, itemId, m.id, event || null, target);
+  if (target) await join(store, target, itemId);
+  const before = reservation(store.state, old);
+  if (before?.items.includes(itemId) && addedBy(store, old, itemId, m.id)) await removeItem(store, old, itemId);
+  return corrected;
+}
+
+/** Whether the item joined the reservation's list after the check-out, so only that check-out put it there. */
+function addedBy(store: Store, reservationId: string, itemId: string, movementId: string): boolean {
+  const checkout = store.known.find((e) => e.id === movementId);
+  if (!checkout) return false;
+  return store
+    .eventsFor("reservation", reservationId)
+    .some((e) => e.type === "item_added" && e.payload.item_id === itemId && replayOrder(e, checkout) > 0);
 }
 
 /**

@@ -620,6 +620,16 @@ loses nothing, and two phones packing one camp agree as soon as they have synced
 it checked out for the reservation counts, except one the reservation names, which is its own line. Finishing the
 session records nothing either: the reservation is a plan, and the movements are the record.
 
+A check-out under an event name that no reservation takes records a `created` reservation for today first, on the device
+and offline (FR-RES-38), and the move links to it. It happens in the check-out itself, so a typed name, a calendar
+suggestion and the last one used all behave the same, and no replay rule is involved. A check-out that joins a
+reservation which ended in the last seven days with its gear still out appends an ordinary `field_changed` on `ends`
+(FR-RES-39), unless the new end date would clash with another reservation. Two phones offline may each create one of the
+same name; the two stay. Correcting the event of such a check-out (FR-OUT-41) appends an `event_corrected` that names
+the new reservation, found or made the same way (FR-RES-40), and an `item_removed` on the old one when its `item_added`
+follows the check-out in replay order, so only what the check-out added is taken back. The assistant's `check_out` and
+`correct_event` do the same. Older app builds still make unplanned events, so the next paragraph stays.
+
 An event with gear out under it and no reservation can become one (FR-RES-28). The event names match as the suggestions
 do (FR-RES-26). The day an item went out is the first check-out since its last return, read from the log, since a
 transfer moves `since` on; past the log's reach, the current movement's day. An item is left out if it packs a live

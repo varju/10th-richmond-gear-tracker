@@ -23,7 +23,7 @@ from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import TextContent
 
-from gear_tracker import accounts, assistant, derived, events, notify
+from gear_tracker import accounts, assistant, derived, events, notify, views
 from gear_tracker.app import create_app
 from gear_tracker.db import open_db
 from gear_tracker.errors import ApiError, BadRequest, Conflict, Forbidden, NotFound
@@ -533,7 +533,7 @@ def test_delete_ticket_takes_an_untouched_ticket_of_your_own_off_every_list(db_p
 
 
 def test_a_write_is_an_ordinary_event_from_the_assistant_device(db_path, tools, who):
-    assistant.check_out(tools["stove"], event="Fall Camp")
+    assistant.check_out(tools["stove"])
 
     movement = [e for e in logged(db_path) if e["type"] == "checked_out"]
     assert len(movement) == 1
@@ -1702,10 +1702,17 @@ def test_link_out_to_reservation_corrects_the_movement_and_adds_the_item(db_path
     assert assistant.link_out_to_reservation(rid, stove)["corrected"] is False
 
 
+def _out_unplanned(db_path, item_id, event, count):
+    """Gear out under an event name with no reservation, as an older app build records it."""
+    payload = {"holder_id": ALICE, "event": event, "count": count, "reservation_id": None}
+    with open_db(db_path) as conn:
+        events.append_server(conn, ALICE, "item", item_id, "checked_out", payload, now=long_ago())
+
+
 def test_link_out_to_reservation_takes_a_pools_counts_under_that_event(db_path, tools, pool_id):
     rid = assistant.create_reservation(**FALL)["reservation_id"]
-    assistant.check_out(pool_id, count=4, event=FALL["event"])
-    assistant.check_out(pool_id, count=2, event="Meeting")
+    _out_unplanned(db_path, pool_id, FALL["event"], 4)
+    _out_unplanned(db_path, pool_id, "Meeting", 2)
 
     assert assistant.link_out_to_reservation(rid, pool_id)["corrected"] is True
 
@@ -1722,16 +1729,16 @@ def test_link_out_to_reservation_takes_a_pools_counts_under_that_event(db_path, 
 
 def test_a_pools_line_stays_at_what_is_packed_after_a_return_or_a_send_home(db_path, tools, pool_id):
     rid = assistant.create_reservation(**FALL)["reservation_id"]
-    assistant.check_out(pool_id, count=4, event=FALL["event"])
+    _out_unplanned(db_path, pool_id, FALL["event"], 4)
     assistant.link_out_to_reservation(rid, pool_id)
 
     assistant.check_in(pool_id, count=2)
-    assistant.check_out(pool_id, count=2, event=FALL["event"])
+    _out_unplanned(db_path, pool_id, FALL["event"], 2)
     assistant.link_out_to_reservation(rid, pool_id)
     assert entity(db_path, "reservation", rid)["generics"] == [{"item_id": pool_id, "quantity": 4}]
 
     assistant.send_home_to_clean(pool_id, "Smith", 2)
-    assistant.check_out(pool_id, count=2, event=FALL["event"])
+    _out_unplanned(db_path, pool_id, FALL["event"], 2)
     assistant.link_out_to_reservation(rid, pool_id)
     assert entity(db_path, "reservation", rid)["generics"] == [{"item_id": pool_id, "quantity": 4}]
 
@@ -1934,18 +1941,45 @@ def test_notes_are_added_corrected_and_deleted(tools):
 def test_the_event_gear_is_out_under_is_corrected(db_path, tools):
     with pytest.raises(BadRequest, match="only gear that is out"):
         assistant.correct_event(tools["stove"], event="x")
-    assistant.check_out(tools["stove"], event="Fall Camp")
+    _out_unplanned(db_path, tools["stove"], "Fall Camp", None)
     assistant.correct_event(tools["stove"], event="Winter Camp")
     assert entity(db_path, "item", tools["stove"])["movement"]["event"] == "Winter Camp"
     assert assistant.get_item(tools["stove"])["history"][0]["event"] == "Winter Camp"
 
 
-def test_gear_packed_for_a_reservation_is_linked_not_corrected(db_path, tools):
-    camp = assistant.create_reservation("Fall Camp", "2099-10-02", "2099-10-04", items=[tools["stove"]])
-    assistant.check_out(tools["stove"], event="Fall Camp", reservation_id=camp["reservation_id"])
-    with pytest.raises(BadRequest, match="packed for a reservation"):
-        assistant.correct_event(tools["stove"], event="Winter Camp")
-    assert entity(db_path, "item", tools["stove"])["movement"]["reservation_id"] == camp["reservation_id"]
+def test_correcting_linked_gear_relinks_it_and_drops_what_only_the_check_out_added(db_path, tools):
+    today = views.today(events.now_ms())
+    assistant.check_out(tools["stove"], event="Fall Cmap")
+    [typo] = _reservations_named(db_path, "Fall Cmap")
+    assert typo["items"] == [tools["stove"]]
+
+    assistant.correct_event(tools["stove"], event="Fall  Camp")
+    [fixed] = _reservations_named(db_path, "Fall Camp")
+    assert (fixed["starts"], fixed["ends"]) == (today, today)
+    assert fixed["items"] == [tools["stove"]]
+    movement = entity(db_path, "item", tools["stove"])["movement"]
+    assert (movement["event"], movement["reservation_id"]) == ("Fall Camp", fixed["id"])
+    [typo] = _reservations_named(db_path, "Fall Cmap")
+    assert typo["items"] == [] and (typo["starts"], typo["ends"]) == (today, today)
+
+    assistant.correct_event(tools["stove"], event="fall camp")  # the same event: nothing to do
+    assert len(_reservations_named(db_path, "Fall Camp")) == 1
+
+
+def test_correcting_linked_gear_keeps_what_was_planned_and_joins_a_matching_reservation(db_path, tools):
+    today = views.today(events.now_ms())
+    camp = assistant.create_reservation("Fall Camp", today, today, items=[tools["stove"]])["reservation_id"]
+    winter = assistant.create_reservation("Winter Camp", today, today)["reservation_id"]
+    assistant.check_out(tools["stove"], event="Fall Camp", reservation_id=camp)
+
+    assistant.correct_event(tools["stove"], event="Winter Camp")
+    assert entity(db_path, "item", tools["stove"])["movement"]["reservation_id"] == winter
+    assert entity(db_path, "reservation", winter)["items"] == [tools["stove"]]
+    assert entity(db_path, "reservation", camp)["items"] == [tools["stove"]]
+
+    assistant.correct_event(tools["stove"], event=None)
+    movement = entity(db_path, "item", tools["stove"])["movement"]
+    assert (movement["event"], movement["reservation_id"]) == (None, None)
 
 
 def test_a_pool_comes_back_from_someone_else(db_path, tools, pool_id, bob):
@@ -2288,3 +2322,140 @@ def test_a_person_home_takes_no_shelf_and_is_not_missing_one(db_path, tools):
     assert entity(db_path, "item", tools["stove"])["sub_location"] == "shelf 1"
     with pytest.raises(NotFound, match="list_members"):
         assistant.update_item(tools["stove"], assistant.ItemFields(home_user_id="nobody"))
+
+
+def _reservations_named(db_path, event):
+    with open_db(db_path) as conn:
+        state = derived.snapshot(conn)
+    return [r for r in views.reservations(state) if r["event"] == event]
+
+
+def test_check_out_under_a_new_event_makes_a_reservation_for_today(db_path, tools):
+    today = views.today(events.now_ms())
+    assistant.check_out(tools["stove"], event="Fall Camp")
+    assistant.check_out(tools["t1"], event="fall  camp")
+
+    [made] = _reservations_named(db_path, "Fall Camp")
+    assert (made["starts"], made["ends"]) == (today, today)
+    assert made["items"] == [tools["stove"], tools["t1"]]
+    assert entity(db_path, "item", tools["stove"])["movement"]["reservation_id"] == made["id"]
+    assert entity(db_path, "item", tools["t1"])["movement"]["reservation_id"] == made["id"]
+
+
+def test_check_out_without_an_event_or_with_a_reservation_id_makes_none(db_path, tools):
+    assistant.check_out(tools["stove"])
+    packing = assistant.create_reservation("Other", "2999-01-01", "2999-01-02")["reservation_id"]
+    assistant.check_out(tools["t1"], event="Fall Camp", reservation_id=packing)
+    assert _reservations_named(db_path, "Fall Camp") == []
+
+
+def test_check_out_of_a_pool_gives_the_reservation_its_count(db_path, tools, pool_id):
+    assistant.check_out(pool_id, count=4, event="Fall Camp")
+    assistant.check_out(pool_id, count=2, event="Fall Camp")
+    [made] = _reservations_named(db_path, "Fall Camp")
+    assert made["generics"] == [{"item_id": pool_id, "quantity": 6}]
+
+
+def test_a_later_check_out_moves_an_ended_events_end_date_out(db_path, tools, monkeypatch):
+    first = events.now_ms() - 3 * 86_400_000
+    monkeypatch.setattr(assistant, "now_ms", lambda: first)
+    assistant.check_out(tools["stove"], event="Fall Camp")
+    monkeypatch.undo()
+
+    today = views.today(events.now_ms())
+    assistant.check_out(tools["t1"], event="Fall Camp")
+    [made] = _reservations_named(db_path, "Fall Camp")
+    assert made["ends"] == today
+    assert made["items"] == [tools["stove"], tools["t1"]]
+
+    # Nothing out under it any more: the name makes a new reservation instead.
+    assistant.check_in(tools["stove"])
+    assistant.check_in(tools["t1"])
+    far = events.now_ms() + 30 * 86_400_000
+    monkeypatch.setattr(assistant, "now_ms", lambda: far)
+    assistant.check_out(tools["t2"], event="Fall Camp")
+    assert len(_reservations_named(db_path, "Fall Camp")) == 2
+
+
+def _days_ago(monkeypatch, days):
+    then = events.now_ms() - days * 86_400_000
+    monkeypatch.setattr(assistant, "now_ms", lambda: then)
+
+
+def test_a_stray_tent_from_last_year_does_not_keep_an_old_event_open(db_path, tools, monkeypatch):
+    _days_ago(monkeypatch, 400)
+    assistant.check_out(tools["stove"], event="Fall Camp")
+    monkeypatch.undo()
+
+    assistant.check_out(tools["t1"], event="Fall Camp")
+    old, new = sorted(_reservations_named(db_path, "Fall Camp"), key=lambda r: r["ends"])
+    assert entity(db_path, "item", tools["t1"])["movement"]["reservation_id"] == new["id"]
+    assert old["ends"] < new["ends"] and old["items"] == [tools["stove"]]
+
+
+def test_the_latest_ended_event_with_gear_out_wins(db_path, tools):
+    def day(ago):
+        return views.today(events.now_ms() - ago * 86_400_000)
+
+    older = assistant.create_reservation("Fall Camp", day(8), day(5))["reservation_id"]
+    newer = assistant.create_reservation("Fall Camp", day(4), day(2))["reservation_id"]
+    assistant.check_out(tools["stove"], event="Fall Camp", reservation_id=older)
+    assistant.check_out(tools["t1"], event="Fall Camp", reservation_id=newer)
+
+    assistant.check_out(tools["t2"], event="Fall Camp")
+    assert entity(db_path, "item", tools["t2"])["movement"]["reservation_id"] == newer
+    assert entity(db_path, "reservation", newer)["ends"] == day(0)
+    assert entity(db_path, "reservation", older)["ends"] == day(5)
+
+
+def test_the_end_date_stays_put_when_it_would_clash_but_the_gear_joins(db_path, tools, monkeypatch):
+    _days_ago(monkeypatch, 3)
+    assistant.check_out(tools["stove"], event="Fall Camp")
+    monkeypatch.undo()
+    today = views.today(events.now_ms())
+    assistant.create_reservation("Other", today, today, items=[tools["stove"]])
+
+    assistant.check_out(tools["t1"], event="Fall Camp")
+    [camp] = _reservations_named(db_path, "Fall Camp")
+    assert camp["ends"] < today
+    assert camp["items"] == [tools["stove"], tools["t1"]]
+    assert entity(db_path, "item", tools["t1"])["movement"]["reservation_id"] == camp["id"]
+
+
+def test_a_unit_counts_against_its_generics_line_and_a_named_item_is_not_added_again(db_path, tools):
+    today = views.today(events.now_ms())
+    assistant.create_reservation(
+        "Fall Camp",
+        today,
+        today,
+        items=[tools["stove"]],
+        generics=[assistant.GenericLine(item_id=tools["tents"], quantity=1)],
+    )
+    assistant.check_out(tools["stove"], event="Fall Camp")
+    assistant.check_out(tools["t1"], event="Fall Camp")
+    [camp] = _reservations_named(db_path, "Fall Camp")
+    assert camp["items"] == [tools["stove"]]
+    assert camp["generics"] == [{"item_id": tools["tents"], "quantity": 1}]
+
+    assistant.check_out(tools["t2"], event="Fall Camp")
+    [camp] = _reservations_named(db_path, "Fall Camp")
+    assert camp["items"] == [tools["stove"]]
+    assert camp["generics"] == [{"item_id": tools["tents"], "quantity": 2}]
+    assert [e["type"] for e in logged(db_path)].count("item_added") == 0
+
+
+def test_gear_at_a_cleaners_home_keeps_an_ended_event_joinable(db_path, tools, monkeypatch):
+    _days_ago(monkeypatch, 3)
+    assistant.check_out(tools["stove"], event="Fall Camp")
+    monkeypatch.undo()
+    assistant.send_home_to_clean(tools["stove"], "Smith")
+
+    assistant.check_out(tools["t1"], event="Fall Camp")
+    [camp] = _reservations_named(db_path, "Fall Camp")
+    assert entity(db_path, "item", tools["t1"])["movement"]["reservation_id"] == camp["id"]
+    assert camp["ends"] == views.today(events.now_ms())
+
+
+def test_the_event_name_is_tidied_before_a_reservation_is_made(db_path, tools):
+    assistant.check_out(tools["stove"], event="  Fall \t  Camp ")
+    assert len(_reservations_named(db_path, "Fall Camp")) == 1

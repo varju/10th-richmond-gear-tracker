@@ -38,13 +38,6 @@ changelog.
       easier to spot but saves none. Fewer taps means opening the scanner straight after adding, with a way to skip, or
       a second "Add a unit and scan" button. Scanning an unassigned sticker and picking **Add a unit of…** already does
       both in one step. Waiting on more user testing.
-- [ ] An event created during check-out should be a real event, the same as a precreated reservation. No "Add" step
-      afterwards. Today a typed name only labels moves; the Reservations screen later offers it (FR-RES-28) and one tap
-      makes the reservation (FR-RES-31). Plan: **Create** at check-out (session bar and first picker) makes the
-      reservation at once, offline, starting and ending today. A later check-out under the same name while its gear is
-      still out joins it and moves its end date out. Moves under it join its gear list. `check_out` in `assistant.py`
-      does the same. FR-RES-28 stays for older app builds until none make unplanned events. Two offline phones may each
-      make one of the same name; note it, do not solve it here.
 - [ ] Consumables, for example propane tanks that are refilled. An item can have an optional empty (base) weight.
       Check-in asks for the current weight and infers the amount left. "Unknown" must be allowed when there is no scale.
       Needs a requirement and an MCP tool in `assistant.py`. Plan: not propane-only; any item weighed to see what is

@@ -28,7 +28,7 @@ async function storedSessionAt() {
 test("check out, then in, with the session event and a note on each", async () => {
   const out = await mv.checkOut(store, tent, { event: "Spring camp", note: "to a patrol" });
   expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice" });
-  expect(out.payload).toEqual({ holder_id: "alice", event: "Spring camp", reservation_id: null });
+  expect(out.payload).toEqual({ holder_id: "alice", event: "Spring camp", reservation_id: expect.any(String) });
 
   await mv.checkIn(store, tent, { note: "muddy" });
   expect(item(store.state, tent)).toMatchObject({ status: "in", holder_id: null });
@@ -137,7 +137,7 @@ test("a merged duplicate's movements join the survivor's history, and it cannot 
 test("a pool moves by count: several people can have some out at once (FR-OUT-22, FR-OUT-24)", async () => {
   const bowls = await act.createPool(store, { name: "Bowls" }, 20);
   const out = await mv.checkOutPool(store, bowls, { count: 6, event: "Fall Camp" });
-  expect(out.payload).toEqual({ holder_id: "alice", count: 6, event: "Fall Camp", reservation_id: null });
+  expect(out.payload).toEqual({ holder_id: "alice", count: 6, event: "Fall Camp", reservation_id: expect.any(String) });
   expect(item(store.state, bowls)).toMatchObject({ pool_in: 14, pool_out: { alice: 6 } });
 
   await store.setMeta({ user: { id: "carol", name: "Carol", role: "user", active: true } });

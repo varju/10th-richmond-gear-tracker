@@ -55,7 +55,7 @@ import {
   writeOffPool,
   checkOutPool,
   correctCleaner,
-  correctEvent,
+  changeEvent,
   correctPoolCleaner,
   type HistoryEntry,
   recount,
@@ -92,10 +92,9 @@ interface Props {
   id: string;
 }
 
-/** The movement an item is out under when its event can be corrected here; null when it is in or packed for a reservation. */
+/** The movement an item is out under when its event can be corrected here; null when it is in. */
 function correctableMovement(it: Item | undefined): Movement | null {
-  if (!it || it.status !== "out" || !it.movement) return null;
-  return typeof it.movement.reservation_id === "string" ? null : it.movement;
+  return it && it.status === "out" && it.movement ? it.movement : null;
 }
 
 /** One item: what it is, where it lives, who has it, and what has happened to it (FR-INV-09). */
@@ -551,8 +550,8 @@ function OutCleaner({ store, it }: { store: Store; it: Item }) {
 
 /**
  * The event the item is out under, put right from here (FR-OUT-41) with the event question's
- * choices. Appended like a note edit (FR-OUT-16). A move packed for a reservation takes its event
- * from there, so it links to the reservation instead.
+ * choices. Appended like a note edit (FR-OUT-16). A move linked to a reservation relinks to the
+ * reservation of the new name.
  */
 function OutEvent({ store, it }: { store: Store; it: Item }) {
   const m = it.movement as Movement;
@@ -561,9 +560,14 @@ function OutEvent({ store, it }: { store: Store; it: Item }) {
 
   if (typeof m.reservation_id === "string") {
     return (
-      <button className="link" type="button" onClick={() => guard(() => navigate(`/events/${m.reservation_id}`))}>
-        {event ?? linked?.event ?? "Event"}
-      </button>
+      <>
+        <button className="link" type="button" onClick={() => guard(() => navigate(`/events/${m.reservation_id}`))}>
+          {event ?? linked?.event ?? "Event"}
+        </button>{" "}
+        <button type="button" className="minor" onClick={() => guard(() => navigate(`/items/${it.id}?change=1`))}>
+          Change event
+        </button>
+      </>
     );
   }
   return (
@@ -588,7 +592,7 @@ function ChangeOutEvent({ store, it }: { store: Store; it: Item }) {
     setBusy(true);
     setError(null);
     try {
-      if ((name ?? null) !== event) await correctEvent(store, it.id, m.id, name ?? null);
+      if ((name ?? null) !== event) await changeEvent(store, it.id, name ?? null);
       if (new URLSearchParams(location.search).has("change")) back(`/items/${it.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not change the event");

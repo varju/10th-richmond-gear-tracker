@@ -12,7 +12,7 @@ import { type FakeCamera, fakeCamera, stopFakeCamera } from "./scanTestKit";
 import { LeaveDialog } from "./LeaveDialog";
 import { alice, carol, renderInShell, seedUsers } from "./moveTestKit";
 import * as mv from "../lib/movement";
-import { todayIso } from "../lib/reservations";
+import { reservations, todayIso } from "../lib/reservations";
 import { SESSION_MS } from "../lib/session";
 import { RESCAN_MS, Scan } from "./Scan";
 
@@ -95,7 +95,7 @@ test("an assigned code shows the card; Check out asks the event, offering the la
   expect(await screen.findByText("Checked out · Tent 1 · Spring camp")).toHaveAttribute("role", "status");
   expect(screen.queryByRole("region", { name: "Tent 1" })).not.toBeInTheDocument();
   expect(pending("checked_out").map((e) => e.payload)).toEqual([
-    { holder_id: "alice", event: "Spring camp", reservation_id: null },
+    { holder_id: "alice", event: "Spring camp", reservation_id: expect.any(String) },
   ]);
   expect(item(store.state, tent)).toMatchObject({
     status: "out",
@@ -200,7 +200,7 @@ test("someone else's gear offers Return and Take over with no default; Take over
     holder_id: "carol",
     event: "Cub camp",
     supersedes: first.id,
-    reservation_id: null,
+    reservation_id: expect.any(String),
   });
   expect(item(store.state, tent)).toMatchObject({
     status: "out",
@@ -302,6 +302,23 @@ test("the session event is set once and persists on the device (FR-OUT-05)", asy
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
   expect(await screen.findByText(/^Checked out · Tent 1/)).toBeInTheDocument();
   expect(screen.queryByRole("region", { name: "Which event" })).not.toBeInTheDocument();
+});
+
+test("Create only sets the name; the first check-out under it makes the reservation for today (FR-RES-38)", async () => {
+  renderInShell(<Scan store={store} native />);
+  await user.click(screen.getByRole("button", { name: "Change" }));
+  await user.type(screen.getByLabelText("Event"), "Spring camp");
+  await user.click(screen.getByRole("button", { name: "Create" }));
+  await screen.findByText("Event: Spring camp");
+  expect(reservations(store.state)).toEqual([]);
+
+  await camera.scan("AAAAAAAAAA");
+  await user.click(within(card()).getByRole("button", { name: "Check out" }));
+  await screen.findByText(/^Checked out · Tent 1/);
+  const today = todayIso(store.now());
+  const [made] = reservations(store.state);
+  expect(made).toMatchObject({ event: "Spring camp", starts: today, ends: today, items: [tent] });
+  expect(item(store.state, tent)?.movement?.reservation_id).toBe(made?.id);
 });
 
 test("event suggestions sit on their own line, outside the session row, and a tap picks one (FR-RES-20)", async () => {
@@ -500,7 +517,8 @@ test("plain scanning never packs a reservation, even one an older build left in 
     within(screen.getByRole("region", { name: "Which event" })).getByRole("button", { name: /Fall Camp/ }),
   );
   await screen.findByText(/^Checked out · Tent 1/);
-  expect(pending("checked_out")[0]!.payload).toMatchObject({ event: "Fall Camp", reservation_id: null });
+  expect(pending("checked_out")[0]!.payload).toMatchObject({ event: "Fall Camp" });
+  expect(pending("checked_out")[0]!.payload.reservation_id).not.toBe("r-fall");
   expect(store.meta.session_reservation_id).toBeUndefined();
 });
 

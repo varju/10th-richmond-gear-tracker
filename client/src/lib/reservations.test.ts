@@ -7,6 +7,7 @@ import { openDb } from "./db";
 import * as mv from "./movement";
 import * as res from "./reservations";
 import { Store } from "./store";
+import { checkOutUnplanned } from "./unplannedTestKit";
 
 let store: Store;
 let clock = 1_000;
@@ -334,7 +335,7 @@ test("remaining is what is not yet out under the reservation, by home; a generic
 
   await mv.checkOut(store, f.t1, { event: "Fall Camp", reservation_id: id });
   await mv.checkOut(store, f.t2, { event: "Fall Camp", reservation_id: id });
-  await mv.checkOut(store, f.stove, { event: "Other trip" }); // out, but not for us
+  await checkOutUnplanned(store, f.stove, "Other trip"); // out, but not for us
   rem = res.remaining(store.state, r);
   expect(rem.items.map(shown)).toEqual(["Stove", "Tarp"]);
   // #1 is named, so it is its own line; only #2 counts toward the generic.
@@ -467,7 +468,7 @@ test("gear that left before the plan did is linked, not moved (FR-RES-17, S-RES-
   // Thursday: three tents out with no event set.
   await mv.checkOut(store, f.t1);
   await mv.checkOut(store, f.t2);
-  await mv.checkOut(store, f.stove, { event: "Somebody else's trip" });
+  await checkOutUnplanned(store, f.stove, "Somebody else's trip");
   const id = await res.createReservation(store, {
     ...fall,
     items: [f.t1, f.stove],
@@ -505,7 +506,7 @@ test("gear that left before the plan did is linked, not moved (FR-RES-17, S-RES-
 
 test("the history shows a corrected event, and the original check-out stands (FR-OUT-16)", async () => {
   const f = await fixture();
-  const out = await mv.checkOut(store, f.t1, { event: "Thursday" });
+  const out = await checkOutUnplanned(store, f.t1, "Thursday");
   await mv.correctEvent(store, f.t1, out.id, "Fall Camp");
   expect(mv.history(store, f.t1).map((h) => [h.id, h.event])).toEqual([[out.id, "Fall Camp"]]);
   expect(store.pending.find((e) => e.id === out.id)?.payload).toEqual({
@@ -547,10 +548,10 @@ const calendar = (starts: string, ends: string) =>
 test("gear out under an event with no reservation is offered, one row per event (FR-RES-28)", async () => {
   const f = await fixture();
   clock = Date.UTC(2026, 9, 9, 18); // 2026-10-09 in Vancouver
-  await mv.checkOut(store, f.t1, { event: "Apple Day" });
+  await checkOutUnplanned(store, f.t1, "Apple Day");
   clock = Date.UTC(2026, 9, 10, 18);
-  await mv.checkOut(store, f.stove, { event: "  apple   day " });
-  await mv.checkOut(store, f.tarp, { event: "Fall Camp" });
+  await checkOutUnplanned(store, f.stove, "  apple   day ");
+  await checkOutUnplanned(store, f.tarp, "Fall Camp");
   await mv.checkOut(store, f.t2); // no event: nothing to name a reservation after
   const now = Date.UTC(2026, 9, 12, 18);
 
@@ -572,7 +573,7 @@ test("gear out under an event with no reservation is offered, one row per event 
 test("a calendar event of that name gives the dates if it covers the first day out or starts within a week of it (FR-RES-32)", async () => {
   const f = await fixture();
   clock = Date.UTC(2026, 9, 9, 18);
-  await mv.checkOut(store, f.t1, { event: "Apple Day" });
+  await checkOutUnplanned(store, f.t1, "Apple Day");
   const now = Date.UTC(2026, 9, 12, 18);
 
   await calendar("2026-10-08", "2026-10-13");
@@ -590,11 +591,11 @@ test("a calendar event of that name gives the dates if it covers the first day o
 test("gear still out from last year under the same name is its own row (FR-RES-28)", async () => {
   const f = await fixture();
   clock = Date.UTC(2025, 9, 3, 18);
-  await mv.checkOut(store, f.t1, { event: "Fall Camp" });
+  await checkOutUnplanned(store, f.t1, "Fall Camp");
   clock = Date.UTC(2025, 9, 10, 18); // seven days on: the same trip
-  await mv.checkOut(store, f.t2, { event: "Fall Camp" });
+  await checkOutUnplanned(store, f.t2, "Fall Camp");
   clock = Date.UTC(2026, 9, 10, 18);
-  await mv.checkOut(store, f.tarp, { event: "Fall Camp" });
+  await checkOutUnplanned(store, f.tarp, "Fall Camp");
 
   expect(rows(Date.UTC(2026, 9, 12, 18))).toEqual([
     ["Fall Camp", "2025-10-03", "2026-10-12", ["4-person tent #1", "4-person tent #2"]],
@@ -605,15 +606,22 @@ test("gear still out from last year under the same name is its own row (FR-RES-2
 test("a transfer does not move the day the gear went out (FR-RES-28)", async () => {
   const f = await fixture();
   clock = Date.UTC(2026, 9, 1, 18);
-  await mv.checkOut(store, f.t1, { event: "Apple Day" });
+  await checkOutUnplanned(store, f.t1, "Apple Day");
   clock = Date.UTC(2026, 9, 10, 18);
-  await mv.transfer(store, f.t1, { to: "bob", event: "Apple Day" });
+  const first = inv.item(store.state, f.t1)!.movement!;
+  await store.record({
+    entity_type: "item",
+    entity_id: f.t1,
+    type: "checked_out",
+    actor_id: "alice",
+    payload: { holder_id: "bob", event: "Apple Day", reservation_id: null, supersedes: first.id },
+  });
   expect(rows()[0]!.slice(1, 2)).toEqual(["2026-10-01"]);
 
   // Back in and out again starts a new time out.
   await mv.checkIn(store, f.t1);
   clock = Date.UTC(2026, 9, 11, 18);
-  await mv.checkOut(store, f.t1, { event: "Apple Day" });
+  await checkOutUnplanned(store, f.t1, "Apple Day");
   expect(rows()[0]!.slice(1, 2)).toEqual(["2026-10-11"]);
 });
 
@@ -638,8 +646,8 @@ test("gear and counts packing a reservation are not offered (FR-RES-28)", async 
 test("one tap makes the reservation and links each item to it, moving nothing (FR-RES-31)", async () => {
   const f = await fixture();
   clock = Date.UTC(2026, 9, 10, 18);
-  const out = await mv.checkOut(store, f.t1, { event: "Apple Day" });
-  await mv.checkOut(store, f.stove, { event: "apple day" });
+  const out = await checkOutUnplanned(store, f.t1, "Apple Day");
+  await checkOutUnplanned(store, f.stove, "apple day");
   const before = store.pending.length;
 
   const now = Date.UTC(2026, 9, 11, 18);
@@ -672,8 +680,8 @@ test("one tap makes the reservation and links each item to it, moving nothing (F
 test("an item that fails to link stays on the new reservation, unpacked, and is named (FR-RES-31)", async () => {
   const f = await fixture();
   clock = Date.UTC(2026, 9, 10, 18);
-  await mv.checkOut(store, f.t1, { event: "Apple Day" });
-  await mv.checkOut(store, f.stove, { event: "Apple Day" });
+  await checkOutUnplanned(store, f.t1, "Apple Day");
+  await checkOutUnplanned(store, f.stove, "Apple Day");
 
   // Returned on another tap while the reservation was being made.
   const making = res.reserveFromEvent(store, res.unplanned(store, clock)[0]!.key, clock);
@@ -691,8 +699,8 @@ test("an item that fails to link stays on the new reservation, unpacked, and is 
 test("when nothing links, the first reason comes back (FR-RES-31)", async () => {
   const f = await fixture();
   clock = Date.UTC(2026, 9, 10, 18);
-  await mv.checkOut(store, f.t1, { event: "Apple Day" });
-  await mv.checkOut(store, f.stove, { event: "Apple Day" });
+  await checkOutUnplanned(store, f.t1, "Apple Day");
+  await checkOutUnplanned(store, f.stove, "Apple Day");
   const making = res.reserveFromEvent(store, res.unplanned(store, clock)[0]!.key, clock);
   // Signed out once the reservation was recorded, before any link.
   delete store.meta.user;
@@ -702,7 +710,7 @@ test("when nothing links, the first reason comes back (FR-RES-31)", async () => 
 test("a counted stack out under an unplanned event is listed with its count (FR-RES-28)", async () => {
   await fixture();
   const bowls = await act.createPool(store, { name: "Bowls" }, 10);
-  await mv.checkOutPool(store, bowls, { count: 4, event: "Cub camp" });
+  await checkOutUnplanned(store, bowls, "Cub camp", 4);
 
   const rows = res.unplanned(store, clock);
   expect(rows.map((r) => [r.event, r.items, r.pools.map((p) => [p.item.id, p.count])])).toEqual([
@@ -713,7 +721,7 @@ test("a counted stack out under an unplanned event is listed with its count (FR-
 test("one tap brings a counted stack in as a quantity line, already packed (FR-RES-31)", async () => {
   await fixture();
   const bowls = await act.createPool(store, { name: "Bowls" }, 10);
-  await mv.checkOutPool(store, bowls, { count: 4, event: "Cub camp" });
+  await checkOutUnplanned(store, bowls, "Cub camp", 4);
 
   const made = await res.reserveFromEvent(store, res.unplanned(store, clock)[0]!.key, clock);
   if (made.kind !== "made") throw new Error("not made");
@@ -727,8 +735,8 @@ test("one tap brings a counted stack in as a quantity line, already packed (FR-R
 test("It's with us takes only a pool's counts under the event's own name (FR-RES-17)", async () => {
   await fixture();
   const bowls = await act.createPool(store, { name: "Bowls" }, 10);
-  await mv.checkOutPool(store, bowls, { count: 4, event: "Fall Camp" });
-  await mv.checkOutPool(store, bowls, { count: 2, event: "Meeting" });
+  await checkOutUnplanned(store, bowls, "Fall Camp", 4);
+  await checkOutUnplanned(store, bowls, "Meeting", 2);
   const id = await res.createReservation(store, { ...fall, items: [], generics: [] });
   const r = res.reservation(store.state, id)!;
   expect(res.outElsewhere(store.state, r).map((it) => it.id)).toEqual([bowls]);
@@ -745,9 +753,9 @@ test("Add links only its own row's counts, leaving last year's row as it was (FR
   await fixture();
   const bowls = await act.createPool(store, { name: "Bowls" }, 10);
   clock = Date.UTC(2025, 9, 10, 18);
-  await mv.checkOutPool(store, bowls, { count: 3, event: "Fall Camp" });
+  await checkOutUnplanned(store, bowls, "Fall Camp", 3);
   clock = Date.UTC(2026, 9, 10, 18);
-  await mv.checkOutPool(store, bowls, { count: 4, event: "Fall Camp" });
+  await checkOutUnplanned(store, bowls, "Fall Camp", 4);
 
   const rows = res.unplanned(store, clock);
   expect(rows.map((r) => r.pools.map((p) => p.count))).toEqual([[3], [4]]);
@@ -779,10 +787,178 @@ test("a check-out under a planned event's name links to it and joins its list (F
   expect(inv.item(store.state, f.tarp)!.movement).toMatchObject({ event: "fall camp", reservation_id: id });
   expect(res.reservation(store.state, id)?.items).toEqual([f.stove, f.tarp]);
 
-  // More than a week before it starts, the name alone links nothing.
+  // More than a week before it starts, the name alone does not link it: a reservation is made for today.
   clock = Date.UTC(2026, 8, 20, 18);
   await mv.checkOut(store, f.t1, { event: "Fall Camp" });
-  expect(inv.item(store.state, f.t1)!.movement).toMatchObject({ reservation_id: null });
+  const other = inv.item(store.state, f.t1)!.movement!.reservation_id as string;
+  expect(other).not.toBe(id);
+  expect(res.reservation(store.state, other)).toMatchObject({ starts: "2026-09-20", ends: "2026-09-20" });
+});
+
+const made = (event: string) => res.reservations(store.state).filter((r) => r.event === event);
+
+test("a check-out under a new event name makes a reservation for today, once (FR-RES-38)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2026, 9, 3, 18);
+  await mv.checkOut(store, f.tarp, { event: "  Fall   Camp " });
+  await mv.checkOut(store, f.stove, { event: "fall camp" });
+  const [r, ...rest] = made("Fall Camp");
+  expect(rest).toEqual([]);
+  expect(r).toMatchObject({ starts: "2026-10-03", ends: "2026-10-03", items: [f.tarp, f.stove] });
+  expect(inv.item(store.state, f.tarp)!.movement).toMatchObject({ reservation_id: r!.id });
+});
+
+test("a stack checked out under a new event name makes a reservation with its count (FR-RES-38)", async () => {
+  clock = Date.UTC(2026, 9, 3, 18);
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  await mv.checkOutPool(store, bowls, { count: 3, event: "Fall Camp" });
+  expect(made("Fall Camp")[0]!.generics).toEqual([{ item_id: bowls, quantity: 3 }]);
+});
+
+test("a check-out under an ended event's name, with its gear still out, moves its end date out (FR-RES-39)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2026, 9, 3, 18);
+  await mv.checkOut(store, f.tarp, { event: "Fall Camp" });
+  const id = made("Fall Camp")[0]!.id;
+
+  clock = Date.UTC(2026, 9, 6, 18);
+  await mv.checkOut(store, f.stove, { event: "Fall Camp" });
+  expect(made("Fall Camp")).toHaveLength(1);
+  expect(res.reservation(store.state, id)).toMatchObject({
+    starts: "2026-10-03",
+    ends: "2026-10-06",
+    items: [f.tarp, f.stove],
+  });
+
+  // Nothing of it is out any more: the name starts a new one.
+  await mv.checkIn(store, f.tarp);
+  await mv.checkIn(store, f.stove);
+  clock = Date.UTC(2026, 9, 20, 18);
+  await mv.checkOut(store, f.t1, { event: "Fall Camp" });
+  expect(inv.item(store.state, f.t1)!.movement!.reservation_id).not.toBe(id);
+  expect(res.reservation(store.state, id)!.ends).toBe("2026-10-06");
+});
+
+test("a stray tent from last year does not keep an old event open (FR-RES-39)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2026, 9, 3, 18);
+  await mv.checkOut(store, f.tarp, { event: "Fall Camp" });
+  const old = made("Fall Camp")[0]!.id;
+
+  clock = Date.UTC(2027, 9, 5, 18);
+  await mv.checkOut(store, f.t1, { event: "Fall Camp" });
+  expect(made("Fall Camp")).toHaveLength(2);
+  expect(inv.item(store.state, f.t1)!.movement!.reservation_id).not.toBe(old);
+  expect(res.reservation(store.state, old)!.ends).toBe("2026-10-03");
+});
+
+test("the latest ended event of that name with gear out wins (FR-RES-39)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2026, 9, 1, 18);
+  await mv.checkOut(store, f.tarp, { event: "Fall Camp" });
+  clock = Date.UTC(2026, 9, 9, 18);
+  await mv.checkOut(store, f.stove, { event: "Fall Camp" });
+  const [older, newer] = made("Fall Camp").sort((a, b) => a.ends.localeCompare(b.ends));
+  expect(older!.ends).toBe("2026-10-01");
+
+  clock = Date.UTC(2026, 9, 12, 18);
+  await mv.checkOut(store, f.t1, { event: "Fall Camp" });
+  expect(inv.item(store.state, f.t1)!.movement!.reservation_id).toBe(newer!.id);
+  expect(res.reservation(store.state, newer!.id)!.ends).toBe("2026-10-12");
+});
+
+test("the end date stays put when moving it out would clash with another event, but the gear still joins (FR-RES-39)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2026, 9, 3, 18);
+  await mv.checkOut(store, f.tarp, { event: "Fall Camp" });
+  const id = made("Fall Camp")[0]!.id;
+  await res.createReservation(store, {
+    event: "Other",
+    starts: "2026-10-05",
+    ends: "2026-10-08",
+    items: [f.tarp],
+    generics: [],
+  });
+
+  clock = Date.UTC(2026, 9, 6, 18);
+  await mv.checkOut(store, f.stove, { event: "Fall Camp" });
+  expect(inv.item(store.state, f.stove)!.movement).toMatchObject({ reservation_id: id });
+  expect(res.reservation(store.state, id)).toMatchObject({ ends: "2026-10-03", items: [f.tarp, f.stove] });
+});
+
+test("a stack still out keeps an ended event open to a later check-out (FR-RES-39)", async () => {
+  clock = Date.UTC(2026, 9, 3, 18);
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  await mv.checkOutPool(store, bowls, { count: 3, event: "Fall Camp" });
+  const id = made("Fall Camp")[0]!.id;
+
+  clock = Date.UTC(2026, 9, 5, 18);
+  await mv.checkOutPool(store, bowls, { count: 2, event: "Fall Camp" });
+  expect(made("Fall Camp")).toHaveLength(1);
+  expect(res.reservation(store.state, id)).toMatchObject({ ends: "2026-10-05" });
+  expect(res.reservation(store.state, id)!.generics[0]!.quantity).toBe(5);
+});
+
+test("gear at a cleaner's home keeps an ended event joinable (FR-RES-39)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2026, 9, 3, 18);
+  await mv.checkOut(store, f.stove, { event: "Fall Camp" });
+  const id = made("Fall Camp")[0]!.id;
+  await mv.sendItemHome(store, f.stove, { cleaner: "Smith" });
+
+  clock = Date.UTC(2026, 9, 5, 18);
+  await mv.checkOut(store, f.tarp, { event: "Fall Camp" });
+  expect(inv.item(store.state, f.tarp)!.movement).toMatchObject({ reservation_id: id });
+  expect(res.reservation(store.state, id)).toMatchObject({ ends: "2026-10-05" });
+});
+
+test("a check-out or transfer that is refused leaves no reservation behind (FR-RES-38)", async () => {
+  const f = await fixture();
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  await expect(mv.checkOutPool(store, bowls, { count: 0, event: "Fall Camp" })).rejects.toThrow();
+  await expect(mv.checkOut(store, f.tents, { event: "Fall Camp" })).rejects.toThrow();
+  await mv.checkOut(store, f.stove, { event: "Spring camp" });
+  await expect(mv.transfer(store, f.stove, { to: "alice", event: "Fall Camp" })).rejects.toThrow();
+  expect(made("Fall Camp")).toEqual([]);
+});
+
+test("correcting a linked check-out's event relinks it to the new name's reservation (FR-OUT-41, FR-RES-38)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2026, 9, 3, 18);
+  await mv.checkOut(store, f.stove, { event: "Fall Cmap" });
+  const typo = made("Fall Cmap")[0]!;
+
+  await mv.changeEvent(store, f.stove, "  Fall  Camp ");
+  const [fixed] = made("Fall Camp");
+  expect(fixed).toMatchObject({ starts: "2026-10-03", ends: "2026-10-03", items: [f.stove] });
+  expect(inv.item(store.state, f.stove)!.movement).toMatchObject({ event: "Fall Camp", reservation_id: fixed!.id });
+  // The old one keeps its dates and loses what only the check-out put there.
+  expect(res.reservation(store.state, typo.id)).toMatchObject({ starts: "2026-10-03", ends: "2026-10-03", items: [] });
+
+  await mv.changeEvent(store, f.stove, "fall camp");
+  expect(made("Fall Camp")).toHaveLength(1);
+});
+
+test("correcting keeps what was planned, joins a matching reservation, and no event unlinks (FR-OUT-41)", async () => {
+  const f = await fixture();
+  clock = Date.UTC(2026, 9, 1, 18);
+  const camp = await res.createReservation(store, { ...fall, items: [f.stove], generics: [] });
+  const other = await res.createReservation(store, {
+    event: "Winter camp",
+    starts: "2026-10-01",
+    ends: "2026-10-02",
+    items: [],
+    generics: [],
+  });
+  await mv.checkOut(store, f.stove, { event: "Fall Camp", reservation_id: camp });
+
+  await mv.changeEvent(store, f.stove, "Winter camp");
+  expect(inv.item(store.state, f.stove)!.movement).toMatchObject({ event: "Winter camp", reservation_id: other });
+  expect(res.reservation(store.state, other)!.items).toEqual([f.stove]);
+  expect(res.reservation(store.state, camp)!.items).toEqual([f.stove]);
+
+  await mv.changeEvent(store, f.stove, null);
+  expect(inv.item(store.state, f.stove)!.movement).toMatchObject({ event: null, reservation_id: null });
 });
 
 test("a stack's line does not grow when some come back and are packed again (FR-RES-13)", async () => {

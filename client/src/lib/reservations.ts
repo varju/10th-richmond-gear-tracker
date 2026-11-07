@@ -426,7 +426,8 @@ export function unlinkedLots(state: State, r: Reservation, itemId: string): Pool
 
 /**
  * The event a check-out under this name belongs to: a live reservation of that name, on its dates or
- * in the seven days before them, the window FR-RES-17 uses. Soonest first when several match.
+ * in the seven days before them, the window FR-RES-17 uses; else the latest one that ended in the
+ * last seven days with its gear still out (FR-RES-39). Soonest first when several match.
  */
 export function plannedFor(state: State, name: string | undefined | null, now: () => number): Reservation | undefined {
   const key = name ? eventNameKey(name) : "";
@@ -434,7 +435,47 @@ export function plannedFor(state: State, name: string | undefined | null, now: (
   const named = reservations(state).filter((r) => eventNameKey(r.event) === key);
   if (named.length === 0) return undefined;
   const today = todayIso(now());
-  return named.find((r) => shiftIso(r.starts, -7) <= today && today <= r.ends);
+  const current = named.find((r) => shiftIso(r.starts, -7) <= today && today <= r.ends);
+  if (current) return current;
+  const recent = named.filter((r) => r.ends < today && today <= shiftIso(r.ends, 7));
+  if (recent.length === 0) return undefined;
+  const out = idsWithGearOut(state);
+  return recent.filter((r) => out.has(r.id)).sort((a, b) => b.ends.localeCompare(a.ends))[0];
+}
+
+/** The reservations some gear is still out under; gear at a cleaner's home is still out. One pass over the items. */
+function idsWithGearOut(state: State): Set<string> {
+  const found = new Set<string>();
+  for (const it of movable(state)) {
+    if (it.status === "out" && typeof it.movement?.reservation_id === "string") found.add(it.movement.reservation_id);
+  }
+  for (const it of items(state)) {
+    if (!isPool(it)) continue;
+    for (const o of poolLots(it)) for (const l of o.lots) if (l.reservation_id) found.add(l.reservation_id);
+  }
+  return found;
+}
+
+/**
+ * A check-out joined this reservation after it ended: its end date moves out to today (FR-RES-39),
+ * unless that would clash with another reservation on the same gear (FR-RES-05).
+ */
+export async function extendToToday(store: Store, id: string): Promise<void> {
+  const r = reservation(store.state, id);
+  const today = todayIso(store.now());
+  if (!r || r.ends >= today) return;
+  const before = new Set(conflicts(store.state, r, id).map((c) => c.id));
+  if (conflicts(store.state, { ...r, ends: today }, id).some((c) => !before.has(c.id))) return;
+  await updateReservation(store, id, { ends: today });
+}
+
+/**
+ * A check-out under an event name no reservation takes makes one for today, today to today
+ * (FR-RES-38). Two phones offline may each make one of the same name; that is left as it is.
+ */
+export async function makeEventToday(store: Store, name: string): Promise<string> {
+  const today = todayIso(store.now());
+  return createReservation(store, { event: tidyName(name), starts: today, ends: today, items: [], generics: [] });
 }
 
 /** Gear that is out but not packing this reservation. What this camp can claim (FR-RES-17). */

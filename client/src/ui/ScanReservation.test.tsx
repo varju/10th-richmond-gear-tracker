@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
 import { item } from "../lib/inventory";
+import { checkOutUnplanned } from "../lib/unplannedTestKit";
 import * as mv from "../lib/movement";
 import * as res from "../lib/reservations";
 import { navigate } from "../lib/router";
@@ -137,7 +138,7 @@ test("a line never returned from the last trip names who has it; its tap offers 
 
 test("handing gear to someone else while packing does not pack it (FR-OUT-26, FR-RES-23)", async () => {
   await seedUsers(store, [alice, carol]);
-  await mv.checkOut(store, stove, { event: "Spring Camp" });
+  await checkOutUnplanned(store, stove, "Spring Camp");
   renderInShell(<Scan store={store} native />);
   await screen.findByText("Event: Fall Camp");
   await camera.scan("BBBBBBBBBB");

@@ -1681,6 +1681,108 @@ def set_notifications(categories: notify.Preferences) -> dict[str, Any]:
         return {"categories": saved, "mail_configured": mail.configured(conn)}
 
 
+def _reservation_for_check_out(state: dict[str, Any], event: str, today: str) -> dict[str, Any] | None:
+    """The live reservation of this name that a check-out joins: on its dates or the seven days before
+    them; else the latest one that ended in the last seven days with gear still out (FR-RES-39).
+    Mirrors plannedFor in reservations.ts."""
+    key = views.event_name_key(event)
+    named = [r for r in views.reservations(state) if views.event_name_key(r.get("event") or "") == key]
+    day = datetime.date.fromisoformat(today)
+    soon = (day + datetime.timedelta(days=7)).isoformat()
+    for r in named:
+        if r["starts"] <= soon and today <= r["ends"]:
+            return r
+    week_ago = (day - datetime.timedelta(days=7)).isoformat()
+    recent = [r for r in named if week_ago <= r["ends"] < today]
+    if not recent:
+        return None
+    out = _ids_with_gear_out(state)
+    open_ones = sorted((r for r in recent if r["id"] in out), key=lambda r: r["ends"], reverse=True)
+    return open_ones[0] if open_ones else None
+
+
+def _ids_with_gear_out(state: dict[str, Any]) -> set[str]:
+    """The reservations some gear is still out under. One pass over the items."""
+    found: set[str] = set()
+    for it in views.items(state):
+        if views.is_pool(it):
+            found.update(
+                lot["reservation_id"] for out in views.pool_lots(it) for lot in out["lots"] if lot.get("reservation_id")
+            )
+        elif it.get("status") == "out" and (it.get("movement") or {}).get("reservation_id"):
+            found.add(it["movement"]["reservation_id"])
+    return found
+
+
+def _extra_gear_draft(
+    state: dict[str, Any], r: dict[str, Any], it: dict[str, Any], count: int | None
+) -> dict[str, Any] | None:
+    """What a check-out adds to the reservation's gear list, if anything. Mirrors extraChange in
+    reservations.ts (FR-RES-07): nothing when the item is named or fills a generic line with room."""
+    item_id = views.resolve_item(state, it["id"])
+    named = set(views.named_items(state, r))
+    if item_id in named:
+        return None
+    it = views.item(state, item_id) or it
+    if count is not None or views.is_pool(it):
+        line = next((g for g in r.get("generics") or [] if g["item_id"] == item_id), None)
+        taken = views.pool_packed(it, r["id"]) + (count or 0)
+        if taken > (line["quantity"] if line else 0):
+            return _draft("reservation", r["id"], "quantity_changed", {"item_id": item_id, "quantity": taken})
+        return None
+    line = (
+        next((g for g in r.get("generics") or [] if g["item_id"] == it.get("parent_id")), None)
+        if it.get("parent_id")
+        else None
+    )
+    if line is None:
+        return _draft("reservation", r["id"], "item_added", {"item_id": item_id})
+    done = 1 + sum(  # this check-out is not in the state yet
+        1
+        for u in views.units_of(state, line["item_id"])
+        if u["id"] not in named
+        and u.get("status") == "out"
+        and (u.get("movement") or {}).get("reservation_id") == r["id"]
+    )
+    if done > line["quantity"]:
+        return _draft(
+            "reservation", r["id"], "quantity_changed", {"item_id": line["item_id"], "quantity": line["quantity"] + 1}
+        )
+    return None
+
+
+def _join_event(
+    state: dict[str, Any],
+    it: dict[str, Any],
+    name: str,
+    count: int | None,
+    drafts: list[dict[str, Any]],
+    after: list[dict[str, Any]] | None = None,
+) -> str:
+    """Drafts that put a check-out under `name` on a reservation: made for today when none takes it, else
+    the matching one, its end date moved out to today unless that clashes (FR-RES-05), and given the
+    gear (FR-RES-38, FR-RES-39). Returns its id. The gear's line goes to `after` when given, so it
+    follows the move in the log as it does in the app."""
+    today = views.today(now_ms())
+    name = " ".join(name.split())
+    r: dict[str, Any] | None = _reservation_for_check_out(state, name, today)
+    if r is None:
+        reservation_id = new_ulid()
+        draft = _clean_draft({"event": name, "starts": today, "ends": today})
+        drafts.append(_draft("reservation", reservation_id, "created", draft))
+        r = {**draft, "id": reservation_id}
+    elif r["ends"] < today:
+        before = {c["id"] for c in clashes.conflicts(state, r, r["id"])}
+        if all(c["id"] in before for c in clashes.conflicts(state, {**r, "ends": today}, r["id"])):
+            drafts.append(
+                _draft("reservation", r["id"], "field_changed", {"field": "ends", "value": today, "old": r["ends"]})
+            )
+    extra = _extra_gear_draft(state, r, it, count)
+    if extra:
+        (drafts if after is None else after).append(extra)
+    return r["id"]
+
+
 def check_out(
     item_id: str,
     event: str | None = None,
@@ -1694,7 +1796,13 @@ def check_out(
 
     A pool (FR-INV-34) needs `count`; anything else refuses one (FR-MCP-08). Taking more than are
     in a pool warns, and is never blocked (FR-OUT-22). `reservation_id` says this packs that
-    reservation (FR-RES-02); without it the check-out counts towards no reservation's progress.
+    reservation (FR-RES-02).
+
+    An `event` without `reservation_id` joins the live reservation of that name, as a check-out in the
+    app does: the gear joins its list, and a reservation that ended in the last week with gear still out
+    runs on to today, unless that would clash with another (FR-RES-39). When none matches, a reservation
+    for today is made (FR-RES-38). Two devices offline may each make one of the same name; that is not
+    solved.
     """
     with _open() as (conn, who):
         state = _state(conn)
@@ -1713,17 +1821,22 @@ def check_out(
         if not pool and it.get("status") == "out":
             raise Conflict(f"already out with {views.user_name(state, it.get('holder_id'))}")
         movement_id = new_ulid()
+        name = (event or "").strip()
+        drafts: list[dict[str, Any]] = []
+        after: list[dict[str, Any]] = []
+        if name and reservation_id is None:
+            reservation_id = _join_event(state, it, name, count if pool else None, drafts, after)
         payload: dict[str, Any] = {
             "holder_id": who.user_id,
-            "event": (event or "").strip() or None,
+            "event": name or None,
             "reservation_id": reservation_id,
         }
         if pool:
             payload["count"] = count
-        drafts = [_draft("item", it["id"], "checked_out", payload, movement_id)]
+        drafts.append(_draft("item", it["id"], "checked_out", payload, movement_id))
         if note and note.strip():
             drafts.append(_draft("item", it["id"], "note_added", {"text": note.strip(), "movement_id": movement_id}))
-        _push(conn, who, drafts)
+        _push(conn, who, [*drafts, *after])
         out: dict[str, Any] = {"item_id": it["id"], "event": (event or "").strip() or None}
         if pool:
             out["count"] = count
@@ -2011,19 +2124,50 @@ def settle_conflict(item_id: str, outcome: Literal["back", "keep"], note: str | 
         return {"item_id": it["id"], "outcome": outcome}
 
 
+def _added_only_by(conn: sqlite3.Connection, reservation_id: str, item_id: str, movement_id: str) -> bool:
+    """Whether the item joined the reservation's list after the check-out. Mirrors addedBy in movement.ts."""
+    checkout = events.get(conn, movement_id)
+    if checkout is None:
+        return False
+    key = (checkout.effective_at, checkout.device_id, checkout.device_seq)
+    return any(
+        e.type == "item_added"
+        and e.payload.get("item_id") == item_id
+        and (e.effective_at, e.device_id, e.device_seq) > key
+        for e in events.in_replay_order(conn, "reservation", reservation_id)
+    )
+
+
 def correct_event(item_id: str, event: str | None = None) -> dict[str, Any]:
     """Put right the event the item is out under (FR-OUT-41, FR-RES-17). The check-out stays in the log as
-    it was. Gear packed for a reservation is not corrected this way; link_out_to_reservation moves it."""
+    it was.
+
+    Gear linked to a reservation relinks to the reservation of the new name, made for today when none
+    takes it, as a check-out would (FR-RES-38). The old reservation keeps its dates, and loses the item
+    only if that check-out was what added it to the list. link_out_to_reservation moves gear to a named
+    reservation instead."""
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)
         movement = it.get("movement") or {}
         if it.get("status") != "out" or movement.get("type") != "checked_out":
             raise BadRequest("only gear that is out has an event to correct")
-        if movement.get("reservation_id"):
-            raise BadRequest("this is packed for a reservation; use link_out_to_reservation to move it")
-        payload = {"movement_id": movement["id"], "event": (event or "").strip() or None, "reservation_id": None}
-        _push(conn, who, [_draft("item", it["id"], "event_corrected", payload)])
+        name = " ".join((event or "").split())
+        old = movement.get("reservation_id")
+        drafts: list[dict[str, Any]] = []
+        target = _join_event(state, it, name, None, drafts) if old and name else None
+        if old and target == old:
+            return {"item_id": it["id"], "event": name}
+        payload: dict[str, Any] = {"movement_id": movement["id"], "event": name or None, "reservation_id": target}
+        drafts.append(_draft("item", it["id"], "event_corrected", payload))
+        before = views.reservation(state, old) if isinstance(old, str) else None
+        if (
+            before
+            and it["id"] in (before.get("items") or [])
+            and _added_only_by(conn, before["id"], it["id"], movement["id"])
+        ):
+            drafts.append(_draft("reservation", before["id"], "item_removed", {"item_id": it["id"]}))
+        _push(conn, who, drafts)
         return {"item_id": it["id"], "event": payload["event"]}
 
 

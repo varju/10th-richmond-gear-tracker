@@ -6,6 +6,10 @@ App changes since `ios-1.0.3-365` that reach iPhones only through the next relea
 
 What the app does differently.
 
+- Change event on gear linked to an event relinks it to the corrected name's event, making one for today if there is
+  none, and takes the gear off the old event's list if only that check-out added it.
+- A check-out under an event name that no reservation takes makes a reservation for today. A later check-out under its
+  name joins it, and moves its end date out to that day if it ended in the last week with gear still out.
 - A check-out under a planned event's name links to that event and joins its gear list.
 - Gear can be sent home to be cleaned by a named person, singly or by count from a stack. The name autocompletes, a
   return from a stack names whose share it is, and What is out shows the cleaner. **Back from cleaning** marks it back

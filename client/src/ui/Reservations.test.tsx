@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import * as act from "../lib/actions";
 import * as inv from "../lib/inventory";
+import { checkOutUnplanned } from "../lib/unplannedTestKit";
 import * as mv from "../lib/movement";
 import * as res from "../lib/reservations";
 import { IDBFactory } from "fake-indexeddb";
@@ -356,7 +357,7 @@ test("Edit opens the form with the reservation in it and saves changed fields on
 test("gear that is out under nothing is claimed from the page in one tap (FR-RES-17, S-RES-07)", async () => {
   const stove = await act.createItem(store, { name: "Stove" });
   const out = await mv.checkOut(store, t1); // Thursday, no event set
-  await mv.checkOut(store, stove, { event: "Somebody else's trip" });
+  await checkOutUnplanned(store, stove, "Somebody else's trip");
   navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
 
@@ -431,8 +432,8 @@ test("at a desk, It's with us sits at the end of its row; on a phone, under it",
 
 test("an event with gear out and no reservation becomes one in one tap, offline (FR-RES-28)", async () => {
   const stove = await act.createItem(store, { name: "Stove" });
-  await mv.checkOut(store, stove, { event: "Apple Day" });
-  await mv.checkOut(store, t2, { event: "apple day" });
+  await checkOutUnplanned(store, stove, "Apple Day");
+  await checkOutUnplanned(store, t2, "apple day");
   await store.setMeta({
     calendar_events: [{ uid: "e1", summary: "Apple Day", starts: "2025-08-31", ends: "2025-09-02", all_day: true }],
   });
@@ -452,7 +453,7 @@ test("an event with gear out and no reservation becomes one in one tap, offline 
 
 test("an event with only counted gear out is listed, and Add brings it in (FR-RES-28)", async () => {
   const bowls = await act.createPool(store, { name: "Bowls" }, 10);
-  await mv.checkOutPool(store, bowls, { count: 4, event: "Apple Day" });
+  await checkOutUnplanned(store, bowls, "Apple Day", 4);
   navigate("/events");
   renderInShell(<Reservations store={store} />, () => T0);
   expect(screen.getByText(/4 items out/)).toBeInTheDocument();
@@ -580,7 +581,7 @@ test("a cancelled reservation marks nothing packed and offers no filter (FR-RES-
 });
 
 test("gear out under the camp's name but not packing it is offered It's with us (FR-RES-17)", async () => {
-  await mv.checkOut(store, t1, { event: "Fall Camp" }); // a plain scan, no reservation
+  await checkOutUnplanned(store, t1, "Fall Camp"); // a plain scan, no reservation
   navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
   expect(screen.getByRole("button", { name: /^4-person tent #1/ })).toHaveTextContent("Not packed");
@@ -594,7 +595,7 @@ test("gear out under the camp's name but not packing it is offered It's with us 
 test("gear a reservation from an event could not link is named until it is linked (FR-RES-31)", async () => {
   const stove = await act.createItem(store, { name: "Stove" });
   await res.addItem(store, fall, stove);
-  await mv.checkOut(store, stove, { event: "Apple Day" });
+  await checkOutUnplanned(store, stove, "Apple Day");
   navigate(`/events/${fall}?unlinked=${stove}`);
   renderInShell(<ReservationPage store={store} id={fall} unlinked={stove} />, () => T0);
   expect(screen.getByRole("alert")).toHaveTextContent("Not linked: Stove.");
@@ -606,7 +607,7 @@ test("gear a reservation from an event could not link is named until it is linke
 test("when nothing linked, the page gives the reason instead (FR-RES-31)", async () => {
   const stove = await act.createItem(store, { name: "Stove" });
   await res.addItem(store, fall, stove);
-  await mv.checkOut(store, stove, { event: "Apple Day" });
+  await checkOutUnplanned(store, stove, "Apple Day");
   navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} unlinked={stove} why="not signed in" />, () => T0);
   expect(screen.getByRole("alert")).toHaveTextContent(/^not signed in$/);

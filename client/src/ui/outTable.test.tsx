@@ -7,6 +7,7 @@ import * as act from "../lib/actions";
 import { createApi, type ServerEvent } from "../lib/api";
 import { DAY_MS } from "../lib/clock";
 import { openDb } from "../lib/db";
+import { checkOutUnplanned } from "../lib/unplannedTestKit";
 import * as mv from "../lib/movement";
 import { navigate } from "../lib/router";
 import { Store } from "../lib/store";
@@ -62,7 +63,7 @@ async function fixture() {
   const bowls = await act.createPool(store, { name: "Bowls" }, 10);
 
   clock = T0 + 5 * DAY_MS;
-  await mv.checkOut(store, tent, { event: "Spring camp" });
+  await checkOutUnplanned(store, tent, "Spring camp");
   clock = T0 + 8 * DAY_MS;
   await mv.checkOut(store, stove);
 
@@ -150,8 +151,8 @@ test("a pool shows its event, one row per event (FR-RPT-11)", async () => {
   const { bowls } = await fixture();
   clock = T0 + 10 * DAY_MS;
   await store.setMeta({ user: { id: "u1", name: "Alice", role: "admin", active: true } });
-  await mv.checkOutPool(store, bowls, { count: 2, event: "Fall Camp" });
-  await mv.checkOutPool(store, bowls, { count: 1, event: "Meeting" });
+  await checkOutUnplanned(store, bowls, "Fall Camp", 2);
+  await checkOutUnplanned(store, bowls, "Meeting", 1);
   await mount();
 
   const bowlRows = rows()
@@ -167,7 +168,7 @@ test("the event filter keeps a pool's count under that event, and sorting keeps 
   const { bowls } = await fixture();
   clock = T0 + 10 * DAY_MS;
   await store.setMeta({ user: { id: "u1", name: "Alice", role: "admin", active: true } });
-  await mv.checkOutPool(store, bowls, { count: 2, event: "Spring camp" });
+  await checkOutUnplanned(store, bowls, "Spring camp", 2);
   await mount();
 
   await user.selectOptions(screen.getByRole("combobox", { name: "Event" }), "Spring camp");
