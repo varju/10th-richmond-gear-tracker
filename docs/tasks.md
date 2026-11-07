@@ -20,11 +20,6 @@ changelog.
 - [ ] Question to consider: A canoe trailer is both storage and an item that can be checked out. Today its contents
       still show as in at the yard when it is out. Deferred until the group has used pools for PFD bags.
 
-## UI
-
-- [ ] Other phone number boxes (NewItem, item edit, reservation, settings) still cannot close the number pad. They save
-      from the header, so a form there would add Return-to-save. Decide whether that is wanted.
-
 ## User testing feedback
 
 - [ ] Adding a unit: offer to assign a QR code straight away. It is the likely next step and costs too many clicks now.
