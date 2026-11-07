@@ -330,6 +330,9 @@ function RemainingList({
   const [error, setError] = useState<string | null>(null);
   const [showPacked, setShowPacked] = useState(false);
   const rem = remaining(store.state, booked);
+  const short = rem.generics.filter((g) => g.done < g.quantity);
+  const full = rem.generics.filter((g) => g.done >= g.quantity);
+  const anyPacked = rem.packed.length > 0 || full.length > 0;
 
   async function take(id: string, name: string) {
     setError(null);
@@ -371,26 +374,31 @@ function RemainingList({
           })}
         </ul>
       )}
-      {rem.generics.length > 0 && (
+      {short.length > 0 && (
         <ul className="names">
-          {rem.generics.map((g) => (
-            <li key={g.generic.id} className={g.done >= g.quantity ? "muted" : ""}>
+          {short.map((g) => (
+            <li key={g.generic.id}>
               {g.done} of {g.quantity} × {g.generic.name}
             </li>
           ))}
         </ul>
       )}
-      {rem.packed.length > 0 && (
+      {anyPacked && (
         <label className="check">
           <input type="checkbox" checked={showPacked} onChange={(e) => setShowPacked(e.target.checked)} />
           <span>Show packed</span>
         </label>
       )}
-      {showPacked && rem.packed.length > 0 && (
+      {showPacked && anyPacked && (
         <ul className="names">
           {rem.packed.map((it) => (
             <li key={it.id} className="muted">
               ✓ {displayName(store.state, it)}
+            </li>
+          ))}
+          {full.map((g) => (
+            <li key={g.generic.id} className="muted">
+              ✓ {g.quantity} × {g.generic.name}
             </li>
           ))}
         </ul>

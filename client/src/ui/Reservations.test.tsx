@@ -407,7 +407,7 @@ test("the page marks each line packed or not, and Not packed hides the packed on
 
   await user.click(screen.getByRole("checkbox", { name: "Not packed" }));
   expect(tent()).toBeInTheDocument();
-  expect(screen.getByText("1 × 4-person tent — 1 packed")).toBeInTheDocument();
+  expect(screen.getByText("1 × 4-person tent — packed")).toBeInTheDocument();
 });
 
 test("at a desk, It's with us sits at the end of its row; on a phone, under it", async () => {
@@ -503,7 +503,7 @@ test("a pool line on the page is checked out by count, and ticks off (FR-RES-13)
   expect(count).toHaveValue(4);
   await user.click(screen.getByRole("button", { name: "Check out Bowls" }));
 
-  await waitFor(() => expect(screen.getByText("4 × Bowls — 4 packed")).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText("4 × Bowls — packed")).toBeInTheDocument());
   expect(inv.poolCounts(inv.item(store.state, bowls)!)).toMatchObject({
     owned: 10,
     in: 6,

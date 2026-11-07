@@ -99,19 +99,6 @@ item. A note on a move is also easily mixed up with **Send home to clean**, whic
 
 **Deferred because:** decide with [Fewer buttons for beginners](#fewer-buttons-for-beginners).
 
-## Quieter packed lines when packing
-
-On the pack list (`RemainingList` in `client/src/ui/Scan.tsx`), a fully packed generic still shows as "8 of 8 × Tent".
-Next to "Everything is packed" it reads as clutter.
-
-**Considered:**
-
-- Show "of N" only while short: "3 of 8 × Tent". A full line moves under **Show packed** with the packed items, as "✓ 8
-  × Tent". FR-RES-21 already hides packed lines; today it misses full generics.
-- The event page's list (`ReservationPage.tsx`) says "8 × Tent — 8 packed". Same rule there: drop "— 8 packed" once
-  full, or leave it, since **Not packed** already hides full lines.
-- Client change: a `docs/pending-ios.md` line under Functional.
-
 ## Refuse a pool check-out of more than are in
 
 Checking out more of a pool than are in says "Only 3 in. This takes it into overdraw." (`ItemPage.tsx`). The word means

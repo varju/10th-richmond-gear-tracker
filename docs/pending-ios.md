@@ -62,6 +62,8 @@ What the app does differently.
   own styling while asking.
 - The weight prompt on a return closes, instead of failing, if a sync takes away the item's capacity.
 - **Weigh** on a weighed item's page takes **Unknown**, which clears what is left.
+- On the pack list, a fully packed line moves under **Show packed** instead of reading "8 of 8". An event's list says "—
+  packed" once a line is full.
 
 ## Chores
 

@@ -174,12 +174,13 @@ test("a unit that overflows a full generic line raises the line instead (FR-RES-
   // One tent fills the line that was asked for; the list does not grow.
   await mv.checkOut(store, tent2, { event: "Fall Camp", reservation_id: fall });
   await res.addExtra(store, fall, tent2);
-  await waitFor(() => expect(remaining()).toHaveTextContent("1 of 1 × 4-person tent"));
+  await user.click(await within(remaining()).findByRole("checkbox", { name: "Show packed" }));
+  await waitFor(() => expect(remaining()).toHaveTextContent("✓ 1 × 4-person tent"));
   expect(res.reservation(store.state, fall)?.generics).toEqual([{ item_id: tents, quantity: 1 }]);
 
   await mv.checkOut(store, tent3, { event: "Fall Camp", reservation_id: fall });
   await res.addExtra(store, fall, tent3);
-  await waitFor(() => expect(remaining()).toHaveTextContent("2 of 2 × 4-person tent"));
+  await waitFor(() => expect(remaining()).toHaveTextContent("✓ 2 × 4-person tent"));
   expect(res.reservation(store.state, fall)?.items).toEqual([tarp, tent]);
 });
 
@@ -202,10 +203,15 @@ test("checking an item off the list silences its bound code", async () => {
   expect(screen.queryByRole("region", { name: "4-person tent #1" })).not.toBeInTheDocument();
 });
 
-test("any unit of a reserved generic counts toward it", async () => {
+test("any unit of a reserved generic counts toward it; a full line waits under Show packed (FR-RES-21)", async () => {
   renderInShell(<Scan store={store} native />);
+  expect(remaining()).toHaveTextContent("0 of 1 × 4-person tent");
   await mv.checkOut(store, tent2, { event: "Fall Camp", reservation_id: fall });
-  await waitFor(() => expect(remaining()).toHaveTextContent("1 of 1 × 4-person tent"));
+  await waitFor(() => expect(remaining()).not.toHaveTextContent("× 4-person tent"));
+  const show = within(remaining()).getByRole("checkbox", { name: "Show packed" });
+  expect(show).not.toBeChecked();
+  await user.click(show);
+  expect(remaining()).toHaveTextContent("✓ 1 × 4-person tent");
 });
 
 test("Finish with items unscanned names them; Finish anyway leaves (FR-RES-04)", async () => {

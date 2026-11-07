@@ -231,7 +231,7 @@ export function ReservationPage({
                 <li className="row">
                   <span className="name">
                     {g.quantity} × {nameOf(state, g.generic.id)}
-                    {!r.cancelled && ` — ${g.done} packed`}
+                    {!r.cancelled && (g.done >= g.quantity ? " — packed" : ` — ${g.done} packed`)}
                   </span>
                   {pool && !r.cancelled && g.done < g.quantity && !g.generic.retired && (
                     <PoolCheckout store={store} r={r} itemId={g.generic.id} max={g.quantity - g.done} />
