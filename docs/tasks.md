@@ -43,7 +43,7 @@ changelog.
       10 s) suggest the scanner; most check-outs are one at a time. Rare: recount 8, photos 7, notes 5, cleaning 5.
       Everyday on an item page: check out, check in, change event, add QR code. Rare: edit, recount, photos, notes, send
       home to clean, merge, several of these, single item, counted stack, duplicate, delete. The log says little about
-      Users yet, so step 3 matters: watch two or three Scouters before tidying.
+      Users yet, so step 3 matters: watch two or three Scouters before tidying. Deferred until then.
 
 - [ ] Consider how we could make better use of the pictures. e.g. could the picture be shown during checkout so you can
       be sure you have the right item? If there's only one picture, should that be the item's thumbnail? Deferred.
