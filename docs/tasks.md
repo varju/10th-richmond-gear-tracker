@@ -82,3 +82,19 @@ Show a photo during check-out to confirm the right item, and use a lone photo as
 falls back to its generic's), shown on the scan card, the item page and the list. Needs FR-INV-11 reworded.
 
 **Deferred because:** photos are online only (FR-INV-11), so a photo at check-out in a locker would mostly fail to load.
+
+## One Add note and one Report a problem on an item page
+
+An item page has two of each. The move buttons (shared with the scan card) offer **Add note**, which rides on the next
+move, and **Report a problem**, which raises a ticket on the next move. The page has its own **Report a problem** under
+Repairs and **Add note** in History. People expect the page's ones and find no way to save the others without moving the
+item. A note on a move is also easily mixed up with **Send home to clean**, which names who has it.
+
+**Considered:**
+
+- Hide the move buttons' pair on the item page; the scan card keeps it. A note on a move is then scan card only.
+- Give the pair **Save without moving** on the item page, as the scan card has (FR-OUT-27). Tried and shelved: it left
+  two of each.
+- Whether a note on a move earns its place at all, now that gear sent home names the family (FR-OUT-46).
+
+**Deferred because:** decide with [Fewer buttons for beginners](#fewer-buttons-for-beginners).
