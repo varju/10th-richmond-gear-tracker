@@ -439,9 +439,9 @@ export function ItemPage({ store, id }: Props) {
             <dl className="facts">
               <dt>Bought</dt>
               <dd>{boughtLabel(it) || "—"}</dd>
-              <dt>Code</dt>
+              <dt>QR code</dt>
               <dd>
-                {current ? <code>{current.id}</code> : "none"}
+                {current ? "Yes" : "None"}
                 {codes.length > 1 && <span className="muted"> · {codes.length - 1} replaced</span>}
               </dd>
               <dt>Added</dt>
@@ -1569,9 +1569,9 @@ function PoolPage({
         <dl className="facts">
           <dt>Bought</dt>
           <dd>{boughtLabel(it) || "—"}</dd>
-          <dt>Code</dt>
+          <dt>QR code</dt>
           <dd>
-            {current ? <code>{current.id}</code> : "none"}
+            {current ? "Yes" : "None"}
             {codes.length > 1 && <span className="muted"> · {codes.length - 1} replaced</span>}
           </dd>
           <dt>Added</dt>

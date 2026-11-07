@@ -37,7 +37,7 @@ test("an unassigned code offers create or bind (FR-TAG-07)", async () => {
   navigate("/g/CCCCCCCCCC");
   render(<CodeLanding store={store} code="CCCCCCCCCC" />);
   expect(screen.getByRole("heading", { name: "New code" })).toBeInTheDocument();
-  expect(screen.getByText("CCCCCCCCCC")).toBeInTheDocument();
+  expect(screen.queryByText(/CCCCCCCCCC/)).not.toBeInTheDocument(); // FR-TAG-17
 
   await user.click(screen.getByRole("button", { name: "Put it on an existing item" }));
   expect(location.pathname).toBe("/bind/CCCCCCCCCC");
@@ -52,7 +52,7 @@ test("a code this device has never heard of says so and suggests a sync", async 
   navigate("/g/ZZZZZZZZZZ", true);
   render(<CodeLanding store={store} code="ZZZZZZZZZZ" />);
   expect(screen.getByRole("heading", { name: "Not one of our codes" })).toBeInTheDocument();
-  expect(screen.getByText("ZZZZZZZZZZ")).toBeInTheDocument();
+  expect(screen.queryByText(/ZZZZZZZZZZ/)).not.toBeInTheDocument();
   expect(screen.getByText(/sync first/)).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Scan again" }));
   expect(location.pathname).toBe("/scan");

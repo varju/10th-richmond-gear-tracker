@@ -145,8 +145,7 @@ function targetBox(video: HTMLVideoElement, target?: () => Element | null): Box 
 /** Why the camera could not start, in words a person can act on. */
 export function cameraError(e: unknown): string {
   const name = e instanceof Error ? e.name : "";
-  if (name === "NotAllowedError")
-    return "Camera access was refused. Allow it in the browser settings, or type the code.";
+  if (name === "NotAllowedError") return "Camera access was refused. Allow it in the browser settings.";
   if (name === "NotFoundError" || name === "OverconstrainedError") return "No camera found on this device.";
   if (name === "NotReadableError") return "The camera is in use by another app.";
   return "The camera could not start.";
@@ -365,7 +364,7 @@ const PLUGIN = "ScannerPlugin";
 export const NATIVE_CLASS = "native-scan";
 /** What a native start rejects with when the web scanner would not do better, and what to say. */
 const REFUSED: Record<string, string> = {
-  denied: "Camera access was refused. Allow it for this app in Settings, or type the code.",
+  denied: "Camera access was refused. Allow it for this app in Settings.",
   nocamera: cameraError(new DOMException("", "NotFoundError")),
 };
 

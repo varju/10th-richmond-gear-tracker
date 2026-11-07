@@ -9,6 +9,7 @@ import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { unsaved } from "../lib/unsaved";
 import { openStore, printCodes } from "./codeTestKit";
+import { type FakeCamera, fakeCamera, stopFakeCamera } from "./scanTestKit";
 import { alice, renderInShell, seedUsers } from "./moveTestKit";
 import { Scan } from "./Scan";
 
@@ -17,7 +18,10 @@ import { Scan } from "./Scan";
 let store: Store;
 let bowls: string;
 
+let camera: FakeCamera;
+
 beforeEach(async () => {
+  camera = fakeCamera();
   store = await openStore();
   await seedUsers(store, [alice]);
   await printCodes(store, ["AAAAAAAAAA"]);
@@ -25,23 +29,19 @@ beforeEach(async () => {
   await act.bindCode(store, "AAAAAAAAAA", bowls);
 });
 
-afterEach(() => unsaved.cancel());
+afterEach(() => {
+  unsaved.cancel();
+  stopFakeCamera();
+});
 
 const user = userEvent.setup();
-
-async function typeCode(text: string) {
-  const open = screen.queryByRole("button", { name: "Type a code instead" });
-  if (open) await user.click(open);
-  await user.type(screen.getByLabelText("Code or URL"), text);
-  await user.click(screen.getByRole("button", { name: "Go" }));
-}
 
 const card = () => screen.getByRole("region", { name: "Bowls" });
 
 test("scanning a pool's code offers Check out, Return, and Recount, like its own page (FR-OUT-25)", async () => {
   await mv.checkOutPool(store, bowls, { count: 4 });
-  renderInShell(<Scan store={store} />);
-  await typeCode("AAAAAAAAAA");
+  renderInShell(<Scan store={store} native />);
+  await camera.scan("AAAAAAAAAA");
   await waitFor(() => expect(card()).toBeInTheDocument());
   expect(within(card()).getByRole("button", { name: "Check out" })).toBeInTheDocument();
   expect(within(card()).getByRole("button", { name: "Recount" })).toBeInTheDocument();
@@ -53,8 +53,8 @@ test("scanning a pool's code offers Check out, Return, and Recount, like its own
 });
 
 test("a pool's first check-out of a session asks the event, then opens the count field at 1 (FR-OUT-05, FR-OUT-25)", async () => {
-  renderInShell(<Scan store={store} />);
-  await typeCode("AAAAAAAAAA");
+  renderInShell(<Scan store={store} native />);
+  await camera.scan("AAAAAAAAAA");
   await waitFor(() => expect(card()).toBeInTheDocument());
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
   await user.click(
@@ -70,8 +70,8 @@ test("a pool's first check-out of a session asks the event, then opens the count
 });
 
 test("scanning a pool's code takes the whole stack with All (FR-OUT-42)", async () => {
-  renderInShell(<Scan store={store} />);
-  await typeCode("AAAAAAAAAA");
+  renderInShell(<Scan store={store} native />);
+  await camera.scan("AAAAAAAAAA");
   await waitFor(() => expect(card()).toBeInTheDocument());
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
   await user.click(
@@ -91,8 +91,8 @@ async function openPacking(generics: { item_id: string; quantity: number }[]) {
   });
   navigate(`/events/${fall}`);
   navigate(`/scan?reservation=${fall}`);
-  renderInShell(<Scan store={store} />);
-  await typeCode("AAAAAAAAAA");
+  renderInShell(<Scan store={store} native />);
+  await camera.scan("AAAAAAAAAA");
   await waitFor(() => expect(card()).toBeInTheDocument());
   // A reservation's session has its event already (FR-RES-03): no question.
   await user.click(within(card()).getByRole("button", { name: "Check out" }));

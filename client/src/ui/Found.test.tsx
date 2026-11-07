@@ -59,8 +59,7 @@ test("each report names the item, quotes the finder, and can be resolved", async
   );
   // T0 is UTC midnight of 2025-09-01, which is still 2025-08-31 evening in Vancouver (NFR-DATA-12).
   expect(first).toHaveTextContent("Reported 2025-08-31");
-  // A sticker not yet on anything is named by its code.
-  expect(screen.getByRole("region", { name: "BBBBBBBBBB" })).toHaveTextContent("left in the car park");
+  expect(screen.getByRole("region", { name: "Sticker not on any item" })).toHaveTextContent("left in the car park");
 
   await user.click(within(first).getByRole("button", { name: "Resolve" }));
   await waitFor(() => expect(screen.queryByRole("region", { name: "Tent 1" })).not.toBeInTheDocument());
@@ -71,8 +70,17 @@ test("each report names the item, quotes the finder, and can be resolved", async
     payload: { field: "resolved", value: true },
   });
 
-  await user.click(within(screen.getByRole("region", { name: "BBBBBBBBBB" })).getByRole("button", { name: "Resolve" }));
+  await user.click(
+    within(screen.getByRole("region", { name: "Sticker not on any item" })).getByRole("button", { name: "Resolve" }),
+  );
   expect(await screen.findByText("No found reports.")).toBeInTheDocument();
+});
+
+test("a report on an item since deleted says so", async () => {
+  await act.deleteItem(store, tent);
+  await store.receive([reported("01000000000000000000000001", "by the gate", tent)], 1);
+  render(<Found store={store} />);
+  expect(screen.getByRole("region", { name: "Deleted item" })).toHaveTextContent("by the gate");
 });
 
 test("the item's name opens the item", async () => {

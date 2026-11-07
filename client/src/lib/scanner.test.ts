@@ -11,6 +11,7 @@ import {
   vibrate,
 } from "./scanner";
 import { setVisibility } from "./visibilityTestKit";
+import { stopWebCamera, stubFrames } from "../ui/scanTestKit";
 
 // The decoder, held open so a test chooses when a frame's read lands and what it says, or that it fails.
 const decoder = vi.hoisted(() => ({ pending: [] as ((read: string | Error) => void)[] }));
@@ -406,14 +407,8 @@ test("a reopen that fails because the app was left meanwhile is not reported", a
 
 test("a frame read from before the app was left is dropped", async () => {
   fakeCamera();
+  stubFrames();
   const video = document.createElement("video");
-  Object.defineProperty(video, "readyState", { value: 4, configurable: true });
-  Object.defineProperty(video, "videoWidth", { value: 1280, configurable: true });
-  Object.defineProperty(video, "videoHeight", { value: 720, configurable: true });
-  const fakeCtx = { drawImage() {}, getImageData: () => ({}) };
-  const getContext = vi
-    .spyOn(HTMLCanvasElement.prototype, "getContext")
-    .mockReturnValue(fakeCtx as unknown as CanvasRenderingContext2D);
   decoder.pending.length = 0;
   const onCode = vi.fn();
   const onError = vi.fn();
@@ -438,7 +433,7 @@ test("a frame read from before the app was left is dropped", async () => {
     await vi.waitFor(() => expect(onCode).toHaveBeenCalledWith("BBBBBBBBBB"));
   } finally {
     scanner.stop();
-    getContext.mockRestore();
+    stopWebCamera();
   }
 });
 

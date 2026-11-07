@@ -138,11 +138,7 @@ export function NewItem({ store, code }: Props) {
           {saved}
         </p>
       )}
-      {code && (
-        <p className="notice">
-          Code <code>{code}</code> will go on this item.
-        </p>
-      )}
+      {code && <p className="notice">This QR code will go on this item.</p>}
       <ItemFields store={store} values={values} onChange={setValues} nameRef={nameRef} generic={several} />
       <label className="check">
         <input type="checkbox" checked={several} onChange={(e) => setSeveral(e.target.checked)} />
@@ -286,11 +282,7 @@ export function NewUnit({ store, parent, code }: Props & { parent: string }) {
       }
     >
       <h2 className="item-title">{displayName(state, generic)}</h2>
-      {code && (
-        <p className="notice">
-          Code <code>{code}</code> will go on this one.
-        </p>
-      )}
+      {code && <p className="notice">This QR code will go on this one.</p>}
       {error && (
         <p className="error" role="alert">
           {error}

@@ -146,8 +146,8 @@ function what(state: State, event: ReplayEvent): string {
   return label ? counted(label, event.payload) : event.type;
 }
 
-/** What the event happened to, by name. An id is no use to someone reading a log. */
-function on(state: State, event: ReplayEvent): string {
+/** What the event happened to, by name. An id is no use to someone reading a log. `bound`: a code's item at the time. */
+function on(state: State, event: ReplayEvent, bound: unknown): string {
   const id = event.entity_id;
   switch (event.entity_type) {
     case "item":
@@ -165,23 +165,32 @@ function on(state: State, event: ReplayEvent): string {
     case "found_report":
       return nameOf(state, String(state.found_report?.[id]?.item_id ?? ""));
     case "code":
-      return id;
+      return bound ? nameOf(state, String(bound)) : "QR code";
     default:
       return "";
   }
 }
 
-/** The server's answer, as lines to draw (FR-USR-24). It arrives newest first; that order is kept. */
+/**
+ * The server's answer, as lines to draw (FR-USR-24). It arrives newest first; that order is kept. A code's
+ * row names the item its latest earlier bind in this log put it on.
+ */
 export function entries(state: State, events: ReplayEvent[]): Entry[] {
-  return events.map((e) => ({
-    id: e.id,
-    at: e.effective_at,
-    actor_id: e.actor_id,
-    entity_type: e.entity_type,
-    entity_id: e.entity_id,
-    what: what(state, e),
-    on: on(state, e),
-  }));
+  const bound = new Map<string, unknown>();
+  const rows: Entry[] = [];
+  for (const e of [...events].reverse()) {
+    if (e.entity_type === "code" && e.type === "code_bound") bound.set(e.entity_id, e.payload.item_id);
+    rows.push({
+      id: e.id,
+      at: e.effective_at,
+      actor_id: e.actor_id,
+      entity_type: e.entity_type,
+      entity_id: e.entity_id,
+      what: what(state, e),
+      on: on(state, e, bound.get(e.entity_id)),
+    });
+  }
+  return rows.reverse();
 }
 
 /** Every kind of event the log holds, for the filter an Admin picks from. */

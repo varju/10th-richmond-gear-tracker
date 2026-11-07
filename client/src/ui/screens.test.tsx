@@ -1,7 +1,7 @@
 import { act as reactAct, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { IDBFactory } from "fake-indexeddb";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "../App";
 import * as act from "../lib/actions";
 import { createApi } from "../lib/api";
@@ -12,6 +12,17 @@ import * as rep from "../lib/repairs";
 import { navigate } from "../lib/router";
 import { Store } from "../lib/store";
 import { printCodes } from "./codeTestKit";
+import { stopWebCamera, webCamera } from "./scanTestKit";
+
+// The decoder, fed what the camera sees next.
+const decoder = vi.hoisted(() => ({ next: [] as string[] }));
+vi.mock("zxing-wasm/reader", () => ({
+  prepareZXingModule: () => {},
+  readBarcodes: async () => {
+    const text = decoder.next.shift();
+    return text ? [{ text }] : [];
+  },
+}));
 
 // The screens against a real store, with no server to talk to.
 const T0 = 1_756_684_800_000;
@@ -40,6 +51,11 @@ beforeEach(async () => {
   window.localStorage.clear();
   store = await Store.open(await openDb("test", new IDBFactory()), () => clock++);
   await store.setMeta({ token: "t", user: { id: "u1", name: "Alice", role: "admin", active: true }, cursor: 1 });
+});
+
+afterEach(() => {
+  decoder.next.length = 0;
+  stopWebCamera();
 });
 
 async function fixture() {
@@ -144,7 +160,7 @@ test("a new item with a code is created, bound, and the walk goes on", async () 
   navigate("/items/new?code=ABCDEFGH23");
   mount();
   const user = userEvent.setup();
-  expect(screen.getByText(/will go on this item/)).toHaveTextContent("ABCDEFGH23");
+  expect(screen.getByText("This QR code will go on this item.")).toBeInTheDocument();
   // Nothing is guessed: the home starts empty.
   expect(screen.getByLabelText("Home location")).toHaveValue("");
   expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
@@ -998,14 +1014,13 @@ test("back from an item returns to the what-is-out report", async () => {
 test("the scanner walk: an unassigned code, a new item, and back to where it started", async () => {
   await fixture();
   await printCodes(store, ["ABCDEFGH23"]);
+  const read = webCamera(decoder.next);
   mount();
   const user = userEvent.setup();
 
   await user.click(screen.getByRole("button", { name: "Scan" }));
-  await user.click(await screen.findByRole("button", { name: "Type a code instead" }));
-  await user.type(screen.getByLabelText("Code or URL"), "ABCDEFGH23");
-  await user.click(screen.getByRole("button", { name: "Go" }));
-  expect(location.pathname).toBe("/g/ABCDEFGH23");
+  await read("ABCDEFGH23");
+  await waitFor(() => expect(location.pathname).toBe("/g/ABCDEFGH23"));
 
   // The code screen is a junction, so it steps aside for the form.
   await user.click(await screen.findByRole("button", { name: "Create a new item" }));
@@ -1024,6 +1039,7 @@ test("the scanner walk: an unassigned code, a new item, and back to where it sta
 test("a replacement sticker: back from the item goes home, not through the scanner", async () => {
   const f = await fixture();
   await printCodes(store, ["ABCDEFGH23"]);
+  const read = webCamera(decoder.next);
   mount();
   const user = userEvent.setup();
 
@@ -1032,9 +1048,7 @@ test("a replacement sticker: back from the item goes home, not through the scann
   await user.click(screen.getByRole("button", { name: "Add QR code" }));
   expect(location.pathname + location.search).toBe(`/scan?for=${f.t1}`);
 
-  await user.click(await screen.findByRole("button", { name: "Type a code instead" }));
-  await user.type(screen.getByLabelText("Code or URL"), "ABCDEFGH23");
-  await user.click(screen.getByRole("button", { name: "Go" }));
+  await read("ABCDEFGH23");
   await waitFor(() => expect(location.pathname).toBe(`/items/${f.t1}`));
   expect(inv.currentCode(store.state, f.t1)?.id).toBe("ABCDEFGH23");
 

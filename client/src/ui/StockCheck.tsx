@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { seen } from "../lib/actions";
 import { parseCode } from "../lib/codes";
 import {
@@ -26,7 +26,7 @@ import {
 import type { Store } from "../lib/store";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
-import { useLight, WithLight } from "./Light";
+import { LightButton, useLight } from "./Light";
 import { useFlash } from "./MoveActions";
 import { Page } from "./Page";
 
@@ -114,8 +114,6 @@ function Walk({ store, check, native }: { store: Store; check: Check; native: bo
   const [flash, say] = useFlash(FLASH_MS);
   const [read, flashRead] = useFlash(READ_MS);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [typing, setTyping] = useState(false);
-  const [typed, setTyped] = useState("");
   const [finishing, setFinishing] = useState(false);
   const where = [state.location?.[check.location_id]?.name as string | undefined, check.sub_location]
     .filter(Boolean)
@@ -175,13 +173,6 @@ function Walk({ store, check, native }: { store: Store; check: Check; native: bo
     };
   }, [video, finishing, native, ready, gone]);
 
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    const text = typed;
-    setTyped("");
-    void handle(text);
-  }
-
   async function done() {
     await store.setMeta({ stock_check: undefined });
     navigate("/", true);
@@ -221,29 +212,7 @@ function Walk({ store, check, native }: { store: Store; check: Check; native: bo
       back="/"
       actions={
         <>
-          <WithLight light={light} onToggle={toggle}>
-            {typing ? (
-              <form onSubmit={submit} className="scan-typed">
-                <input
-                  aria-label="Code or URL"
-                  placeholder="Code or URL"
-                  autoFocus
-                  autoCapitalize="characters"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  value={typed}
-                  onChange={(e) => setTyped(e.target.value)}
-                />
-                <button type="submit" className="primary">
-                  Go
-                </button>
-              </form>
-            ) : (
-              <button type="button" onClick={() => setTyping(true)}>
-                Type a code instead
-              </button>
-            )}
-          </WithLight>
+          <LightButton light={light} onToggle={toggle} />
           <button type="button" onClick={() => setFinishing(true)}>
             Finish
           </button>

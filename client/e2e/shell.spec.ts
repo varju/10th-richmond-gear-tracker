@@ -71,7 +71,7 @@ test("a printed code becomes an item", async ({ browser, page, request }) => {
 
   await page.goto(`/g/${code}`);
   await page.getByRole("button", { name: "Create a new item" }).click();
-  await expect(page.getByText(`Code ${code} will go on this item.`)).toBeVisible();
+  await expect(page.getByText("This QR code will go on this item.")).toBeVisible();
   await page.getByLabel("Name").fill("Tent 1");
   await page.getByLabel("Home location").selectOption({ label: "Cold locker" });
   await page.getByLabel("Shelf").fill("shelf 4");
@@ -84,7 +84,7 @@ test("a printed code becomes an item", async ({ browser, page, request }) => {
   await expect(page.getByText("Cold locker / shelf 4")).toBeVisible();
   // The code sits in the Details fold, closed until asked for.
   await page.getByText("Details", { exact: true }).click();
-  await expect(page.getByText(code)).toBeVisible();
+  await expect(page.locator("dt:text-is('QR code') + dd")).toHaveText("Yes");
 
   // The sticker's URL now opens the item.
   await page.goto(`/g/${code}`);

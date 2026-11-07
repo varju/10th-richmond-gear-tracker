@@ -99,7 +99,7 @@ test("a pause before the camera has started is applied once it has", async () =>
   const fake = fakeBridge(() => new Promise((r) => (land = r)));
   const onReady = vi.fn();
   const scanner = startScanner(viewfinder(), () => {}, { onReady }, fake.bridge, true);
-  scanner.pause(); // a typed code opened the card during the permission prompt
+  scanner.pause(); // the card was already open when this scanner started
   land(undefined);
   await vi.waitFor(() => expect(onReady).toHaveBeenCalled());
   expect(fake.methods()).toEqual(["start", "layout", "pause"]);

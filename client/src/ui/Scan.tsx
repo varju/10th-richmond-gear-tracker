@@ -26,7 +26,7 @@ import { PoolActions } from "./ItemPage";
 import { EventSuggestions, typedEvents } from "./EventChoice";
 import { holdingLabel, plural, statusLabel, userName } from "./labels";
 import { MOVED_MS, MoveActions, useFlash } from "./MoveActions";
-import { useLight, WithLight } from "./Light";
+import { LightButton, useLight } from "./Light";
 import { Page } from "./Page";
 
 const FLASH_MS = 2000;
@@ -64,8 +64,6 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
   const [read, flashRead] = useFlash(READ_MS);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const { light, ready, gone, toggle } = useLight();
-  const [typing, setTyping] = useState(false);
-  const [typed, setTyped] = useState("");
   const [cardItem, setCardItem] = useState<string | null>(null);
   // The decode loop keeps running behind the card; its reads are dropped until the card closes.
   const cardOpen = useRef(false);
@@ -166,13 +164,6 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
     };
   }, [video, native, ready, gone]);
 
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    const text = typed;
-    setTyped("");
-    void handle(text);
-  }
-
   const card = cardItem ? item(store.state, cardItem) : undefined;
 
   return (
@@ -180,32 +171,10 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
       title={forItem ? "Scan new code" : booked ? "Pack" : "Scan"}
       back={forItem ? `/items/${forItem}` : booked ? `/events/${booked.id}` : "/"}
       actions={
-        card ? undefined : (
+        card || (!booked && !light) ? undefined : (
           <>
             {booked && <Finish store={store} booked={booked} />}
-            <WithLight light={light} onToggle={toggle}>
-              {typing ? (
-                <form onSubmit={submit} className="scan-typed">
-                  <input
-                    aria-label="Code or URL"
-                    placeholder="Code or URL"
-                    autoFocus
-                    autoCapitalize="characters"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    value={typed}
-                    onChange={(e) => setTyped(e.target.value)}
-                  />
-                  <button type="submit" className="primary">
-                    Go
-                  </button>
-                </form>
-              ) : (
-                <button type="button" onClick={() => setTyping(true)}>
-                  Type a code instead
-                </button>
-              )}
-            </WithLight>
+            <LightButton light={light} onToggle={toggle} />
           </>
         )
       }

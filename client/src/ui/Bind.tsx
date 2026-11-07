@@ -36,7 +36,6 @@ export function Bind({ store, code }: { store: Store; code: string }) {
           </button>
         }
       >
-        <p className="big code">{code}</p>
         <p className="muted">
           {status === "unknown"
             ? "Not one of our codes. If it was just printed, sync first."
@@ -65,9 +64,6 @@ export function Bind({ store, code }: { store: Store; code: string }) {
 
   return (
     <Page title="Put code on an item" back={`/g/${code}`}>
-      <p className="muted">
-        Code <span className="code">{code}</span>
-      </p>
       <input
         aria-label="Search items"
         placeholder="Search items"
@@ -84,31 +80,26 @@ export function Bind({ store, code }: { store: Store; code: string }) {
         </p>
       )}
       <ul className="rows">
-        {results.map((it) => {
-          const old = currentCode(store.state, it.id)?.id;
-          return (
-            <li key={it.id}>
-              {confirm?.id === it.id ? (
-                <div className="row confirm">
-                  <span>
-                    Replace its code <span className="code">{old}</span>?
-                  </span>
-                  <button type="button" className="primary" onClick={() => void bind(it)}>
-                    Replace
-                  </button>
-                  <button type="button" onClick={() => setConfirm(null)}>
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button type="button" className="row" onClick={() => pick(it)}>
-                  <span>{displayName(store.state, it)}</span>
-                  <span className="muted">{homeLabel(store.state, it)}</span>
+        {results.map((it) => (
+          <li key={it.id}>
+            {confirm?.id === it.id ? (
+              <div className="row confirm">
+                <span>Replace its QR code?</span>
+                <button type="button" className="primary" onClick={() => void bind(it)}>
+                  Replace
                 </button>
-              )}
-            </li>
-          );
-        })}
+                <button type="button" onClick={() => setConfirm(null)}>
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button type="button" className="row" onClick={() => pick(it)}>
+                <span>{displayName(store.state, it)}</span>
+                <span className="muted">{homeLabel(store.state, it)}</span>
+              </button>
+            )}
+          </li>
+        ))}
         {results.length === 0 && <li className="muted">No items match.</li>}
       </ul>
     </Page>

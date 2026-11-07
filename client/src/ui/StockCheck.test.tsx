@@ -7,6 +7,7 @@ import * as mv from "../lib/movement";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { openStore, printCodes } from "./codeTestKit";
+import { type FakeCamera, fakeCamera, stopFakeCamera } from "./scanTestKit";
 import { renderInShell } from "./moveTestKit";
 import { StockCheck } from "./StockCheck";
 
@@ -16,7 +17,10 @@ let cold: string;
 let tent1: string;
 let stove: string;
 
+let camera: FakeCamera;
+
 beforeEach(async () => {
+  camera = fakeCamera();
   store = await openStore();
   await printCodes(store, ["AAAAAAAAAA", "BBBBBBBBBB", "CCCCCCCCCC"]);
   cold = await act.createLocation(store, "Cold locker");
@@ -31,18 +35,12 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  stopFakeCamera();
   // @ts-expect-error test-only cleanup of a browser API stubbed per test
   delete navigator.vibrate;
 });
 
 const user = userEvent.setup();
-
-async function typeCode(text: string) {
-  const open = screen.queryByRole("button", { name: "Type a code instead" });
-  if (open) await user.click(open);
-  await user.type(screen.getByLabelText("Code or URL"), text);
-  await user.click(screen.getByRole("button", { name: "Go" }));
-}
 
 const region = (name: string) => screen.getByRole("region", { name });
 const rows = (name: string) =>
@@ -52,7 +50,7 @@ const rows = (name: string) =>
     .map((b) => b.textContent);
 
 test("pick where you are, scan, and the lists follow; the walk survives a closed app", async () => {
-  renderInShell(<StockCheck store={store} />);
+  renderInShell(<StockCheck store={store} native />);
   expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
   await user.selectOptions(screen.getByLabelText("Location"), cold);
   await user.selectOptions(screen.getByLabelText("Shelf"), "shelf 4");
@@ -63,17 +61,17 @@ test("pick where you are, scan, and the lists follow; the walk survives a closed
   expect(rows("Not seen yet")).toEqual(["Tent 1Cold locker / shelf 4"]);
   expect(region("Misplaced here")).toHaveTextContent("Nothing out of place.");
 
-  await typeCode("BBBBBBBBBB");
+  await camera.scan("BBBBBBBBBB");
   expect(await screen.findByText("Misplaced · Stove · home Warm locker")).toHaveAttribute("role", "status");
   expect(rows("Misplaced here")).toEqual(["StoveHome: Warm locker"]);
 
-  await typeCode("AAAAAAAAAA");
+  await camera.scan("AAAAAAAAAA");
   expect(await screen.findByText("Seen · Tent 1")).toBeInTheDocument();
   await waitFor(() => expect(region("Not seen yet")).toHaveTextContent("Everything that belongs here has been seen."));
   expect(screen.getByText("Cold locker / shelf 4 · 1 in place")).toBeInTheDocument();
   expect(store.meta.stock_check).toMatchObject({ location_id: cold, sub_location: "shelf 4", seen: [stove, tent1] });
 
-  await typeCode("CCCCCCCCCC");
+  await camera.scan("CCCCCCCCCC");
   expect(await screen.findByText("Not on anything yet")).toBeInTheDocument();
 
   // Finish shows the summary; Done clears the walk.
@@ -88,26 +86,26 @@ test("pick where you are, scan, and the lists follow; the walk survives a closed
 test("a scan during the walk clears missing (FR-INV-19)", async () => {
   await act.markMissing(store, tent1);
   await store.setMeta({ stock_check: { location_id: cold, seen: [], started_at: 1 } });
-  renderInShell(<StockCheck store={store} />);
+  renderInShell(<StockCheck store={store} native />);
   expect(screen.getByText("Cold locker · 0 in place")).toBeInTheDocument();
-  await typeCode("AAAAAAAAAA");
+  await camera.scan("AAAAAAAAAA");
   await waitFor(() => expect(item(store.state, tent1)?.missing).toBe(false));
 });
 
 test("a code we know buzzes the phone; one we do not leaves it alone", async () => {
   const buzz = vi.fn();
   Object.defineProperty(navigator, "vibrate", { value: buzz, configurable: true });
-  renderInShell(<StockCheck store={store} />);
+  renderInShell(<StockCheck store={store} native />);
   await user.selectOptions(screen.getByLabelText("Location"), cold);
   await user.click(screen.getByRole("button", { name: "Start" }));
-  await typeCode("hello");
+  await camera.scan("hello");
   expect(buzz).not.toHaveBeenCalled();
-  await typeCode("AAAAAAAAAA");
+  await camera.scan("AAAAAAAAAA");
   expect(buzz).toHaveBeenCalledWith(30);
 });
 
 test("Seen beside a row counts as a sighting, for gear with no code or an awkward sticker", async () => {
-  renderInShell(<StockCheck store={store} />);
+  renderInShell(<StockCheck store={store} native />);
   await user.selectOptions(screen.getByLabelText("Location"), cold);
   await user.selectOptions(screen.getByLabelText("Shelf"), "shelf 4");
   await user.click(screen.getByRole("button", { name: "Start" }));

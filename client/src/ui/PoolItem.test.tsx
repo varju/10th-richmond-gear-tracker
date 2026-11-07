@@ -293,12 +293,12 @@ test("a pool's container can carry a code, on the pool page's Details (FR-TAG-15
   renderInShell(<ItemPage store={store} id={bowls} />);
 
   await user.click(screen.getByText("Details"));
-  expect(fact("Code")).toBe("none");
+  expect(fact("QR code")).toBe("None");
   expect(screen.getByRole("button", { name: "Add QR code" })).toBeInTheDocument();
 
   await printCodes(store, ["ABCDEFGH23"]);
   await act.bindCode(store, "ABCDEFGH23", bowls);
-  expect(fact("Code")).toBe("ABCDEFGH23");
+  expect(fact("QR code")).toBe("Yes");
   expect(screen.getByRole("button", { name: "Replace QR code" })).toBeInTheDocument();
 });
 

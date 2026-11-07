@@ -220,11 +220,6 @@ button.home + button.back {
 
 /* --- scanning and codes ------------------------------------------------------------- */
 
-.code {
-  font-family: ui-monospace, Menlo, monospace;
-  letter-spacing: 0.1em;
-}
-
 /* The camera fills the body; the actions stay at the thumb. */
 main:has(> .viewfinder) {
   display: flex;
@@ -258,17 +253,6 @@ html.native-scan .viewfinder video {
 }
 
 /* The light, where the app has one: in the actions, so it never covers the target. */
-.with-light {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 12px;
-}
-
-.with-light > button:last-child {
-  width: auto;
-  padding: 0 20px;
-}
-
 /* Where to hold the code. CSS only, so it costs nothing and never blocks a tap. */
 .target {
   position: absolute;
@@ -321,17 +305,6 @@ html.native-scan .viewfinder video {
   top: 50%;
   transform: translateY(-50%);
   color: var(--warn);
-}
-
-.scan-typed {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 12px;
-}
-
-.scan-typed button {
-  width: auto;
-  padding: 0 20px;
 }
 
 /* Rows a thumb can hit (NFR-USE-03). */

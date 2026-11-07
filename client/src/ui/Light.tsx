@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import type { Scanner } from "../lib/scanner";
 
 /** The torch, for an unlit locker: the scanner that has one (the iPhone app), and whether it is on. */
@@ -8,8 +8,8 @@ export interface Light {
 }
 
 /**
- * The screen's torch state. It lives with the screen, not the button, which goes when the card opens or typing
- * starts while the torch stays as it was. A new scanner starts with it off: the torch goes off with its camera.
+ * The screen's torch state. It lives with the screen, not the button, which goes when the card opens while the
+ * torch stays as it was. A new scanner starts with it off: the torch goes off with its camera.
  */
 export function useLight() {
   const [light, setLight] = useState<Light | null>(null);
@@ -28,23 +28,12 @@ export function useLight() {
   return { light, ready, gone, toggle };
 }
 
-/** `children` with a Light button beside it, where there is a torch. */
-export function WithLight({
-  light,
-  onToggle,
-  children,
-}: {
-  light: Light | null;
-  onToggle: () => void;
-  children: ReactNode;
-}) {
-  if (!light) return children;
+/** The Light button, where there is a torch. */
+export function LightButton({ light, onToggle }: { light: Light | null; onToggle: () => void }) {
+  if (!light) return null;
   return (
-    <div className="with-light">
-      {children}
-      <button type="button" aria-pressed={light.on} onClick={onToggle}>
-        Light
-      </button>
-    </div>
+    <button type="button" aria-pressed={light.on} onClick={onToggle}>
+      Light
+    </button>
   );
 }

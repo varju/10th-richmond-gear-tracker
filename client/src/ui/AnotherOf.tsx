@@ -51,9 +51,6 @@ export function AnotherOf({ store, code }: { store: Store; code: string }) {
 
   return (
     <Page title="Add a unit of…" back={`/g/${code}`}>
-      <p className="muted">
-        Code <span className="code">{code}</span>
-      </p>
       <input
         aria-label="Search"
         placeholder="Search"

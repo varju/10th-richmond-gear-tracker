@@ -37,7 +37,8 @@ test("an item that already has a code asks before replacing it (FR-TAG-04)", asy
   navigate("/bind/BBBBBBBBBB");
   render(<Bind store={store} code="BBBBBBBBBB" />);
   await user.click(screen.getByRole("button", { name: /Tent/ }));
-  expect(screen.getByText(/Replace its code/)).toHaveTextContent("AAAAAAAAAA");
+  expect(screen.getByText("Replace its QR code?")).toBeInTheDocument();
+  expect(screen.queryByText(/AAAAAAAAAA/)).not.toBeInTheDocument(); // FR-TAG-17
   expect(currentCode(store.state, tent)?.id).toBe("AAAAAAAAAA");
 
   await user.click(screen.getByRole("button", { name: "Replace" }));

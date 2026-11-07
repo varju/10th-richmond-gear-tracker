@@ -40,8 +40,7 @@ changelog.
 - [ ] Adding a unit: offer to assign a QR code straight away. It is the likely next step and costs too many clicks now.
       Deferred: it is already two taps (**Add a unit**, then **Add QR code**), so a prompt on the new unit's page is
       easier to spot but saves none. Fewer taps means opening the scanner straight after adding, with a way to skip, or
-      a second "Add a unit and scan" button. The scanner opens the camera at a desk too, and it has **Type a code
-      instead**.
+      a second "Add a unit and scan" button.
 - [ ] Some saves ask for more confirmation than they need, for example converting an item to a generic. Review which
       saves confirm and make them consistent.
 - [ ] iPhone check-out: after picking an event, changing it does not show the autocomplete until the page is scrolled
@@ -57,8 +56,6 @@ changelog.
       Needs a requirement and an MCP tool in `assistant.py`.
 - [ ] "What did I miss compared to event X?" Compare what is checked out for the current event with a previous event, to
       spot forgotten gear. Needs a requirement and an MCP tool in `assistant.py`.
-- [ ] "Enter QR code manually" shows the internal ID, which is not printed on the sticker. Ask for what the sticker
-      shows, or drop the ID from the screen. Check what is printed first.
 - [ ] Generic items don't have their own purchase date today, only their parent generic does. The parent's date should
       be used as a default, but we should be able to override per item.
 - [ ] Event gear list: offer check-out order as a sort option, if people miss it.

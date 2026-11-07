@@ -80,6 +80,30 @@ test("every kind of event on one screen, said in words, newest first", async () 
   ]);
 });
 
+test("a code's rows name the item it was on then, never the code (FR-TAG-17)", async () => {
+  const tent2 = await act.createItem(store, { name: "Tent 2" });
+  const code = { entity_type: "code", entity_id: "AAAAAAAAAA" };
+  log = [
+    serverEvent({ ...code, type: "code_bound", payload: { item_id: tent2 } }),
+    serverEvent({ ...code, type: "code_released" }),
+    serverEvent({ ...code, type: "code_bound", payload: { item_id: tent } }),
+    serverEvent({ ...code, type: "created" }),
+  ];
+  mount();
+
+  const list = await screen.findByRole("list", { name: "Audit log" });
+  expect(
+    within(list)
+      .getAllByRole("listitem")
+      .map((li) => li.textContent),
+  ).toEqual([
+    "Code assigned · Tent 2 · Alice · 2025-08-31 17:00",
+    "Code freed · Tent 1 · Alice · 2025-08-31 17:00",
+    "Code assigned · Tent 1 · Alice · 2025-08-31 17:00",
+    "Created · QR code · Alice · 2025-08-31 17:00",
+  ]);
+});
+
 test("narrowing by event, person, and a range of days asks the server, not the device", async () => {
   log = [serverEvent({})];
   mount();

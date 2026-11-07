@@ -9,6 +9,7 @@ import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { unsaved } from "../lib/unsaved";
 import { openStore, printCodes } from "./codeTestKit";
+import { type FakeCamera, fakeCamera, stopFakeCamera } from "./scanTestKit";
 import { alice, carol, renderInShell, seedUsers } from "./moveTestKit";
 import { Scan } from "./Scan";
 
@@ -23,7 +24,10 @@ let fall: string;
 /** How far the store's clock has been moved on. */
 let ahead = 0;
 
+let camera: FakeCamera;
+
 beforeEach(async () => {
+  camera = fakeCamera();
   ahead = 0;
   store = await openStore(() => ahead);
   await seedUsers(store, [alice, carol]);
@@ -49,22 +53,18 @@ beforeEach(async () => {
   navigate(`/scan?reservation=${fall}`);
 });
 
-afterEach(() => unsaved.cancel());
+afterEach(() => {
+  unsaved.cancel();
+  stopFakeCamera();
+});
 
 const user = userEvent.setup();
 const remaining = () => screen.getByRole("region", { name: "Remaining" });
 const rows = () => within(remaining()).queryAllByRole("button");
 
-async function typeCode(text: string) {
-  const open = screen.queryByRole("button", { name: "Type a code instead" });
-  if (open) await user.click(open);
-  await user.type(screen.getByLabelText("Code or URL"), text);
-  await user.click(screen.getByRole("button", { name: "Go" }));
-}
-
 test("packing takes the event from the reservation, not the device's session, and lists what is left, by home (FR-RES-02, FR-RES-03)", async () => {
   await store.setMeta({ session_event: "Something else", session_event_at: store.now() });
-  renderInShell(<Scan store={store} />);
+  renderInShell(<Scan store={store} native />);
   expect(await screen.findByText("Event: Fall Camp")).toBeInTheDocument();
   // Nobody changes a reservation's event from the packing screen.
   expect(screen.queryByRole("button", { name: "Change" })).not.toBeInTheDocument();
@@ -76,10 +76,10 @@ test("packing takes the event from the reservation, not the device's session, an
 });
 
 test("packing never runs out like a plain session: hours on, a card check-out still stamps the reservation (FR-RES-24)", async () => {
-  renderInShell(<Scan store={store} />);
+  renderInShell(<Scan store={store} native />);
   await screen.findByText("Event: Fall Camp");
   ahead += 5 * 3_600_000;
-  await typeCode("AAAAAAAAAA");
+  await camera.scan("AAAAAAAAAA");
   await user.click(
     within(await screen.findByRole("region", { name: "4-person tent #1" })).getByRole("button", { name: "Check out" }),
   );
@@ -95,14 +95,14 @@ test("packing never runs out like a plain session: hours on, a card check-out st
 });
 
 test("a scan ticks an item off; an unlisted one is appended with no fuss (FR-RES-07)", async () => {
-  renderInShell(<Scan store={store} />);
-  await typeCode("AAAAAAAAAA");
+  renderInShell(<Scan store={store} native />);
+  await camera.scan("AAAAAAAAAA");
   await user.click(screen.getByRole("button", { name: "Check out" }));
   await screen.findByText(/^Checked out · 4-person tent #1/);
   expect(rows().map((b) => b.textContent)).toEqual(["TarpWarm locker"]);
   expect(item(store.state, tent)?.movement?.event).toBe("Fall Camp");
 
-  await typeCode("BBBBBBBBBB");
+  await camera.scan("BBBBBBBBBB");
   await user.click(screen.getByRole("button", { name: "Check out" }));
   await screen.findByText(/^Checked out · Stove/);
   expect(item(store.state, stove)).toMatchObject({ status: "out", holder_id: "alice" });
@@ -120,7 +120,7 @@ test("a line never returned from the last trip names who has it; its tap offers 
   await store.setMeta({ user: carol });
   await mv.checkOut(store, tarp, { event: "Spring Camp" });
   await store.setMeta({ user: alice });
-  renderInShell(<Scan store={store} />);
+  renderInShell(<Scan store={store} native />);
   await screen.findByText("Event: Fall Camp");
   expect(rows().map((b) => b.textContent)).toEqual(["4-person tent #1Cold locker", "TarpOut · Carol"]);
 
@@ -138,9 +138,9 @@ test("a line never returned from the last trip names who has it; its tap offers 
 test("handing gear to someone else while packing does not pack it (FR-OUT-26, FR-RES-23)", async () => {
   await seedUsers(store, [alice, carol]);
   await mv.checkOut(store, stove, { event: "Spring Camp" });
-  renderInShell(<Scan store={store} />);
+  renderInShell(<Scan store={store} native />);
   await screen.findByText("Event: Fall Camp");
-  await typeCode("BBBBBBBBBB");
+  await camera.scan("BBBBBBBBBB");
   const card = await screen.findByRole("region", { name: "Stove" });
   await user.click(within(card).getByRole("button", { name: "Transfer to…" }));
   await user.click(within(screen.getByRole("region", { name: "Transfer to" })).getByRole("button", { name: "Carol" }));
@@ -152,7 +152,7 @@ test("handing gear to someone else while packing does not pack it (FR-OUT-26, FR
 });
 
 test("packed lines are hidden until Show packed is ticked (FR-RES-21)", async () => {
-  renderInShell(<Scan store={store} />);
+  renderInShell(<Scan store={store} native />);
   await mv.checkOut(store, tarp, { event: "Fall Camp", reservation_id: fall });
   await waitFor(() => expect(rows().map((b) => b.textContent)).toEqual(["4-person tent #1Cold locker"]));
   expect(within(remaining()).queryByRole("checkbox", { name: "Show packed" })).toBeInTheDocument();
@@ -168,7 +168,7 @@ test("packed lines are hidden until Show packed is ticked (FR-RES-21)", async ()
 test("a unit that overflows a full generic line raises the line instead (FR-RES-07)", async () => {
   const tents = item(store.state, tent)!.parent_id!;
   const tent3 = await act.addUnit(store, tents);
-  renderInShell(<Scan store={store} />);
+  renderInShell(<Scan store={store} native />);
 
   // One tent fills the line that was asked for; the list does not grow.
   await mv.checkOut(store, tent2, { event: "Fall Camp", reservation_id: fall });
@@ -183,7 +183,7 @@ test("a unit that overflows a full generic line raises the line instead (FR-RES-
 });
 
 test("gear with no sticker is ticked off from the list itself (FR-OUT-02)", async () => {
-  renderInShell(<Scan store={store} />);
+  renderInShell(<Scan store={store} native />);
   await user.click(within(remaining()).getByRole("button", { name: /Tarp/ }));
   expect(await screen.findByText(/^Checked out · Tarp/)).toHaveAttribute("role", "status");
   expect(item(store.state, tarp)).toMatchObject({
@@ -194,21 +194,21 @@ test("gear with no sticker is ticked off from the list itself (FR-OUT-02)", asyn
 });
 
 test("checking an item off the list silences its bound code", async () => {
-  renderInShell(<Scan store={store} />);
+  renderInShell(<Scan store={store} native />);
   await user.click(within(remaining()).getByRole("button", { name: /4-person tent #1/ }));
   expect(await screen.findByText(/^Checked out · 4-person tent #1/)).toHaveAttribute("role", "status");
-  await typeCode("AAAAAAAAAA");
+  await camera.scan("AAAAAAAAAA");
   expect(screen.queryByRole("region", { name: "4-person tent #1" })).not.toBeInTheDocument();
 });
 
 test("any unit of a reserved generic counts toward it", async () => {
-  renderInShell(<Scan store={store} />);
+  renderInShell(<Scan store={store} native />);
   await mv.checkOut(store, tent2, { event: "Fall Camp", reservation_id: fall });
   await waitFor(() => expect(remaining()).toHaveTextContent("1 of 1 × 4-person tent"));
 });
 
 test("Finish with items unscanned names them; Finish anyway leaves (FR-RES-04)", async () => {
-  renderInShell(<Scan store={store} />);
+  renderInShell(<Scan store={store} native />);
   await user.click(screen.getByRole("button", { name: "Finish" }));
   const ask = screen.getByRole("group", { name: "Finish" });
   expect(within(ask).getByRole("alert")).toHaveTextContent("Not scanned: 4-person tent #1, Tarp, 1 × 4-person tent.");
@@ -226,7 +226,7 @@ test("with everything packed, Finish just leaves", async () => {
   await mv.checkOut(store, tent, { event: "Fall Camp", reservation_id: fall });
   await mv.checkOut(store, tarp, { event: "Fall Camp", reservation_id: fall });
   await mv.checkOut(store, tent2, { event: "Fall Camp", reservation_id: fall });
-  renderInShell(<Scan store={store} />);
+  renderInShell(<Scan store={store} native />);
   expect(remaining()).toHaveTextContent("Everything is packed.");
   await user.click(screen.getByRole("button", { name: "Finish" }));
   expect(location.pathname).toBe(`/events/${fall}`);

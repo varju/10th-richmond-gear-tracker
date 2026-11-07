@@ -24,7 +24,11 @@ export function Found({ store }: { store: Store }) {
 
 function ReportBlock({ store, report }: { store: Store; report: FoundReport }) {
   const it = report.item_id ? item(store.state, report.item_id) : undefined;
-  const name = it ? displayName(store.state, it) : report.code;
+  const name = !report.item_id
+    ? "Sticker not on any item"
+    : it && !it.deleted
+      ? displayName(store.state, it)
+      : "Deleted item";
   return (
     <section className="found" aria-label={name}>
       <button

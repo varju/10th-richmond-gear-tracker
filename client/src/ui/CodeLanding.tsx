@@ -58,7 +58,6 @@ export function CodeLanding({ store, code }: { store: Store; code: string }) {
           </>
         }
       >
-        <p className="big code">{code}</p>
         <p className="muted">This code is not on anything yet.</p>
       </Page>
     );
@@ -67,7 +66,6 @@ export function CodeLanding({ store, code }: { store: Store; code: string }) {
   if (status === "unknown") {
     return (
       <Page title="Not one of our codes" back="/" actions={scanAgain}>
-        <p className="big code">{code}</p>
         <p className="muted">If it was just printed, sync first.</p>
       </Page>
     );
