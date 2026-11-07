@@ -7,14 +7,6 @@ changelog.
 
 ---
 
-## Tests
-
-- [ ] Fix the flaky "a pool page shows owned, in, and out by holder, and moves by count (FR-INV-36, FR-OUT-22,
-      FR-OUT-23)" in `client/src/ui/PoolItem.test.tsx`. It failed once in a full run, then passed later full runs. The
-      error was not captured. It may be timing, as the machine was busy with other work. Plan: run the file about 30
-      times while the machine is kept busy, and record the full error and the tests run before it. Fix the cause found,
-      not with a longer wait. If it never fails, leave this open with a note to capture the error next time.
-
 ## Groups of items
 
 - [ ] Question to consider: A canoe trailer is both storage and an item that can be checked out. Today its contents

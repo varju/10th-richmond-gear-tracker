@@ -57,6 +57,7 @@ test("a pool page shows owned, in, and out by holder, and moves by count (FR-INV
   expect(screen.getByLabelText("How many")).toHaveValue(10);
   await user.click(screen.getByRole("button", { name: "Return" }));
   await waitFor(() => expect(inv.poolCounts(inv.item(store.state, bowls)!).in).toBe(20));
+  expect(await screen.findByText("Returned 10 · Bowls")).toBeInTheDocument();
   expect(inv.poolCounts(inv.item(store.state, bowls)!).out).toEqual([]);
 
   // Recount: prefilled with what is in now, and the reason is optional.
@@ -83,6 +84,7 @@ test("12 PFDs go out, 11 come back: mark the one missing, then find it (FR-INV-4
   await user.type(screen.getByLabelText("How many"), "11");
   await user.click(screen.getByRole("button", { name: "Return" }));
   await waitFor(() => expect(inv.item(store.state, pfds)?.pool_in).toBe(11));
+  expect(await screen.findByText("Returned 11 · PFDs")).toBeInTheDocument();
   expect(fact("Out")).toBe("Alice · 1");
 
   await user.click(screen.getByRole("button", { name: "Mark missing" }));
