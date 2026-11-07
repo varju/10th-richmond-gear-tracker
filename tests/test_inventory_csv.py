@@ -121,6 +121,37 @@ def test_code_status_and_holder(db):
     assert by_id["tarp"]["code"] == ""
 
 
+def keep_with_bob(conn) -> None:
+    change = {"field": "home_user_id", "value": "bob", "old": None}
+    events.append_server(conn, ACTOR, "item", "trailer", "field_changed", change)
+    change = {"field": "home_location_id", "value": None, "old": "loc-1"}
+    events.append_server(conn, ACTOR, "item", "trailer", "field_changed", change)
+
+
+def test_gear_kept_by_a_person_exports_with_no_home_and_a_kept_by_name(db):
+    seeded(db)
+    keep_with_bob(db)
+    state = derived.snapshot(db)
+    text = inventory_csv.export(state)
+    row = rows_by_id(text)["trailer"]
+
+    assert (row["home"], row["kept_by"]) == ("", "Bob")
+    assert rows_by_id(text)["tarp"]["kept_by"] == ""
+    plan = inventory_csv.plan(state, text)
+    assert plan.errors == [] and plan.new_locations == [] and plan.changes == []
+
+
+def test_a_home_written_on_gear_kept_by_a_person_clears_the_person(db):
+    seeded(db)
+    keep_with_bob(db)
+
+    inventory_csv.apply(db, make_csv(["id", "home"], [["trailer", "Cold locker"]]), ACTOR)
+
+    trailer = derived.snapshot(db)["item"]["trailer"]
+    assert trailer["home_location_id"] == "loc-1"
+    assert trailer["home_user_id"] is None
+
+
 def test_a_pool_row_carries_quantity_owned_in_and_out(db):
     state = seeded(db)
     by_id = rows_by_id(inventory_csv.export(state))
@@ -624,3 +655,26 @@ def test_importing_the_export_does_not_copy_a_generics_date_onto_its_units(db):
 def set_date(conn, item_id: str, value: str) -> None:
     payload = {"field": "purchase_date", "value": value, "old": None}
     events.append_server(conn, ACTOR, "item", item_id, "field_changed", payload)
+
+
+def test_import_cannot_set_kept_by_but_an_unchanged_value_passes(db):
+    seeded(db)
+    keep_with_bob(db)
+    same = make_csv(["id", "kept_by"], [["trailer", "Bob"]])
+    assert inventory_csv.plan(derived.snapshot(db), same).errors == []
+
+    changed = make_csv(["id", "kept_by"], [["stove", "Bob"]])
+    [error] = inventory_csv.plan(derived.snapshot(db), changed).errors
+    assert error["row"] == 2 and "kept_by" in error["message"]
+
+    added = make_csv(["kind", "name", "kept_by"], [["single", "Flag", "Bob"]])
+    [error] = inventory_csv.plan(derived.snapshot(db), added).errors
+    assert "kept_by" in error["message"]
+
+
+def test_a_shelf_on_gear_kept_by_a_person_is_a_row_error(db):
+    seeded(db)
+    keep_with_bob(db)
+    text = make_csv(["id", "shelf"], [["trailer", "bin 3"]])
+    [error] = inventory_csv.plan(derived.snapshot(db), text).errors
+    assert "shelf" in error["message"]

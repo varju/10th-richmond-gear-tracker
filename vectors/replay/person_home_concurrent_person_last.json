@@ -1,0 +1,64 @@
+{
+  "name": "a person edit after a concurrent location edit wins, and clears the shelf",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "pole",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 2000,
+      "payload": {
+        "name": "Flagpole",
+        "home_location_id": "cold",
+        "sub_location": "shelf 2"
+      }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "pole",
+      "type": "field_changed",
+      "actor_id": "alice",
+      "device_id": "b",
+      "device_seq": 2,
+      "effective_at": 3000,
+      "payload": {
+        "field": "home_location_id",
+        "value": "warm",
+        "old": "cold"
+      }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "pole",
+      "type": "field_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3100,
+      "payload": {
+        "field": "home_user_id",
+        "value": "sam",
+        "old": null
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "pole": {
+        "name": "Flagpole",
+        "home_location_id": null,
+        "home_user_id": "sam",
+        "sub_location": null,
+        "added_at": 2000,
+        "modified_at": 3100,
+        "status": "in",
+        "holder_id": null
+      }
+    }
+  }
+}

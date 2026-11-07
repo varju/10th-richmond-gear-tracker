@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { RefObject } from "react";
 import { createCategory, type ItemInput } from "../lib/actions";
-import { categories, locations, subLocations } from "../lib/inventory";
+import { activeUsers, categories, subLocations } from "../lib/inventory";
+import { HomeSelect } from "./HomeSelect";
 import type { Store } from "../lib/store";
 
 interface Props {
@@ -94,6 +95,7 @@ export function ItemFields({ store, values, onChange, nameRef, generic }: Props)
       <HomeFields
         store={store}
         home_location_id={values.home_location_id ?? null}
+        home_user_id={values.home_user_id ?? null}
         sub_location={values.sub_location ?? ""}
         onChange={set}
         label={generic ? "Default home" : "Home location"}
@@ -165,43 +167,62 @@ export function ItemFields({ store, values, onChange, nameRef, generic }: Props)
 interface HomeProps {
   store: Store;
   home_location_id: string | null;
+  home_user_id?: string | null;
   sub_location: string;
-  onChange: (patch: { home_location_id?: string | null; sub_location?: string }) => void;
+  onChange: (patch: { home_location_id?: string | null; home_user_id?: string | null; sub_location?: string }) => void;
   /** "Home location", or "Default home" on a generic (FR-INV-29). */
   label?: string;
 }
 
-/** Where a thing belongs: a location from the list, and a free-text shelf (FR-INV-02, FR-SET-03). */
-export function HomeFields({ store, home_location_id, sub_location, onChange, label = "Home location" }: HomeProps) {
+/**
+ * Where a thing belongs: a location from the list and a free-text shelf (FR-INV-02, FR-SET-03), or a
+ * person who keeps it (FR-INV-59). Picking one clears the other.
+ */
+export function HomeFields({
+  store,
+  home_location_id,
+  home_user_id,
+  sub_location,
+  onChange,
+  label = "Home location",
+}: HomeProps) {
   const state = store.state;
   const suggestions = subLocations(state, home_location_id ?? undefined);
   return (
     <>
       <label>
         <span>{label}</span>
-        <select value={home_location_id ?? ""} onChange={(e) => onChange({ home_location_id: e.target.value || null })}>
-          <option value="">None</option>
-          {locations(state).map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>Shelf</span>
-        <input
-          list="sub-locations"
-          value={sub_location}
-          onChange={(e) => onChange({ sub_location: e.target.value })}
-          autoComplete="off"
+        <HomeSelect
+          state={state}
+          location_id={home_location_id}
+          user_id={home_user_id}
+          people={activeUsers(state)}
+          none="None"
+          onChange={(pick) =>
+            onChange(
+              pick.user_id
+                ? { home_user_id: pick.user_id, home_location_id: null, sub_location: "" }
+                : { home_location_id: pick.location_id, home_user_id: null },
+            )
+          }
         />
-        <datalist id="sub-locations">
-          {suggestions.map((s) => (
-            <option key={s} value={s} />
-          ))}
-        </datalist>
       </label>
+      {!home_user_id && (
+        <label>
+          <span>Shelf</span>
+          <input
+            list="sub-locations"
+            value={sub_location}
+            onChange={(e) => onChange({ sub_location: e.target.value })}
+            autoComplete="off"
+          />
+          <datalist id="sub-locations">
+            {suggestions.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
+        </label>
+      )}
     </>
   );
 }

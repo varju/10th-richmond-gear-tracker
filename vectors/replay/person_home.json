@@ -1,0 +1,77 @@
+{
+  "name": "a person becomes an item's home through field_changed, and the location clears",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "user",
+      "entity_id": "sam",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": { "name": "Sam" }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "pole",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": { "name": "Flagpole", "home_location_id": "cold", "sub_location": "shelf 2" }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "pole",
+      "type": "field_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "payload": { "field": "home_user_id", "value": "sam", "old": null }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "item",
+      "entity_id": "pole",
+      "type": "field_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 3000,
+      "payload": { "field": "home_location_id", "value": null, "old": "cold" }
+    },
+    {
+      "id": "01000000000000000000000005",
+      "entity_type": "item",
+      "entity_id": "pole",
+      "type": "field_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 5,
+      "effective_at": 3000,
+      "payload": { "field": "sub_location", "value": null, "old": "shelf 2" }
+    }
+  ],
+  "state": {
+    "user": {
+      "sam": { "name": "Sam", "added_at": 1000, "modified_at": 1000 }
+    },
+    "item": {
+      "pole": {
+        "name": "Flagpole",
+        "home_location_id": null,
+        "home_user_id": "sam",
+        "sub_location": null,
+        "added_at": 2000,
+        "modified_at": 3000,
+        "status": "in",
+        "holder_id": null
+      }
+    }
+  }
+}

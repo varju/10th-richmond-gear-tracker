@@ -24,7 +24,7 @@ import {
 /** What the item form holds. */
 export type ItemInput = Pick<
   Item,
-  "name" | "description" | "home_location_id" | "sub_location" | "purchase_date" | "category_ids"
+  "name" | "description" | "home_location_id" | "home_user_id" | "sub_location" | "purchase_date" | "category_ids"
 >;
 
 /** What the unit form holds. A unit has no name: its number and nickname make it (FR-INV-23). */
@@ -34,6 +34,7 @@ export interface UnitInput {
   number: string;
   nickname?: string | null;
   home_location_id?: string | null;
+  home_user_id?: string | null;
   sub_location?: string;
 }
 
@@ -153,6 +154,7 @@ export function addUnit(store: Store, genericId: string, number?: string): Promi
     parent_id: genericId,
     number: number ?? nextNumber(store.state, genericId),
     home_location_id: parent.home_location_id ?? null,
+    ...(parent.home_user_id ? { home_user_id: parent.home_user_id } : {}),
     sub_location: parent.sub_location ?? "",
   });
 }
@@ -189,6 +191,7 @@ export async function makeGeneric(store: Store, id: string, number = "1"): Promi
     name: it.name ?? "",
     description: it.description ?? "",
     home_location_id: it.home_location_id ?? null,
+    ...(it.home_user_id ? { home_user_id: it.home_user_id } : {}),
     sub_location: it.sub_location ?? "",
     purchase_date: it.purchase_date ?? null,
     category_ids: categoriesOf(store.state, it),
@@ -227,6 +230,7 @@ export async function makePool(store: Store, id: string, quantity: number): Prom
       name: it.name ?? "",
       description: it.description ?? "",
       home_location_id: it.home_location_id ?? null,
+      ...(it.home_user_id ? { home_user_id: it.home_user_id } : {}),
       sub_location: it.sub_location ?? "",
       purchase_date: it.purchase_date ?? null,
       category_ids: categoriesOf(store.state, it),
@@ -426,6 +430,7 @@ export async function makeSingle(store: Store, genericId: string): Promise<strin
       name: generic.name ?? "",
       description: generic.description ?? "",
       home_location_id: generic.home_location_id ?? null,
+      ...(generic.home_user_id ? { home_user_id: generic.home_user_id } : {}),
       sub_location: generic.sub_location ?? "",
       purchase_date: generic.purchase_date ?? null,
       category_ids: categoriesOf(store.state, generic),
@@ -436,6 +441,7 @@ export async function makeSingle(store: Store, genericId: string): Promise<strin
   const unit = units[0]!;
   if (unit.status !== "in") throw new Error("return it first");
 
+  const ownHome = Boolean(unit.home_location_id || unit.home_user_id);
   const nickname = unit.nickname?.trim();
   const description = nickname
     ? [generic.description, nickname].filter(Boolean).join(" · ")
@@ -452,8 +458,9 @@ export async function makeSingle(store: Store, genericId: string): Promise<strin
       name: generic.name ?? "",
       description,
       category_ids: normaliseCategoryIds(store, categoriesOf(store.state, generic)),
-      home_location_id: unit.home_location_id ?? generic.home_location_id ?? null,
-      sub_location: unit.home_location_id ? unit.sub_location ?? "" : generic.sub_location ?? "",
+      home_location_id: ownHome ? unit.home_location_id ?? null : generic.home_location_id ?? null,
+      home_user_id: ownHome ? unit.home_user_id ?? null : generic.home_user_id ?? null,
+      sub_location: ownHome ? unit.sub_location ?? "" : generic.sub_location ?? "",
       purchase_date: unit.purchase_date ?? generic.purchase_date ?? null,
     }),
   );

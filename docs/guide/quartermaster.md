@@ -68,6 +68,10 @@ Tap **New item**, name it, pick a home, and tap **Save**. On a computer the butt
 sorts by any column and keeps search and the filters in view. Click the arrow beside a name to show its units; a search
 or filter shows them already.
 
+A home can also be a person: in the home field, pick someone under **Kept by**. Gear kept by Sam shows as "Kept by Sam",
+counts as in, and is not on **What is out**. Check it out and in as usual; it goes back to Sam. The **Location** filter
+on the list offers people too.
+
 A description can use `**bold**`, `*italic*`, `[a link](https://example.org)` and lines starting with `- ` for a bullet
 list. A web address on its own becomes a link too. A backslash before a `*` shows the star as typed.
 

@@ -114,8 +114,12 @@ def lacks(state: State, it: Fields, needs: str, bound: set[str]) -> bool:
     if needs == "code":
         return it["id"] not in bound
     if needs == "location":
+        if it.get("home_user_id"):
+            return False
         loc = (state.get("location") or {}).get(it.get("home_location_id") or "")
         return loc is None or bool(loc.get("deleted"))
+    if it.get("home_user_id"):
+        return False
     return not (it.get("sub_location") or "").strip()
 
 
@@ -154,8 +158,17 @@ def location_name(state: State, location_id: str | None) -> str:
     return (entity(state, "location", location_id) or {}).get("name") or "(unknown location)"
 
 
+def keeper_label(state: State, user_id: str) -> str:
+    """ "Kept by Sam", with "(inactive)" once Sam is deactivated (FR-INV-59)."""
+    user = entity(state, "user", user_id)
+    name = (user or {}).get("name") or "(unknown person)"
+    return f"Kept by {name} (inactive)" if user and user.get("active") is False else f"Kept by {name}"
+
+
 def home_label(state: State, it: Fields) -> str:
-    """Home as people say it: "Warm locker / shelf 4" (FR-INV-02)."""
+    """Home as people say it: "Warm locker / shelf 4" (FR-INV-02), or "Kept by Sam" (FR-INV-59)."""
+    if it.get("home_user_id"):
+        return keeper_label(state, it["home_user_id"])
     loc = location_name(state, it.get("home_location_id"))
     sub = it.get("sub_location")
     if not sub:
@@ -245,6 +258,7 @@ def search(
     status: str | None = None,
     retired: bool = False,
     needs: str | None = None,
+    home_user_id: str | None = None,
 ) -> list[Fields]:
     """Search as you type (FR-INV-07), over the things that move. Every word must appear somewhere."""
     words = [w for w in query.lower().split() if w]
@@ -269,6 +283,7 @@ def search(
         if not it.get("merged_into")
         and bool(it.get("retired")) == retired
         and (location_id is None or it.get("home_location_id") == location_id)
+        and (home_user_id is None or it.get("home_user_id") == home_user_id)
         and matches(it)
         and wanted(it)
     ]
@@ -282,13 +297,14 @@ def rows(
     status: str | None = None,
     retired: bool = False,
     needs: str | None = None,
+    home_user_id: str | None = None,
 ) -> list[Fields]:
     """The list: one row per generic with its counts, single items as rows of their own (FR-INV-25).
     A pool is its own row kind, with its counts instead of units (FR-INV-36)."""
     singles: list[Fields] = []
     pools: list[Fields] = []
     by_parent: dict[str, list[Fields]] = {}
-    for it in search(state, query, location_id, status, retired, needs):
+    for it in search(state, query, location_id, status, retired, needs, home_user_id):
         parent = it.get("parent_id") if it.get("parent_id") in (state.get("item") or {}) else None
         if parent:
             by_parent.setdefault(parent, []).append(it)
@@ -304,6 +320,8 @@ def rows(
         ("in" means stock on the shelf, "out" means anything checked out to a holder,
         "missing" means a missing count above zero)."""
         if location_id is not None and pool.get("home_location_id") != location_id:
+            return False
+        if home_user_id is not None and pool.get("home_user_id") != home_user_id:
             return False
         if needs is not None and not lacks(state, pool, needs, bound):
             return False
@@ -333,7 +351,7 @@ def rows(
                         "counts": pool_counts(generic),
                     }
                 )
-        elif location_id is None and status is None and needs is None:
+        elif location_id is None and home_user_id is None and status is None and needs is None:
             # An empty generic is still a row when only the search text is set, so one can be found and given units.
             by_parent[generic["id"]] = []
 

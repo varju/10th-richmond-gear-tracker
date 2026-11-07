@@ -12,6 +12,7 @@ export function readFilter(query: URLSearchParams): Filter {
   const status = STATUSES.find((s) => s === query.get("status"));
   return {
     location_id: query.get("location") || undefined,
+    home_user_id: query.get("keptby") || undefined,
     sub_location: query.get("sub") || undefined,
     status,
     retired: query.get("retired") === "1" || undefined,
@@ -24,6 +25,7 @@ export function filterParams(text: string, filter: Filter): URLSearchParams {
   const params = new URLSearchParams();
   if (text) params.set("q", text);
   if (filter.location_id) params.set("location", filter.location_id);
+  if (filter.home_user_id) params.set("keptby", filter.home_user_id);
   if (filter.sub_location) params.set("sub", filter.sub_location);
   if (filter.status) params.set("status", filter.status);
   if (filter.retired) params.set("retired", "1");

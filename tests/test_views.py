@@ -4,6 +4,7 @@ directly; the rest is through tests/test_assistant.py, which calls these through
 
 from __future__ import annotations
 
+from gear_tracker import views
 from gear_tracker.views import (
     DAY_MS,
     category_blockers,
@@ -461,3 +462,37 @@ def test_remaining_does_not_count_pool_gear_that_came_back():
     }
     r = state["reservation"]["r-fall"] | {"id": "r-fall"}
     assert remaining(state, r)["generics"][0]["done"] == 0
+
+
+def test_a_person_home_reads_as_kept_by_and_goes_inactive_with_the_person():
+    state = {
+        "user": {"sam": {"name": "Sam", "active": True}},
+        "item": {"pole": {"id": "pole", "name": "Flagpole", "home_user_id": "sam", "sub_location": "ignored"}},
+    }
+    assert views.home_label(state, state["item"]["pole"]) == "Kept by Sam"
+    state["user"]["sam"]["active"] = False
+    assert views.home_label(state, state["item"]["pole"]) == "Kept by Sam (inactive)"
+
+
+def test_search_filters_by_the_person_who_keeps_gear_and_a_person_is_a_home():
+    state = {
+        "user": {"sam": {"name": "Sam"}, "kim": {"name": "Kim"}},
+        "location": {"cold": {"name": "Cold locker"}},
+        "item": {
+            "pole": {"id": "pole", "name": "Flagpole", "home_user_id": "sam", "status": "in"},
+            "box": {"id": "box", "name": "Badge box", "home_user_id": "kim", "status": "in"},
+            "tent": {"id": "tent", "name": "Tent", "home_location_id": "cold", "status": "in"},
+        },
+    }
+    assert [it["id"] for it in views.search(state, home_user_id="sam")] == ["pole"]
+    assert [it["id"] for it in views.search(state, "kept by kim")] == ["box"]
+    assert [it["id"] for it in views.search(state, needs="location")] == []
+    assert [r["item"]["id"] for r in views.rows(state, home_user_id="kim")] == ["box"]
+
+
+def test_gear_kept_by_a_person_is_not_what_is_out():
+    state = {
+        "user": {"sam": {"name": "Sam"}},
+        "item": {"pole": {"id": "pole", "name": "Flagpole", "home_user_id": "sam", "status": "in"}},
+    }
+    assert views.what_is_out(state, 10**13)["total"] == 0

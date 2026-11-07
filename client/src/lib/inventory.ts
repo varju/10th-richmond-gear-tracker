@@ -8,6 +8,7 @@
  * with displayName and never with `it.name`.
  */
 import { keepNewest } from "./replay";
+import type { Store } from "./store";
 import type { Fields, Movement, Note, PoolLot, PoolLots, PoolOut, PoolReservations, State } from "./replay";
 
 export interface Item {
@@ -16,6 +17,8 @@ export interface Item {
   name?: string | null;
   description?: string;
   home_location_id?: string | null;
+  /** A person as home, instead of a location (FR-INV-59). Never set together with home_location_id. */
+  home_user_id?: string | null;
   sub_location?: string;
   /** One thing the group owns several of. Takes no code and no movement (FR-INV-21). */
   generic?: boolean;
@@ -372,15 +375,38 @@ export function codeStatus(state: State, id: string): CodeStatus {
   return currentCode(state, resolveItem(state, c.item_id))?.id === id ? "assigned" : "replaced";
 }
 
-/** Home as people say it: "Warm locker / shelf 4" (FR-INV-02). */
+/** "Kept by Sam", with "(inactive)" once Sam is deactivated (FR-INV-59). */
+export function keeperLabel(state: State, userId: string): string {
+  const u = state.user?.[userId];
+  return `Kept by ${userName(state, userId)}${u && u.active === false ? " (inactive)" : ""}`;
+}
+
+/** People who keep gear, by name: the Home filter's choices (FR-INV-61). Includes inactive ones. */
+export const keepers = (store: Store): { id: string; name: string }[] =>
+  store.memo("keepers", () => {
+    const state = store.state;
+    const ids = new Set(items(state).flatMap((it) => (it.home_user_id && !it.merged_into ? [it.home_user_id] : [])));
+    return [...ids].map((id) => ({ id, name: userName(state, id) })).sort((x, y) => x.name.localeCompare(y.name));
+  });
+
+/** Home as people say it: "Warm locker / shelf 4" (FR-INV-02), or "Kept by Sam" (FR-INV-59). */
 export function homeLabel(state: State, it: Item): string {
+  if (it.home_user_id) return keeperLabel(state, it.home_user_id);
   const loc = locationName(state, it.home_location_id);
   return it.sub_location ? (loc ? `${loc} / ${it.sub_location}` : it.sub_location) : loc;
+}
+
+/** Where a returned item goes, as the Return card says it (FR-OUT-10): "Put it back: Warm locker", "Back with Sam". */
+export function putBack(state: State, it: Item): string {
+  const home = homeLabel(state, it);
+  return it.home_user_id ? home.replace(/^Kept by /, "Back with ") : `Put it back: ${home}`;
 }
 
 export interface Filter {
   query?: string;
   location_id?: string;
+  /** Gear kept by this person (FR-INV-61). */
+  home_user_id?: string;
   sub_location?: string;
   status?: "in" | "out" | "missing";
   retired?: boolean;
@@ -393,7 +419,14 @@ export type Needs = (typeof NEEDS)[number];
 
 /** Whether a filter narrows by location, shelf, status, category or needs. Not the search text or retired. */
 export const isNarrowing = (filter: Filter): boolean =>
-  Boolean(filter.location_id || filter.sub_location || filter.status || filter.category_id || filter.needs);
+  Boolean(
+    filter.location_id ||
+      filter.home_user_id ||
+      filter.sub_location ||
+      filter.status ||
+      filter.category_id ||
+      filter.needs,
+  );
 
 /** Every item that has a code, through merges: the set a "code" need is tested against. */
 const boundItems = (state: State): Set<string> =>
@@ -416,9 +449,11 @@ export function unlabelledUnits(state: State): Map<string, Item[]> {
 function lacks(state: State, it: Item, needs: Needs, bound: Set<string>): boolean {
   if (needs === "code") return !bound.has(it.id);
   if (needs === "location") {
+    if (it.home_user_id) return false;
     const loc = it.home_location_id ? state.location?.[it.home_location_id] : undefined;
     return !loc || Boolean(loc.deleted);
   }
+  if (it.home_user_id) return false;
   return !it.sub_location?.trim();
 }
 
@@ -446,6 +481,7 @@ export function search(state: State, filter: Filter): Item[] {
     .filter((it) => !it.merged_into)
     .filter((it) => Boolean(it.retired) === Boolean(filter.retired))
     .filter((it) => !filter.location_id || it.home_location_id === filter.location_id)
+    .filter((it) => !filter.home_user_id || it.home_user_id === filter.home_user_id)
     .filter((it) => !filter.sub_location || it.sub_location === filter.sub_location)
     .filter((it) => !filter.status || (filter.status === "missing" ? Boolean(it.missing) : it.status === filter.status))
     .filter((it) => !filter.category_id || categoriesOf(state, it).includes(filter.category_id))
@@ -466,6 +502,7 @@ export function bindTargets(state: State, filter: Filter): Item[] {
     .filter(isPool)
     .filter((it) => Boolean(it.retired) === Boolean(filter.retired))
     .filter((it) => !filter.location_id || it.home_location_id === filter.location_id)
+    .filter((it) => !filter.home_user_id || it.home_user_id === filter.home_user_id)
     .filter((it) => !filter.sub_location || it.sub_location === filter.sub_location)
     .filter((it) => !filter.status || filter.status === "in")
     .filter((it) => !filter.category_id || categoriesOf(state, it).includes(filter.category_id))
@@ -514,6 +551,7 @@ export type Row = SingleRow | GenericRow | PoolRow;
  */
 function poolWanted(state: State, pool: Item, filter: Filter, bound: Set<string>): boolean {
   if (filter.location_id && pool.home_location_id !== filter.location_id) return false;
+  if (filter.home_user_id && pool.home_user_id !== filter.home_user_id) return false;
   if (filter.sub_location && pool.sub_location !== filter.sub_location) return false;
   if (filter.category_id && !categoriesOf(state, pool).includes(filter.category_id)) return false;
   if (filter.needs && !lacks(state, pool, filter.needs, bound)) return false;

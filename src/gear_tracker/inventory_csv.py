@@ -29,6 +29,7 @@ COLUMNS = [
     "category",
     "home",
     "shelf",
+    "kept_by",
     "description",
     "purchase_date",
     "purchased_from",
@@ -53,6 +54,8 @@ EDITABLE = (
     "purchase_date",
     "retired",
 )
+
+KEPT_BY_MESSAGE = "kept_by is set in the app, or through the assistant, not by import"
 
 IGNORED_COLUMNS = frozenset({"supplier", "price"})
 """Accepted on import but no longer read or written (FR-INV-12). An old export may still have them."""
@@ -125,6 +128,7 @@ def _row(state: State, it: dict[str, Any]) -> list[str]:
         "" if is_unit else _safe("; ".join(views.category_name(state, cid) for cid in views.categories_of(state, it))),
         _safe(views.location_name(state, it.get("home_location_id"))),
         _safe(it.get("sub_location") or ""),
+        _safe(views.user_name(state, it.get("home_user_id"))),
         _safe(it.get("description") or ""),
         purchased or "",
         purchased_from or "",
@@ -332,6 +336,14 @@ def _plan_change(
                 p.errors.append({"row": row_num, "message": f"{col} applies only to a unit"})
                 return
 
+    kept_by = _cell(vals, idx, "kept_by")
+    if kept_by is not None and kept_by != views.user_name(state, it.get("home_user_id")):
+        p.errors.append({"row": row_num, "message": KEPT_BY_MESSAGE})
+        return
+    if it.get("home_user_id") and _cell(vals, idx, "shelf") and not _cell(vals, idx, "home"):
+        p.errors.append({"row": row_num, "message": "gear kept by a person has no shelf"})
+        return
+
     changes = []
     for col in EDITABLE:
         if col not in idx:
@@ -343,6 +355,9 @@ def _plan_change(
         change = _diff_field(state, p, row_num, it, col, _cell(vals, idx, col), existing_locations, existing_categories)
         if change is not None:
             changes.append(change)
+            if col == "home" and change["new_raw"] is not None and it.get("home_user_id"):
+                keeper = views.keeper_label(state, it["home_user_id"])
+                changes.append(_change("home_user_id", keeper, "", it["home_user_id"], None))
 
     if changes:
         name = views.display_name(state, it)
@@ -594,6 +609,10 @@ def _add_optional(
                 if name not in existing_categories and name not in p.new_categories:
                     p.new_categories.append(name)
             payload["category"] = names
+
+    if _cell(vals, idx, "kept_by"):
+        p.errors.append({"row": row_num, "message": KEPT_BY_MESSAGE})
+        return False
 
     home = _cell(vals, idx, "home")
     if home:

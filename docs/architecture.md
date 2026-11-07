@@ -410,6 +410,11 @@ Locations are deleted by setting `deleted`; the row stays so items still pointin
 race it: one deletes a location while the other files an item there. The item wins, the location is hidden, and the
 item's home still reads correctly. That is rare enough to accept and cheap to fix by hand.
 
+An item's home can instead be a person: `home_user_id`, set by `field_changed` and never alongside `home_location_id`
+(setting one clears the other, and a person home clears the shelf). Replay treats it as any other field. An older app
+build does not know it and shows no home; the gear is still in and moves as usual. A person made inactive keeps what
+they keep, and the item reads "Kept by Sam (inactive)".
+
 **Categories** are entities like locations (FR-SET-07): the same create, rename and delete, and the same in-use check
 (FR-SET-05). Each item carries `category_ids`, a list, on a single item or on a generic; a unit carries none and reads
 its generic's, so re-filing a generic re-files its units. An item from before September 2026 may still carry the old,

@@ -1,6 +1,7 @@
 import type { Filter } from "../lib/inventory";
-import { categories, locations, subLocations } from "../lib/inventory";
+import { categories, keepers, subLocations } from "../lib/inventory";
 import type { Store } from "../lib/store";
+import { HomeSelect } from "./HomeSelect";
 
 interface Props {
   store: Store;
@@ -11,38 +12,44 @@ interface Props {
 /** Location, shelf, status, needs, retired. Folded away on a phone, in a row at a desk. */
 export function FilterFields({ store, filter, onChange }: Props) {
   const state = store.state;
+  const people = keepers(store);
   const set = (patch: Partial<Filter>) => onChange({ ...filter, ...patch });
   return (
     <>
       <div className="row">
         <label className="tight">
           <span>Location</span>
-          <select
-            value={filter.location_id ?? ""}
-            onChange={(e) => set({ location_id: e.target.value || undefined, sub_location: undefined })}
-          >
-            <option value="">Any</option>
-            {locations(state).map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
+          <HomeSelect
+            state={state}
+            location_id={filter.location_id}
+            user_id={filter.home_user_id}
+            people={people}
+            none="Any"
+            onChange={(pick) =>
+              set({
+                location_id: pick.location_id ?? undefined,
+                home_user_id: pick.user_id ?? undefined,
+                sub_location: undefined,
+              })
+            }
+          />
         </label>
-        <label className="tight">
-          <span>Shelf</span>
-          <select
-            value={filter.sub_location ?? ""}
-            onChange={(e) => set({ sub_location: e.target.value || undefined })}
-          >
-            <option value="">Any</option>
-            {subLocations(state, filter.location_id).map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
+        {!filter.home_user_id && (
+          <label className="tight">
+            <span>Shelf</span>
+            <select
+              value={filter.sub_location ?? ""}
+              onChange={(e) => set({ sub_location: e.target.value || undefined })}
+            >
+              <option value="">Any</option>
+              {subLocations(state, filter.location_id).map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
       <div className="row">
         {categories(state).length > 0 && (

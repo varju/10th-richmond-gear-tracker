@@ -291,6 +291,14 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             # Modified means the entity's own fields (FR-INV-03). Movements and notes do not count.
             entity[p["field"]] = p["value"]
             entity["modified_at"] = event.effective_at
+            # A home is a location or a person, last write wins (FR-INV-59).
+            if event.entity_type == "item" and p["value"] is not None:
+                lost = ("home_user_id",) if p["field"] == "home_location_id" else ()
+                if p["field"] == "home_user_id":
+                    lost = ("home_location_id", "sub_location")
+                for key in lost:
+                    if entity.get(key) is not None:
+                        entity[key] = None
             # When a user is deactivated, remember when (FR-USR-20); a reactivation clears it.
             if event.entity_type == "user" and p["field"] == "active":
                 entity["deactivated_at"] = event.effective_at if p["value"] is False else None

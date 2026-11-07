@@ -10,6 +10,7 @@ import {
   item,
   nameOf,
   poolCounts,
+  putBack,
   resolveItem,
 } from "../lib/inventory";
 import { checkOut } from "../lib/movement";
@@ -242,7 +243,7 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
             {homeLabel(store.state, card) && (
               // Where it goes back, big, whenever Return is on offer (FR-OUT-10).
               <p className={card.status === "out" ? "move-home" : "muted"}>
-                {card.status === "out" ? `Put it back: ${homeLabel(store.state, card)}` : homeLabel(store.state, card)}
+                {card.status === "out" ? putBack(store.state, card) : homeLabel(store.state, card)}
               </p>
             )}
             <MoveActions

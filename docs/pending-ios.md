@@ -21,6 +21,7 @@ What the app does differently.
 - Only what cannot be undone asks first. Mark missing, making a single item, and turning an item into several units now
   act on one tap; deleting, removing a photo, cancelling an event and making a counted stack ask with "Really …?" on the
   same button, which turns back after a few seconds.
+- An item's home can be a person ("Kept by Sam"): the gear counts as in, and the Home filter lists people.
 - An event's gear lists are in alphabetical order. Lists sorted by name put 2 before 10.
 - Scanning an unassigned code no longer emphasises one choice. "Another of…" is now "Add a unit of…", and shows only
   when there is something to add a unit of.

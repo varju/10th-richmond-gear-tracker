@@ -162,6 +162,7 @@ export function ItemPage({ store, id }: Props) {
           name: it.name ?? "",
           description: it.description ?? "",
           home_location_id: it.home_location_id ?? null,
+          home_user_id: it.home_user_id ?? null,
           sub_location: it.sub_location ?? "",
           purchase_date: it.purchase_date ?? "",
           category_ids: categoriesOf(state, it),
@@ -1313,6 +1314,7 @@ function EditItem({
           <HomeFields
             store={store}
             home_location_id={values.home_location_id ?? null}
+            home_user_id={values.home_user_id ?? null}
             sub_location={values.sub_location ?? ""}
             onChange={(patch) => setValues({ ...values, ...patch })}
           />

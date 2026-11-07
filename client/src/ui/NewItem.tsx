@@ -54,6 +54,7 @@ function copyOf(
       name: it.name ?? "",
       description: it.description ?? "",
       home_location_id: it.home_location_id ?? null,
+      home_user_id: it.home_user_id ?? null,
       sub_location: it.sub_location ?? "",
       purchase_date: it.purchase_date ?? "",
       category_ids: categoriesOf(store.state, it),
@@ -262,6 +263,7 @@ export function NewUnit({ store, parent, code }: Props & { parent: string }) {
   const [nickname, setNickname] = useState("");
   const [home, setHome] = useState(() => ({
     home_location_id: generic?.home_location_id ?? null,
+    home_user_id: generic?.home_user_id ?? null,
     sub_location: generic?.sub_location ?? "",
   }));
   const [error, setError] = useState<string | null>(null);

@@ -289,6 +289,8 @@ def _item_brief(state: dict[str, Any], it: dict[str, Any]) -> dict[str, Any]:
         "home": views.home_label(state, it),
         "status": it.get("status"),
     }
+    if it.get("home_user_id"):
+        brief["home_user_id"] = it["home_user_id"]
     if it.get("holder_id"):
         brief["holder"] = views.user_name(state, it["holder_id"])
     if (it.get("movement") or {}).get("event"):
@@ -457,8 +459,9 @@ def search_items(
     status: Status | None = None,
     include_retired: StrictBool = False,
     needs: Needs | None = None,
+    home_user_id: str | None = None,
 ) -> dict[str, Any]:
-    """Find gear by name or home (FR-INV-07).
+    """Find gear by name or home (FR-INV-07). `home_user_id` keeps only gear kept by that person (FR-INV-61).
 
     Every word must appear somewhere in the name or the home. One row per thing
     the group owns several of, with how many are in, and single items as rows of
@@ -469,7 +472,7 @@ def search_items(
     """
     with _open() as (conn, _who):
         state = _state(conn)
-        rows = views.rows(state, query, location_id, status, include_retired, needs)
+        rows = views.rows(state, query, location_id, status, include_retired, needs, home_user_id)
         return {"rows": [_row(state, row) for row in rows], "count": len(rows)}
 
 
@@ -873,6 +876,7 @@ class ItemFields(BaseModel):
     name: str | None = None
     description: str | None = None
     home_location_id: str | None = None
+    home_user_id: str | None = None
     sub_location: str | None = None
     purchase_date: IsoDate | None = None
     nickname: str | None = None
@@ -883,6 +887,12 @@ class ItemFields(BaseModel):
 def _home(state: dict[str, Any], location_id: str | None) -> None:
     if location_id and views.entity(state, "location", location_id) is None:
         raise NotFound(f"no location with id {location_id}; call list_locations")
+
+
+def _keeper(state: dict[str, Any], user_id: str | None) -> None:
+    user = views.entity(state, "user", user_id) if user_id else None
+    if user_id and (user is None or user.get("active") is False):
+        raise NotFound(f"no active person with id {user_id}; call list_members")
 
 
 def _category(state: dict[str, Any], category_id: str | None) -> None:
@@ -906,8 +916,11 @@ def create_item(
     quantity: Annotated[StrictInt, Field(ge=0)] | None = None,
     category_ids: list[str] | None = None,
     units: UnitCount | None = None,
+    home_user_id: str | None = None,
 ) -> dict[str, Any]:
     """Add gear to the inventory (FR-INV-01).
+
+    `home_user_id` makes a person its home ("Kept by Sam") instead of a location (FR-INV-59).
 
     `generic` is for something the group owns several of: the name is stored
     once and each one becomes a numbered unit under it (FR-INV-21). Add those
@@ -931,6 +944,9 @@ def create_item(
         if quantity is not None and not pool:
             raise BadRequest("quantity is only for a pool")
         _home(state, home_location_id)
+        _keeper(state, home_user_id)
+        if home_user_id and (home_location_id or (sub_location and sub_location.strip())):
+            raise BadRequest("a person home takes no location or shelf")
         for category_id in category_ids or []:
             _category(state, category_id)
         payload: dict[str, Any] = {"name": name.strip()}
@@ -942,6 +958,8 @@ def create_item(
             payload["generic"] = True
         if home_location_id:
             payload["home_location_id"] = home_location_id
+        if home_user_id:
+            payload["home_user_id"] = home_user_id
         if sub_location and sub_location.strip():
             payload["sub_location"] = sub_location.strip()
         if description and description.strip():
@@ -989,6 +1007,8 @@ def _unit_payload(parent: dict[str, Any], number: str, nickname: str | None = No
         payload["nickname"] = nickname.strip()
     if parent.get("home_location_id"):
         payload["home_location_id"] = parent["home_location_id"]
+    if parent.get("home_user_id"):
+        payload["home_user_id"] = parent["home_user_id"]
     if parent.get("sub_location"):
         payload["sub_location"] = parent["sub_location"]
     return payload
@@ -1024,7 +1044,10 @@ def add_unit(generic_id: str, number: str | None = None, nickname: str | None = 
 def update_item(item_id: str, fields: ItemFields) -> dict[str, Any]:
     """Change an item's own fields. Only what differs is recorded, with the old value kept (FR-USR-05).
 
-    A unit's `purchase_date` is its own; null clears it, and it shows its generic's again (FR-INV-56)."""
+    A unit's `purchase_date` is its own; null clears it, and it shows its generic's again (FR-INV-56).
+    A home is a location or a person (`home_user_id`, "Kept by Sam"), never both: setting one clears the other
+    and a person's home clears the shelf (FR-INV-59).
+    """
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)
@@ -1032,6 +1055,17 @@ def update_item(item_id: str, fields: ItemFields) -> dict[str, Any]:
         if not patch:
             raise BadRequest("say which fields to change")
         _home(state, patch.get("home_location_id"))
+        if patch.get("home_user_id") and it.get("home_user_id") != patch["home_user_id"]:
+            _keeper(state, patch["home_user_id"])
+        if patch.get("home_user_id"):
+            if patch.get("home_location_id") or (patch.get("sub_location") or "").strip():
+                raise BadRequest("a person home takes no location or shelf")
+            patch["home_location_id"] = None
+            patch["sub_location"] = None
+        elif patch.get("home_location_id"):
+            patch["home_user_id"] = None
+        elif (patch.get("sub_location") or "").strip() and it.get("home_user_id") and "home_user_id" not in patch:
+            raise BadRequest("gear kept by a person has no shelf")
         if "category_ids" in patch:
             if it.get("parent_id"):
                 raise BadRequest("a unit takes its generic's categories")
@@ -1232,6 +1266,7 @@ def _carried(state: dict[str, Any], it: dict[str, Any]) -> dict[str, Any]:
             "name": it.get("name") or "",
             "description": it.get("description") or "",
             "home_location_id": it.get("home_location_id"),
+            "home_user_id": it.get("home_user_id"),
             "sub_location": it.get("sub_location") or "",
             "category_ids": _sorted_categories(state, views.categories_of(state, it)),
             "purchase_date": it.get("purchase_date"),
@@ -1368,7 +1403,7 @@ def make_single(generic_id: str) -> dict[str, Any]:
             description = generic.get("description") or ""
             if nickname:
                 description = " · ".join(part for part in (description, nickname) if part)
-            own_home = bool(unit.get("home_location_id"))
+            own_home = bool(unit.get("home_location_id") or unit.get("home_user_id"))
             patch = _clean(
                 {
                     "parent_id": None,
@@ -1377,7 +1412,8 @@ def make_single(generic_id: str) -> dict[str, Any]:
                     "name": generic.get("name") or "",
                     "description": description,
                     "category_ids": categories,
-                    "home_location_id": unit.get("home_location_id") or generic.get("home_location_id"),
+                    "home_location_id": unit.get("home_location_id") if own_home else generic.get("home_location_id"),
+                    "home_user_id": unit.get("home_user_id") if own_home else generic.get("home_user_id"),
                     "sub_location": (unit.get("sub_location") if own_home else generic.get("sub_location")) or "",
                     "purchase_date": unit.get("purchase_date") or generic.get("purchase_date"),
                 }

@@ -2229,3 +2229,62 @@ def test_back_to_single_takes_the_units_own_date_else_the_generics(db_path, tool
             assistant.update_item(generic["unit_ids"][0], assistant.ItemFields(purchase_date=own))
         made = assistant.make_single(generic["item_id"])
         assert entity(db_path, "item", made["item_id"])["purchase_date"] == expected
+
+
+def test_a_person_can_be_an_items_home(db_path, tools):
+    """FR-MCP-42."""
+    assistant.update_item(tools["stove"], assistant.ItemFields(home_user_id=ALICE))
+    stove = entity(db_path, "item", tools["stove"])
+    assert stove["home_user_id"] == ALICE and stove["home_location_id"] is None
+    assert assistant.get_item(tools["stove"])["home"] == "Kept by Alice"
+    assert assistant.get_item(tools["stove"])["home_user_id"] == ALICE
+    assert [r["name"] for r in assistant.search_items(home_user_id=ALICE)["rows"]] == ["Camp stove"]
+    assert assistant.whats_out()["total"] == 0
+
+    assistant.check_out(tools["stove"], event="Fall Camp")
+    assert assistant.whats_out()["total"] == 1
+    assistant.check_in(tools["stove"])
+    assert assistant.get_item(tools["stove"])["home"] == "Kept by Alice"
+
+    assistant.update_item(tools["stove"], assistant.ItemFields(home_location_id=tools["cold"]))
+    stove = entity(db_path, "item", tools["stove"])
+    assert stove["home_location_id"] == tools["cold"] and stove["home_user_id"] is None
+
+
+def test_a_person_home_clears_the_shelf_and_refuses_a_location_beside_it(db_path, tools):
+    assistant.update_item(tools["t1"], assistant.ItemFields(home_location_id=tools["cold"], sub_location="shelf 4"))
+    assistant.update_item(tools["t1"], assistant.ItemFields(home_user_id=ALICE))
+    unit = entity(db_path, "item", tools["t1"])
+    assert unit["home_user_id"] == ALICE and not unit["home_location_id"] and not unit["sub_location"]
+    with pytest.raises(BadRequest):
+        assistant.update_item(tools["t1"], assistant.ItemFields(home_user_id=ALICE, home_location_id=tools["cold"]))
+    with pytest.raises(NotFound):
+        assistant.update_item(tools["t2"], assistant.ItemFields(home_user_id="nobody"))
+
+
+def test_a_new_item_and_its_units_can_be_kept_by_a_person(db_path, tools):
+    made = assistant.create_item("Flagpole", home_user_id=ALICE, generic=True, units=2)
+    assert entity(db_path, "item", made["item_id"])["home_user_id"] == ALICE
+    assert all(entity(db_path, "item", u)["home_user_id"] == ALICE for u in made["unit_ids"])
+    with pytest.raises(BadRequest):
+        assistant.create_item("Badge box", home_user_id=ALICE, home_location_id=tools["cold"])
+
+
+def test_gear_kept_by_someone_made_inactive_stays_with_them(db_path, tools):
+    assistant.update_item(tools["stove"], assistant.ItemFields(home_user_id=ALICE))
+    with open_db(db_path) as conn:
+        events.append_server(
+            conn, ALICE, "user", ALICE, "field_changed", {"field": "active", "value": False, "old": True}
+        )
+    assert assistant.get_item(tools["stove"])["home"] == "Kept by Alice (inactive)"
+
+
+def test_a_person_home_takes_no_shelf_and_is_not_missing_one(db_path, tools):
+    assistant.update_item(tools["stove"], assistant.ItemFields(home_user_id=ALICE))
+    with pytest.raises(BadRequest):
+        assistant.update_item(tools["stove"], assistant.ItemFields(sub_location="shelf 1"))
+    assert "Camp stove" not in [r["name"] for r in assistant.search_items(needs="shelf")["rows"]]
+    assistant.update_item(tools["stove"], assistant.ItemFields(home_user_id=None, sub_location="shelf 1"))
+    assert entity(db_path, "item", tools["stove"])["sub_location"] == "shelf 1"
+    with pytest.raises(NotFound, match="list_members"):
+        assistant.update_item(tools["stove"], assistant.ItemFields(home_user_id="nobody"))

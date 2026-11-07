@@ -62,12 +62,6 @@ changelog.
       unit by unit.
 - [ ] Event gear list: offer check-out order as a sort option, if people miss it. Deferred until someone asks. Plan: a
       **Sort** switch on the event page, Name or Checked out, remembered per phone.
-- [ ] Improve support for long term loans. e.g. our troop Scouter has the scout flagpole and badge box at home for the
-      whole school year. We still want to know where that gear is, but perhaps don't want to see it on the "What's out"
-      screen by default. Plan: a person can be an item's home ("Kept by Sam"), as well as a location and shelf. The gear
-      is in, at Sam's, so it is not on What's out and never overdue. Taking it to an event is a normal check-out;
-      check-in returns it to Sam. The Home filter offers people too. `update_item` takes a person as home. To settle
-      when built: what happens to gear kept by someone made inactive.
 - [ ] Consider whether there are too many buttons for beginners. Some of our Scouters likely just want to check gear in
       and out, and don't need all the extra capabilities related to managing the gear. Plan: tidy for everyone, not a
       mode or a role. Each screen keeps everyday actions in view; rare ones go under one **More…**, shut by default.

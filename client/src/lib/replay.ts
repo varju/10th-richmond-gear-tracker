@@ -345,6 +345,16 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       // Modified means the entity's own fields (FR-INV-03). Movements and notes do not count.
       entity[p.field as string] = p.value;
       entity.modified_at = event.effective_at;
+      // A home is a location or a person, last write wins (FR-INV-59).
+      if (event.entity_type === "item" && p.value != null) {
+        const lost =
+          p.field === "home_location_id"
+            ? ["home_user_id"]
+            : p.field === "home_user_id"
+              ? ["home_location_id", "sub_location"]
+              : [];
+        for (const key of lost) if (entity[key] != null) entity[key] = null;
+      }
       // When a user is deactivated, remember when (FR-USR-20); a reactivation clears it.
       if (event.entity_type === "user" && p.field === "active") {
         entity.deactivated_at = p.value === false ? event.effective_at : null;
