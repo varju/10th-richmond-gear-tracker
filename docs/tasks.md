@@ -14,11 +14,6 @@ changelog.
       and `delete_item` releases as `mcp-…`; in the same millisecond, `mcp-…` sorts first, so the release replays before
       the bind. The app is right to break a tie by device. Plan: write the setup events a second in the past
       (`append_server(now=…)`), and fix other tests that mix `append_server` with an assistant write straight after.
-- [ ] Fix the flaky "signed in already, a link says who is signed in" in `client/src/ui/Join.test.tsx`. It failed once
-      in a full run, then passed three runs on its own and the next full run. Likely cause: the button's handler is not
-      awaited, and `setMeta` updates `store.meta` only after its IndexedDB write, so the check on `store.meta.token`
-      straight after the click races it. Plan: wait for the token to clear (`waitFor`) before the checks after the
-      click, and look for the same pattern in the other tests in `Join.test.tsx`.
 - [ ] Fix the flaky "an Admin merges a duplicate into the item it doubles, and lands on the survivor (FR-INV-13)" in
       `client/src/ui/ItemPage.test.tsx`. It failed once in a full run: `merged_into` was still undefined right after a
       `waitFor` on the pathname. It then passed later full runs. The merge is saved before the page moves, and no sync

@@ -164,7 +164,7 @@ test("in the app, signed in already, a link says who is signed in and offers to 
   expect(location.pathname).toBe("/join");
   await user.click(screen.getByRole("button", { name: "Sign out and use the link" }));
   expect(signOut).toHaveBeenCalled();
-  expect(store.meta.token).toBeUndefined();
+  await waitFor(() => expect(store.meta.token).toBeUndefined());
   expect(location.search).toBe("?link=GOOD");
 });
 
