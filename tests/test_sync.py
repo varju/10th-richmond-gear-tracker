@@ -876,3 +876,96 @@ def test_weighing_is_not_for_a_generic(db):
     for kind, payload in (("weighed", {"value": None}), ("refilled", {})):
         bad = own(USER, entity_id="tanks", type=kind, payload=payload, device_seq=4)
         assert reasons(db, USER, bad) == ["only a unit or a single item is weighed (FR-INV-64)"]
+
+
+def test_a_device_cannot_write_a_user(db):
+    user = own(USER, entity_type="user", entity_id="carol", type="created", payload={"name": "Carol"})
+    refused = ["user changes go through the accounts API"]
+    assert reasons(db, USER, user) == refused
+    assert reasons(db, ADMIN, {**user, "id": new_ulid()}) == refused
+    assert derived.get_entity(db, "user", "carol") is None
+
+
+def test_a_merge_into_something_that_is_not_an_id_is_not_a_fold(db):
+    generic = {"name": "Tents", "generic": True}
+    push(db, USER, batch(USER, own(USER, entity_id="tents", type="created", payload=generic)), now=T0)
+    merge = own(USER, entity_id="tents", payload={"field": "merged_into", "value": 5, "old": None}, device_seq=2)
+    assert reasons(db, USER, merge) == ["items are merged by an Admin (FR-INV-13)"]
+    assert events.get(db, merge["id"]) is None
+
+
+def test_an_item_created_with_a_payload_that_is_not_an_object_is_rejected(db):
+    bad = own(USER, type="created", payload="Tent")
+    assert reasons(db, USER, bad) == ["payload: Input should be a valid dictionary"]
+    assert events.get(db, bad["id"]) is None
+
+
+def test_a_single_item_return_does_not_name_a_cleaner(db):
+    push(db, USER, batch(USER, own(USER, type="created", payload={"name": "Tent"})), now=T0)
+    back = own(USER, type="checked_in", payload={"cleaner": "Smith"}, device_seq=2)
+    assert reasons(db, USER, back) == ["a cleaner names whose lot a pool return comes from (FR-OUT-47)"]
+    assert events.get(db, back["id"]) is None
+
+    created = {"name": "Bowls", "generic": True, "pool": True, "quantity": 20}
+    push(db, USER, batch(USER, own(USER, entity_id="bowls", type="created", payload=created, device_seq=3)), now=T0)
+    pool = own(USER, entity_id="bowls", type="checked_in", payload={"count": 2, "cleaner": "Smith"}, device_seq=4)
+    assert reasons(db, USER, pool) == []
+
+
+def test_cleaning_ends_by_count_for_a_pool_and_without_one_for_a_single_item(db):
+    push(db, USER, batch(USER, own(USER, type="created", payload={"name": "Tent"})), now=T0)
+    created = {"name": "Bowls", "generic": True, "pool": True, "quantity": 20}
+    push(db, USER, batch(USER, own(USER, entity_id="bowls", type="created", payload=created, device_seq=2)), now=T0)
+    mismatch = "a pool ends cleaning by count, a single item without one (FR-OUT-51)"
+
+    bare_pool = own(USER, entity_id="bowls", type="cleaning_ended", payload={"cleaner": "Smith"}, device_seq=3)
+    assert reasons(db, USER, bare_pool) == [mismatch]
+    counted = own(USER, type="cleaning_ended", payload={"cleaner": "Smith", "count": 1}, device_seq=3)
+    assert reasons(db, USER, counted) == [mismatch]
+    unnamed = own(USER, entity_id="bowls", type="cleaning_ended", payload={"count": 1}, device_seq=3)
+    assert reasons(db, USER, unnamed) == ["a pool says whose lots are back (FR-OUT-51)"]
+    for rejected in (bare_pool, counted, unnamed):
+        assert events.get(db, rejected["id"]) is None
+
+    single = own(USER, type="cleaning_ended", payload={}, device_seq=3)
+    assert reasons(db, USER, single) == []
+    pool = own(USER, entity_id="bowls", type="cleaning_ended", payload={"cleaner": "Smith", "count": 1}, device_seq=4)
+    assert reasons(db, USER, pool) == []
+
+
+def test_a_deleted_item_is_not_weighed_or_refilled(db):
+    push(db, USER, batch(USER, own(USER, type="created", payload={"name": "Tank"})), now=T0)
+    gone = own(ADMIN, payload={"field": "deleted", "value": True, "old": None}, device_seq=2)
+    assert reasons(db, ADMIN, gone) == []
+    for seq, kind, payload in ((3, "weighed", {"value": 20, "unit": "lb"}), (4, "refilled", {})):
+        late = own(USER, type=kind, payload=payload, device_seq=seq)
+        assert reasons(db, USER, late) == ["this item was deleted"]
+        assert events.get(db, late["id"]) is None
+
+
+def test_deleting_a_ticket_that_is_already_closed_leaves_its_state(db):
+    raised = {"entity_type": "repair", "type": "created", "payload": {"item_id": "tent-1", "description": "zip"}}
+    closed = {"field": "state", "value": "resolved", "old": "open"}
+    gone = {"field": "deleted", "value": True, "old": None}
+    assert reasons(db, USER, own(USER, entity_id="t1", device_seq=1, **raised)) == []
+    assert reasons(db, USER, own(USER, entity_type="repair", entity_id="t1", device_seq=2, payload=closed)) == []
+    assert reasons(db, USER, own(USER, entity_type="repair", entity_id="t1", device_seq=3, payload=gone)) == []
+    assert (derived.get_entity(db, "repair", "t1") or {}).get("state") == "resolved"
+
+
+def test_an_event_the_database_cannot_hold_is_rejected_and_the_rest_of_the_batch_stores(db, caplog):
+    before = own(ALICE, entity_id="tent-1", device_seq=1)
+    too_big = own(ALICE, entity_id="tent-2", device_seq=2, occurred_at=2**70)
+    after = own(ALICE, entity_id="tent-3", device_seq=3)
+
+    with caplog.at_level("WARNING"):
+        result = push(db, ALICE, batch(ALICE, before, too_big, after), now=T0)
+
+    assert result["accepted"] == [before["id"], after["id"]]
+    assert result["rejected"] == [{"id": too_big["id"], "reason": "the server could not store this event"}]
+    assert events.get(db, too_big["id"]) is None
+    assert events.get(db, before["id"]) and events.get(db, after["id"])
+    [record] = caplog.records
+    assert record.levelname == "ERROR"
+    assert record.exc_info is not None
+    assert too_big["id"] in record.getMessage()
