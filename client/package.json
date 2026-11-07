@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "e2e": "playwright test",
+    "e2e": "./e2e/run.sh",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

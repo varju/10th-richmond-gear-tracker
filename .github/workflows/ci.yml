@@ -59,7 +59,7 @@ jobs:
       - run: uv sync --frozen --python 3.14
       - run: npm ci
         working-directory: client
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
         working-directory: client
       - run: make e2e
 

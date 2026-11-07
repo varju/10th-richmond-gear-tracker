@@ -1,11 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = 8765;
+const PORT = Number(process.env.E2E_PORT ?? 8765);
 
 // Few, and each one earns its seconds (architecture.md, "Browser tests").
 export default defineConfig({
   testDir: "e2e",
-  // One server, one database: the files share them, so they run one at a time.
+  // One server and database per run: the files in a run share them, so they run one at a time.
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -13,13 +13,19 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
   },
-  // The same build at both widths (NFR-USE-10). One database and one server:
-  // the projects run in order, not at the same time.
+  // The same build at both widths (NFR-USE-10), and on WebKit as an iPhone. With no
+  // arguments e2e/run.sh runs each project in its own process on its own port, at the same
+  // time; with arguments it runs this config once, projects in order.
   projects: [
     {
       name: "phone",
       use: { ...devices["Pixel 7"] },
       testIgnore: /desk\.spec\.ts/,
+    },
+    {
+      name: "iphone",
+      use: { ...devices["iPhone 14"] },
+      testIgnore: /(scan|desk)\.spec\.ts/,
     },
     {
       name: "desk",

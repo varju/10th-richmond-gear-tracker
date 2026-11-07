@@ -1010,6 +1010,11 @@ covers most of what a browser would otherwise be asked to prove.
 
 Browser tests get their own `make` target, separate from `make check`. CI runs both.
 
+Three Playwright projects run the same build: `phone` (Chromium as a Pixel 7: shell, scan, a11y), `iphone` (WebKit as an
+iPhone 14: shell, a11y) and `desk` (desktop Chromium: desk, a11y). Scan stays on Chromium, which has the fake camera.
+`make e2e` runs the three at once, each against its own server, port and fresh database. A bug seen only on iPhone gets
+its browser test in a spec the `iphone` project runs. Install the engines with `npx playwright install chromium webkit`.
+
 One of them is an accessibility audit: axe runs WCAG 2.2 AA checks on the main screens against the real build
 (NFR-A11Y-01). It runs in the browser because contrast needs real layout. What axe cannot judge, focus order and whether
 a screen reader makes sense of the check-out flow, stays manual (NFR-A11Y-04).
