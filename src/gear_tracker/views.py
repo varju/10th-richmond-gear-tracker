@@ -613,6 +613,16 @@ def categories_of(state: State, it: Fields) -> list[str]:
     return [cid for cid in _raw_category_ids(source) if cid in live]
 
 
+def purchase_of(state: State, it: Fields) -> tuple[str | None, str | None]:
+    """The purchase date in use and where it comes from: "item", "generic" (a unit with none of its own), or None."""
+    own = it.get("purchase_date")
+    if own:
+        return own, "item"
+    parent = item(state, it["parent_id"]) if it.get("parent_id") else None
+    inherited = (parent or {}).get("purchase_date")
+    return (inherited, "generic") if inherited else (None, None)
+
+
 def category_names(state: State, it: Fields) -> str:
     """The item's categories on one line: "Tents, Tarps", or "" for none."""
     return ", ".join(category_name(state, cid) for cid in categories_of(state, it))

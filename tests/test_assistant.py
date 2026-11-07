@@ -2194,3 +2194,38 @@ def test_make_generic_numbers_on_from_a_superscript_digit(db_path, tools):
     made = assistant.make_generic(tools["stove"], number="²", total=2)
     assert entity(db_path, "item", tools["stove"])["number"] == "²"
     assert [entity(db_path, "item", i)["number"] for i in made["unit_ids"]] == ["1"]
+
+
+def test_a_unit_shows_its_generics_purchase_date_until_it_has_its_own(db_path, tools):
+    assistant.update_item(tools["tents"], assistant.ItemFields(purchase_date="2021-05-01"))
+    unit = assistant.get_item(tools["t1"])
+    assert unit["generic_purchase_date"] == "2021-05-01"
+    assert "purchase_date" not in unit
+
+    assistant.update_item(tools["t1"], assistant.ItemFields(purchase_date="2023-06-02"))
+    unit = assistant.get_item(tools["t1"])
+    assert unit["purchase_date"] == "2023-06-02"
+    assert "generic_purchase_date" not in unit
+    assert assistant.get_item(tools["tents"])["purchase_date"] == "2021-05-01"
+
+    assistant.update_item(tools["t1"], assistant.ItemFields(purchase_date=None))
+    assert assistant.get_item(tools["t1"])["generic_purchase_date"] == "2021-05-01"
+
+
+def test_making_an_item_generic_moves_its_purchase_date_to_the_generic(db_path, tools):
+    assistant.update_item(tools["stove"], assistant.ItemFields(purchase_date="2020-01-02"))
+    made = assistant.make_generic(tools["stove"], total=2)
+    assert entity(db_path, "item", made["generic_id"])["purchase_date"] == "2020-01-02"
+    assert entity(db_path, "item", tools["stove"]).get("purchase_date") is None
+    assert entity(db_path, "item", made["unit_ids"][0]).get("purchase_date") is None
+    assert assistant.get_item(tools["stove"])["generic_purchase_date"] == "2020-01-02"
+
+
+def test_back_to_single_takes_the_units_own_date_else_the_generics(db_path, tools):
+    for own, expected in (("2024-01-01", "2024-01-01"), (None, "2021-05-01")):
+        generic = assistant.create_item("Fly", generic=True, units=1)
+        assistant.update_item(generic["item_id"], assistant.ItemFields(purchase_date="2021-05-01"))
+        if own:
+            assistant.update_item(generic["unit_ids"][0], assistant.ItemFields(purchase_date=own))
+        made = assistant.make_single(generic["item_id"])
+        assert entity(db_path, "item", made["item_id"])["purchase_date"] == expected

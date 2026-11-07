@@ -596,3 +596,31 @@ def test_an_escaped_name_round_trips_unchanged(db):
     assert plan.errors == []
     assert plan.adds == []
     assert plan.changes == []
+
+
+def test_a_units_date_in_use_and_its_source_are_exported(db):
+    seeded(db)
+    set_date(db, "tarp", "2021-05-01")
+    set_date(db, "tarp-2", "2023-06-02")
+    by_id = rows_by_id(inventory_csv.export(derived.snapshot(db)))
+    got = {i: (by_id[i]["purchase_date"], by_id[i]["purchased_from"]) for i in ("tarp", "tarp-1", "tarp-2", "stove")}
+    assert got == {
+        "tarp": ("2021-05-01", "item"),
+        "tarp-1": ("2021-05-01", "generic"),
+        "tarp-2": ("2023-06-02", "item"),
+        "stove": ("", ""),
+    }
+
+
+def test_importing_the_export_does_not_copy_a_generics_date_onto_its_units(db):
+    seeded(db)
+    set_date(db, "tarp", "2021-05-01")
+    state = derived.snapshot(db)
+    plan = inventory_csv.plan(state, inventory_csv.export(state))
+    assert plan.errors == []
+    assert plan.changes == []
+
+
+def set_date(conn, item_id: str, value: str) -> None:
+    payload = {"field": "purchase_date", "value": value, "old": None}
+    events.append_server(conn, ACTOR, "item", item_id, "field_changed", payload)

@@ -31,6 +31,7 @@ COLUMNS = [
     "shelf",
     "description",
     "purchase_date",
+    "purchased_from",
     "retired",
     "code",
     "status",
@@ -113,6 +114,7 @@ def _row(state: State, it: dict[str, Any]) -> list[str]:
     kind = "unit" if is_unit else ("pool" if is_pool else ("generic" if it.get("generic") else "single"))
     status = "" if it.get("generic") else (it.get("status") or "")
     counts = views.pool_counts(it) if is_pool else None
+    purchased, purchased_from = views.purchase_of(state, it)
     return [
         it["id"],
         kind,
@@ -124,7 +126,8 @@ def _row(state: State, it: dict[str, Any]) -> list[str]:
         _safe(views.location_name(state, it.get("home_location_id"))),
         _safe(it.get("sub_location") or ""),
         _safe(it.get("description") or ""),
-        it.get("purchase_date") or "",
+        purchased or "",
+        purchased_from or "",
         "yes" if it.get("retired") else "",
         _code_for(state, it["id"]) or "",
         status,
@@ -398,12 +401,16 @@ def _diff_field(
         return None if (old or None) == new else _change("description", old or "", new or "", old, new)
     if col == "purchase_date":
         old = it.get("purchase_date")
+        # The export shows a unit's date in use, which may be its generic's; that is not an edit.
+        shown = views.purchase_of(state, it)[0]
+        if cell == (shown or ""):
+            return None
         if not cell:
             return None if old is None else _change("purchase_date", old, "", old, None)
         if not DATE_RE.match(cell):
             p.errors.append({"row": row_num, "message": f"purchase_date {cell!r} is not YYYY-MM-DD"})
             return None
-        return None if cell == old else _change("purchase_date", old or "", cell, old, cell)
+        return _change("purchase_date", old or "", cell, old, cell)
     if col == "retired":
         old = bool(it.get("retired"))
         if not cell:

@@ -172,7 +172,7 @@ export async function addUnits(store: Store, genericId: string, count: number): 
 
 /**
  * Mark a single item as generic (FR-INV-26). A new generic takes its name,
- * description, home and categories, since a unit reads its generic's
+ * description, home, categories and purchase date, since a unit reads its generic's
  * categories (FR-SET-07); the item becomes a unit under it, with the number the
  * person confirmed, and loses the name it no longer needs. Nothing in its
  * history is rewritten, so its code, movements and tickets stay where they
@@ -190,9 +190,10 @@ export async function makeGeneric(store: Store, id: string, number = "1"): Promi
     description: it.description ?? "",
     home_location_id: it.home_location_id ?? null,
     sub_location: it.sub_location ?? "",
+    purchase_date: it.purchase_date ?? null,
     category_ids: categoriesOf(store.state, it),
   });
-  await changed(store, "item", id, { parent_id: genericId, number: first, name: null });
+  await changed(store, "item", id, { parent_id: genericId, number: first, name: null, purchase_date: null });
   return genericId;
 }
 
@@ -399,8 +400,8 @@ export const unmergeItem = (store: Store, id: string) => changed(store, "item", 
 /**
  * A generic becomes a single item again, the reverse of makeGeneric
  * (FR-INV-26). With one unit (FR-INV-33), that unit keeps its id, code and
- * history; takes the generic's name, description, categories and purchase
- * details. Its own home wins when it has one, so a unit already moved off
+ * history; takes the generic's name, description and categories, and keeps
+ * its own purchase date, else takes the generic's. Its own home wins when it has one, so a unit already moved off
  * the generic's default is not moved back; otherwise it takes the generic's
  * default home (FR-INV-29). Its number and nickname go, the nickname landing
  * on the end of the description since a single item has no number to carry

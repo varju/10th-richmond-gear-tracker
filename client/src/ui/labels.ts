@@ -1,5 +1,5 @@
 /** Text the screens share. Pure functions over state. */
-import { type Item, type Row, userName } from "../lib/inventory";
+import { type Item, type Row, displayName, purchaseOf, userName } from "../lib/inventory";
 import type { State } from "../lib/replay";
 import type { SyncOutcome } from "../lib/sync";
 import { ago } from "../lib/time";
@@ -52,7 +52,9 @@ export function syncLabel(at: number | undefined, now: number, busy: boolean, ou
 
 export const plural = (n: number, word: string): string => `${n} ${n === 1 ? word : `${word}s`}`;
 
-/** "2024-03-01" (FR-INV-12). Empty when not known. */
-export function boughtLabel(it: Pick<Item, "purchase_date">): string {
-  return it.purchase_date ?? "";
+/** "2024-03-01", or "2024-03-01 (from Tent)" for a unit using its generic's (FR-INV-12, FR-INV-56). Empty when not known. */
+export function boughtLabel(state: State, it: Item): string {
+  const bought = purchaseOf(state, it);
+  if (!bought) return "";
+  return bought.generic ? `${bought.date} (from ${displayName(state, bought.generic)})` : bought.date;
 }

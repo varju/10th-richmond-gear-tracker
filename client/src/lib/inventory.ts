@@ -248,6 +248,13 @@ export const unitsOf = (state: State, genericId: string): Item[] =>
     .filter((it) => it.parent_id === genericId && !it.merged_into)
     .sort(byNumber);
 
+/** The purchase date in use and where it comes from: the unit's own, else its generic's (FR-INV-56). */
+export function purchaseOf(state: State, it: Item): { date: string; generic?: Item } | null {
+  if (it.purchase_date) return { date: it.purchase_date };
+  const generic = parentOf(state, it);
+  return generic?.purchase_date ? { date: generic.purchase_date, generic } : null;
+}
+
 /** The generic a unit belongs to, if this device has it. */
 export const parentOf = (state: State, it: Item): Item | undefined =>
   it.parent_id ? item(state, it.parent_id) : undefined;

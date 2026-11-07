@@ -942,3 +942,23 @@ test("a URL in a description is a link; no description shows a dash", async () =
   await screen.findByText("Description");
   expect(container.querySelector("dd.prose")?.textContent).toBe("—");
 });
+
+test("a unit's own purchase date is set on its Edit page, and empty falls back to the generic's (FR-INV-56)", async () => {
+  const tents = await act.createGeneric(store, { name: "4-person tent", purchase_date: "2021-05-01" });
+  const unit = await act.createUnit(store, { parent_id: tents, number: "1" });
+  renderInShell(<ItemPage store={store} id={unit} />);
+  await user.click(screen.getByText("Details"));
+  expect(screen.getByText("2021-05-01 (from 4-person tent)")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.type(screen.getByLabelText("Bought on"), "2023-06-02");
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(item(store.state, unit)?.purchase_date).toBe("2023-06-02"));
+  await user.click(await screen.findByText("Details"));
+  expect(screen.getByText("2023-06-02")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.clear(screen.getByLabelText("Bought on"));
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(item(store.state, unit)?.purchase_date ?? null).toBeNull());
+});

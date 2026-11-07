@@ -111,6 +111,10 @@ search for the real one and pick it, and tap **Merge**. The extra record drops o
 **Unmerge** on either page undoes it. Not to be confused with **Duplicate…**, which copies an item into a new one for
 gear that differs slightly; nothing is saved until you tap **Save**.
 
+### Bought on
+
+A unit can have its own **Bought on** date. Without one, it shows its name's date.
+
 ### Back to a single item
 
 A name with labelled units can go back to being one item when it has one unit left, or none. Open the name's page, tap
@@ -119,8 +123,8 @@ A name with labelled units can go back to being one item when it has one unit le
 - With one unit left, that unit becomes the item. It keeps its own home.
 - With none left, a new item is made.
 
-Either way the item takes the name, description, categories and purchase details. The old page still opens and shows
-where it went.
+Either way the item takes the name, description and categories. It keeps its own "Bought on" date, or takes the name's
+if it has none. The old page still opens and shows where it went.
 
 With no units left, **Make this a counted stack…** is also there. Pick a quantity and confirm, and a new stack takes the
 same details.

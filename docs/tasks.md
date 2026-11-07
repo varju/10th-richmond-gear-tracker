@@ -65,12 +65,6 @@ changelog.
       with…** on an event's page lists what went out for the past event but not yet for this one, from the movement log
       by event name and dates; `compare_events` in `assistant.py`. Open question: compare a generic's units by count or
       unit by unit.
-- [ ] Generic items don't have their own purchase date today, only their parent generic does. The parent's date should
-      be used as a default, but we should be able to override per item. Plan: a unit may have its own purchase date;
-      unset, it shows the generic's, marked as from the generic. Edit has a **Purchased** box (empty means the
-      generic's). Several of these: the date goes to the generic, units start with none. Back to single (FR-INV-33,
-      reword): the unit's own date wins, else the generic's. New units start with none. CSV shows the date in use and
-      where it came from. `update_item` accepts a unit's date; `get_item` says where it came from. One new requirement.
 - [ ] Event gear list: offer check-out order as a sort option, if people miss it. Deferred until someone asks. Plan: a
       **Sort** switch on the event page, Name or Checked out, remembered per phone.
 - [ ] Improve support for long term loans. e.g. our troop Scouter has the scout flagpole and badge box at home for the

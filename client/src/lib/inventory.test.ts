@@ -871,3 +871,40 @@ test("the Needs filter counts a blank shelf and a deleted location as not set (F
   expect(ids("location")).toContain(stored);
   expect(ids("location")).not.toContain(f.t1);
 });
+
+test("a unit with no date of its own uses its generic's, and says so (FR-INV-56)", async () => {
+  const tents = await act.createGeneric(store, { name: "Tent", purchase_date: "2021-05-01" });
+  const u1 = await act.createUnit(store, { parent_id: tents, number: "1" });
+  const u2 = await act.createUnit(store, { parent_id: tents, number: "2" });
+  await act.updateItem(store, u2, { purchase_date: "2023-06-02" });
+
+  const generic = inv.item(store.state, tents)!;
+  expect(inv.purchaseOf(store.state, inv.item(store.state, u1)!)).toMatchObject({
+    date: "2021-05-01",
+    generic: { id: tents },
+  });
+  expect(inv.purchaseOf(store.state, inv.item(store.state, u2)!)).toEqual({ date: "2023-06-02" });
+  expect(inv.purchaseOf(store.state, generic)).toEqual({ date: "2021-05-01" });
+
+  await act.updateItem(store, u2, { purchase_date: "" });
+  expect(inv.purchaseOf(store.state, inv.item(store.state, u2)!)?.generic?.id).toBe(tents);
+});
+
+test("making an item generic moves its date to the generic and leaves the unit with none (FR-INV-56)", async () => {
+  const { stove } = await fixture();
+  await act.updateItem(store, stove, { purchase_date: "2020-01-02" });
+  const genericId = await act.makeGeneric(store, stove);
+  expect(inv.item(store.state, genericId)?.purchase_date).toBe("2020-01-02");
+  expect(inv.item(store.state, stove)?.purchase_date ?? null).toBeNull();
+  expect(inv.purchaseOf(store.state, inv.item(store.state, stove)!)?.generic?.id).toBe(genericId);
+  const [more] = await act.addUnits(store, genericId, 1);
+  expect(inv.item(store.state, more!)?.purchase_date ?? null).toBeNull();
+});
+
+test("going back to single, the unit's own date wins over the generic's (FR-INV-33)", async () => {
+  const tents = await act.createGeneric(store, { name: "Tent", purchase_date: "2021-05-01" });
+  const u1 = await act.createUnit(store, { parent_id: tents, number: "1" });
+  await act.updateItem(store, u1, { purchase_date: "2023-06-02" });
+  await act.makeSingle(store, tents);
+  expect(inv.item(store.state, u1)?.purchase_date).toBe("2023-06-02");
+});

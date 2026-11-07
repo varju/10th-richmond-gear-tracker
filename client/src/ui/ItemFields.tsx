@@ -26,6 +26,37 @@ export const EMPTY_ITEM: ItemInput = {
 /** The tick that turns one item into a name several things share (FR-INV-21, FR-INV-26). */
 export const SEVERAL = "We have several of these";
 
+/** The purchase date box. `hint` says what empty means, for a unit. */
+export function BoughtOn({
+  value,
+  onChange,
+  hint,
+}: {
+  value?: string | null;
+  onChange: (value: string) => void;
+  hint?: string;
+}) {
+  return (
+    <>
+      <label>
+        <span>Bought on</span>
+        <input
+          type="date"
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          autoComplete="off"
+          aria-describedby={hint ? "bought-on-hint" : undefined}
+        />
+      </label>
+      {hint && (
+        <p id="bought-on-hint" className="muted">
+          {hint}
+        </p>
+      )}
+    </>
+  );
+}
+
 /** The fields of an item, for creating and editing. The parent owns the values and the Save button. */
 export function ItemFields({ store, values, onChange, nameRef, generic }: Props) {
   const state = store.state;
@@ -126,15 +157,7 @@ export function ItemFields({ store, values, onChange, nameRef, generic }: Props)
         <span>Description</span>
         <textarea value={values.description ?? ""} onChange={(e) => set({ description: e.target.value })} rows={3} />
       </label>
-      <label>
-        <span>Bought on</span>
-        <input
-          type="date"
-          value={values.purchase_date ?? ""}
-          onChange={(e) => set({ purchase_date: e.target.value })}
-          autoComplete="off"
-        />
-      </label>
+      <BoughtOn value={values.purchase_date} onChange={(purchase_date) => set({ purchase_date })} />
     </>
   );
 }

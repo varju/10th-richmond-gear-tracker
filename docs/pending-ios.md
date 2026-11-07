@@ -44,5 +44,6 @@ What the app does differently.
   have no Duplicate.
 - Back after adding a QR code to an item, or saving an edited event, returns to the page the person came from instead of
   showing it twice.
+- A unit can have its own purchase date. With none, its Details show the generic's, marked as from the generic.
 
 ## Chores

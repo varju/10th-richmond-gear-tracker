@@ -516,6 +516,9 @@ def get_item(item_id: str) -> dict[str, Any]:
         code_id = views.current_code(state, it["id"])
         if code_id:
             out["code"] = code_id
+        purchased, purchase_from = views.purchase_of(state, it)
+        if purchased:
+            out["purchase_date" if purchase_from == "item" else "generic_purchase_date"] = purchased
         out["open_tickets"] = [_ticket_brief(state, t) for t in views.repairs_for(state, it["id"]) if views.is_open(t)]
         out["reservations"] = _item_reservations(state, it)
         # A pool keeps its history (its check-outs, check-ins, recounts, and missing counts); an ordinary generic
@@ -1019,7 +1022,9 @@ def add_unit(generic_id: str, number: str | None = None, nickname: str | None = 
 
 
 def update_item(item_id: str, fields: ItemFields) -> dict[str, Any]:
-    """Change an item's own fields. Only what differs is recorded, with the old value kept (FR-USR-05)."""
+    """Change an item's own fields. Only what differs is recorded, with the old value kept (FR-USR-05).
+
+    A unit's `purchase_date` is its own; null clears it, and it shows its generic's again (FR-INV-56)."""
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)
@@ -1220,35 +1225,34 @@ def _created_payload(fields: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in _clean(fields).items() if v is not None and v != []}
 
 
-def _carried(state: dict[str, Any], it: dict[str, Any], *, purchase: bool = True) -> dict[str, Any]:
-    """What a new item made from this one takes: name, description, home and categories, and, unless the
-    app leaves it on the unit (makeGeneric does), the purchase date."""
-    fields: dict[str, Any] = {
-        "name": it.get("name") or "",
-        "description": it.get("description") or "",
-        "home_location_id": it.get("home_location_id"),
-        "sub_location": it.get("sub_location") or "",
-        "category_ids": _sorted_categories(state, views.categories_of(state, it)),
-    }
-    if purchase:
-        fields["purchase_date"] = it.get("purchase_date")
-    return _created_payload(fields)
+def _carried(state: dict[str, Any], it: dict[str, Any]) -> dict[str, Any]:
+    """What a new item made from this one takes: name, description, home, categories and purchase date."""
+    return _created_payload(
+        {
+            "name": it.get("name") or "",
+            "description": it.get("description") or "",
+            "home_location_id": it.get("home_location_id"),
+            "sub_location": it.get("sub_location") or "",
+            "category_ids": _sorted_categories(state, views.categories_of(state, it)),
+            "purchase_date": it.get("purchase_date"),
+        }
+    )
 
 
 def _make_generic_drafts(state: dict[str, Any], it: dict[str, Any], number: str) -> tuple[str, list[dict[str, Any]]]:
-    """makeGeneric in actions.ts: a new generic takes the item's name, description, home and categories,
+    """makeGeneric in actions.ts: a new generic takes the item's name, description, home, categories and purchase date,
     and the item becomes its unit with this number (FR-INV-26)."""
     generic_id = new_ulid()
-    payload = _carried(state, it, purchase=False)
+    payload = _carried(state, it)
     drafts = [_draft("item", generic_id, "created", {**payload, "generic": True})]
-    drafts += _field_drafts(it, {"parent_id": generic_id, "number": number, "name": None})
+    drafts += _field_drafts(it, {"parent_id": generic_id, "number": number, "name": None, "purchase_date": None})
     return generic_id, drafts
 
 
 def make_generic(item_id: str, number: str = "1", total: UnitCount = 1) -> dict[str, Any]:
     """Say the group owns several of a single item (FR-INV-26). A new generic takes its name, description,
-    home and categories; the item becomes its first unit, with this number, and keeps its code and history.
-    `total` makes `total - 1` more units with the next numbers (FR-INV-53)."""
+    home, categories and purchase date; the item becomes its first unit, with this number, and keeps its code
+    and history. `total` makes `total - 1` more units with the next numbers (FR-INV-53)."""
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)
@@ -1334,9 +1338,10 @@ def move_unit(unit_id: str, generic_id: str) -> dict[str, Any]:
 def make_single(generic_id: str) -> dict[str, Any]:
     """A generic becomes a single item again (FR-INV-33, FR-INV-39). Only with one unit left, or none.
 
-    With one, that unit becomes the item: it takes the generic's name, description, categories and
-    purchase details, and keeps its own home if it has one. It must be in. With none, a new item takes
-    them. Either way the generic folds into the result, and its page still points there.
+    With one, that unit becomes the item: it takes the generic's name, description and categories,
+    keeps its own purchase date, else takes the generic's, and keeps its own home if it has one. It must be
+    in. With none, a new item takes them all. Either way the generic folds into the result,
+    and its page still points there.
     """
     with _open() as (conn, who):
         state = _state(conn)

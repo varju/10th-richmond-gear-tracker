@@ -74,7 +74,7 @@ import { guard, useUnsaved } from "../lib/unsaved";
 import { type Session, sessionEvent } from "../lib/session";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
-import { HomeFields, ItemFields, SEVERAL } from "./ItemFields";
+import { BoughtOn, HomeFields, ItemFields, SEVERAL } from "./ItemFields";
 import { boughtLabel, holdingLabel, plural, statusLabel, userName } from "./labels";
 import { CleanerField } from "./CleanerField";
 import { EventPicker, useEventQuestion } from "./EventChoice";
@@ -440,7 +440,7 @@ export function ItemPage({ store, id }: Props) {
             </summary>
             <dl className="facts">
               <dt>Bought</dt>
-              <dd>{boughtLabel(it) || "—"}</dd>
+              <dd>{boughtLabel(state, it) || "—"}</dd>
               <dt>QR code</dt>
               <dd>
                 {current ? "Yes" : "None"}
@@ -1336,6 +1336,11 @@ function EditItem({
               rows={3}
             />
           </label>
+          <BoughtOn
+            value={values.purchase_date}
+            onChange={(purchase_date) => setValues({ ...values, purchase_date })}
+            hint={parentOf(store.state, it)?.purchase_date ? "Leave it empty to use the generic’s date." : undefined}
+          />
         </>
       ) : (
         <ItemFields store={store} values={values} onChange={setValues} generic={it.generic || several} />
@@ -1580,7 +1585,7 @@ function PoolPage({
         </summary>
         <dl className="facts">
           <dt>Bought</dt>
-          <dd>{boughtLabel(it) || "—"}</dd>
+          <dd>{boughtLabel(state, it) || "—"}</dd>
           <dt>QR code</dt>
           <dd>
             {current ? "Yes" : "None"}
@@ -2142,7 +2147,7 @@ function GenericPage({
         </summary>
         <dl className="facts">
           <dt>Bought</dt>
-          <dd>{boughtLabel(it) || "—"}</dd>
+          <dd>{boughtLabel(state, it) || "—"}</dd>
           <dt>Added</dt>
           <dd>{it.added_at ? localDate(it.added_at) : "—"}</dd>
         </dl>
