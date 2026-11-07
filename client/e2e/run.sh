@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # No arguments: the three projects at once, each on its own port and database. Any arguments: one plain `playwright test`.
 set -u
 cd "$(dirname "$0")/.."
