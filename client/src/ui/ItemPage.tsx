@@ -302,6 +302,7 @@ export function ItemPage({ store, id }: Props) {
               Group with another item…
             </button>
           )}
+          {!it.parent_id && <DuplicateButton id={id} />}
           {admin && !it.retired && it.status === "in" && (
             <button type="button" onClick={() => setMerging(true)}>
               This is a duplicate record…
@@ -604,6 +605,15 @@ function ChangeOutEvent({ store, it }: { store: Store; it: Item }) {
       onPick={(name) => void pick(name)}
       onCancel={() => back(`/items/${it.id}`)}
     />
+  );
+}
+
+/** Opens New item filled from this one; nothing is saved until Save (FR-INV-55). */
+function DuplicateButton({ id }: { id: string }) {
+  return (
+    <button type="button" onClick={() => guard(() => navigate(`/items/new?from=${id}`))}>
+      Duplicate…
+    </button>
   );
 }
 
@@ -1499,6 +1509,7 @@ function PoolPage({
           <button type="button" onClick={() => navigate(`/scan?for=${id}`)}>
             {current ? "Replace QR code" : "Add QR code"}
           </button>
+          <DuplicateButton id={id} />
         </>
       }
     >
@@ -2090,6 +2101,7 @@ function GenericPage({
           <button type="button" onClick={onEdit}>
             Edit
           </button>
+          <DuplicateButton id={it.id} />
           {canMakeSingle && (
             <button type="button" className={confirmSingle ? "warn" : ""} onClick={() => void makeItSingle()}>
               {confirmSingle ? "Really make it a single item?" : "Make this a single item…"}

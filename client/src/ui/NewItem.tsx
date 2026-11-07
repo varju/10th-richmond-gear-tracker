@@ -11,7 +11,16 @@ import {
   type ItemInput,
   validUnitCount,
 } from "../lib/actions";
-import { categories, displayName, item, nextNumber, numberTaken, takesUnits } from "../lib/inventory";
+import {
+  categories,
+  categoriesOf,
+  displayName,
+  isPool,
+  item,
+  nextNumber,
+  numberTaken,
+  takesUnits,
+} from "../lib/inventory";
 import { back, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useUnsaved } from "../lib/unsaved";
@@ -23,6 +32,8 @@ interface Props {
   store: Store;
   /** A freshly scanned, unassigned code to put on the new item (S-BOOT-03). */
   code: string | null;
+  /** An item to copy the details of; nothing is saved until Save. */
+  from?: string | null;
 }
 
 /** The categories a new item starts with: this device's last ones, for those that still exist (FR-SET-07). */
@@ -31,15 +42,38 @@ function rememberedCategories(store: Store): string[] {
   return (store.meta.last_category_ids ?? []).filter((id) => live.has(id));
 }
 
-export function NewItem({ store, code }: Props) {
+/** The details a duplicate starts with. A unit has none: Add a unit covers it (FR-INV-55). */
+function copyOf(
+  store: Store,
+  id: string | null | undefined,
+): { values: ItemInput; generic: boolean; pool: boolean } | null {
+  const it = id ? item(store.state, id) : undefined;
+  if (!it || it.parent_id || it.merged_into) return null;
+  return {
+    values: {
+      name: it.name ?? "",
+      description: it.description ?? "",
+      home_location_id: it.home_location_id ?? null,
+      sub_location: it.sub_location ?? "",
+      purchase_date: it.purchase_date ?? "",
+      category_ids: categoriesOf(store.state, it),
+    },
+    generic: Boolean(it.generic),
+    pool: isPool(it),
+  };
+}
+
+export function NewItem({ store, code, from }: Props) {
+  const [source] = useState(() => copyOf(store, from));
   const initial = { ...EMPTY_ITEM, category_ids: rememberedCategories(store) };
-  const [values, setValues] = useState<ItemInput>(initial);
+  // A copy differs from the blank form from the start, so it counts as a draft.
+  const [values, setValues] = useState<ItemInput>(source?.values ?? initial);
   // What Save last left behind. Anything typed since is a draft; leaving asks first.
   const [baseline, setBaseline] = useState<ItemInput>(initial);
-  const [several, setSeveral] = useState(false);
+  const [several, setSeveral] = useState(source?.generic ?? false);
   // Labelled one by one (units) or a stack we count (a pool); a pool never has a code (FR-INV-34).
-  const [kind, setKind] = useState<"units" | "pool">("units");
-  const [quantity, setQuantity] = useState("1");
+  const [kind, setKind] = useState<"units" | "pool">(source?.pool ? "pool" : "units");
+  const [quantity, setQuantity] = useState(source?.pool ? "" : "1");
   const [unitCount, setUnitCount] = useState("");
   const [again, setAgain] = useState(false);
   const [keep, setKeep] = useState(false);
@@ -88,7 +122,7 @@ export function NewItem({ store, code }: Props) {
       const current = values.category_ids ?? [];
       const remembered = store.meta.last_category_ids ?? [];
       const same = current.length === remembered.length && current.every((catId) => remembered.includes(catId));
-      if (!same) await store.setMeta({ last_category_ids: current.length ? current : undefined });
+      if (!same && !source) await store.setMeta({ last_category_ids: current.length ? current : undefined });
       return id;
     } finally {
       setSaving(false);
@@ -121,7 +155,7 @@ export function NewItem({ store, code }: Props) {
   return (
     <Page
       title="New item"
-      back={code ? "/scan" : "/"}
+      back={code ? "/scan" : source ? `/items/${from}` : "/"}
       actions={
         <button
           className="primary"

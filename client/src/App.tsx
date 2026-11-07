@@ -270,7 +270,11 @@ function Screen({
         const parent = route.query.get("parent");
         const code = route.query.get("code");
         // Another of a generic, or something on its own (FR-INV-24).
-        return parent ? <NewUnit store={store} parent={parent} code={code} /> : <NewItem store={store} code={code} />;
+        return parent ? (
+          <NewUnit store={store} parent={parent} code={code} />
+        ) : (
+          <NewItem key={route.query.get("from") ?? ""} store={store} code={code} from={route.query.get("from")} />
+        );
       }
       return <ItemPage key={second} store={store} id={second} />;
     case "scan":

@@ -108,7 +108,8 @@ tap **Move to another generic…**.
 
 One tent entered as two items? Only an Admin can fix it. Open the extra record, tap **This is a duplicate record…**,
 search for the real one and pick it, and tap **Merge**. The extra record drops off the lists and points at the real one.
-**Unmerge** on either page undoes it.
+**Unmerge** on either page undoes it. Not to be confused with **Duplicate…**, which copies an item into a new one for
+gear that differs slightly; nothing is saved until you tap **Save**.
 
 ### Back to a single item
 

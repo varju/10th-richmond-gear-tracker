@@ -55,11 +55,6 @@ changelog.
       (`Scan.tsx`) instead of going back to the one under it. Plan: a screen that finishes and returns where it came
       from calls `back()`, opening the page only when arrived cold. Check the other finishing screens (Bind, AnotherOf,
       edit, merge, change). Test the example: Back goes unit to generic, and the unit page shows its new code.
-- [ ] Add a duplicate-item button that opens an editable copy before saving, for items that differ only slightly (a
-      title, say). Plan: **Duplicate…** on an item page opens New item filled from it: name, categories, home, shelf,
-      description, purchase details. Not copied: code, photos, history, notes, tickets, status, merge. Units have no
-      Duplicate (Add a unit covers it); a stack copies with a blank count. No MCP tool (`create_item` covers it); add a
-      Won't row saying so. One new requirement for the button.
 - [ ] Consumables, for example propane tanks that are refilled. An item can have an optional empty (base) weight.
       Check-in asks for the current weight and infers the amount left. "Unknown" must be allowed when there is no scale.
       Needs a requirement and an MCP tool in `assistant.py`. Plan: not propane-only; any item weighed to see what is
