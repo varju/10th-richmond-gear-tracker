@@ -26,7 +26,16 @@ export function revealSubmit(form: HTMLFormElement) {
   const button = rectOf(form.querySelector('button[type="submit"]'));
   if (!vv || vv.scale !== 1 || !field || !button) return;
   const by = Math.min(button.y + button.h - vv.height, field.y);
-  if (by > 0) window.scrollBy(0, by);
+  if (by > 0) (scroller(form) ?? window).scrollBy(0, by);
+}
+
+/** The nearest ancestor that scrolls on its own, such as a card inside a fixed viewfinder. */
+function scroller(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const { overflowY } = getComputedStyle(p);
+    if ((overflowY === "auto" || overflowY === "scroll") && p.scrollHeight > p.clientHeight) return p;
+  }
+  return null;
 }
 
 /** Focus the first of `fields` that takes it. False if none did. */
@@ -74,21 +83,23 @@ export function useKeyboardForm(): RefObject<HTMLFormElement | null> {
 
     const onClick = (e: MouseEvent) => {
       const field = focusedField(form);
-      if (!field || (e.target as Element).closest(TAPPABLE)) return;
+      if (!field || !(e.target instanceof Element) || e.target.closest(TAPPABLE)) return;
       if (!(window.getSelection()?.isCollapsed ?? true)) return;
       field.blur();
     };
 
     form.addEventListener("focusin", onFocus);
     form.addEventListener("keydown", onKey);
-    form.addEventListener("click", onClick);
+    // Not `document`: iOS sends a tap on plain content only to an ancestor below body with a click listener.
+    const area = form.closest("main") ?? form;
+    area.addEventListener("click", onClick);
     vv?.addEventListener("resize", reveal);
     // React's autoFocus ran before this effect, so its focusin went unheard.
     if (focusedField(form)) onFocus();
     return () => {
       form.removeEventListener("focusin", onFocus);
       form.removeEventListener("keydown", onKey);
-      form.removeEventListener("click", onClick);
+      area.removeEventListener("click", onClick);
       vv?.removeEventListener("resize", reveal);
     };
   }, []);

@@ -103,6 +103,46 @@ test("a tap on the background closes the keyboard; a tap on a field, label, or l
   expect(password).not.toHaveFocus();
 });
 
+test("a tap elsewhere on the page closes the keyboard too", async () => {
+  await mountSignIn();
+  const password = screen.getByLabelText("Password");
+  password.focus();
+  const outside = document.createElement("p");
+  screen.getByRole("main").append(outside);
+  fireEvent.click(outside);
+  expect(password).not.toHaveFocus();
+  outside.remove();
+});
+
+test("inside a scrolling card, the card scrolls rather than the window", async () => {
+  fakeViewport(400);
+  const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => {});
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    return this.matches("button") ? rect(700, 756) : rect(200, 256);
+  });
+  const card = document.createElement("div");
+  card.style.overflowY = "auto";
+  Object.defineProperty(card, "scrollHeight", { value: 900 });
+  Object.defineProperty(card, "clientHeight", { value: 300 });
+  const cardScroll = vi.fn();
+  card.scrollBy = cardScroll;
+  document.body.append(card);
+  function Probe() {
+    const ref = useKeyboardForm();
+    return (
+      <form ref={ref}>
+        <input aria-label="Count" autoFocus />
+        <button type="submit">Go</button>
+      </form>
+    );
+  }
+  render(<Probe />, { container: card.appendChild(document.createElement("div")) });
+  await new Promise(requestAnimationFrame);
+  expect(cardScroll).toHaveBeenCalledWith(0, 200);
+  expect(scrollBy).not.toHaveBeenCalled();
+  card.remove();
+});
+
 test("focus and a keyboard opening scroll the button up, never past the focused field", async () => {
   const vv = fakeViewport(800);
   const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => {});

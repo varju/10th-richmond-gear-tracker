@@ -39,5 +39,6 @@ What the app does differently.
 - The app no longer shows the code behind a QR sticker, and the scanner no longer takes a typed code. An item's Details
   say only whether it has a QR code.
 - Changing the check-out event on the scanner shows its suggestions on their own line under the bar, in view on a phone.
+- On a stack's count panel, a tap off **How many** closes the number pad, and the button scrolls above the keyboard.
 
 ## Chores

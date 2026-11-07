@@ -28,10 +28,8 @@ changelog.
 
 ## UI
 
-- [ ] Check out screen on iOS: Allow number pad to be hidden after entering the quantity for a counted stack. Cause: the
-      pool panel's **How many** takes focus at once, the iPhone number pad has no Return or Done key, and tapping the
-      page does not blur it. Plan: make the panel a form using `useKeyboardForm`, so a tap off the field closes the pad
-      and the move button scrolls above it; keep the autofocus. Do the same for other phone screens with a number box.
+- [ ] Other phone number boxes (NewItem, item edit, reservation, settings) still cannot close the number pad. They save
+      from the header, so a form there would add Return-to-save. Decide whether that is wanted.
 
 ## User testing feedback
 

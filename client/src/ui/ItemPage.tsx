@@ -79,6 +79,7 @@ import { boughtLabel, holdingLabel, plural, statusLabel, userName } from "./labe
 import { CleanerField } from "./CleanerField";
 import { EventPicker, useEventQuestion } from "./EventChoice";
 import { CONFIRM_MS, MOVED_MS, MoveActions, useFlash } from "./MoveActions";
+import { useKeyboardForm } from "./keyboardForm";
 import { RichText } from "./RichText";
 import { AddNote, NoteLine, NoteList } from "./Notes";
 import { Page } from "./Page";
@@ -1759,7 +1760,7 @@ export function PoolActions({
   const needsName = mode === "home" && cleaner.trim() === "";
 
   async function submit(amount: number) {
-    if (!mode || !valid(amount) || needsName || overSend) return;
+    if (busy || !mode || !valid(amount) || needsName || overSend) return;
     setBusy(true);
     setError(null);
     try {
@@ -1835,7 +1836,7 @@ export function PoolActions({
   if (asking) return asking;
 
   return (
-    <div className="move-actions">
+    <PoolForm className="move-actions" onSubmit={() => void submit(n)}>
       {error && (
         <p className="error" role="alert">
           {error}
@@ -1934,12 +1935,7 @@ export function PoolActions({
       )}
       {mode ? (
         <div className="row">
-          <button
-            type="button"
-            className="primary"
-            disabled={busy || !validCount || needsName || overSend}
-            onClick={() => void submit(n)}
-          >
+          <button type="submit" className="primary" disabled={busy || !validCount || needsName || overSend}>
             {mode === "out"
               ? "Check out"
               : mode === "home"
@@ -2001,7 +1997,33 @@ export function PoolActions({
         </div>
       )}
       {children}
-    </div>
+    </PoolForm>
+  );
+}
+
+/** The pool panel while a count is open: a tap off the number box closes the pad, and Return does what the button does. */
+function PoolForm({
+  onSubmit,
+  className,
+  children,
+}: {
+  onSubmit: () => void;
+  className: string;
+  children: React.ReactNode;
+}) {
+  const ref = useKeyboardForm();
+  return (
+    <form
+      ref={ref}
+      className={className}
+      noValidate
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit();
+      }}
+    >
+      {children}
+    </form>
   );
 }
 

@@ -39,6 +39,9 @@ export function CleanerField({
           disabled={disabled}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.preventDefault();
+          }}
         />
       </label>
       {matches.length > 0 && (

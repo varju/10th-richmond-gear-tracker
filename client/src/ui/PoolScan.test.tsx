@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
@@ -124,4 +124,54 @@ test("a count taken while packing a camp that overflows its line raises the line
 test("a pool taken while packing a camp that never listed it joins the list by count (FR-RES-07)", async () => {
   const fall = await packing([]);
   await waitFor(() => expect(res.reservation(store.state, fall)?.generics).toEqual([{ item_id: bowls, quantity: 6 }]));
+});
+
+test("the count panel is a keyboard form: a tap off the number box closes the pad, Return checks out once (FR-OUT-25)", async () => {
+  renderInShell(<Scan store={store} native />);
+  await camera.scan("AAAAAAAAAA");
+  await waitFor(() => expect(card()).toBeInTheDocument());
+  await user.click(within(card()).getByRole("button", { name: "Check out" }));
+  await user.click(
+    within(screen.getByRole("region", { name: "Which event" })).getByRole("button", { name: "No event" }),
+  );
+  const count = await within(card()).findByLabelText("How many");
+  expect(count).toHaveFocus();
+  expect(count.closest("form")).toBe(within(card()).getByRole("button", { name: "Check out" }).closest("form"));
+
+  // A bare click, as on iOS: no focus moves for a tap on plain background.
+  fireEvent.click(within(card()).getByRole("heading", { name: "Bowls" }));
+  expect(count).not.toHaveFocus();
+
+  count.focus();
+  await user.clear(count);
+  await user.type(count, "3{Enter}");
+  await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
+  expect(item(store.state, bowls)?.pool_out).toEqual({ alice: 3 });
+});
+
+test("Return with an invalid count does nothing", async () => {
+  renderInShell(<Scan store={store} native />);
+  await camera.scan("AAAAAAAAAA");
+  await waitFor(() => expect(card()).toBeInTheDocument());
+  await user.click(within(card()).getByRole("button", { name: "Recount" }));
+  const count = within(card()).getByLabelText("How many");
+  await user.clear(count);
+  await user.type(count, "{Enter}");
+  expect(card()).toBeInTheDocument();
+  expect(within(card()).getByLabelText("How many")).toHaveValue(null);
+  expect(item(store.state, bowls)?.pool_in).toBe(20);
+  expect(store.pending.some((e) => JSON.stringify(e).includes("recount"))).toBe(false);
+});
+
+test("Return in Taken home by does not send the stack home", async () => {
+  await mv.checkOutPool(store, bowls, { count: 4 });
+  renderInShell(<Scan store={store} native />);
+  await camera.scan("AAAAAAAAAA");
+  await waitFor(() => expect(card()).toBeInTheDocument());
+  await user.click(within(card()).getByRole("button", { name: "Send home to clean" }));
+  await user.type(within(card()).getByLabelText("Taken home by"), "Dana{Enter}");
+  expect(card()).toBeInTheDocument();
+  expect(item(store.state, bowls)?.pool_out).toEqual({ alice: 4 });
+  await user.click(within(card()).getByRole("button", { name: "Send home" }));
+  await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
 });
