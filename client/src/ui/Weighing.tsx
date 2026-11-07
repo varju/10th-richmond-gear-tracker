@@ -271,6 +271,7 @@ export function WeighActions({ store, it }: { store: Store; it: Item }) {
           hint={weighHint(store, it)}
           busy={busy}
           onSubmit={(weight) => void run(() => weigh(store, it.id, weight))}
+          onUnknown={() => void run(() => weigh(store, it.id, null))}
           onCancel={() => setEntering(false)}
         />
       ) : (

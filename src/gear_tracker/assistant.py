@@ -1973,17 +1973,23 @@ def _weighable(state: dict[str, Any], it: dict[str, Any]) -> None:
         raise BadRequest("it has no empty weight and capacity; set them with update_item first (FR-INV-62)")
 
 
-def weigh(item_id: str, value: Amount, unit: WeightUnit) -> dict[str, Any]:
+def weigh(
+    item_id: str, value: Amount | None = None, unit: WeightUnit | None = None, unknown: StrictBool = False
+) -> dict[str, Any]:
     """Record what an item weighs now, to see what is left (FR-INV-64). Anyone signed in.
 
     Only an item with an empty weight and a capacity (update_item) is weighed. The weight is kept as given
-    and the answer comes back in the item's own unit.
+    and the answer comes back in the item's own unit. Give a value and unit, or unknown=True to clear what is
+    left until the next reading (FR-INV-70).
     """
+    if (value is None) != (unit is None) or unknown != (value is None):
+        raise BadRequest("give a value and unit, or unknown=true alone")
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)
         _weighable(state, it)
-        _push(conn, who, [_draft("item", it["id"], "weighed", {"value": value, "unit": unit})])
+        payload = {"value": None} if unknown else {"value": value, "unit": unit}
+        _push(conn, who, [_draft("item", it["id"], "weighed", payload)])
         return {"item_id": it["id"], "left": _left(_state(conn), item_id)}
 
 

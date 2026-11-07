@@ -2602,6 +2602,24 @@ def test_weigh_gives_what_is_left_in_the_items_unit(tools):
     assert (over["left"], over["percent"]) == (20, 100)
 
 
+def test_weigh_unknown_clears_what_is_left(tools):
+    _tank(tools)
+    assistant.weigh(tools["stove"], 28, "lb")
+    assert _left(tools)
+    assert assistant.weigh(tools["stove"], unknown=True)["left"] is None
+    assert _left(tools) is None
+
+
+@pytest.mark.parametrize(
+    "args",
+    [{}, {"value": 5}, {"unit": "lb"}, {"unknown": True, "value": 5, "unit": "lb"}, {"unknown": True, "unit": "lb"}],
+)
+def test_weigh_takes_a_value_and_unit_or_unknown_alone(tools, args):
+    _tank(tools)
+    with pytest.raises(BadRequest, match="unknown"):
+        assistant.weigh(tools["stove"], **args)
+
+
 def test_refilled_is_full(tools):
     _tank(tools)
     assistant.weigh(tools["stove"], 19, "lb")

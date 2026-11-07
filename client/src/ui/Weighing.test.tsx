@@ -73,6 +73,17 @@ test("Weigh records the number and unit as typed, with the unit switch starting 
   expect(screen.getByRole("button", { name: "Weigh" })).toBeInTheDocument();
 });
 
+test("Weigh then Unknown clears what is left", async () => {
+  await mv.weigh(store, tank, { value: 30, unit: "lb" });
+  renderInShell(<ItemPage store={store} id={tank} />);
+  expect(screen.getByText("Left").nextElementSibling).toHaveTextContent("About");
+  await user.click(screen.getByRole("button", { name: "Weigh" }));
+  await user.click(screen.getByRole("button", { name: "Unknown" }));
+  await waitFor(() => expect(events("weighed").at(-1)).toEqual({ value: null }));
+  await waitFor(() => expect(screen.getByText("Left").nextElementSibling).toHaveTextContent("Not weighed"));
+  expect(screen.getByRole("button", { name: "Weigh" })).toBeInTheDocument();
+});
+
 test("Weigh needs a number", async () => {
   renderInShell(<ItemPage store={store} id={tank} />);
   await user.click(screen.getByRole("button", { name: "Weigh" }));

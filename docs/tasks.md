@@ -99,14 +99,6 @@ item. A note on a move is also easily mixed up with **Send home to clean**, whic
 
 **Deferred because:** decide with [Fewer buttons for beginners](#fewer-buttons-for-beginners).
 
-## Clear a weighed item's reading
-
-Mark a weighed item's amount left as unknown while it stays in, for when a reading is known to be wrong. Today a reading
-clears only when the item goes out (FR-INV-69) or comes back as Unknown (FR-INV-67).
-
-**Considered:** an **Unknown** choice in **Weigh**, recorded as a reading with no weight. Needs an FR-INV and an FR-MCP
-requirement, and `weigh` in `assistant.py` taking Unknown.
-
 ## Quieter packed lines when packing
 
 On the pack list (`RemainingList` in `client/src/ui/Scan.tsx`), a fully packed generic still shows as "8 of 8 × Tent".

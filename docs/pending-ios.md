@@ -61,6 +61,7 @@ What the app does differently.
 - Replacing a QR code asks "Really replace its QR code?" on a row styled like the others, and a confirm button keeps its
   own styling while asking.
 - The weight prompt on a return closes, instead of failing, if a sync takes away the item's capacity.
+- **Weigh** on a weighed item's page takes **Unknown**, which clears what is left.
 
 ## Chores
 
