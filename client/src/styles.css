@@ -731,13 +731,17 @@ main:has(> .viewfinder) {
   flex-direction: column;
 }
 
+.session,
+.session-suggestions {
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--rule);
+}
+
 .session {
   display: flex;
   align-items: center;
   gap: 12px;
   min-height: 56px;
-  padding: 6px 16px;
-  border-bottom: 1px solid var(--rule);
 }
 
 .session span {
@@ -754,6 +758,11 @@ main:has(> .viewfinder) {
 .session button {
   width: auto;
   padding: 0 16px;
+}
+
+.session-suggestions {
+  max-height: 40vh;
+  overflow-y: auto;
 }
 
 /* The card sits over the lower part of the viewfinder; the video keeps running behind it. */
@@ -816,7 +825,8 @@ main:has(> .viewfinder) {
 }
 
 .event-choice .rows,
-.transfer-picker .rows {
+.transfer-picker .rows,
+.session-suggestions .rows {
   margin: 0;
 }
 

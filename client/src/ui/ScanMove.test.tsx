@@ -304,6 +304,22 @@ test("the session event is set once and persists on the device (FR-OUT-05)", asy
   expect(screen.queryByRole("region", { name: "Which event" })).not.toBeInTheDocument();
 });
 
+test("event suggestions sit on their own line, outside the session row, and a tap picks one (FR-RES-20)", async () => {
+  const today = todayIso(Date.now());
+  await store.setMeta({
+    calendar_events: [{ uid: "a", summary: "Cub camp", starts: today, ends: today, all_day: true }],
+  });
+  renderInShell(<Scan store={store} native />);
+  await user.click(screen.getByRole("button", { name: "Change" }));
+  await user.type(screen.getByLabelText("Event"), "Cub");
+  const list = screen.getByRole("region", { name: "Matching events" });
+  const pick = within(list).getByRole("button", { name: /Cub camp/ });
+  expect(screen.getByLabelText("Event").closest("form")).not.toContainElement(list);
+  await user.click(pick);
+  expect(await screen.findByText("Event: Cub camp")).toBeInTheDocument();
+  expect(store.meta.session_event).toBe("Cub camp");
+});
+
 /** Check out Tent 1 and Stove under the first answer, Cub camp. */
 async function twoUnderCubCamp() {
   const stove = await act.createItem(store, { name: "Stove" });

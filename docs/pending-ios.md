@@ -38,5 +38,6 @@ What the app does differently.
   single item's or unit's page shows who has it, under its name, while it is out.
 - The app no longer shows the code behind a QR sticker, and the scanner no longer takes a typed code. An item's Details
   say only whether it has a QR code.
+- Changing the check-out event on the scanner shows its suggestions on their own line under the bar, in view on a phone.
 
 ## Chores

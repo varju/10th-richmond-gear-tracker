@@ -45,10 +45,6 @@ changelog.
       confirm in turn (delete item, mark missing, counted stack, single item, several of these, photo, note, ticket,
       reservation cancel, account); drop it where an undo exists and is easy to find. Those that stay use one pattern:
       the same button turns to a warning "Really …?" and a second tap does it.
-- [ ] iPhone check-out: after picking an event, changing it does not show the autocomplete until the page is scrolled
-      sideways. Cause: in `SessionEvent` (`client/src/ui/Scan.tsx`) the suggestion list sits inside the one-line
-      `.session` flex row, so it lands past **Clear**, off screen. Plan: show the suggestions on their own full-width
-      line under the bar, as `EventPicker` does, with a test that they are outside the row.
 - [ ] An event created during check-out should be a real event, the same as a precreated reservation. No "Add" step
       afterwards. Today a typed name only labels moves; the Reservations screen later offers it (FR-RES-28) and one tap
       makes the reservation (FR-RES-31). Plan: **Create** at check-out (session bar and first picker) makes the

@@ -474,8 +474,6 @@ function SessionEvent({ store }: { store: Store }) {
       <button type="button" className="minor" onClick={() => void change(undefined)}>
         Clear
       </button>
-      {/* Tapping a suggestion sets the name at once, the same one tap a scan takes (FR-RES-20). */}
-      {suggestions.length > 0 && <EventSuggestions events={suggestions} onPick={(ev) => void change(ev.summary)} />}
     </form>
   ) : (
     <div className="session">
@@ -499,6 +497,12 @@ function SessionEvent({ store }: { store: Store }) {
         <p className="error" role="alert">
           {error}
         </p>
+      )}
+      {/* Tapping a suggestion sets the name at once, the same one tap a scan takes (FR-RES-20). */}
+      {suggestions.length > 0 && (
+        <section className="session-suggestions" aria-label="Matching events">
+          <EventSuggestions events={suggestions} onPick={(ev) => void change(ev.summary)} />
+        </section>
       )}
     </>
   );
