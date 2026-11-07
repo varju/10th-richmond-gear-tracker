@@ -332,8 +332,24 @@ def search(
     home_user_id: str | None = None,
 ) -> list[Fields]:
     """Search as you type (FR-INV-07), over the things that move. Every word must appear somewhere."""
+    return _search_with(state, query, location_id, status, retired, needs, home_user_id, _bound_for(state, needs))
+
+
+def _bound_for(state: State, needs: str | None) -> set[str]:
+    return bound_items(state) if needs == "code" else set()
+
+
+def _search_with(
+    state: State,
+    query: str,
+    location_id: str | None,
+    status: str | None,
+    retired: bool,
+    needs: str | None,
+    home_user_id: str | None,
+    bound: set[str],
+) -> list[Fields]:
     words = [w for w in query.lower().split() if w]
-    bound = bound_items(state) if needs == "code" else set()
 
     def matches(it: Fields) -> bool:
         hay = f"{display_name(state, it)} {home_label(state, it)}".lower()
@@ -371,11 +387,13 @@ def rows(
     home_user_id: str | None = None,
 ) -> list[Fields]:
     """The list: one row per generic with its counts, single items as rows of their own (FR-INV-25).
-    A pool is its own row kind, with its counts instead of units (FR-INV-36)."""
+    A pool is its own row kind, with its counts instead of units (FR-INV-36). A generic's counts cover all its
+    live units; `units` are the ones matching the filters."""
     singles: list[Fields] = []
     pools: list[Fields] = []
     by_parent: dict[str, list[Fields]] = {}
-    for it in search(state, query, location_id, status, retired, needs, home_user_id):
+    bound = _bound_for(state, needs)
+    for it in _search_with(state, query, location_id, status, retired, needs, home_user_id, bound):
         parent = it.get("parent_id") if it.get("parent_id") in (state.get("item") or {}) else None
         if parent:
             by_parent.setdefault(parent, []).append(it)
@@ -383,7 +401,6 @@ def rows(
             singles.append({"kind": "single", "item": it, "name": display_name(state, it)})
 
     words = [w for w in query.lower().split() if w]
-    bound = bound_items(state) if needs == "code" else set()
 
     def pool_wanted(pool: Fields) -> bool:
         """A pool has no units for search() to filter, so it is matched here: on its home for a
@@ -426,9 +443,15 @@ def rows(
             # An empty generic is still a row when only the search text is set, so one can be found and given units.
             by_parent[generic["id"]] = []
 
+    children: dict[str, list[Fields]] = {}
+    for it in items(state):
+        if it.get("parent_id") and not it.get("merged_into"):
+            children.setdefault(it["parent_id"], []).append(it)
+
     grouped: list[Fields] = []
     for generic_id, units in by_parent.items():
         parent = item(state, generic_id) or {"id": generic_id}
+        every = [u for u in children.get(generic_id, []) if bool(u.get("retired")) == retired]
         grouped.append(
             {
                 "kind": "generic",
@@ -436,8 +459,9 @@ def rows(
                 "name": display_name(state, parent),
                 "units": sorted(units, key=number_key),
                 "counts": {
-                    "total": len(units),
-                    "in": sum(1 for u in units if u.get("status") == "in" and not u.get("missing")),
+                    "in": sum(1 for u in every if u.get("status") == "in" and not u.get("missing")),
+                    "out": sum(1 for u in every if u.get("status") == "out" and not u.get("missing")),
+                    "missing": sum(1 for u in every if u.get("missing")),
                 },
             }
         )

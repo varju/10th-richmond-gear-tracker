@@ -38,3 +38,9 @@ test("addUnits refuses a count outside 1 to 100 or not whole", async () => {
   for (const n of [0, 101, 1.5]) await expect(act.addUnits(store, g, n)).rejects.toThrow("count must be");
   expect(store.pending.filter((e) => e.type === "created")).toHaveLength(1);
 });
+
+test("makeSingle on a generic with no units keeps its capacity", async () => {
+  const g = await act.createGeneric(store, { name: "Tank", capacity: { value: 20, unit: "lb" } });
+  const id = await act.makeSingle(store, g);
+  expect(inv.item(store.state, id)?.capacity).toEqual({ value: 20, unit: "lb" });
+});

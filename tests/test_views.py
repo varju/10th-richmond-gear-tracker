@@ -315,6 +315,21 @@ def test_rows_gives_a_pool_its_own_kind_and_counts_with_no_units():
     assert "units" not in row
 
 
+def test_rows_counts_a_generic_over_all_its_live_units_not_only_the_filtered_ones():
+    state = {
+        "item": {
+            "tent": {"name": "Tent", "generic": True},
+            "a": {"parent_id": "tent", "number": "1", "status": "in"},
+            "b": {"parent_id": "tent", "number": "2", "status": "out"},
+            "c": {"parent_id": "tent", "number": "3", "status": "in", "missing": True},
+            "d": {"parent_id": "tent", "number": "4", "status": "in", "retired": True},
+        }
+    }
+    [row] = rows(state, status="out")
+    assert [u["id"] for u in row["units"]] == ["b"]
+    assert row["counts"] == {"in": 1, "out": 1, "missing": 1}
+
+
 # --- codes_for and current_code -----------------------------------------------------------
 
 

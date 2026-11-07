@@ -467,6 +467,7 @@ export async function makeSingle(store: Store, genericId: string): Promise<strin
       sub_location: generic.sub_location ?? "",
       purchase_date: generic.purchase_date ?? null,
       category_ids: categoriesOf(store.state, generic),
+      ...(generic.capacity ? { capacity: generic.capacity } : {}),
     });
     await changed(store, "item", genericId, { merged_into: id });
     return id;

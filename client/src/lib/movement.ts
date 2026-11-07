@@ -130,7 +130,7 @@ function weighable(store: Store, itemId: string): Item {
 /** What it weighs now, as typed; null is Unknown, no scale (FR-INV-64, FR-INV-67, FR-INV-68). */
 export async function weigh(store: Store, itemId: string, weight: Weight | null) {
   weighable(store, itemId);
-  if (weight !== null && !(isWeight(weight) && weight.value >= 0)) throw new Error("enter a weight of zero or more");
+  if (weight !== null && !isWeight(weight)) throw new Error("enter a weight of zero or more");
   const payload = weight ? { value: weight.value, unit: weight.unit } : { value: null };
   return move(store, itemId, "weighed", payload);
 }

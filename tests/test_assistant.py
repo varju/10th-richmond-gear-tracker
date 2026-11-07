@@ -381,6 +381,8 @@ def test_search_groups_units_under_their_generic_and_counts_them(tools):
         "name": "4-person tent",
         "units": 3,
         "in": 3,
+        "out": 0,
+        "missing": 0,
         "unit_ids": [tools["t1"], tools["t2"], tools["t3"]],
         "categories": ["Tents"],
     }
@@ -395,6 +397,13 @@ def test_search_filters_by_location_and_status(tools):
     still_in = assistant.search_items(status="in")["rows"]
     assert [r["name"] for r in still_in] == ["4-person tent"]
     assert still_in[0]["units"] == 3
+
+
+def test_search_counts_a_generic_over_all_its_units_and_lists_the_ones_that_match(tools):
+    assistant.check_out(tools["t1"])
+    row = next(r for r in assistant.search_items(status="in")["rows"] if r["name"] == "4-person tent")
+    assert (row["units"], row["in"], row["out"], row["missing"]) == (2, 2, 1, 0)
+    assert row["unit_ids"] == [tools["t2"], tools["t3"]]
     assert [r["name"] for r in assistant.search_items(location_id=tools["warm"])["rows"]] == ["Camp stove"]
 
 
@@ -1789,6 +1798,58 @@ def test_transfer_hands_gear_on_and_takes_it_back_without_a_conflict(db_path, to
     assert not stored.get("conflicts")
 
 
+def test_a_take_over_under_an_event_with_no_reservation_makes_one_and_the_gear_joins(db_path, tools, bob):
+    today = views.today(events.now_ms())
+    assistant.check_out(tools["stove"])
+    assistant.transfer(tools["stove"], bob, event="Fall Camp")
+    [r] = _reservations_named(db_path, "Fall Camp")
+    assert (r["starts"], r["ends"]) == (today, today)
+    assert r["items"] == [tools["stove"]]
+    assert entity(db_path, "item", tools["stove"])["movement"]["reservation_id"] == r["id"]
+
+
+def test_a_take_over_under_an_event_joins_its_reservation(db_path, tools, bob):
+    today = views.today(events.now_ms())
+    camp = assistant.create_reservation("Fall Camp", today, today)["reservation_id"]
+    assistant.check_out(tools["stove"])
+    assistant.transfer(tools["stove"], bob, event="Fall Camp")
+    assert len(_reservations_named(db_path, "Fall Camp")) == 1
+    assert entity(db_path, "reservation", camp)["items"] == [tools["stove"]]
+    assert entity(db_path, "item", tools["stove"])["movement"]["reservation_id"] == camp
+
+
+def test_the_event_on_a_take_over_is_tidied_like_the_reservation_name(db_path, tools, bob):
+    assistant.check_out(tools["stove"])
+    assistant.transfer(tools["stove"], bob, event="Fall  Camp")
+    assert entity(db_path, "item", tools["stove"])["movement"]["event"] == "Fall Camp"
+    assert len(_reservations_named(db_path, "Fall Camp")) == 1
+
+
+def test_the_event_on_a_check_out_is_tidied_like_the_reservation_name(db_path, tools):
+    assistant.check_out(tools["stove"], event="Fall  Camp")
+    assert entity(db_path, "item", tools["stove"])["movement"]["event"] == "Fall Camp"
+
+
+def test_a_take_over_with_a_reservation_id_does_not_look_for_another(db_path, tools, bob):
+    today = views.today(events.now_ms())
+    mine = assistant.create_reservation("Spring Camp", today, today)["reservation_id"]
+    assistant.check_out(tools["stove"])
+    assistant.transfer(tools["stove"], bob, event="Fall Camp", reservation_id=mine)
+    assert _reservations_named(db_path, "Fall Camp") == []
+    assert entity(db_path, "item", tools["stove"])["movement"]["reservation_id"] == mine
+    assert entity(db_path, "reservation", mine)["items"] == []
+
+
+def test_a_take_over_of_gear_at_a_cleaners_keeps_its_event_and_makes_no_reservation(db_path, tools, bob):
+    assistant.check_out(tools["stove"], event="Fall Camp")
+    assistant.send_home_to_clean(tools["stove"], "Smith")
+    [camp] = _reservations_named(db_path, "Fall Camp")
+    assistant.transfer(tools["stove"], bob, event="Winter Camp")
+    movement = entity(db_path, "item", tools["stove"])["movement"]
+    assert (movement["event"], movement["reservation_id"]) == ("Fall Camp", camp["id"])
+    assert _reservations_named(db_path, "Winter Camp") == []
+
+
 def _checked_out_elsewhere(db_path, item_id, holder):
     """A second check-out from another device, with no check-in between: a conflict (FR-OFF-10)."""
     with open_db(db_path) as conn:
@@ -1865,6 +1926,13 @@ def test_make_generic_without_a_total_adds_none(tools):
     assert "unit_ids" not in assistant.make_generic(tools["stove"])
 
 
+def test_make_generic_of_a_retired_item_refuses_more_units(tools):
+    assistant.retire_item(tools["stove"])
+    with pytest.raises(BadRequest, match="retired"):
+        assistant.make_generic(tools["stove"], total=3)
+    assert "unit_ids" not in assistant.make_generic(tools["stove"], total=1)
+
+
 def test_make_generic_refuses_a_total_out_of_range():
     for total in (0, 101):
         with pytest.raises(pydantic.ValidationError):
@@ -1892,6 +1960,13 @@ def test_make_single_refuses_several_units_and_makes_an_item_from_none(db_path, 
     made = assistant.make_single(empty)["item_id"]
     assert entity(db_path, "item", made)["name"] == "Dining fly"
     assert entity(db_path, "item", empty)["merged_into"] == made
+
+
+def test_make_single_from_no_units_keeps_the_capacity(db_path, tools):
+    empty = assistant.create_item("Tank", generic=True)["item_id"]
+    assistant.update_item(empty, assistant.ItemFields(capacity=assistant.Weight(value=20, unit="lb")))
+    made = assistant.make_single(empty)["item_id"]
+    assert entity(db_path, "item", made)["capacity"] == {"value": 20, "unit": "lb"}
 
 
 def test_two_items_are_grouped_and_a_unit_moves_between_generics(db_path, tools):

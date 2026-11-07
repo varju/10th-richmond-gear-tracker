@@ -338,8 +338,10 @@ def _row(state: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
             "kind": "generic",
             "item_id": row["item"]["id"],
             "name": row["name"],
-            "units": row["counts"]["total"],
+            "units": len(row["units"]),
             "in": row["counts"]["in"],
+            "out": row["counts"]["out"],
+            "missing": row["counts"]["missing"],
             "unit_ids": [u["id"] for u in row["units"]],
         }
     categories = [views.category_name(state, cid) for cid in views.categories_of(state, row["item"])]
@@ -473,11 +475,11 @@ def search_items(
     """Find gear by name or home (FR-INV-07). `home_user_id` keeps only gear kept by that person (FR-INV-61).
 
     Every word must appear somewhere in the name or the home. One row per thing
-    the group owns several of, with how many are in, and single items as rows of
-    their own. `status` is "in", "out", or "missing". `include_retired` shows only
+    the group owns several of, and single items as rows of their own. A generic's `in`, `out` and `missing`
+    cover all its live units; `units` and `unit_ids` are the ones matching the filters.
+    `status` is "in", "out", or "missing". `include_retired` shows only
     retired gear, like the app's Show retired (FR-INV-05).
     `needs` is "code", "location", or "shelf": only gear with no QR code, no location, or no shelf (FR-INV-51).
-    With `needs`, a row's unit counts cover the matching units, as with the other filters.
     """
     with _open() as (conn, _who):
         state = _state(conn)
@@ -1298,8 +1300,9 @@ def _created_payload(fields: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in _clean(fields).items() if v is not None and v != []}
 
 
-def _carried(state: dict[str, Any], it: dict[str, Any]) -> dict[str, Any]:
-    """What a new item made from this one takes: name, description, home, categories and purchase date."""
+def _carried(state: dict[str, Any], it: dict[str, Any], capacity: bool = False) -> dict[str, Any]:
+    """What a new item made from this one takes: name, description, home, categories and purchase date,
+    and its capacity when asked."""
     return _created_payload(
         {
             "name": it.get("name") or "",
@@ -1309,6 +1312,7 @@ def _carried(state: dict[str, Any], it: dict[str, Any]) -> dict[str, Any]:
             "sub_location": it.get("sub_location") or "",
             "category_ids": _sorted_categories(state, views.categories_of(state, it)),
             "purchase_date": it.get("purchase_date"),
+            "capacity": it.get("capacity") if capacity else None,
         }
     )
 
@@ -1334,6 +1338,8 @@ def make_generic(item_id: str, number: str = "1", total: UnitCount = 1) -> dict[
             raise BadRequest("already generic")
         if it.get("parent_id"):
             raise BadRequest("this is already one of several")
+        if it.get("retired") and total > 1:
+            raise BadRequest("it is retired; bring it back first")
         first = _unit_number(number)
         generic_id, drafts = _make_generic_drafts(state, it, first)
         more, unit_ids = _unit_drafts({"id": generic_id, **drafts[0]["payload"]}, {first}, total - 1)
@@ -1432,7 +1438,7 @@ def make_single(generic_id: str) -> dict[str, Any]:
         categories = _sorted_categories(state, views.categories_of(state, generic))
         if not units:
             item_id = new_ulid()
-            drafts = [_draft("item", item_id, "created", _carried(state, generic))]
+            drafts = [_draft("item", item_id, "created", _carried(state, generic, capacity=True))]
         else:
             unit = units[0]
             if unit.get("status") != "in":
@@ -1862,7 +1868,7 @@ def check_out(
         if not pool and it.get("status") == "out":
             raise Conflict(f"already out with {views.user_name(state, it.get('holder_id'))}")
         movement_id = new_ulid()
-        name = (event or "").strip()
+        name = " ".join((event or "").split())
         drafts: list[dict[str, Any]] = []
         after: list[dict[str, Any]] = []
         if name and reservation_id is None:
@@ -1878,7 +1884,7 @@ def check_out(
         if note and note.strip():
             drafts.append(_draft("item", it["id"], "note_added", {"text": note.strip(), "movement_id": movement_id}))
         _push(conn, who, [*drafts, *after])
-        out: dict[str, Any] = {"item_id": it["id"], "event": (event or "").strip() or None}
+        out: dict[str, Any] = {"item_id": it["id"], "event": name or None}
         if pool:
             out["count"] = count
             still_in = views.pool_counts(it)["in"]
@@ -1963,7 +1969,7 @@ def check_in(
 
 
 def _weighable(state: dict[str, Any], it: dict[str, Any]) -> None:
-    if views.is_pool(it) or it.get("generic") or not views.weighing(state, it):
+    if not views.weighing(state, it):
         raise BadRequest("it has no empty weight and capacity; set them with update_item first (FR-INV-62)")
 
 
@@ -2114,6 +2120,8 @@ def transfer(
     """Move an item that is out to a new holder without it coming back first: to you when `to_user_id` is
     left out (take over, FR-OUT-12), or to another active member (FR-OUT-26); list_members has their ids.
     `event` is what it is going to now. It names the check-out it replaces, so it is not a conflict.
+    An `event` without `reservation_id` joins the live reservation of that name, or makes one for today,
+    as check_out does (FR-RES-38, FR-RES-39). Gear at a cleaner's home keeps its event.
     `cleaner` sends gear that is out home with that person to clean (FR-OUT-46) without ending the check-out:
     its holder, event and days out stay, so it takes no `to_user_id`, `event` or `reservation_id`."""
     with _open() as (conn, who):
@@ -2136,9 +2144,14 @@ def transfer(
         if to == it.get("holder_id"):
             raise Conflict("they already have it")
         movement_id = new_ulid()
+        name = " ".join((event or "").split())
+        drafts: list[dict[str, Any]] = []
+        after: list[dict[str, Any]] = []
+        if name and reservation_id is None and not previous.get("cleaner"):
+            reservation_id = _join_event(state, it, name, None, drafts, after)
         payload = {
             "holder_id": to,
-            "event": (event or "").strip() or None,
+            "event": name or None,
             "supersedes": previous["id"],
             "reservation_id": reservation_id,
         }
@@ -2150,10 +2163,10 @@ def transfer(
                 "reservation_id": previous.get("reservation_id"),
                 "supersedes": previous["id"],
             }
-        drafts = [_draft("item", it["id"], "checked_out", payload, movement_id)]
+        drafts.append(_draft("item", it["id"], "checked_out", payload, movement_id))
         if note and note.strip():
             drafts.append(_draft("item", it["id"], "note_added", {"text": note.strip(), "movement_id": movement_id}))
-        _push(conn, who, drafts)
+        _push(conn, who, [*drafts, *after])
         return {"item_id": it["id"], "holder": views.user_name(state, to), "event": payload.get("event")}
 
 
