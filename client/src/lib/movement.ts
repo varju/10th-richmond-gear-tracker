@@ -12,6 +12,7 @@ import { addExtra, extendToToday, makeEventToday, plannedFor, removeItem, reserv
 import { cleanerKey, type Movement, type Note, type ReplayEvent, replayOrder, type State } from "./replay";
 import { eventAsked, setSessionEvent } from "./session";
 import type { MoveSession, Store } from "./store";
+import { isWeight, type Weight, weighing } from "./weighing";
 
 export interface MoveOptions {
   /** The session's event name (FR-OUT-05). */
@@ -105,13 +106,39 @@ export async function checkOut(store: Store, itemId: string, options: MoveOption
   return movement;
 }
 
+export interface CheckInOptions extends MoveOptions {
+  /** What weighed gear reads now (FR-INV-67). Null is Unknown, which clears the last reading; left out, none is recorded. */
+  weight?: Weight | null;
+}
+
 /** Anyone can bring anything back (FR-OUT-08). */
-export async function checkIn(store: Store, itemId: string, options: MoveOptions = {}) {
+export async function checkIn(store: Store, itemId: string, options: CheckInOptions = {}) {
   const it = current(store, itemId);
   if (it.status !== "out") throw new Error("already in");
   const movement = await move(store, itemId, "checked_in", {}, options.note, options.packing ? undefined : {});
   await seen(store, itemId);
+  if (options.weight !== undefined && weighing(store.state, it)) await weigh(store, itemId, options.weight);
   return movement;
+}
+
+function weighable(store: Store, itemId: string): Item {
+  const it = current(store, itemId);
+  if (!weighing(store.state, it)) throw new Error("set its empty weight and capacity first");
+  return it;
+}
+
+/** What it weighs now, as typed; null is Unknown, no scale (FR-INV-64, FR-INV-67, FR-INV-68). */
+export async function weigh(store: Store, itemId: string, weight: Weight | null) {
+  weighable(store, itemId);
+  if (weight !== null && !(isWeight(weight) && weight.value >= 0)) throw new Error("enter a weight of zero or more");
+  const payload = weight ? { value: weight.value, unit: weight.unit } : { value: null };
+  return move(store, itemId, "weighed", payload);
+}
+
+/** It is full again (FR-INV-65). */
+export async function refill(store: Store, itemId: string) {
+  weighable(store, itemId);
+  return move(store, itemId, "refilled", {});
 }
 
 function poolItem(store: Store, itemId: string): Item {

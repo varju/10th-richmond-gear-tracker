@@ -82,6 +82,11 @@ export type State = Record<string, Record<string, Fields>>;
 //                                             pool_out are untouched, so owned drops by `gone` (FR-INV-49).
 //   pool_found  {count}                      found = min(count, pool_missing); pool_missing -= found;
 //                                             pool_in += found (FR-INV-47).
+//   weighed     {value, unit}                reading = {value, unit, at}. A null value is Unknown: reading = null
+//                                             (FR-INV-64, FR-INV-67). The last event wins, however it is read.
+//   refilled    {}                           reading = {full: true, at} (FR-INV-65).
+//   checked_out of a single item that is in and has a reading: the reading gains `stale: true`, until the next
+//                weighed or refilled replaces it (FR-INV-69).
 //
 // A pool's `movement` is kept up to date like any item's, with `count` added (see `movement`),
 // so the item's History can read "Alice checked out 10" straight off the log.
@@ -285,6 +290,8 @@ export const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set([
   "pool_missing",
   "pool_found",
   "pool_written_off",
+  "weighed",
+  "refilled",
   "photo_added",
   "photo_removed",
   "code_bound",
@@ -515,6 +522,7 @@ export function apply(entity: Fields, event: ReplayEvent): void {
           events: [previous, movement(event)],
         });
       }
+      if (entity.status !== "out" && entity.reading) entity.reading = { ...(entity.reading as object), stale: true };
       entity.status = "out";
       entity.holder_id = p.holder_id;
       entity.since = event.effective_at;
@@ -576,6 +584,12 @@ export function apply(entity: Fields, event: ReplayEvent): void {
       entity.pool_in = ((entity.pool_in as number | undefined) ?? 0) + found;
       break;
     }
+    case "weighed":
+      entity.reading = p.value == null ? null : { value: p.value, unit: p.unit, at: event.effective_at };
+      break;
+    case "refilled":
+      entity.reading = { full: true, at: event.effective_at };
+      break;
     case "photo_added":
       // The file is on the server; this is what a device knows about it (FR-INV-11).
       photos(entity).push({

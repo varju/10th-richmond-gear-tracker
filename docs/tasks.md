@@ -19,16 +19,6 @@ changelog.
       easier to spot but saves none. Fewer taps means opening the scanner straight after adding, with a way to skip, or
       a second "Add a unit and scan" button. Scanning an unassigned sticker and picking **Add a unit of…** already does
       both in one step. Waiting on more user testing.
-- [ ] Consumables, for example propane tanks that are refilled. An item can have an optional empty (base) weight.
-      Check-in asks for the current weight and infers the amount left. "Unknown" must be allowed when there is no scale.
-      Needs a requirement and an MCP tool in `assistant.py`. Plan: not propane-only; any item weighed to see what is
-      left. An item may have an empty weight and a capacity, each in lb or kg, chosen per item (a unit sets its own
-      empty weight; capacity defaults from its generic). Check-in asks for the weight, **Unknown** allowed; a **Weigh**
-      action records one any time. Each weight is entered in the item's unit with an lb/kg switch, and is logged as
-      typed (number and unit), converted when shown. The page and list show "About 8 lb left (40%)". **Refilled** sets
-      it full. New event type (older builds skip it); replay in Python, TypeScript and `vectors/replay/`. MCP:
-      `check_in` takes a weight, plus `weigh` and `refilled` tools. Not weighed at check-out. A Low flag is deferred.
-      FR-INV-14, 15, 17 and FR-RES-11 (canisters, never built) stay as they are for now.
 - [ ] "What did I miss compared to event X?" Compare what is checked out for the current event with a previous event, to
       spot forgotten gear. Needs a requirement and an MCP tool in `assistant.py`. Deferred. Draft plan: **Compare
       with…** on an event's page lists what went out for the past event but not yet for this one, from the movement log

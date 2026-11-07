@@ -53,5 +53,8 @@ What the app does differently.
 - Back after adding a QR code to an item, or saving an edited event, returns to the page the person came from instead of
   showing it twice.
 - A unit can have its own purchase date. With none, its Details show the generic's, marked as from the generic.
+- Gear with an empty weight and a capacity is weighed to see what is left. **Return** asks the weight, in lb or kg, or
+  **Unknown**. **Weigh** and **Refilled** are on its page. The page and the list show "About 8 lb left (40%)", and a
+  page says "Not weighed since it came back" when the item has been out since the last reading.
 
 ## Chores

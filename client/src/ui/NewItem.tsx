@@ -58,6 +58,8 @@ function copyOf(
       sub_location: it.sub_location ?? "",
       purchase_date: it.purchase_date ?? "",
       category_ids: categoriesOf(store.state, it),
+      empty_weight: it.empty_weight ?? null,
+      capacity: it.capacity ?? null,
     },
     generic: Boolean(it.generic),
     pool: isPool(it),

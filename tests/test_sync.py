@@ -852,3 +852,27 @@ def test_a_single_item_goes_home_without_a_count_and_a_pool_with_one(db):
     push(db, USER, batch(USER, own(USER, entity_id="bowls", type="created", payload=created, device_seq=3)), now=T0)
     bare = own(USER, entity_id="bowls", type="cleaning_started", payload={"cleaner": "Smith"}, device_seq=4)
     assert reasons(db, USER, bare) == ["a pool goes home by count, a single item without one (FR-OUT-46)"]
+
+
+def test_weighing_is_not_for_a_generic(db):
+    push(db, USER, batch(USER, own(USER, type="created", payload={"name": "Tank"})), now=T0)
+    ok = own(USER, type="weighed", payload={"value": 20, "unit": "lb"}, device_seq=2)
+    assert reasons(db, USER, ok) == []
+    push(
+        db,
+        USER,
+        batch(
+            USER,
+            own(
+                USER,
+                entity_id="tanks",
+                type="created",
+                payload={"name": "Tanks", "generic": True},
+                device_seq=3,
+            ),
+        ),
+        now=T0,
+    )
+    for kind, payload in (("weighed", {"value": None}), ("refilled", {})):
+        bad = own(USER, entity_id="tanks", type=kind, payload=payload, device_seq=4)
+        assert reasons(db, USER, bad) == ["only a unit or a single item is weighed (FR-INV-64)"]

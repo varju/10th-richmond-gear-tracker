@@ -1,0 +1,113 @@
+{
+  "name": "a weighing after the check-out is current",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tank",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "name": "Propane tank",
+        "empty_weight": {
+          "value": 18,
+          "unit": "lb"
+        },
+        "capacity": {
+          "value": 20,
+          "unit": "lb"
+        }
+      }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tank",
+      "type": "weighed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": {
+        "value": 28,
+        "unit": "lb"
+      }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "tank",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "payload": {
+        "holder_id": "bob"
+      }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "item",
+      "entity_id": "tank",
+      "type": "checked_in",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 4000,
+      "payload": {}
+    },
+    {
+      "id": "01000000000000000000000005",
+      "entity_type": "item",
+      "entity_id": "tank",
+      "type": "weighed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 5,
+      "effective_at": 5000,
+      "payload": {
+        "value": 21,
+        "unit": "lb"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "tank": {
+        "name": "Propane tank",
+        "empty_weight": {
+          "value": 18,
+          "unit": "lb"
+        },
+        "capacity": {
+          "value": 20,
+          "unit": "lb"
+        },
+        "added_at": 1000,
+        "modified_at": 1000,
+        "status": "in",
+        "holder_id": null,
+        "reading": {
+          "value": 21,
+          "unit": "lb",
+          "at": 5000
+        },
+        "since": 4000,
+        "movement": {
+          "id": "01000000000000000000000004",
+          "type": "checked_in",
+          "holder_id": null,
+          "event": null,
+          "reservation_id": null,
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 4000
+        }
+      }
+    }
+  }
+}

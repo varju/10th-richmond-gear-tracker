@@ -82,7 +82,16 @@ from gear_tracker import conflicts as clashes
 from gear_tracker import photos as photo_files
 from gear_tracker.db import connect
 from gear_tracker.errors import ApiError, BadRequest, Conflict, NotFound, TooLarge
-from gear_tracker.events import REPAIR_STATES, HttpsUrlOrBlank, PhotoEntity, PhotoType, now_ms
+from gear_tracker.events import (
+    REPAIR_STATES,
+    Amount,
+    HttpsUrlOrBlank,
+    PhotoEntity,
+    PhotoType,
+    Weight,
+    WeightUnit,
+    now_ms,
+)
 from gear_tracker.ratelimit import RateLimit
 from gear_tracker.replay import cleaner_key
 from gear_tracker.sync import Principal
@@ -476,6 +485,23 @@ def search_items(
         return {"rows": [_row(state, row) for row in rows], "count": len(rows)}
 
 
+def _weight_facts(state: dict[str, Any], it: dict[str, Any], out: dict[str, Any]) -> None:
+    """Empty weight, capacity (a unit's may come from its generic) and what is left (FR-INV-62, FR-INV-66)."""
+    empty, capacity = views.weight_fields(state, it)
+    if empty:
+        out["empty_weight"] = empty
+    if capacity:
+        out["capacity"] = capacity
+    w = views.weighing(state, it)
+    if w is None:
+        return
+    left = views.amount_left(state, it, w)
+    out["left"] = {**left, "at": views.iso(left["at"])} if left else None
+    if (it.get("reading") or {}).get("stale"):
+        # Out since it was weighed: the reading is no guide (FR-INV-69).
+        out["left_stale"] = True
+
+
 def get_item(item_id: str) -> dict[str, Any]:
     """One item in full: where it lives, who has it, its units or its generic, open tickets, recent movements."""
     with _open() as (conn, _who):
@@ -516,6 +542,8 @@ def get_item(item_id: str) -> dict[str, Any]:
             if it.get("parent_id"):
                 out["generic_id"] = it["parent_id"]
                 out["number"] = it.get("number")
+        if not views.is_pool(it):
+            _weight_facts(state, it, out)
         code_id = views.current_code(state, it["id"])
         if code_id:
             out["code"] = code_id
@@ -869,7 +897,12 @@ def duplicate_reservation(reservation_id: str, event: str, starts: IsoDate, ends
 
 
 class ItemFields(BaseModel):
-    """What an assistant may change on an item. Anything else is the app's job."""
+    """What an assistant may change on an item. Anything else is the app's job.
+
+    `empty_weight` and `capacity` (the weight of a full load of contents, such as the propane in a tank) make an
+    item one that is weighed to see what is left (FR-INV-62). A unit sets its own empty weight and takes its
+    generic's capacity unless it has one. Null clears either.
+    """
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
@@ -882,6 +915,8 @@ class ItemFields(BaseModel):
     nickname: str | None = None
     number: NonBlank | None = None
     category_ids: list[str] | None = None
+    empty_weight: Weight | None = None
+    capacity: Weight | None = None
 
 
 def _home(state: dict[str, Any], location_id: str | None) -> None:
@@ -1072,6 +1107,10 @@ def update_item(item_id: str, fields: ItemFields) -> dict[str, Any]:
             for category_id in patch["category_ids"] or []:
                 _category(state, category_id)
             patch["category_ids"] = _sorted_categories(state, patch["category_ids"] or [])
+        if ("empty_weight" in patch or "capacity" in patch) and views.is_pool(it):
+            raise BadRequest("a pool is counted, not weighed")
+        if patch.get("empty_weight") and it.get("generic"):
+            raise BadRequest("each unit has its own empty weight; a generic has a capacity only")
         if "number" in patch and not it.get("parent_id"):
             raise BadRequest("only one of several has a number")
         if "number" in patch:
@@ -1416,6 +1455,8 @@ def make_single(generic_id: str) -> dict[str, Any]:
                     "home_user_id": unit.get("home_user_id") if own_home else generic.get("home_user_id"),
                     "sub_location": (unit.get("sub_location") if own_home else generic.get("sub_location")) or "",
                     "purchase_date": unit.get("purchase_date") or generic.get("purchase_date"),
+                    # It stays weighed: the capacity it read from its generic is now its own (FR-INV-63).
+                    "capacity": unit.get("capacity") or generic.get("capacity"),
                 }
             )
             # Stored, not resolved: a unit reads its generic's categories until parent_id clears.
@@ -1854,8 +1895,14 @@ def check_in(
     count: Count | None = None,
     holder_id: str | None = None,
     cleaner: str | None = None,
+    weight: Weight | None = None,
+    weight_unknown: StrictBool = False,
 ) -> dict[str, Any]:
     """Bring an item back, without a scan (FR-OUT-07). Anyone can check anything in (FR-OUT-08).
+
+    An item that is weighed to see what is left (get_item shows `empty_weight` and `capacity`) takes the
+    current `weight` as {value, unit} with the check-in (FR-INV-67). With no scale, set `weight_unknown` to
+    clear the last reading; with neither, the last reading is kept, though get_item then says it is stale.
 
     A pool (FR-INV-34) comes back from one holder: you, unless `holder_id` names someone else who has
     some out (get_item lists them). `count` defaults to all that holder has out; say fewer to leave
@@ -1870,6 +1917,10 @@ def check_in(
             raise BadRequest("that item does not move; one of its units does")
         if cleaner is not None and not pool:
             raise BadRequest("cleaner is only for a pool; anyone can check anything else in")
+        if weight is not None and weight_unknown:
+            raise BadRequest("give a weight or say it is unknown, not both")
+        if weight is not None or weight_unknown:
+            _weighable(state, it)
         holder = holder_id or who.user_id
         if pool:
             have = next((o["count"] for o in views.pool_counts(it)["out"] if o["holder_id"] == holder), 0)
@@ -1903,10 +1954,46 @@ def check_in(
         if not pool and it.get("missing"):
             # It turned up (FR-INV-19).
             drafts.append(_draft("item", it["id"], "field_changed", {"field": "missing", "value": False, "old": True}))
+        if weight is not None or weight_unknown:
+            drafts.append(_draft("item", it["id"], "weighed", weight.model_dump() if weight else {"value": None}))
         _push(conn, who, drafts)
         if pool:
             return {"item_id": it["id"], "count": count}
         return {"item_id": it["id"], "status": "in", "home": views.home_label(state, it)}
+
+
+def _weighable(state: dict[str, Any], it: dict[str, Any]) -> None:
+    if views.is_pool(it) or it.get("generic") or not views.weighing(state, it):
+        raise BadRequest("it has no empty weight and capacity; set them with update_item first (FR-INV-62)")
+
+
+def weigh(item_id: str, value: Amount, unit: WeightUnit) -> dict[str, Any]:
+    """Record what an item weighs now, to see what is left (FR-INV-64). Anyone signed in.
+
+    Only an item with an empty weight and a capacity (update_item) is weighed. The weight is kept as given
+    and the answer comes back in the item's own unit.
+    """
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, item_id)
+        _weighable(state, it)
+        _push(conn, who, [_draft("item", it["id"], "weighed", {"value": value, "unit": unit})])
+        return {"item_id": it["id"], "left": _left(_state(conn), item_id)}
+
+
+def refilled(item_id: str) -> dict[str, Any]:
+    """Say a weighed item is full again (FR-INV-65). Anyone signed in; the amount left becomes its capacity."""
+    with _open() as (conn, who):
+        state = _state(conn)
+        it = _item(state, item_id)
+        _weighable(state, it)
+        _push(conn, who, [_draft("item", it["id"], "refilled", {})])
+        return {"item_id": it["id"], "left": _left(_state(conn), item_id)}
+
+
+def _left(state: dict[str, Any], item_id: str) -> dict[str, Any] | None:
+    left = views.amount_left(state, _item(state, item_id))
+    return {**left, "at": views.iso(left["at"])} if left else None
 
 
 def recount(item_id: str, count: Annotated[StrictInt, Field(ge=0)], reason: str | None = None) -> dict[str, Any]:
@@ -2888,6 +2975,8 @@ TOOLS = [
     resolve_found_report,
     check_out,
     check_in,
+    weigh,
+    refilled,
     recount,
     mark_pool_missing,
     mark_pool_found,

@@ -4,6 +4,7 @@
  */
 import type { Store } from "./store";
 import { newUlid } from "./ulid";
+import { isWeight } from "./weighing";
 import {
   blockers,
   categories,
@@ -24,7 +25,15 @@ import {
 /** What the item form holds. */
 export type ItemInput = Pick<
   Item,
-  "name" | "description" | "home_location_id" | "home_user_id" | "sub_location" | "purchase_date" | "category_ids"
+  | "name"
+  | "description"
+  | "home_location_id"
+  | "home_user_id"
+  | "sub_location"
+  | "purchase_date"
+  | "category_ids"
+  | "empty_weight"
+  | "capacity"
 >;
 
 /** What the unit form holds. A unit has no name: its number and nickname make it (FR-INV-23). */
@@ -61,6 +70,12 @@ function sameArray(a: unknown, b: unknown): boolean {
   return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
+/** True when both are weights of the same number and unit. */
+function sameWeight(a: unknown, b: unknown): boolean {
+  if (!isWeight(a) || !isWeight(b)) return false;
+  return a.value === b.value && a.unit === b.unit;
+}
+
 /**
  * One field_changed per field that actually differs, with the old value kept
  * (FR-USR-05). `oldOverrides` stands in for a field's raw stored value when a
@@ -83,7 +98,7 @@ async function changed(
   const before = { ...existing, ...oldOverrides };
   for (const [field, value] of Object.entries(patch)) {
     const old = before[field] ?? null;
-    if (sameArray(value, old) || (value ?? null) === old) continue;
+    if (sameArray(value, old) || sameWeight(value, old) || (value ?? null) === old) continue;
     await store.record({
       entity_type,
       entity_id: id,
@@ -110,8 +125,21 @@ function withCategoryIds<T extends { category_ids?: string[] }>(store: Store, in
 
 // --- items -------------------------------------------------------------------------------
 
+/**
+ * What a new item keeps of the weights (FR-INV-62): a stack is counted, and a generic's units each have their own
+ * empty weight. Blank ones are left out.
+ */
+function withWeights(input: ItemInput, kind: "single" | "generic" | "pool"): ItemInput {
+  const { empty_weight, capacity, ...rest } = input;
+  return {
+    ...rest,
+    ...(kind === "single" && empty_weight ? { empty_weight } : {}),
+    ...(kind !== "pool" && capacity ? { capacity } : {}),
+  };
+}
+
 export const createItem = (store: Store, input: ItemInput) =>
-  created(store, "item", clean(withCategoryIds(store, input)));
+  created(store, "item", clean(withCategoryIds(store, withWeights(input, "single"))));
 
 /**
  * The old value for category_ids is read through the fallback (FR-SET-07): an
@@ -130,11 +158,16 @@ export async function updateItem(store: Store, id: string, patch: Partial<ItemIn
 
 /** One thing the group owns several of. No code, no movements; its units carry both (FR-INV-21). */
 export const createGeneric = (store: Store, input: ItemInput) =>
-  created(store, "item", { ...clean(withCategoryIds(store, input)), generic: true });
+  created(store, "item", { ...clean(withCategoryIds(store, withWeights(input, "generic"))), generic: true });
 
 /** A counted stack, not units (FR-INV-34): always generic, with no code and no units of its own. */
 export const createPool = (store: Store, input: ItemInput, quantity: number) =>
-  created(store, "item", { ...clean(withCategoryIds(store, input)), generic: true, pool: true, quantity });
+  created(store, "item", {
+    ...clean(withCategoryIds(store, withWeights(input, "pool"))),
+    generic: true,
+    pool: true,
+    quantity,
+  });
 
 /** One of them, numbered under its generic (FR-INV-22). The number is checked here, on this device. */
 export async function createUnit(store: Store, input: UnitInput): Promise<string> {
@@ -462,6 +495,8 @@ export async function makeSingle(store: Store, genericId: string): Promise<strin
       home_user_id: ownHome ? unit.home_user_id ?? null : generic.home_user_id ?? null,
       sub_location: ownHome ? unit.sub_location ?? "" : generic.sub_location ?? "",
       purchase_date: unit.purchase_date ?? generic.purchase_date ?? null,
+      // It stays weighed: the capacity it read from its generic is now its own (FR-INV-63).
+      capacity: unit.capacity ?? generic.capacity ?? null,
     }),
   );
   await changed(store, "item", genericId, { merged_into: unit.id });

@@ -89,6 +89,11 @@ State = dict[str, dict[str, dict[str, Any]]]
 #                                             pool_out are untouched, so owned drops by `gone` (FR-INV-49).
 #   pool_found  {count}                      found = min(count, pool_missing); pool_missing -= found;
 #                                             pool_in += found (FR-INV-47).
+#   weighed     {value, unit}                reading = {value, unit, at}. A null value is Unknown: reading = null
+#                                             (FR-INV-64, FR-INV-67). The last event wins, however it is read.
+#   refilled    {}                           reading = {full: true, at} (FR-INV-65).
+#   checked_out of a single item that is in and has a reading: the reading gains `stale: true`, until the next
+#                weighed or refilled replaces it (FR-INV-69).
 #
 # A pool's `movement` is kept up to date like any item's, with `count` added (see `_movement`),
 # so the item's History can read "Alice checked out 10" straight off the log.
@@ -114,6 +119,7 @@ DERIVED_FIELDS = frozenset(
         "pool_reservations",
         "pool_lots",
         "pool_missing",
+        "reading",
         "deactivated_at",
     }
 )
@@ -418,6 +424,9 @@ def apply(entity: dict[str, Any], event: Event) -> None:
                     entity.setdefault("conflicts", []).append(
                         {"kind": "double_checkout", "events": [previous, _movement(event)]}
                     )
+                if entity.get("status") != "out" and entity.get("reading"):
+                    # Out, and a build that does not weigh may bring it back unread (FR-INV-69).
+                    entity["reading"] = {**entity["reading"], "stale": True}
                 entity["status"] = "out"
                 entity["holder_id"] = p["holder_id"]
                 entity["since"] = event.effective_at
@@ -469,6 +478,13 @@ def apply(entity: dict[str, Any], event: Event) -> None:
             if found:
                 entity["pool_missing"] = entity.get("pool_missing", 0) - found
                 entity["pool_in"] = entity.get("pool_in", 0) + found
+        case "weighed":
+            if p.get("value") is None:
+                entity["reading"] = None
+            else:
+                entity["reading"] = {"value": p["value"], "unit": p["unit"], "at": event.effective_at}
+        case "refilled":
+            entity["reading"] = {"full": True, "at": event.effective_at}
         case "photo_added":
             # The file is on the server; this is what a device knows about it (FR-INV-11).
             entity.setdefault("photos", []).append(

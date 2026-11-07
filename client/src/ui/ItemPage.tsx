@@ -80,6 +80,8 @@ import { CleanerField } from "./CleanerField";
 import { EventPicker, useEventQuestion } from "./EventChoice";
 import { ConfirmButton } from "./ConfirmButton";
 import { CONFIRM_MS, MOVED_MS, MoveActions, useFlash } from "./MoveActions";
+import { leftFact, WeighActions, WeighFields } from "./Weighing";
+import { weighing } from "../lib/weighing";
 import { useKeyboardForm } from "./keyboardForm";
 import { RichText } from "./RichText";
 import { AddNote, NoteLine, NoteList } from "./Notes";
@@ -165,6 +167,8 @@ export function ItemPage({ store, id }: Props) {
           sub_location: it.sub_location ?? "",
           purchase_date: it.purchase_date ?? "",
           category_ids: categoriesOf(state, it),
+          empty_weight: it.empty_weight ?? null,
+          capacity: it.capacity ?? null,
         }}
         onDone={() => {
           setEditing(false);
@@ -389,6 +393,12 @@ export function ItemPage({ store, id }: Props) {
                 ))}
               </>
             )}
+            {weighing(state, it) && (
+              <>
+                <dt>Left</dt>
+                <dd>{leftFact(store, it)}</dd>
+              </>
+            )}
             <dt>Home</dt>
             <dd>{homeLabel(state, it) || "—"}</dd>
             {categoriesOf(state, it).length > 0 && (
@@ -434,6 +444,7 @@ export function ItemPage({ store, id }: Props) {
               </>
             )}
           </dl>
+          <WeighActions store={store} it={it} />
 
           <details className="fold">
             <summary>
@@ -1219,6 +1230,7 @@ function EditItem({
   const [totalText, setTotalText] = useState("1");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [weightsOk, setWeightsOk] = useState(true);
   const n = number.trim();
   const named = (values.name ?? "").trim() !== "";
   const numbered = n !== "" && !numberTaken(store.state, it.parent_id ?? "", n, id);
@@ -1231,9 +1243,9 @@ function EditItem({
   // A retired item makes no extra live units.
   const total = nowRetired ? 1 : askedTotal;
   const validTotal = nowRetired || (totalText.trim() !== "" && validUnitCount(askedTotal));
-  const canSave = unit
-    ? numbered
-    : named && (!several || (asPool ? validQuantity : firstNumber.trim() !== "" && validTotal));
+  const canSave =
+    weightsOk &&
+    (unit ? numbered : named && (!several || (asPool ? validQuantity : firstNumber.trim() !== "" && validTotal)));
   const needsConfirm = asPool || (several && total > 1);
   const dirty =
     nowRetired !== retired ||
@@ -1339,6 +1351,7 @@ function EditItem({
       ) : (
         <ItemFields store={store} values={values} onChange={setValues} generic={it.generic || several} />
       )}
+      {!it.pool && <WeighFields store={store} it={it} values={values} onChange={setValues} onValid={setWeightsOk} />}
       {!unit && !it.generic && (
         <>
           <label className="check">

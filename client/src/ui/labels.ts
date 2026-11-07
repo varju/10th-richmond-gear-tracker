@@ -3,6 +3,7 @@ import { type Item, type Row, displayName, purchaseOf, userName } from "../lib/i
 import type { State } from "../lib/replay";
 import type { SyncOutcome } from "../lib/sync";
 import { ago } from "../lib/time";
+import { amountLeft, leftLabel } from "../lib/weighing";
 
 export { userName };
 
@@ -10,6 +11,12 @@ export { userName };
 export function statusLabel(state: State, it: Item): string {
   if (it.missing) return "Missing";
   return it.status === "out" ? `Out · ${userName(state, it.holder_id)}` : "In";
+}
+
+/** "About 8 lb left (40%)" for weighed gear with a reading, else "" (FR-INV-66). */
+export function leftNote(state: State, it: Item): string {
+  const left = amountLeft(state, it);
+  return left ? leftLabel(left) : "";
 }
 
 /** A generic's or pool's units as "2 in · 1 out", plus "· 1 missing" for one with any. */

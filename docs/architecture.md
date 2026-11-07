@@ -389,6 +389,14 @@ everywhere, including from "show retired", and the app offers no way back. The l
 are released in the same push (FR-TAG-14), so the stickers are free for the item that is real, and the server refuses to
 bind a code to a deleted item after that.
 
+**Weighed gear.** An item with an `empty_weight` and a `capacity` (each `{value, unit}`, lb or kg; a unit's capacity
+falls back to its generic's) is weighed to see what is left, such as a propane tank (FR-INV-62). A reading is the
+`weighed` event, `{value, unit}` as typed, or `{value: null}` for Unknown; `refilled` is a full reading. Replay keeps
+the latest as `reading`, and the amount left is worked out when shown, in the item's unit. A build that predates the two
+event types skips them like any unknown type (`KNOWN_EVENT_TYPES`), and shows a change to either weight field in History
+as a raw value until updated. Such a build also checks weighed gear in without a reading, so replay marks a reading
+`stale` when the item goes out after it, and the amount left is not shown until the next weighing (FR-INV-69).
+
 **Generic items and units are both items.** A generic has `generic: true` and no code; a unit has `parent_id` and a
 `number` unique under that parent, and no name unless a nickname is set. Display name is derived: the parent's name, the
 number, the nickname if any. One entity kind means one form, one page, one search, and photos and description work the

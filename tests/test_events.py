@@ -463,3 +463,65 @@ def test_a_cleaner_name_is_kept_as_typed():
         incoming(entity_type="item", type="checked_out", payload={"holder_id": "alice", "cleaner": " Smith "})
     )
     assert event.payload.cleaner == " Smith "
+
+
+def test_a_weighing_is_a_number_with_a_unit_or_unknown():
+    validate(incoming(type="weighed", payload={"value": 12.5, "unit": "kg"}))
+    validate(incoming(type="weighed", payload={"value": 0, "unit": "lb"}))
+    validate(incoming(type="weighed", payload={"value": None}))
+    for payload in (
+        {"value": -1, "unit": "lb"},
+        {"value": 5},
+        {"value": 5, "unit": "stone"},
+        {"value": "5", "unit": "lb"},
+        {"value": float("nan"), "unit": "lb"},
+    ):
+        with pytest.raises(Rejected):
+            validate(incoming(type="weighed", payload=payload))
+    with pytest.raises(Rejected, match="weighed applies only to items"):
+        validate(incoming(entity_type="reservation", entity_id="res-1", type="weighed", payload={"value": None}))
+
+
+def test_refilled_takes_no_detail_and_only_items():
+    validate(incoming(type="refilled", payload={}))
+    with pytest.raises(Rejected, match="refilled applies only to items"):
+        validate(incoming(entity_type="reservation", entity_id="res-1", type="refilled", payload={}))
+
+
+def test_an_empty_weight_and_capacity_are_weights_or_null():
+    def change(field, value):
+        return incoming(type="field_changed", payload={"field": field, "value": value, "old": None})
+
+    validate(change("empty_weight", {"value": 18, "unit": "lb"}))
+    validate(change("capacity", {"value": 9, "unit": "kg"}))
+    validate(change("capacity", None))
+    for field, value in (
+        ("empty_weight", {"value": 18}),
+        ("empty_weight", {"value": 18, "unit": "oz"}),
+        ("empty_weight", 18),
+        ("capacity", {"value": -2, "unit": "lb"}),
+        ("capacity", {"value": 0, "unit": "lb"}),
+    ):
+        with pytest.raises(Rejected):
+            validate(change(field, value))
+
+
+def test_a_device_cannot_set_the_reading_directly():
+    with pytest.raises(Rejected, match="derived"):
+        validate(incoming(type="field_changed", payload={"field": "reading", "value": None, "old": None}))
+
+
+def test_an_item_created_with_weights_is_checked_like_a_field_change():
+    created = {"name": "Tank", "empty_weight": {"value": 18, "unit": "lb"}, "capacity": {"value": 9, "unit": "kg"}}
+    validate(incoming(type="created", payload=created))
+    for bad in (
+        {"empty_weight": {"value": 18}},
+        {"empty_weight": {"value": 18, "unit": "oz"}},
+        {"empty_weight": {"value": -1, "unit": "lb"}},
+        {"empty_weight": 18},
+        {"capacity": {"value": 0, "unit": "lb"}},
+        {"capacity": {"value": True, "unit": "lb"}},
+        {"capacity": {"value": float("inf"), "unit": "lb"}},
+    ):
+        with pytest.raises(Rejected):
+            validate(incoming(type="created", payload={"name": "Tank", **bad}))

@@ -396,6 +396,30 @@ label.tight.search {
   min-width: 0;
 }
 
+.weight-box {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+}
+
+.weight-box label {
+  flex: 1;
+  min-width: 0;
+}
+
+.unit-switch {
+  display: flex;
+}
+
+.unit-switch button {
+  border-radius: 0;
+}
+
+.unit-switch button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--navy);
+}
+
 button.small {
   width: auto;
   min-height: 44px;

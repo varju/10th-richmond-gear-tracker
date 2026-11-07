@@ -10,6 +10,7 @@ Nothing here writes. Nothing here opens a database: callers hand in a snapshot.
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 from typing import Any
 
@@ -190,6 +191,76 @@ def movable(state: State) -> list[Fields]:
 def is_pool(it: Fields) -> bool:
     """A counted stack, not units (FR-INV-34). Always a generic; never has a code or a movement of its own."""
     return bool(it.get("pool"))
+
+
+LB_PER_KG = 2.20462262185
+
+
+def _convert(value: float, source: str, target: str) -> float:
+    if source == target:
+        return value
+    return value * LB_PER_KG if target == "lb" else value / LB_PER_KG
+
+
+def _tenth(value: float) -> int | float:
+    """To one decimal, halves up, a whole number when it is one. Mirrors roundTenth in weighing.ts."""
+    rounded = math.floor(value * 10 + 0.5) / 10
+    return int(rounded) if rounded == int(rounded) else rounded
+
+
+def _sound(w: Any, positive: bool = False) -> bool:
+    """A weight a device could have written: a finite number, above zero if `positive`, in lb or kg. See isWeight."""
+    value = w.get("value") if isinstance(w, dict) else None
+    return (
+        isinstance(value, int | float)
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and (value > 0 if positive else value >= 0)
+        and w.get("unit") in ("lb", "kg")
+    )
+
+
+def weight_fields(state: State, it: Fields) -> tuple[Fields | None, Fields | None]:
+    """An item's empty weight and capacity as set, a unit's capacity falling back to its generic's (FR-INV-63)."""
+    parent = item(state, it["parent_id"]) if it.get("parent_id") else None
+    return it.get("empty_weight"), it.get("capacity") or (parent or {}).get("capacity")
+
+
+def weighing(state: State, it: Fields) -> Fields | None:
+    """An item that is weighed to see what is left (FR-INV-62): a sound empty weight and a capacity above zero.
+    Mirrors weighing in weighing.ts. None otherwise, and for a generic."""
+    empty, capacity = weight_fields(state, it)
+    if it.get("generic") or empty is None or capacity is None:
+        return None
+    if not _sound(empty) or not _sound(capacity, positive=True):
+        return None
+    return {"empty_weight": empty, "capacity": capacity, "unit": empty["unit"]}
+
+
+def amount_left(state: State, it: Fields, w: Fields | None = None) -> Fields | None:
+    """What is left, from the latest reading, in the item's own unit (FR-INV-66). Mirrors amountLeft in
+    weighing.ts. None when it is not weighed, the last reading was Unknown, or the item has been out since it
+    (FR-INV-69). `w` is `weighing(state, it)` when the caller has it already."""
+    w = w or weighing(state, it)
+    reading = it.get("reading")
+    if w is None or not isinstance(reading, dict) or reading.get("stale"):
+        return None
+    unit = w["unit"]
+    capacity = _convert(w["capacity"]["value"], w["capacity"]["unit"], unit)
+    if reading.get("full"):
+        left = capacity
+    elif _sound(reading):
+        gross = _convert(reading["value"], reading["unit"], unit)
+        left = min(max(gross - w["empty_weight"]["value"], 0), capacity)
+    else:
+        return None
+    return {
+        "left": _tenth(left),
+        "unit": unit,
+        "percent": math.floor(left / capacity * 100 + 0.5),
+        "full": bool(reading.get("full")),
+        "at": reading.get("at"),
+    }
 
 
 def pool_counts(it: Fields) -> Fields:

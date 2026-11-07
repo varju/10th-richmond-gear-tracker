@@ -1,0 +1,102 @@
+{
+  "name": "a transfer does not make a reading taken while out stale",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tank",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "name": "Propane tank",
+        "empty_weight": {
+          "value": 18,
+          "unit": "lb"
+        },
+        "capacity": {
+          "value": 20,
+          "unit": "lb"
+        }
+      }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "tank",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "payload": {
+        "holder_id": "bob"
+      }
+    },
+    {
+      "id": "01000000000000000000000004",
+      "entity_type": "item",
+      "entity_id": "tank",
+      "type": "weighed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 4000,
+      "payload": {
+        "value": 25,
+        "unit": "lb"
+      }
+    },
+    {
+      "id": "01000000000000000000000005",
+      "entity_type": "item",
+      "entity_id": "tank",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 5,
+      "effective_at": 5000,
+      "payload": {
+        "holder_id": "carol",
+        "supersedes": "01000000000000000000000003"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "tank": {
+        "name": "Propane tank",
+        "empty_weight": {
+          "value": 18,
+          "unit": "lb"
+        },
+        "capacity": {
+          "value": 20,
+          "unit": "lb"
+        },
+        "added_at": 1000,
+        "modified_at": 1000,
+        "status": "out",
+        "holder_id": "carol",
+        "since": 5000,
+        "movement": {
+          "id": "01000000000000000000000005",
+          "type": "checked_out",
+          "holder_id": "carol",
+          "event": null,
+          "reservation_id": null,
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 5000
+        },
+        "reading": {
+          "value": 25,
+          "unit": "lb",
+          "at": 4000
+        }
+      }
+    }
+  }
+}

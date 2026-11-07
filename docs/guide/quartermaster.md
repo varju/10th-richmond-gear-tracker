@@ -115,6 +115,13 @@ search for the real one and pick it, and tap **Merge**. The extra record drops o
 **Unmerge** on either page undoes it. Not to be confused with **Duplicate…**, which copies an item into a new one for
 gear that differs slightly; nothing is saved until you tap **Save**.
 
+### Gear you weigh, like a propane tank
+
+Edit the item and open **Weighed to see what is left**. Give its **Empty weight** and its **Capacity**, the weight of a
+full load of contents. Each has its own **lb** or **kg**. An item with both asks for its weight when it is returned, and
+shows what is left. For several of the same thing, set the capacity on the name; each unit sets its own empty weight and
+uses the name's capacity unless it has one.
+
 ### Bought on
 
 A unit can have its own **Bought on** date. Without one, it shows its name's date.

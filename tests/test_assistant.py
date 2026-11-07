@@ -2459,3 +2459,143 @@ def test_gear_at_a_cleaners_home_keeps_an_ended_event_joinable(db_path, tools, m
 def test_the_event_name_is_tidied_before_a_reservation_is_made(db_path, tools):
     assistant.check_out(tools["stove"], event="  Fall \t  Camp ")
     assert len(_reservations_named(db_path, "Fall Camp")) == 1
+
+
+# --- gear weighed to see what is left (FR-INV-62 to FR-INV-68, FR-MCP-43 to FR-MCP-46) -----------------
+
+
+def _tank(tools):
+    """The stove as a propane tank: 18 lb empty, holding 20 lb."""
+    assistant.update_item(
+        tools["stove"],
+        assistant.ItemFields(
+            empty_weight=assistant.Weight(value=18, unit="lb"), capacity=assistant.Weight(value=20, unit="lb")
+        ),
+    )
+
+
+def _left(tools, item="stove"):
+    return assistant.get_item(tools[item])["left"]
+
+
+def test_update_item_sets_and_shows_an_empty_weight_and_capacity(tools):
+    assert "empty_weight" not in assistant.get_item(tools["stove"])
+    _tank(tools)
+    got = assistant.get_item(tools["stove"])
+    assert got["empty_weight"] == {"value": 18, "unit": "lb"}
+    assert got["capacity"] == {"value": 20, "unit": "lb"}
+    assert got["left"] is None
+    same = assistant.update_item(tools["stove"], assistant.ItemFields(capacity=assistant.Weight(value=20, unit="lb")))
+    assert same["changed"] == []
+    cleared = assistant.update_item(tools["stove"], assistant.ItemFields(capacity=None))
+    assert cleared["changed"] == ["capacity"]
+    assert "capacity" not in assistant.get_item(tools["stove"])
+
+
+def test_a_weight_needs_a_known_unit_and_a_positive_capacity(tools):
+    with pytest.raises(pydantic.ValidationError):
+        assistant.Weight.model_validate({"value": 5, "unit": "stone"})
+    with pytest.raises(pydantic.ValidationError):
+        assistant.Weight(value=-1, unit="lb")
+    with pytest.raises(BadRequest, match="capacity"):
+        assistant.update_item(tools["stove"], assistant.ItemFields(capacity=assistant.Weight(value=0, unit="lb")))
+
+
+def test_a_unit_takes_its_generics_capacity_and_a_generic_has_no_empty_weight(tools):
+    assistant.update_item(tools["tents"], assistant.ItemFields(capacity=assistant.Weight(value=20, unit="lb")))
+    with pytest.raises(BadRequest, match="own empty weight"):
+        assistant.update_item(tools["tents"], assistant.ItemFields(empty_weight=assistant.Weight(value=1, unit="lb")))
+    assistant.update_item(tools["t1"], assistant.ItemFields(empty_weight=assistant.Weight(value=9, unit="kg")))
+    got = assistant.get_item(tools["t1"])
+    assert got["capacity"] == {"value": 20, "unit": "lb"}
+    assert got["left"] is None
+    assistant.refilled(tools["t1"])
+    left = _left(tools, "t1")
+    assert (left["unit"], left["percent"], left["full"]) == ("kg", 100, True)
+    assert left["left"] == 9.1
+
+
+def test_weigh_gives_what_is_left_in_the_items_unit(tools):
+    _tank(tools)
+    below = assistant.weigh(tools["stove"], 14, "lb")["left"]
+    assert (below["unit"], below["left"], below["percent"], below["full"]) == ("lb", 0, 0, False)
+    # 12 kg is 26.46 lb: 8.5 lb over the empty weight, 42.3 percent of the 20 lb it holds.
+    left = assistant.weigh(tools["stove"], 12, "kg")["left"]
+    assert (left["unit"], left["left"], left["percent"]) == ("lb", 8.5, 42)
+    assert _left(tools) == left
+    over = assistant.weigh(tools["stove"], 99, "lb")["left"]
+    assert (over["left"], over["percent"]) == (20, 100)
+
+
+def test_refilled_is_full(tools):
+    _tank(tools)
+    assistant.weigh(tools["stove"], 19, "lb")
+    left = assistant.refilled(tools["stove"])["left"]
+    assert (left["left"], left["percent"], left["full"]) == (20, 100, True)
+
+
+def test_weigh_and_refilled_need_an_empty_weight_and_a_capacity(tools, pool_id):
+    for call in (lambda: assistant.weigh(tools["stove"], 5, "lb"), lambda: assistant.refilled(tools["stove"])):
+        with pytest.raises(BadRequest, match="empty weight and capacity"):
+            call()
+    assistant.update_item(tools["stove"], assistant.ItemFields(empty_weight=assistant.Weight(value=1, unit="lb")))
+    with pytest.raises(BadRequest, match="empty weight and capacity"):
+        assistant.weigh(tools["stove"], 5, "lb")
+    with pytest.raises(BadRequest):
+        assistant.weigh(pool_id, 5, "lb")
+    with pytest.raises(BadRequest):
+        assistant.update_item(pool_id, assistant.ItemFields(capacity=assistant.Weight(value=5, unit="lb")))
+
+
+def test_check_in_takes_a_weight_and_without_one_the_reading_is_kept_but_stale(tools):
+    _tank(tools)
+    assistant.check_out(tools["stove"])
+    assistant.check_in(tools["stove"], weight=assistant.Weight(value=23, unit="lb"))
+    left = _left(tools)
+    assert (left["left"], left["percent"]) == (5, 25)
+    assert "left_stale" not in assistant.get_item(tools["stove"])
+    assistant.check_out(tools["stove"])
+    assistant.check_in(tools["stove"])
+    got = assistant.get_item(tools["stove"])
+    assert got["left"] is None and got["left_stale"] is True
+    assistant.weigh(tools["stove"], 28, "lb")
+    assert "left_stale" not in assistant.get_item(tools["stove"])
+
+
+def test_check_in_can_say_the_weight_is_unknown(tools):
+    _tank(tools)
+    assistant.weigh(tools["stove"], 28, "lb")
+    assistant.check_out(tools["stove"])
+    with pytest.raises(BadRequest, match="not both"):
+        assistant.check_in(tools["stove"], weight=assistant.Weight(value=23, unit="lb"), weight_unknown=True)
+    assistant.check_in(tools["stove"], weight_unknown=True)
+    got = assistant.get_item(tools["stove"])
+    assert got["left"] is None and "left_stale" not in got
+
+
+def test_check_in_with_a_weight_needs_a_weighed_item(tools, db_path):
+    assistant.check_out(tools["stove"])
+    with pytest.raises(BadRequest, match="empty weight and capacity"):
+        assistant.check_in(tools["stove"], weight=assistant.Weight(value=15, unit="lb"))
+    assistant.check_in(tools["stove"])
+    assert "weighed" not in [e["type"] for e in logged(db_path)]
+
+
+def test_a_unit_made_single_keeps_its_generics_capacity(db_path, tools):
+    made = assistant.create_item("Tank", generic=True, units=1)
+    generic, unit = made["item_id"], made["unit_ids"][0]
+    assistant.update_item(generic, assistant.ItemFields(capacity=assistant.Weight(value=20, unit="lb")))
+    assistant.update_item(unit, assistant.ItemFields(empty_weight=assistant.Weight(value=18, unit="lb")))
+    assert assistant.make_single(generic)["item_id"] == unit
+    assert entity(db_path, "item", unit)["capacity"] == {"value": 20, "unit": "lb"}
+    assistant.refilled(unit)
+    assert assistant.get_item(unit)["left"]["percent"] == 100
+
+
+def test_a_unit_made_single_keeps_its_own_capacity(db_path, tools):
+    made = assistant.create_item("Tank", generic=True, units=1)
+    generic, unit = made["item_id"], made["unit_ids"][0]
+    assistant.update_item(generic, assistant.ItemFields(capacity=assistant.Weight(value=20, unit="lb")))
+    assistant.update_item(unit, assistant.ItemFields(capacity=assistant.Weight(value=30, unit="lb")))
+    assistant.make_single(generic)
+    assert entity(db_path, "item", unit)["capacity"] == {"value": 30, "unit": "lb"}

@@ -17,7 +17,7 @@ import { NATIVE } from "../lib/server";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { FilterFields } from "./Filters";
-import { countsLabel, plural, statusLabel } from "./labels";
+import { countsLabel, leftNote, plural, statusLabel } from "./labels";
 import { Page } from "./Page";
 
 type Key = "name" | "category" | "home" | "status" | "flags";
@@ -51,9 +51,12 @@ function tableParams(text: string, filter: Filter, sort: Sort): URLSearchParams 
 
 /** A generic has no status of its own; its units carry it. A generic and a pool show their in and out counts. */
 const statusOf = (store: Store, row: Row): string => {
-  if (row.kind === "single") return statusLabel(store.state, row.item);
+  if (row.kind === "single") return withLeft(store, row.item);
   return countsLabel(row);
 };
+
+const withLeft = (store: Store, it: Item): string =>
+  [statusLabel(store.state, it), leftNote(store.state, it)].filter(Boolean).join(" · ");
 
 function flagsOf(store: Store, it: Item): string[] {
   return [...(openRepairs(store.state, it.id).length > 0 ? ["Repair"] : []), ...(it.missing ? ["Missing"] : [])];
@@ -271,7 +274,7 @@ function ItemRows({ store, row, showCategory, open, onToggle }: RowProps) {
             </td>
             {showCategory && <td>{categoryNames(state, unit)}</td>}
             <td>{homeLabel(state, unit)}</td>
-            <td>{statusLabel(state, unit)}</td>
+            <td>{withLeft(store, unit)}</td>
             <td>
               {flagsOf(store, unit).map((f) => (
                 <span key={f} className="badge">

@@ -1,0 +1,73 @@
+{
+  "name": "Unknown after a weighing leaves no reading (FR-INV-67)",
+  "events": [
+    {
+      "id": "01000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "tank",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "name": "Propane tank",
+        "empty_weight": {
+          "value": 18,
+          "unit": "lb"
+        },
+        "capacity": {
+          "value": 20,
+          "unit": "lb"
+        }
+      }
+    },
+    {
+      "id": "01000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "tank",
+      "type": "weighed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 2000,
+      "payload": {
+        "value": 25,
+        "unit": "lb"
+      }
+    },
+    {
+      "id": "01000000000000000000000003",
+      "entity_type": "item",
+      "entity_id": "tank",
+      "type": "weighed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 3000,
+      "payload": {
+        "value": null
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "tank": {
+        "name": "Propane tank",
+        "empty_weight": {
+          "value": 18,
+          "unit": "lb"
+        },
+        "capacity": {
+          "value": 20,
+          "unit": "lb"
+        },
+        "added_at": 1000,
+        "modified_at": 1000,
+        "status": "in",
+        "holder_id": null,
+        "reading": null
+      }
+    }
+  }
+}

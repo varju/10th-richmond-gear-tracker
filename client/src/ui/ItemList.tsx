@@ -2,7 +2,7 @@ import { byCategory, categories, displayName, homeLabel, type Row } from "../lib
 import { openRepairs } from "../lib/repairs";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
-import { countsLabel, statusLabel } from "./labels";
+import { countsLabel, leftNote, statusLabel } from "./labels";
 
 /**
  * The phone's list of gear: one tappable row each, name and home. The home
@@ -58,6 +58,7 @@ function ItemRow({ store, row, showUnits }: { store: Store; row: Row; showUnits?
             : [
                 homeLabel(state, row.item),
                 row.item.status === "out" && !row.item.missing ? statusLabel(state, row.item) : "",
+                leftNote(state, row.item),
               ]
                 .filter(Boolean)
                 .join(" · ")}
@@ -69,7 +70,9 @@ function ItemRow({ store, row, showUnits }: { store: Store; row: Row; showUnits?
             <li key={u.id}>
               <button className="item" type="button" onClick={() => navigate(`/items/${u.id}`)}>
                 <span className="item-name">{displayName(state, u)}</span>
-                <span className="muted small">{homeLabel(state, u)}</span>
+                <span className="muted small">
+                  {[homeLabel(state, u), leftNote(state, u)].filter(Boolean).join(" · ")}
+                </span>
               </button>
             </li>
           ))}

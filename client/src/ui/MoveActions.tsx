@@ -1,5 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import type { Item } from "../lib/inventory";
+import type { Weight } from "../lib/weighing";
 import {
   addNote,
   backFromCleaning,
@@ -13,9 +14,11 @@ import { openRepairs, raiseTicket } from "../lib/repairs";
 import { type Session, sessionEvent } from "../lib/session";
 import type { Store } from "../lib/store";
 import { useUnsaved } from "../lib/unsaved";
+import { weighing } from "../lib/weighing";
 import { CleanerField } from "./CleanerField";
 import { useEventQuestion } from "./EventChoice";
 import { TransferPicker } from "./TransferPicker";
+import { WeighEntry, weighHint } from "./Weighing";
 
 /** How long the move buttons and the "Saved" strip hold after a tap. */
 export const CONFIRM_MS = 1500;
@@ -77,6 +80,8 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
   const [busy, setBusy] = useState(false);
   const [justMoved, settle] = useFlash(CONFIRM_MS);
   const [picking, setPicking] = useState(false);
+  // Weighed gear asks what it weighs as it comes back (FR-INV-67).
+  const [weighing_, setWeighing] = useState(false);
   // The name being typed for gear sent home to clean (FR-OUT-46); null when not asking.
   const [cleaner, setCleaner] = useState<string | null>(null);
   // A move waiting on the event question (FR-OUT-05).
@@ -177,6 +182,13 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
 
   const checkOutMove: Pending = { kind: "Checked out", act: (o) => checkOut(store, it.id, o) };
   const returnMove: Pending = { kind: "Returned", act: (o) => checkIn(store, it.id, o) };
+  const weighedOnReturn = weighing(store.state, it) !== null;
+  const returnWeighed = (weight: Weight | null): Pending => ({
+    kind: "Returned",
+    act: (o) => checkIn(store, it.id, { ...o, weight }),
+  });
+  /** The Return button: weighed gear asks its weight first. */
+  const startReturn = () => (weighedOnReturn ? setWeighing(true) : start(returnMove, false));
   const backMove: Pending = {
     kind: "Back from cleaning",
     act: (o) => backFromCleaning(store, it.id, { note: o.note }),
@@ -253,6 +265,22 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
             </button>
           </div>
         </section>
+      ) : weighing_ ? (
+        <WeighEntry
+          unit={weighing(store.state, it)!.unit}
+          submitLabel="Return"
+          hint={weighHint(store, it)}
+          busy={busy}
+          onSubmit={(weight) => {
+            setWeighing(false);
+            start(returnWeighed(weight), false);
+          }}
+          onUnknown={() => {
+            setWeighing(false);
+            start(returnWeighed(null), false);
+          }}
+          onCancel={() => setWeighing(false)}
+        />
       ) : picking ? (
         <TransferPicker
           store={store}
@@ -279,7 +307,7 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
               type="button"
               className={it.movement?.cleaner ? undefined : "primary"}
               disabled={holding}
-              onClick={() => start(returnMove, false)}
+              onClick={startReturn}
             >
               Return
             </button>
@@ -287,7 +315,7 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
           {/* Equal weight, no default: this phone's record of who has it may be stale (FR-OUT-06). */}
           {theirs && (
             <div className="row moves">
-              <button type="button" disabled={holding} onClick={() => start(returnMove, false)}>
+              <button type="button" disabled={holding} onClick={startReturn}>
                 Return
               </button>
               <button type="button" disabled={holding} onClick={() => start(takeOver, true)}>

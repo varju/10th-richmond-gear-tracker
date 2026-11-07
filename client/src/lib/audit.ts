@@ -9,6 +9,7 @@
  */
 import { categoryName, locationName, nameOf, userName } from "./inventory";
 import type { Log } from "./record";
+import { isWeight, weightLabel } from "./weighing";
 import type { ReplayEvent, State } from "./replay";
 
 export interface Change {
@@ -43,6 +44,8 @@ const LABELS: Record<string, string> = {
   // Dropped as a field; events that changed it are still in the log.
   price: "Price",
   supplier: "Supplier",
+  empty_weight: "Empty weight",
+  capacity: "Capacity",
   retired: "Retired",
   missing: "Missing",
   merged_into: "Merged into",
@@ -66,6 +69,7 @@ export function describeValue(state: State, field: string, value: unknown): stri
     return names.length ? names.join(", ") : "—";
   }
   if (field === "parent_id" || field === "merged_into") return nameOf(state, String(value));
+  if ((field === "empty_weight" || field === "capacity") && isWeight(value)) return weightLabel(value);
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (field === "price" && typeof value === "number") return `$${value.toFixed(2)}`;
   return String(value);
@@ -124,6 +128,8 @@ const HAPPENED: Record<string, string> = {
   pool_missing: "Marked missing",
   pool_found: "Found",
   pool_written_off: "Written off",
+  weighed: "Weighed",
+  refilled: "Refilled",
   code_bound: "Code assigned",
   code_released: "Code freed",
   photo_added: "Photo added",

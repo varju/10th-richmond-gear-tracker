@@ -211,6 +211,39 @@ class Recount(Payload):
     reason: Annotated[str | None, BeforeValidator(_blank_is_none)] = None
 
 
+WeightUnit = Literal["lb", "kg"]
+WEIGHT_UNITS = get_args(WeightUnit)
+"""The only two units a weight is written in. A reading is stored as typed and converted when shown (FR-INV-68)."""
+
+Amount = Annotated[int | float, Field(ge=0, allow_inf_nan=False)]
+
+
+class Weight(Payload):
+    """An item's empty weight or capacity: a number and its own unit (FR-INV-62)."""
+
+    value: Amount
+    unit: WeightUnit
+
+
+class Capacity(Weight):
+    """The weight of an item's full contents: more than zero, or there is nothing to measure."""
+
+    value: Annotated[int | float, Field(gt=0, allow_inf_nan=False)]
+
+
+class Weighed(Payload):
+    """A reading in the unit it was typed in (FR-INV-64). A null `value` is Unknown: no scale (FR-INV-67)."""
+
+    value: Amount | None
+    unit: WeightUnit | None = None
+
+    @model_validator(mode="after")
+    def _unit_with_value(self):
+        if self.value is not None and self.unit is None:
+            raise ValueError("a weight needs a unit")
+        return self
+
+
 class PoolMissing(Payload):
     """A count of a pool that is out and cannot be found (FR-INV-46). Same shape as a pool return:
     `holder_id` defaults to the actor."""
@@ -319,6 +352,8 @@ class ItemCreated(Payload):
 
     pool: bool | None = None
     quantity: Annotated[int, Field(ge=0)] | None = None
+    empty_weight: Weight | None = None
+    capacity: Capacity | None = None
 
     @model_validator(mode="after")
     def _quantity_matches_pool(self):
@@ -415,6 +450,11 @@ class FieldChanged(_Incoming):
         if self.entity_type == "item" and field in ("pool", "quantity"):
             # Both are set once, at creation, and shape everything that follows (FR-INV-34).
             raise ValueError("pool and quantity are set when the item is created (FR-INV-34)")
+        if self.entity_type == "item" and field in ("empty_weight", "capacity") and value is not None:
+            try:
+                (Capacity if field == "capacity" else Weight).model_validate(value)
+            except ValidationError as exc:
+                raise ValueError(f"{field}: {_first_error(exc)}") from None
         if self.entity_type == "repair" and field == "state" and value not in REPAIR_STATES:
             raise ValueError(f"state must be one of {', '.join(REPAIR_STATES)}")
         if self.entity_type == "reservation" and field in ("items", "generics"):
@@ -520,6 +560,20 @@ class PoolWrittenOffEvent(_ItemOnly):
     payload: PoolWrittenOff
 
 
+class WeighedEvent(_ItemOnly):
+    """A reading of what an item weighs now, or Unknown (FR-INV-64, FR-INV-67)."""
+
+    type: Literal["weighed"]
+    payload: Weighed
+
+
+class RefilledEvent(_ItemOnly):
+    """The item is full again (FR-INV-65)."""
+
+    type: Literal["refilled"]
+    payload: Payload
+
+
 class _PhotoBearer(_Incoming):
     @model_validator(mode="after")
     def _items_and_tickets(self):
@@ -584,6 +638,8 @@ IncomingEvent = Annotated[
     | PoolMissingEvent
     | PoolFoundEvent
     | PoolWrittenOffEvent
+    | WeighedEvent
+    | RefilledEvent
     | CodeBound
     | CodeReleased
     | PhotoAdded
@@ -613,6 +669,8 @@ EVENT_TYPES = frozenset(
         "pool_missing",
         "pool_found",
         "pool_written_off",
+        "weighed",
+        "refilled",
         "code_bound",
         "code_released",
         "photo_added",

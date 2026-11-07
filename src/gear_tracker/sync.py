@@ -276,6 +276,12 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
             if kind == "pool_written_off":
                 raise Rejected("only a stack writes off a count (FR-INV-49)")
             raise Rejected("only a stack marks a count found (FR-INV-47)")
+    if entity_type == "item" and kind in ("weighed", "refilled"):
+        item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
+        if item.get("deleted"):
+            raise Rejected("this item was deleted")
+        if item.get("generic"):
+            raise Rejected("only a unit or a single item is weighed (FR-INV-64)")
     if entity_type == "repair" and kind != "created":
         ticket_id = str(incoming.get("entity_id"))
         ticket = derived.get_entity(conn, "repair", ticket_id) or {}

@@ -15,6 +15,12 @@ it.
 Tap **Scan** and point at each code. Gear you have shows where it goes; tap **Return** and put it there. Gear someone
 else has offers **Return** and **Take over**: pick the one you mean. Any order, over as many visits as you like.
 
+### Gear you weigh, like a propane tank
+
+Some gear is set up to be weighed, so the app can say how much is left. When you tap **Return**, type what it weighs now
+and pick **lb** or **kg**. No scale? Tap **Unknown**. On its page, **Weigh** records a weight any time, and **Refilled**
+says it is full again. The page and the list say "About 8 lb left (40%)".
+
 ### Take some of a stack
 
 Some gear is counted, not labelled one by one: bowls, mugs, tent pegs. Scan the stack's code if it has one, or find it

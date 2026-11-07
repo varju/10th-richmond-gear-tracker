@@ -9,6 +9,7 @@
  */
 import { keepNewest } from "./replay";
 import type { Store } from "./store";
+import type { Reading, Weight } from "./weighing";
 import type { Fields, Movement, Note, PoolLot, PoolLots, PoolOut, PoolReservations, State } from "./replay";
 
 export interface Item {
@@ -57,6 +58,12 @@ export interface Item {
   nickname?: string | null;
   /** "YYYY-MM-DD" (FR-INV-12). */
   purchase_date?: string | null;
+  /** What it weighs with nothing in it, for gear weighed to see what is left (FR-INV-62). */
+  empty_weight?: Weight | null;
+  /** The weight of its full contents. A unit without one uses its generic's (FR-INV-63). */
+  capacity?: Weight | null;
+  /** The latest weighing, or full after Refilled; null after Unknown (FR-INV-64, FR-INV-67). */
+  reading?: Reading | null;
   retired?: boolean;
   /** Lost, not written off (FR-INV-19). Cleared by the next scan or check-in. */
   missing?: boolean;
