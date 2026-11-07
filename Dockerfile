@@ -33,6 +33,8 @@ COPY src/ ./src/
 RUN uv sync --locked --no-dev
 
 FROM python:3.14-slim
+# Debian's fixes can land before the base image is rebuilt with them.
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 # Nothing here runs pip, and it carries its own copies of packages with advisories.
 RUN python -m pip uninstall --yes --root-user-action=ignore pip
 ARG BASE_PATH=/
