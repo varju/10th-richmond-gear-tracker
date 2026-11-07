@@ -161,6 +161,20 @@ test("Return on a weighed item asks the weight first; a number and the item's un
   expect(store.pending.slice(-2).map((e) => e.type)).toEqual(["checked_in", "weighed"]);
 });
 
+test("the weight prompt does not crash when a sync clears the capacity", async () => {
+  await mv.checkOut(store, tank);
+  renderInShell(<ItemPage store={store} id={tank} />);
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  expect(screen.getByLabelText("Weight now")).toBeInTheDocument();
+  await act.updateItem(store, tank, { capacity: null });
+  await waitFor(() => expect(screen.queryByLabelText("Weight now")).not.toBeInTheDocument());
+  expect(screen.getByRole("heading", { name: "Propane" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Return" })).toBeInTheDocument();
+  await act.updateItem(store, tank, { capacity: { value: 20, unit: "lb" } });
+  await waitFor(() => expect(screen.getByRole("button", { name: "Return" })).toBeInTheDocument());
+  expect(screen.queryByLabelText("Weight now")).not.toBeInTheDocument();
+});
+
 test("Unknown returns the item in one tap and clears the old reading", async () => {
   await mv.weigh(store, tank, { value: 30, unit: "lb" });
   await mv.checkOut(store, tank);

@@ -77,3 +77,14 @@ test("it turns back after a few seconds", async () => {
   });
   expect(screen.getByRole("button", { name: "Delete…" })).toBeInTheDocument();
 });
+
+test("the original class stays while asking", async () => {
+  const user = userEvent.setup();
+  render(
+    <main>
+      <ConfirmButton label="Delete…" confirmLabel="Really delete?" onConfirm={vi.fn()} className="row" />
+    </main>,
+  );
+  await user.click(screen.getByRole("button", { name: "Delete…" }));
+  expect(screen.getByRole("button", { name: "Really delete?" })).toHaveAttribute("class", "row warn");
+});

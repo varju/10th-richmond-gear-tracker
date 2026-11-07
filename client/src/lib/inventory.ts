@@ -258,6 +258,18 @@ export const unitsOf = (state: State, genericId: string): Item[] =>
     .filter((it) => it.parent_id === genericId && !it.merged_into)
     .sort(byNumber);
 
+/** Every generic's units, merged ones left out, in no set order. One pass, for callers that need many generics. */
+function unitsByGeneric(state: State): Map<string, Item[]> {
+  const out = new Map<string, Item[]>();
+  for (const it of items(state)) {
+    if (!it.parent_id || it.merged_into) continue;
+    const list = out.get(it.parent_id);
+    if (list) list.push(it);
+    else out.set(it.parent_id, [it]);
+  }
+  return out;
+}
+
 /** The purchase date in use and where it comes from: the unit's own, else its generic's (FR-INV-56). */
 export function purchaseOf(state: State, it: Item): { date: string; generic?: Item } | null {
   if (it.purchase_date) return { date: it.purchase_date };
@@ -343,14 +355,9 @@ export const numberTaken = (state: State, genericId: string, number: string, exc
  * through Bind instead (FR-TAG-15).
  */
 export function recentGenerics(state: State, limit = 4): Item[] {
-  // One pass over every item builds each generic's most-touched unit, instead of a fresh scan
-  // (unitsOf, itself a scan) per generic per comparison: that was O(units × generics × log generics).
   const unitTouch = new Map<string, number>();
-  for (const it of items(state)) {
-    if (!it.parent_id || it.merged_into) continue;
-    const at = Math.max(it.added_at ?? 0, it.modified_at ?? 0);
-    if (at > (unitTouch.get(it.parent_id) ?? 0)) unitTouch.set(it.parent_id, at);
-  }
+  for (const [id, units] of unitsByGeneric(state))
+    unitTouch.set(id, Math.max(0, ...units.map((u) => Math.max(u.added_at ?? 0, u.modified_at ?? 0))));
   const list = generics(state).filter(takesUnits);
   const touched = new Map(list.map((g) => [g.id, Math.max(g.modified_at ?? 0, unitTouch.get(g.id) ?? 0)]));
   return list
@@ -444,9 +451,10 @@ const waiting = (it: Item, bound: Set<string>): boolean => !it.retired && !it.mi
 /** Per generic, its units still waiting for a code, in number order: not retired, missing or merged (FR-INV-54). */
 export function unlabelledUnits(state: State): Map<string, Item[]> {
   const bound = boundItems(state);
+  const byGeneric = unitsByGeneric(state);
   const out = new Map<string, Item[]>();
   for (const g of generics(state)) {
-    const units = unitsOf(state, g.id).filter((u) => waiting(u, bound));
+    const units = (byGeneric.get(g.id) ?? []).filter((u) => waiting(u, bound)).sort(byNumber);
     if (units.length) out.set(g.id, units);
   }
   return out;
@@ -481,9 +489,13 @@ function matches(state: State, it: Item, words: string[]): boolean {
  * units. Generics are not here; the list groups units under them in rows().
  * Merged duplicates are never listed; their survivor is.
  */
-export function search(state: State, filter: Filter): Item[] {
+export const search = (state: State, filter: Filter): Item[] => searchWith(state, filter, neededCodes(state, filter));
+
+const neededCodes = (state: State, filter: Filter): Set<string> =>
+  filter.needs === "code" ? boundItems(state) : new Set<string>();
+
+function searchWith(state: State, filter: Filter, bound: Set<string>): Item[] {
   const words = terms(filter.query);
-  const bound = filter.needs === "code" ? boundItems(state) : new Set<string>();
   return movable(state)
     .filter((it) => !it.merged_into)
     .filter((it) => Boolean(it.retired) === Boolean(filter.retired))
@@ -573,14 +585,17 @@ export function rows(state: State, filter: Filter): Row[] {
   const singles: Row[] = [];
   const pools: Row[] = [];
   const byParent = new Map<string, Item[]>();
-  for (const it of search(state, filter)) {
+  const bound = neededCodes(state, filter);
+  for (const it of searchWith(state, filter, bound)) {
     const parent = it.parent_id && state.item?.[it.parent_id] ? it.parent_id : "";
-    if (parent) byParent.set(parent, [...(byParent.get(parent) ?? []), it]);
-    else singles.push({ kind: "single", item: it, name: displayName(state, it) });
+    if (parent) {
+      const list = byParent.get(parent);
+      if (list) list.push(it);
+      else byParent.set(parent, [it]);
+    } else singles.push({ kind: "single", item: it, name: displayName(state, it) });
   }
   const words = terms(filter.query);
   const unfiltered = !isNarrowing(filter);
-  const bound = filter.needs === "code" ? boundItems(state) : new Set<string>();
   for (const g of generics(state)) {
     if (g.merged_into || Boolean(g.retired) !== Boolean(filter.retired)) continue;
     if (!matches(state, g, words)) continue;
@@ -591,9 +606,10 @@ export function rows(state: State, filter: Filter): Row[] {
       byParent.set(g.id, []);
     }
   }
+  const unitsByParent = byParent.size > 0 ? unitsByGeneric(state) : new Map<string, Item[]>();
   const grouped: Row[] = [...byParent.entries()].map(([id, units]) => {
     const parent = item(state, id) ?? ({ id } as Item);
-    const all = unitsOf(state, id).filter((u) => Boolean(u.retired) === Boolean(filter.retired));
+    const all = (unitsByParent.get(id) ?? []).filter((u) => Boolean(u.retired) === Boolean(filter.retired));
     return {
       kind: "generic",
       item: parent,

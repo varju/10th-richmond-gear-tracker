@@ -182,7 +182,11 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
 
   const checkOutMove: Pending = { kind: "Checked out", act: (o) => checkOut(store, it.id, o) };
   const returnMove: Pending = { kind: "Returned", act: (o) => checkIn(store, it.id, o) };
-  const weighedOnReturn = weighing(store.state, it) !== null;
+  const w = weighing(store.state, it);
+  const weighedOnReturn = w !== null;
+  useEffect(() => {
+    if (!w) setWeighing(false);
+  }, [w]);
   const returnWeighed = (weight: Weight | null): Pending => ({
     kind: "Returned",
     act: (o) => checkIn(store, it.id, { ...o, weight }),
@@ -265,9 +269,9 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
             </button>
           </div>
         </section>
-      ) : weighing_ ? (
+      ) : weighing_ && w ? (
         <WeighEntry
-          unit={weighing(store.state, it)!.unit}
+          unit={w.unit}
           submitLabel="Return"
           hint={weighHint(store, it)}
           busy={busy}

@@ -83,6 +83,7 @@ export function Bind({ store, code }: { store: Store; code: string }) {
           <li key={it.id}>
             {currentCode(store.state, it.id) ? (
               <ConfirmButton
+                className="row"
                 label={label(it)}
                 confirmLabel={
                   <>

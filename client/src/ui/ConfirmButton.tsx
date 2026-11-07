@@ -76,7 +76,7 @@ export function ConfirmButton({
       <button
         ref={button}
         type="button"
-        className={asked ? "warn" : className}
+        className={asked ? `${className} warn`.trim() : className}
         aria-label={asked ? confirmAriaLabel : ariaLabel}
         disabled={disabled}
         onClick={() => void tap()}

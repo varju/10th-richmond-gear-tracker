@@ -58,7 +58,11 @@ What the app does differently.
   page says "Not weighed since it came back" when the item has been out since the last reading.
 - Making a generic with no units single keeps its capacity.
 - Tapping **Check out** on a counted stack no longer checks out 1 at once.
+- Replacing a QR code asks "Really replace its QR code?" on a row styled like the others, and a confirm button keeps its
+  own styling while asking.
+- The weight prompt on a return closes, instead of failing, if a sync takes away the item's capacity.
 
 ## Chores
 
 - Tidied the weight check in Weigh.
+- The item list builds faster.
