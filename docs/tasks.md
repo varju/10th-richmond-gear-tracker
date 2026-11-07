@@ -107,4 +107,89 @@ clears only when the item goes out (FR-INV-69) or comes back as Unknown (FR-INV-
 **Considered:** an **Unknown** choice in **Weigh**, recorded as a reading with no weight. Needs an FR-INV and an FR-MCP
 requirement, and `weigh` in `assistant.py` taking Unknown.
 
-**Deferred because:** wait until someone needs it.
+## Quieter packed lines when packing
+
+On the pack list (`RemainingList` in `client/src/ui/Scan.tsx`), a fully packed generic still shows as "8 of 8 × Tent".
+Next to "Everything is packed" it reads as clutter.
+
+**Considered:**
+
+- Show "of N" only while short: "3 of 8 × Tent". A full line moves under **Show packed** with the packed items, as "✓ 8
+  × Tent". FR-RES-21 already hides packed lines; today it misses full generics.
+- The event page's list (`ReservationPage.tsx`) says "8 × Tent — 8 packed". Same rule there: drop "— 8 packed" once
+  full, or leave it, since **Not packed** already hides full lines.
+- Client change: a `docs/pending-ios.md` line under Functional.
+
+## Refuse a pool check-out of more than are in
+
+Checking out more of a pool than are in says "Only 3 in. This takes it into overdraw." (`ItemPage.tsx`). The word means
+nothing to people, and the move goes ahead. Replay clamps what is in at 0 and adds the excess to what is out, so the
+quantity owned grows unseen.
+
+**Considered:**
+
+- Over the count, ask instead: "Only 3 in. Are there more here?" **Recount** opens the recount (FR-INV-35) with the
+  count the person is taking, then checks out. **Cancel** does nothing. No way to save the overdraw.
+- Same on every pool check-out: item page, scan card (FR-OUT-25), the event page's pool row (`PoolCheckout`), and
+  `check_out` in `assistant.py`, which should refuse with the count in.
+- Blocking uses this device's count. Two offline devices can still overdraw on merge, and that stays allowed
+  (FR-OUT-24).
+- Open question: this device may be stale, e.g. a return recorded offline on another phone. A recount here, then that
+  return synced, counts those twice. Is that rare enough to accept?
+  - Yes.
+- Reword FR-OUT-22 ("warns and never blocks") and FR-MCP-08, and the replay comments that cite it in `replay.py` and
+  `replay.ts`.
+- Client change: a `docs/pending-ios.md` line under Functional.
+
+## Why records are unsent
+
+When records will not send, nothing says why. The banner shows a reason word ("offline", "error"), not the message. The
+desk's **Unsent records** link opens Settings, which has nothing about them.
+
+**Considered:**
+
+- An **Unsent records** page, linked from Settings while anything is unsent and from the banner and the desk's link. It
+  shows:
+  - the last sync attempt: when, and its full message (`SyncOutcome.message`);
+  - the last good sync (`meta.last_sync_at`);
+  - each unsent record: what it is, which item, when recorded;
+  - **Send now**.
+- The last outcome lives only in App state today. Keep it that way: a fresh open retries at once, so the page fills
+  within seconds.
+- Like **Refused records** (`SettingsRefused.tsx`), which covers records the server turned down.
+- Needs an FR-OFF Should row. FR-MCP Won't row: the assistant writes straight to the server and has no queue.
+- Client change: a `docs/pending-ios.md` line under Functional.
+
+## Offer a reload when a newer web build is out
+
+A browser tab can run an old build for days. Today the service worker checks for a new build only when the page loads
+(`registerSW({ immediate: true })` in `main.tsx`). When it finds one, `registerType: "autoUpdate"` reloads the page with
+no warning, which can drop a half-filled form.
+
+**Considered:**
+
+- Switch to `registerType: "prompt"`. On `onNeedRefresh`, show a quiet banner: "A new version is ready · **Reload**".
+  Tapping it calls `updateSW()`, which activates the new worker and reloads. Ignoring it changes nothing.
+- Look for a new build when the tab comes back to the front and about hourly while open, with `registration.update()`,
+  from the `onRegisteredSW` callback.
+- Before reloading, go through `guard()` in `unsaved.ts`, so a draft asks first. Unsent records survive a reload: they
+  are in IndexedDB.
+- Web only: the plugin is off in the iPhone build (`disable: native`), so no `docs/pending-ios.md` line.
+- Needs an NFR-DEP Should row. Not something the assistant does, so no FR-MCP row.
+
+## Set a shelf from a stock check
+
+Most gear has no shelf yet. Walk a shelf, scan what is on it, and say "this is where it belongs".
+
+**Considered:**
+
+- The start form's **Shelf** list (`StockCheck.tsx`) offers only shelves some item already has. Add **New shelf…**,
+  which opens a text field. A shelf is just a label (FR-SET-03), so typing one makes it.
+- In the walk, each **Misplaced here** row gets **Belongs here**: home becomes this location and shelf. With **Whole
+  location**, it sets the location and clears the shelf.
+- One **All belong here** under the list, which asks first and names the count. It is most of the job when a shelf is
+  new.
+- Each is an ordinary home change on the item, recorded offline like any edit.
+- `update_item` already sets a home, so no new MCP tool. `stock_check` in `assistant.py` could say so in its reply.
+- Needs FR-RPT Could rows next to FR-RPT-09.
+- Client change: a `docs/pending-ios.md` line under Functional.
