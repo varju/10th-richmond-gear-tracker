@@ -45,10 +45,7 @@ test("a single item becomes several: a new name above it, and it takes the numbe
   await user.clear(screen.getByLabelText("This one’s number"));
   await user.type(screen.getByLabelText("This one’s number"), "A");
   expect(screen.getByRole("note")).toHaveTextContent("this one becomes #A");
-  // One tap asks; the second one does it.
   await user.click(screen.getByRole("button", { name: "Save" }));
-  expect(inv.generics(store.state)).toEqual([]);
-  await user.click(screen.getByRole("button", { name: "Yes, make it several" }));
 
   await waitFor(() => expect(show(tent)).toBe("4-person tent #A"));
   const generic = inv.generics(store.state)[0]!;
@@ -71,7 +68,8 @@ test("editing a single item into several can give the total: the rest are new un
   await user.type(screen.getByLabelText("How many in all"), "3");
   expect(screen.getByRole("note")).toHaveTextContent("It adds 2 more, with the next numbers.");
   await user.click(screen.getByRole("button", { name: "Save" }));
-  await user.click(screen.getByRole("button", { name: "Yes, make it several" }));
+  expect(inv.generics(store.state)).toEqual([]);
+  await user.click(screen.getByRole("button", { name: "Really make 3 units?" }));
 
   await waitFor(() => expect(inv.generics(store.state)).toHaveLength(1));
   const generic = inv.generics(store.state)[0]!;
@@ -94,7 +92,6 @@ test("a retired item hides How many in all and makes no extra units", async () =
   expect(screen.queryByLabelText("How many in all")).not.toBeInTheDocument();
   expect(screen.getByRole("note")).not.toHaveTextContent("It adds");
   await user.click(screen.getByRole("button", { name: "Save" }));
-  await user.click(screen.getByRole("button", { name: "Yes, make it several" }));
 
   await waitFor(() => expect(inv.item(store.state, tent)?.parent_id).toBeTruthy());
   await waitFor(() => expect(inv.item(store.state, tent)?.retired).toBe(true));

@@ -3,6 +3,7 @@ import { type Api, ApiError, Offline } from "../lib/api";
 import { heldBy } from "../lib/reports";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
+import { ConfirmButton } from "./ConfirmButton";
 import { Page } from "./Page";
 
 interface Props {
@@ -18,7 +19,6 @@ interface Props {
  */
 export function SettingsAccount({ store, api, onDeleted }: Props) {
   useStore(store);
-  const [asked, setAsked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const me = store.meta.user?.id;
@@ -26,10 +26,6 @@ export function SettingsAccount({ store, api, onDeleted }: Props) {
   const out = me ? heldBy(store.state, me) : 0;
 
   async function remove() {
-    if (!asked) {
-      setAsked(true);
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
@@ -78,19 +74,12 @@ export function SettingsAccount({ store, api, onDeleted }: Props) {
       )}
       {pending > 0 && <p className="muted small">Delete your account after your unsent records are sent.</p>}
       <div className="actions">
-        <button
-          type="button"
-          className={asked ? "warn" : ""}
+        <ConfirmButton
+          label="Delete my account…"
+          confirmLabel="Really delete? You cannot sign in again"
           disabled={busy || pending > 0}
-          onClick={() => void remove()}
-        >
-          {asked ? "Really delete? You cannot sign in again" : "Delete my account…"}
-        </button>
-        {asked && (
-          <button type="button" disabled={busy} onClick={() => setAsked(false)}>
-            Cancel
-          </button>
-        )}
+          onConfirm={remove}
+        />
       </div>
     </Page>
   );

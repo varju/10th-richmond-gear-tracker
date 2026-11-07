@@ -19,6 +19,7 @@ import type { Store } from "../lib/store";
 import { localMinute } from "../lib/time";
 import { useWide } from "../lib/wide";
 import { useStore } from "../useStore";
+import { ConfirmButton } from "./ConfirmButton";
 import { statusLabel, userName } from "./labels";
 import { Page } from "./Page";
 import { datesLabel } from "./Reservations";
@@ -86,7 +87,6 @@ export function ReservationPage({
   why?: string | null;
 }) {
   useStore(store);
-  const [confirmCancel, setConfirmCancel] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pick, setPick] = useState("");
   const [notPacked, setNotPacked] = useState(false);
@@ -160,12 +160,7 @@ export function ReservationPage({
   }
 
   async function cancel() {
-    if (!confirmCancel) {
-      setConfirmCancel(true);
-      return;
-    }
     await cancelReservation(store, id);
-    setConfirmCancel(false);
   }
 
   const gear = (
@@ -308,11 +303,7 @@ export function ReservationPage({
               Duplicate
             </button>
           </div>
-          {!r.cancelled && (
-            <button type="button" className={confirmCancel ? "warn" : ""} onClick={cancel}>
-              {confirmCancel ? "Really cancel?" : "Cancel event"}
-            </button>
-          )}
+          {!r.cancelled && <ConfirmButton label="Cancel event" confirmLabel="Really cancel?" onConfirm={cancel} />}
         </>
       }
     >

@@ -7,6 +7,7 @@ import type { Store } from "../lib/store";
 import { localMinute } from "../lib/time";
 import { guard } from "../lib/unsaved";
 import { useStore } from "../useStore";
+import { ConfirmButton } from "./ConfirmButton";
 import { userName } from "./labels";
 import { AddNote, NoteList } from "./Notes";
 import { Page } from "./Page";
@@ -103,14 +104,9 @@ function DeleteTicket({
   itemId: string;
   onError: (message: string) => void;
 }) {
-  const [asked, setAsked] = useState(false);
   if (!canDelete(store, id)) return null;
 
   async function remove() {
-    if (!asked) {
-      setAsked(true);
-      return;
-    }
     try {
       await deleteTicket(store, id);
       back(`/items/${itemId}`);
@@ -120,9 +116,7 @@ function DeleteTicket({
   }
 
   return (
-    <button type="button" className={asked ? "warn" : ""} onClick={() => void remove()} onBlur={() => setAsked(false)}>
-      {asked ? "Really delete? This cannot be undone" : "Delete ticket…"}
-    </button>
+    <ConfirmButton label="Delete ticket…" confirmLabel="Really delete? This cannot be undone" onConfirm={remove} />
   );
 }
 

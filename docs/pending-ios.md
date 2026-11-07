@@ -18,6 +18,9 @@ What the app does differently.
 - A stack's page can change the name of a family its share was sent home with.
 - Correcting a cleaner's name renames the whole share, and does nothing once the gear is back.
 - A recount's reason is optional.
+- Only what cannot be undone asks first. Mark missing, making a single item, and turning an item into several units now
+  act on one tap; deleting, removing a photo, cancelling an event and making a counted stack ask with "Really …?" on the
+  same button, which turns back after a few seconds.
 - An event's gear lists are in alphabetical order. Lists sorted by name put 2 before 10.
 - Scanning an unassigned code no longer emphasises one choice. "Another of…" is now "Add a unit of…", and shows only
   when there is something to add a unit of.

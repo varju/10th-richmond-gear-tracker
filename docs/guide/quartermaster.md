@@ -118,7 +118,7 @@ A unit can have its own **Bought on** date. Without one, it shows its name's dat
 ### Back to a single item
 
 A name with labelled units can go back to being one item when it has one unit left, or none. Open the name's page, tap
-**Make this a single item…**, and confirm.
+**Make this a single item**.
 
 - With one unit left, that unit becomes the item. It keeps its own home.
 - With none left, a new item is made.
@@ -126,8 +126,8 @@ A name with labelled units can go back to being one item when it has one unit le
 Either way the item takes the name, description and categories. It keeps its own "Bought on" date, or takes the name's
 if it has none. The old page still opens and shows where it went.
 
-With no units left, **Make this a counted stack…** is also there. Pick a quantity and confirm, and a new stack takes the
-same details.
+With no units left, **Make this a counted stack…** is also there. Pick a quantity and tap it twice, and a new stack
+takes the same details. A stack cannot go back, so the second tap asks.
 
 ### Retire an item
 
@@ -136,9 +136,9 @@ Untick it to bring it back. Retire is for gear written off.
 
 ### Delete an item
 
-Only an Admin, and only for an item that never existed. Open the item, tap **Delete for good…**, then confirm. It has to
-be in, and a generic waits until its units have gone. The item leaves every list, including **Show retired**, and
-nothing in the app brings it back.
+Only an Admin, and only for an item that never existed. Open the item, tap **Delete for good…**, then tap it again to
+confirm. It has to be in, and a generic waits until its units have gone. The item leaves every list, including **Show
+retired**, and nothing in the app brings it back.
 
 ## People
 

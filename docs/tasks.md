@@ -38,11 +38,6 @@ changelog.
       easier to spot but saves none. Fewer taps means opening the scanner straight after adding, with a way to skip, or
       a second "Add a unit and scan" button. Scanning an unassigned sticker and picking **Add a unit of…** already does
       both in one step. Waiting on more user testing.
-- [ ] Some saves ask for more confirmation than they need, for example converting an item to a generic. Review which
-      saves confirm and make them consistent. Plan: confirm only what the app cannot undo (NFR-USE-07). Check each
-      confirm in turn (delete item, mark missing, counted stack, single item, several of these, photo, note, ticket,
-      reservation cancel, account); drop it where an undo exists and is easy to find. Those that stay use one pattern:
-      the same button turns to a warning "Really …?" and a second tap does it.
 - [ ] An event created during check-out should be a real event, the same as a precreated reservation. No "Add" step
       afterwards. Today a typed name only labels moves; the Reservations screen later offers it (FR-RES-28) and one tap
       makes the reservation (FR-RES-31). Plan: **Create** at check-out (session bar and first picker) makes the

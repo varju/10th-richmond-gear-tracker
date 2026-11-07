@@ -4,6 +4,7 @@ import type { Note } from "../lib/replay";
 import type { Store } from "../lib/store";
 import { localMinute } from "../lib/time";
 import { useUnsaved } from "../lib/unsaved";
+import { ConfirmButton } from "./ConfirmButton";
 import { userName } from "./labels";
 
 /** Notes with an Edit beside each. A correction is appended; the original stays in the log (FR-OUT-16). */
@@ -21,7 +22,6 @@ export function NoteList({ store, on, notes }: { store: Store; on: EntityRef; no
 /** One note as a list row: the text, who and when, and an Edit. */
 export function NoteLine({ store, on, note }: { store: Store; on: EntityRef; note: Note }) {
   const [draft, setDraft] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const text = draft?.trim() ?? "";
   useUnsaved(draft !== null && text !== "" && text !== note.text, { save: commit, canSave: text !== "" });
@@ -71,16 +71,14 @@ export function NoteLine({ store, on, note }: { store: Store; on: EntityRef; not
       <button type="button" className="minor" onClick={() => setDraft(note.text)}>
         Edit
       </button>
-      {/* Two taps, because there is no undo on the screen (NFR-USE-07). */}
-      <button
-        type="button"
-        className={confirming ? "minor warn" : "minor"}
-        aria-label={confirming ? `Really delete “${note.text}”?` : `Delete “${note.text}”`}
-        onClick={() => (confirming ? void deleteNote(store, on, note.id) : setConfirming(true))}
-        onBlur={() => setConfirming(false)}
-      >
-        {confirming ? "Really?" : "Delete"}
-      </button>
+      <ConfirmButton
+        className="minor"
+        label="Delete"
+        confirmLabel="Really?"
+        ariaLabel={`Delete “${note.text}”`}
+        confirmAriaLabel={`Really delete “${note.text}”?`}
+        onConfirm={() => deleteNote(store, on, note.id)}
+      />
     </li>
   );
 }

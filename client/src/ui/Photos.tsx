@@ -6,6 +6,7 @@ import type { Photo } from "../lib/replay";
 import type { QueuedPhoto, Store } from "../lib/store";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
+import { ConfirmButton } from "./ConfirmButton";
 import { plural } from "./labels";
 
 /** Bytes already fetched this session, so a re-render is not a re-download. Never written to disk (FR-INV-11). */
@@ -133,7 +134,7 @@ export function Photos({ store, on }: { store: Store; on: EntityRef }) {
         <div className="photo-view" role="dialog" aria-label="Photo">
           <img src={urls[open.id]} alt="" />
           <div className="row">
-            <RemoveButton onRemove={() => remove(open)} />
+            <ConfirmButton label="Remove" confirmLabel="Really remove?" onConfirm={() => remove(open)} />
             <button type="button" onClick={() => setOpen(null)}>
               Close
             </button>
@@ -141,15 +142,5 @@ export function Photos({ store, on }: { store: Store; on: EntityRef }) {
         </div>
       )}
     </div>
-  );
-}
-
-/** Two taps, like Retire: the first asks. */
-function RemoveButton({ onRemove }: { onRemove: () => void }) {
-  const [asking, setAsking] = useState(false);
-  return (
-    <button type="button" className={asking ? "warn" : ""} onClick={() => (asking ? onRemove() : setAsking(true))}>
-      {asking ? "Really remove?" : "Remove"}
-    </button>
   );
 }

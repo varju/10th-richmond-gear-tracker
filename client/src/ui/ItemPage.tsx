@@ -78,6 +78,7 @@ import { BoughtOn, HomeFields, ItemFields, SEVERAL } from "./ItemFields";
 import { boughtLabel, holdingLabel, plural, statusLabel, userName } from "./labels";
 import { CleanerField } from "./CleanerField";
 import { EventPicker, useEventQuestion } from "./EventChoice";
+import { ConfirmButton } from "./ConfirmButton";
 import { CONFIRM_MS, MOVED_MS, MoveActions, useFlash } from "./MoveActions";
 import { useKeyboardForm } from "./keyboardForm";
 import { RichText } from "./RichText";
@@ -660,10 +661,9 @@ function AddAnotherUnit({ store, genericId }: { store: Store; genericId: string 
  *
  * An Admin's, and only an item that is in. A generic waits until its units have
  * gone, so nothing is left under a name that is not there. Two taps, because
- * there is no undo.
+ * there is no undo (NFR-USE-07).
  */
 function DeleteItem({ store, it }: { store: Store; it: Item }) {
-  const [asked, setAsked] = useState(false);
   const admin = store.admin;
   const blocked = it.status === "out" || (it.generic && unitsOf(store.state, it.id).length > 0);
   if (!admin || blocked) return null;
@@ -671,69 +671,51 @@ function DeleteItem({ store, it }: { store: Store; it: Item }) {
     return <p className="muted small">Cannot delete: mark it found or write it off first.</p>;
 
   async function remove() {
-    if (!asked) {
-      setAsked(true);
-      return;
-    }
     await deleteItem(store, it.id);
     back("/items");
   }
 
   return (
-    <button type="button" className={asked ? "warn" : ""} onClick={() => void remove()}>
-      {asked ? "Really delete? This cannot be undone" : "Delete for good…"}
-    </button>
+    <ConfirmButton label="Delete for good…" confirmLabel="Really delete? This cannot be undone" onConfirm={remove} />
   );
 }
 
 /**
- * Lost, not written off (FR-INV-19). The next scan or check-in clears it.
- * Any signed-in user, not just an Admin: gear goes astray weekly, unlike
- * Delete and Retire. Two taps, like them, and it leaves Edit once marked so
- * the badge shows straight away.
+ * Lost, not written off (FR-INV-19). One tap: the next scan or check-in clears it. Any
+ * signed-in user, not just an Admin: gear goes astray weekly, unlike Delete and Retire.
+ * It leaves Edit once marked so the badge shows straight away.
  */
 function MarkMissing({ store, it, onDone }: { store: Store; it: Item; onDone: () => void }) {
-  const [asked, setAsked] = useState(false);
   if (it.generic || isPool(it) || it.retired || it.missing) return null;
 
   async function mark() {
-    if (!asked) {
-      setAsked(true);
-      return;
-    }
     await markMissing(store, it.id);
     onDone();
   }
 
   return (
-    <button type="button" className={asked ? "warn" : ""} onClick={() => void mark()}>
-      {asked ? "Really missing?" : "Mark missing"}
+    <button type="button" onClick={() => void mark()}>
+      Mark missing
     </button>
   );
 }
 
 /**
- * A generic with no units becomes a counted stack (FR-INV-40). Two taps, like "Make this a single item…": the first sets how many, the
- * second does it.
+ * A generic with no units becomes a counted stack (FR-INV-40). Two taps: it cannot go back
+ * (NFR-USE-07).
  */
 function MakePool({ store, it }: { store: Store; it: Item }) {
-  const [asked, setAsked] = useState(false);
   const [quantity, setQuantity] = useState("1");
   const [error, setError] = useState<string | null>(null);
   const n = Number(quantity.trim());
   const valid = Number.isInteger(n) && n >= 1;
 
   async function convert() {
-    if (!asked) {
-      setAsked(true);
-      return;
-    }
     try {
       const poolId = await makePool(store, it.id, n);
       navigate(`/items/${poolId}`, true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not make it a counted stack");
-      setAsked(false);
     }
   }
 
@@ -752,15 +734,16 @@ function MakePool({ store, it }: { store: Store; it: Item }) {
           min={1}
           step={1}
           value={quantity}
-          onChange={(e) => {
-            setQuantity(e.target.value);
-            setAsked(false);
-          }}
+          onChange={(e) => setQuantity(e.target.value)}
         />
       </label>
-      <button type="button" className={asked ? "warn" : ""} disabled={!valid} onClick={() => void convert()}>
-        {asked ? "Really make it a counted stack?" : "Make this a counted stack…"}
-      </button>
+      <ConfirmButton
+        label="Make this a counted stack…"
+        confirmLabel="Really make it a counted stack?"
+        disabled={!valid}
+        onConfirm={convert}
+        resetKey={quantity}
+      />
     </>
   );
 }
@@ -1201,7 +1184,7 @@ function GroupPicker({ store, id, onDone }: { store: Store; id: string; onDone: 
 /**
  * One form for all three shapes. A unit edits its number and nickname where an
  * item edits its name; a single item can be turned into a generic (FR-INV-26)
- * or a counted stack (FR-INV-34) here, and the tick asks once before it happens.
+ * or a counted stack (FR-INV-34) here. A counted stack asks once first: it cannot go back (NFR-USE-07).
  */
 function EditItem({
   store,
@@ -1229,7 +1212,6 @@ function EditItem({
   const [kind, setKind] = useState<"units" | "pool">("units");
   const [quantity, setQuantity] = useState("1");
   const [totalText, setTotalText] = useState("1");
-  const [asked, setAsked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const n = number.trim();
@@ -1237,8 +1219,6 @@ function EditItem({
   const numbered = n !== "" && !numberTaken(store.state, it.parent_id ?? "", n, id);
   // makePool refuses gear that is out or retired.
   const canCount = it.status === "in" && !it.retired;
-  // A sync may check it out while Save waits to be confirmed; ask again rather than make units.
-  useEffect(() => setAsked(false), [canCount]);
   const asPool = several && kind === "pool" && canCount;
   const qty = Number(quantity.trim());
   const validQuantity = Number.isInteger(qty) && qty >= 1;
@@ -1249,12 +1229,14 @@ function EditItem({
   const canSave = unit
     ? numbered
     : named && (!several || (asPool ? validQuantity : firstNumber.trim() !== "" && validTotal));
+  const needsConfirm = asPool || (several && total > 1);
   const dirty =
     nowRetired !== retired ||
     several ||
     (unit && (number !== numberOf(it) || nickname !== (it.nickname ?? ""))) ||
     (Object.keys(values) as (keyof ItemInput)[]).some((k) => values[k] !== initial[k]);
-  useUnsaved(dirty, { save: () => apply().then((target) => target !== null), canSave });
+  // Leaving must not make a counted stack or many units without the confirm.
+  useUnsaved(dirty, { save: () => apply().then((target) => target !== null), canSave: canSave && !needsConfirm });
 
   /** The id it now lives under, or null when it could not be saved. */
   async function apply(): Promise<string | null> {
@@ -1280,11 +1262,6 @@ function EditItem({
   }
 
   async function save() {
-    // Turning one item into several is not an edit to undo; ask before it happens.
-    if (several && !asked) {
-      setAsked(true);
-      return;
-    }
     const target = await apply();
     if (target === null) return;
     onDone();
@@ -1296,9 +1273,20 @@ function EditItem({
       title={unit ? "Edit unit" : it.generic ? "Edit generic" : "Edit item"}
       actions={
         <>
-          <button className={asked ? "warn" : "primary"} type="button" onClick={save} disabled={saving || !canSave}>
-            {asked ? "Yes, make it several" : "Save"}
-          </button>
+          {needsConfirm ? (
+            <ConfirmButton
+              className="primary"
+              label="Save"
+              confirmLabel={asPool ? "Really make it a counted stack?" : `Really make ${total} units?`}
+              onConfirm={save}
+              disabled={saving || !canSave}
+              resetKey={[several, kind, canCount, quantity, total, firstNumber].join("|")}
+            />
+          ) : (
+            <button className="primary" type="button" onClick={save} disabled={saving || !canSave}>
+              Save
+            </button>
+          )}
           <button type="button" onClick={() => guard(onDone)}>
             Cancel
           </button>
@@ -1348,28 +1336,13 @@ function EditItem({
       {!unit && !it.generic && (
         <>
           <label className="check">
-            <input
-              type="checkbox"
-              checked={several}
-              onChange={(e) => {
-                setSeveral(e.target.checked);
-                setAsked(false);
-              }}
-            />
+            <input type="checkbox" checked={several} onChange={(e) => setSeveral(e.target.checked)} />
             <span>{SEVERAL}</span>
           </label>
           {several && (
             <div className="row">
               <label className="check">
-                <input
-                  type="radio"
-                  name="several-kind"
-                  checked={!asPool}
-                  onChange={() => {
-                    setKind("units");
-                    setAsked(false);
-                  }}
-                />
+                <input type="radio" name="several-kind" checked={!asPool} onChange={() => setKind("units")} />
                 <span>Labelled one by one</span>
               </label>
               <label className="check">
@@ -1378,10 +1351,7 @@ function EditItem({
                   name="several-kind"
                   checked={asPool}
                   disabled={!canCount}
-                  onChange={() => {
-                    setKind("pool");
-                    setAsked(false);
-                  }}
+                  onChange={() => setKind("pool")}
                 />
                 <span>A stack we count</span>
               </label>
@@ -1405,10 +1375,7 @@ function EditItem({
                     type="text"
                     inputMode="numeric"
                     value={totalText}
-                    onChange={(e) => {
-                      setTotalText(e.target.value);
-                      setAsked(false);
-                    }}
+                    onChange={(e) => setTotalText(e.target.value)}
                   />
                 </label>
               )}
@@ -1434,10 +1401,7 @@ function EditItem({
                   min={1}
                   step={1}
                   value={quantity}
-                  onChange={(e) => {
-                    setQuantity(e.target.value);
-                    setAsked(false);
-                  }}
+                  onChange={(e) => setQuantity(e.target.value)}
                 />
               </label>
               <p className="notice" role="note">
@@ -2062,7 +2026,6 @@ function GenericPage({
 }) {
   const state = store.state;
   const [error, setError] = useState<string | null>(null);
-  const [confirmSingle, setConfirmSingle] = useState(false);
   const units = unitsOf(state, it.id);
   const live = units.filter((u) => !u.retired);
   // One unit to fall back to (FR-INV-33), not out from under someone (the
@@ -2079,16 +2042,11 @@ function GenericPage({
   }
 
   async function makeItSingle() {
-    if (!confirmSingle) {
-      setConfirmSingle(true);
-      return;
-    }
     try {
       const unitId = await makeSingle(store, it.id);
       navigate(`/items/${unitId}`, true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not make it a single item");
-      setConfirmSingle(false);
     }
   }
 
@@ -2108,8 +2066,8 @@ function GenericPage({
           </button>
           <DuplicateButton id={it.id} />
           {canMakeSingle && (
-            <button type="button" className={confirmSingle ? "warn" : ""} onClick={() => void makeItSingle()}>
-              {confirmSingle ? "Really make it a single item?" : "Make this a single item…"}
+            <button type="button" onClick={() => void makeItSingle()}>
+              Make this a single item
             </button>
           )}
           {units.length === 0 && !it.retired && <MakePool store={store} it={it} />}

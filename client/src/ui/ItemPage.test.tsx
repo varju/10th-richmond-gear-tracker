@@ -261,13 +261,11 @@ test("closed tickets stay on the item, after the open ones (FR-REP-04)", async (
   ]);
 });
 
-test("marking an item missing takes two taps from Edit, and flags it without moving it (FR-INV-19)", async () => {
+test("marking an item missing takes one tap from Edit, and flags it without moving it (FR-INV-19)", async () => {
   await mv.checkOut(store, tent);
   renderInShell(<ItemPage store={store} id={tent} />);
   await user.click(screen.getByRole("button", { name: "Edit" }));
   await user.click(screen.getByRole("button", { name: "Mark missing" }));
-  expect(item(store.state, tent)?.missing).toBeUndefined();
-  await user.click(screen.getByRole("button", { name: "Really missing?" }));
 
   // Marking it leaves Edit, so the badge shows straight away.
   expect(await screen.findByText("Missing", { selector: ".badge" })).toBeInTheDocument();
@@ -548,16 +546,14 @@ test("grouping with a generic joins the one already there (FR-INV-30)", async ()
   expect(generics(store.state)).toHaveLength(1);
 });
 
-test("a generic with one unit becomes a single item again, in two taps (FR-INV-33)", async () => {
+test("a generic with one unit becomes a single item again, in one tap (FR-INV-33)", async () => {
   const tents = await act.createGeneric(store, { name: "4-person tent", description: "green" });
   const unit = await act.addUnit(store, tents);
   await act.updateUnit(store, unit, { nickname: "patched fly" });
   navigate(`/items/${tents}`);
   renderInShell(<ItemPage store={store} id={tents} />);
 
-  await user.click(screen.getByRole("button", { name: "Make this a single item…" }));
-  expect(item(store.state, unit)?.parent_id).toBe(tents);
-  await user.click(screen.getByRole("button", { name: "Really make it a single item?" }));
+  await user.click(screen.getByRole("button", { name: "Make this a single item" }));
 
   await waitFor(() => expect(location.pathname).toBe(`/items/${unit}`));
   expect(item(store.state, unit)).toMatchObject({
@@ -574,7 +570,7 @@ test("making a generic single is offered with no units, or exactly one that is i
   const tents = await act.createGeneric(store, { name: "4-person tent" });
   navigate(`/items/${tents}`);
   renderInShell(<ItemPage store={store} id={tents} />);
-  const makeSingleBtn = () => screen.queryByRole("button", { name: "Make this a single item…" });
+  const makeSingleBtn = () => screen.queryByRole("button", { name: "Make this a single item" });
   // No units at all: nothing to fall back on, so a fresh item is offered instead (FR-INV-39).
   await waitFor(() => expect(makeSingleBtn()).toBeInTheDocument());
 
@@ -598,8 +594,7 @@ test("a generic with no units becomes a fresh single item, folding the generic i
   navigate(`/items/${tents}`);
   renderInShell(<ItemPage store={store} id={tents} />);
 
-  await user.click(screen.getByRole("button", { name: "Make this a single item…" }));
-  await user.click(screen.getByRole("button", { name: "Really make it a single item?" }));
+  await user.click(screen.getByRole("button", { name: "Make this a single item" }));
 
   await waitFor(() => expect(location.pathname).not.toBe(`/items/${tents}`));
   const newId = location.pathname.split("/").at(-1)!;
@@ -633,7 +628,7 @@ test("a generic with units offers neither conversion (FR-INV-33, FR-INV-39, FR-I
   navigate(`/items/${tents}`);
   renderInShell(<ItemPage store={store} id={tents} />);
 
-  expect(screen.queryByRole("button", { name: "Make this a single item…" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Make this a single item" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Make this a counted stack…" })).not.toBeInTheDocument();
 });
 

@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import * as act from "../lib/actions";
@@ -315,7 +315,7 @@ test("a single item becomes a counted stack, the way it becomes a generic (FR-IN
   await user.type(quantity, "12");
   await user.click(screen.getByRole("button", { name: "Save" }));
   expect(inv.item(store.state, stove)?.merged_into).toBeFalsy();
-  await user.click(screen.getByRole("button", { name: "Yes, make it several" }));
+  await user.click(screen.getByRole("button", { name: "Really make it a counted stack?" }));
 
   await waitFor(() => expect(location.pathname).not.toBe(`/items/${stove}`));
   const poolId = location.pathname.split("/").at(-1)!;
@@ -333,7 +333,7 @@ test("a single item's code comes along when it becomes a counted stack (FR-TAG-1
   await user.click(screen.getByLabelText("We have several of these"));
   await user.click(screen.getByLabelText("A stack we count"));
   await user.click(screen.getByRole("button", { name: "Save" }));
-  await user.click(screen.getByRole("button", { name: "Yes, make it several" }));
+  await user.click(screen.getByRole("button", { name: "Really make it a counted stack?" }));
 
   await waitFor(() => expect(location.pathname).not.toBe(`/items/${stove}`));
   const poolId = location.pathname.split("/").at(-1)!;
@@ -372,11 +372,26 @@ test("a check-out synced while Save waits to be confirmed asks again (FR-INV-34)
   await user.click(screen.getByLabelText("We have several of these"));
   await user.click(screen.getByLabelText("A stack we count"));
   await user.click(screen.getByRole("button", { name: "Save" }));
-  expect(screen.getByRole("button", { name: "Yes, make it several" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Really make it a counted stack?" })).toBeInTheDocument();
   await mv.checkOut(store, stove, { event: "Fall Camp" });
 
   await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument());
   expect(inv.generics(store.state)).toEqual([]);
+});
+
+test("changing the quantity while Save waits to be confirmed asks again (FR-INV-34)", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  navigate(`/items/${stove}?edit=1`);
+  renderInShell(<ItemPage store={store} id={stove} />);
+
+  await user.click(screen.getByLabelText("We have several of these"));
+  await user.click(screen.getByLabelText("A stack we count"));
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  fireEvent.change(screen.getByLabelText("How many"), { target: { value: "9" } });
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  expect(screen.getByRole("button", { name: "Really make it a counted stack?" })).toBeInTheDocument();
+  expect(inv.generics(store.state)).toEqual([]);
+  expect(inv.item(store.state, stove)?.merged_into).toBeFalsy();
 });
 
 test("a share of a stack goes home with a family, and a return names whose it is (FR-OUT-46, FR-OUT-47)", async () => {

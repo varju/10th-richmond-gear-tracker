@@ -14,13 +14,13 @@ import {
 import { back, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
+import { ConfirmButton } from "./ConfirmButton";
 import { Page } from "./Page";
 
 /** Pick the existing item an unassigned code goes on (S-BOOT-05, FR-TAG-07). */
 export function Bind({ store, code }: { store: Store; code: string }) {
   useStore(store);
   const [query, setQuery] = useState("");
-  const [confirm, setConfirm] = useState<Item | null>(null);
   const [error, setError] = useState<string | null>(null);
   const status = codeStatus(store.state, code);
 
@@ -55,10 +55,12 @@ export function Bind({ store, code }: { store: Store; code: string }) {
     navigate(`/items/${target.id}`, true);
   }
 
-  function pick(target: Item) {
-    if (currentCode(store.state, target.id)) setConfirm(target);
-    else void bind(target);
-  }
+  const label = (it: Item) => (
+    <>
+      <span>{displayName(store.state, it)}</span>
+      <span className="muted">{homeLabel(store.state, it)}</span>
+    </>
+  );
 
   const results = bindTargets(store.state, { query });
 
@@ -69,10 +71,7 @@ export function Bind({ store, code }: { store: Store; code: string }) {
         placeholder="Search items"
         autoFocus
         value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setConfirm(null);
-        }}
+        onChange={(e) => setQuery(e.target.value)}
       />
       {error && (
         <p className="error" role="alert">
@@ -82,20 +81,20 @@ export function Bind({ store, code }: { store: Store; code: string }) {
       <ul className="rows">
         {results.map((it) => (
           <li key={it.id}>
-            {confirm?.id === it.id ? (
-              <div className="row confirm">
-                <span>Replace its QR code?</span>
-                <button type="button" className="primary" onClick={() => void bind(it)}>
-                  Replace
-                </button>
-                <button type="button" onClick={() => setConfirm(null)}>
-                  Cancel
-                </button>
-              </div>
+            {currentCode(store.state, it.id) ? (
+              <ConfirmButton
+                label={label(it)}
+                confirmLabel={
+                  <>
+                    {label(it)}
+                    <span className="ask">Really replace its QR code?</span>
+                  </>
+                }
+                onConfirm={() => bind(it)}
+              />
             ) : (
-              <button type="button" className="row" onClick={() => pick(it)}>
-                <span>{displayName(store.state, it)}</span>
-                <span className="muted">{homeLabel(store.state, it)}</span>
+              <button type="button" className="row" onClick={() => void bind(it)}>
+                {label(it)}
               </button>
             )}
           </li>

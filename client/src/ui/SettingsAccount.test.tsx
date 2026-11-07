@@ -55,7 +55,7 @@ test("the first tap asks; the second deletes and signs out", async () => {
 
   await user.click(screen.getByRole("button", { name: "Delete my account…" }));
   expect(calls).toEqual([]);
-  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await user.click(document.body);
   expect(screen.getByRole("button", { name: "Delete my account…" })).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Delete my account…" }));
@@ -146,7 +146,7 @@ test("deleted, but this device could not clear its sign-in: it says so and is no
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Your account is deleted. This device signs out the next time it syncs.",
   );
-  expect(screen.getByRole("button", { name: "Really delete? You cannot sign in again" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Delete my account…" })).toBeEnabled();
 });
 
 test("gear counts are this person's only, and a pool counts once", async () => {
