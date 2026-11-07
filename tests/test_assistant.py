@@ -78,6 +78,11 @@ def inventory(db_path, who):
     return made
 
 
+def long_ago() -> int:
+    """A time before any tool call in the test, so setup replays first whatever the device ids sort to."""
+    return events.now_ms() - 1000
+
+
 def _new(conn, entity_type, payload):
     from gear_tracker.ulid import new_ulid
 
@@ -396,8 +401,10 @@ def test_search_filters_by_location_and_status(tools):
 def test_search_filters_by_what_is_not_set_up(db_path, tools):
     """FR-MCP-39."""
     with open_db(db_path) as conn:
-        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "created", {})
-        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "code_bound", {"item_id": tools["stove"]})
+        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "created", {}, now=long_ago())
+        events.append_server(
+            conn, ALICE, "code", "ABCDEFGH23", "code_bound", {"item_id": tools["stove"]}, now=long_ago()
+        )
     assistant.update_item(tools["t1"], assistant.ItemFields(home_location_id=tools["cold"], sub_location="shelf 4"))
 
     def found(needs):
@@ -584,8 +591,10 @@ def test_unassign_code_releases_it_and_needs_one_bound_first(db_path, tools):
         assistant.unassign_code(tools["stove"])
 
     with open_db(db_path) as conn:
-        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "created", {})
-        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "code_bound", {"item_id": tools["stove"]})
+        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "created", {}, now=long_ago())
+        events.append_server(
+            conn, ALICE, "code", "ABCDEFGH23", "code_bound", {"item_id": tools["stove"]}, now=long_ago()
+        )
 
     released = assistant.unassign_code(tools["stove"])
     assert released == {"item_id": tools["stove"], "code": "ABCDEFGH23"}
@@ -618,8 +627,8 @@ def test_deleting_an_item_releases_its_codes(db_path, admin_tools):
     stove = admin_tools["stove"]
     with open_db(db_path) as conn:
         for code in ("ABCDEFGH23", "BCDEFGHJ34"):
-            events.append_server(conn, ALICE, "code", code, "created", {})
-            events.append_server(conn, ALICE, "code", code, "code_bound", {"item_id": stove})
+            events.append_server(conn, ALICE, "code", code, "created", {}, now=long_ago())
+            events.append_server(conn, ALICE, "code", code, "code_bound", {"item_id": stove}, now=long_ago())
 
     deleted = assistant.delete_item(stove)
     assert deleted["released_codes"] == ["BCDEFGHJ34", "ABCDEFGH23"]
@@ -714,8 +723,10 @@ def test_a_pool_with_a_missing_count_cannot_be_deleted_until_it_is_settled(db_pa
 
 def test_get_item_shows_the_current_code(db_path, tools):
     with open_db(db_path) as conn:
-        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "created", {})
-        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "code_bound", {"item_id": tools["stove"]})
+        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "created", {}, now=long_ago())
+        events.append_server(
+            conn, ALICE, "code", "ABCDEFGH23", "code_bound", {"item_id": tools["stove"]}, now=long_ago()
+        )
     assert assistant.get_item(tools["stove"])["code"] == "ABCDEFGH23"
     assert "code" not in assistant.get_item(tools["t1"])
 
@@ -1503,7 +1514,9 @@ def test_mark_pool_missing_refuses_what_the_holder_does_not_have(tools, pool_id,
 
 def test_mark_pool_missing_for_another_holder(db_path, tools, pool_id, bob):
     with open_db(db_path) as conn:
-        events.append_server(conn, BOB, "item", pool_id, "checked_out", {"holder_id": BOB, "event": None, "count": 5})
+        events.append_server(
+            conn, BOB, "item", pool_id, "checked_out", {"holder_id": BOB, "event": None, "count": 5}, now=long_ago()
+        )
     result = assistant.mark_pool_missing(pool_id, count=2, holder_id=BOB)
     assert result["missing"] == 2
     assert assistant.get_item(pool_id)["out"] == [{"holder_id": BOB, "holder": "Bob", "count": 3}]
@@ -1568,7 +1581,7 @@ def test_assign_code_binds_a_printed_code_to_a_unit(db_path, tools):
         assistant.assign_code("ABCDEFGH23", tools["stove"])
 
     with open_db(db_path) as conn:
-        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "created", {})
+        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "created", {}, now=long_ago())
 
     with pytest.raises(BadRequest):
         assistant.assign_code("ABCDEFGH23", tools["tents"])  # a generic takes no code
@@ -1582,7 +1595,7 @@ def test_assign_code_binds_a_printed_code_to_a_unit(db_path, tools):
 def test_assign_code_can_bind_to_a_pools_container(db_path, tools, pool_id):
     """A pool takes a code on the container, not a labelled unit (FR-TAG-15)."""
     with open_db(db_path) as conn:
-        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "created", {})
+        events.append_server(conn, ALICE, "code", "ABCDEFGH23", "created", {}, now=long_ago())
 
     assert assistant.assign_code("ABCDEFGH23", pool_id) == {"item_id": pool_id, "code": "ABCDEFGH23"}
     assert assistant.get_item(pool_id)["code"] == "ABCDEFGH23"
@@ -1937,7 +1950,9 @@ def test_gear_packed_for_a_reservation_is_linked_not_corrected(db_path, tools):
 
 def test_a_pool_comes_back_from_someone_else(db_path, tools, pool_id, bob):
     with open_db(db_path) as conn:
-        events.append_server(conn, BOB, "item", pool_id, "checked_out", {"holder_id": BOB, "event": None, "count": 5})
+        events.append_server(
+            conn, BOB, "item", pool_id, "checked_out", {"holder_id": BOB, "event": None, "count": 5}, now=long_ago()
+        )
     with pytest.raises(BadRequest, match="you have none"):
         assistant.check_in(pool_id)
     out = assistant.get_item(pool_id)["out"]

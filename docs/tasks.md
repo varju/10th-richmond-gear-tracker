@@ -9,11 +9,6 @@ changelog.
 
 ## Tests
 
-- [ ] Fix the flaky `test_deleting_an_item_releases_its_codes` in `tests/test_assistant.py`. It failed once in a full
-      run (a released code still showed as bound), then passed five reruns. Cause: the setup binds as device `server`
-      and `delete_item` releases as `mcp-…`; in the same millisecond, `mcp-…` sorts first, so the release replays before
-      the bind. The app is right to break a tie by device. Plan: write the setup events a second in the past
-      (`append_server(now=…)`), and fix other tests that mix `append_server` with an assistant write straight after.
 - [ ] Fix the flaky "an Admin merges a duplicate into the item it doubles, and lands on the survivor (FR-INV-13)" in
       `client/src/ui/ItemPage.test.tsx`. It failed once in a full run: `merged_into` was still undefined right after a
       `waitFor` on the pathname. It then passed later full runs. The merge is saved before the page moves, and no sync
