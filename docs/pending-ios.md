@@ -57,6 +57,7 @@ What the app does differently.
   **Unknown**. **Weigh** and **Refilled** are on its page. The page and the list show "About 8 lb left (40%)", and a
   page says "Not weighed since it came back" when the item has been out since the last reading.
 - Making a generic with no units single keeps its capacity.
+- Tapping **Check out** on a counted stack no longer checks out 1 at once.
 
 ## Chores
 

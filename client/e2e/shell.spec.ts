@@ -130,3 +130,28 @@ test("an item can be checked out and in from its page", async ({ page }) => {
   await expect(page.getByRole("status").filter({ hasText: "Returned · Tent 1" })).toBeVisible();
   await expect(page.getByText("In", { exact: true })).toBeVisible();
 });
+
+// The panel opens on a tap; it must not also submit, once the session event is known.
+test("Check out on a counted stack opens How many and checks nothing out", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/items/new");
+  await page.getByLabel("Name").fill("Mess bowls");
+  await page.getByLabel("We have several of these").check();
+  await page.getByLabel("A stack we count").check();
+  await page.getByLabel("How many").fill("5");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("heading", { name: "Mess bowls" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Check out" }).click();
+  await page.getByRole("region", { name: "Which event" }).getByRole("button", { name: "No event" }).click();
+  await page.getByRole("button", { name: "Check out" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Checked out 1 · Mess bowls" })).toBeVisible();
+  await page.getByRole("button", { name: "Return" }).click();
+  await page.getByRole("button", { name: "Return" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Returned 1 · Mess bowls" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Check out" }).click();
+  await expect(page.getByLabel("How many")).toBeVisible();
+  await expect(page.locator("dt:text-is('In') + dd")).toHaveText("5");
+  await expect(page.getByRole("status").filter({ hasText: /^Checked out/ })).toHaveCount(0);
+});

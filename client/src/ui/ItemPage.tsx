@@ -1933,7 +1933,7 @@ export function PoolActions({
         </div>
       )}
       {mode ? (
-        <div className="row">
+        <div className="row" key="go">
           <button type="submit" className="primary" disabled={busy || !validCount || needsName || overSend}>
             {mode === "out"
               ? "Check out"
@@ -1956,7 +1956,7 @@ export function PoolActions({
           </button>
         </div>
       ) : (
-        <div className="row">
+        <div className="row" key="pick">
           <button type="button" className="primary" onClick={() => begin("out")}>
             Check out
           </button>
