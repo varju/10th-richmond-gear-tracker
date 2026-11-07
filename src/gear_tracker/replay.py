@@ -46,12 +46,12 @@ State = dict[str, dict[str, dict[str, Any]]]
 # Events, on the pool's own entity (mirrored in inventory.ts's `poolCounts`, `isPool`):
 #   created    {quantity}                            pool_in = quantity, pool_out = {}, pool_reservations = {}
 #   checked_out {holder_id, count, event?,           pool_out[holder_id] += count; pool_in -= count,
-#                reservation_id?}                     clamped at 0 (an overdraw warns, never blocks:
-#                                                      FR-OUT-22). No supersedes, no conflict rule: counts
-#                                                      from any device just add, whatever the order
-#                                                      (FR-OUT-24). A reservation_id also adds count to
-#                                                      pool_reservations[reservation_id]; with none, it
-#                                                      adds to nothing.
+#                reservation_id?}                     clamped at 0 (a device refuses an overdraw,
+#                                                      FR-OUT-55, but merges still add: FR-OUT-24). No
+#                                                      supersedes, no conflict rule: counts from any device
+#                                                      just add, whatever the order. A reservation_id also
+#                                                      adds count to pool_reservations[reservation_id];
+#                                                      with none, it adds to nothing.
 #   checked_in  {holder_id?, count}          holder defaults to the actor; pool_out[holder] =
 #                                             max(0, pool_out[holder] - count), removed at 0;
 #                                             pool_in += count (FR-OUT-23). A return says nothing of

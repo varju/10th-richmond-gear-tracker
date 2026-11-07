@@ -1,5 +1,15 @@
-import { Fragment, useState } from "react";
-import { compareNames, displayName, homeLabel, isPool, type Item, item, nameOf, resolveItem } from "../lib/inventory";
+import { Fragment, useEffect, useState } from "react";
+import {
+  compareNames,
+  displayName,
+  homeLabel,
+  isPool,
+  type Item,
+  item,
+  nameOf,
+  poolCounts,
+  resolveItem,
+} from "../lib/inventory";
 import {
   cancelReservation,
   checkOutPoolLine,
@@ -26,19 +36,32 @@ import { datesLabel } from "./Reservations";
 
 /** How many of a pool to check out for this line, taken in one count (FR-RES-13, FR-OUT-22). */
 function PoolCheckout({ store, r, itemId, max }: { store: Store; r: Reservation; itemId: string; max: number }) {
-  const [count, setCount] = useState(String(max));
+  const pool = item(store.state, itemId);
+  const have = pool ? poolCounts(pool).in : 0;
+  const [count, setCount] = useState(String(Math.min(max, have)));
+  const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!touched) setCount(String(Math.min(max, have)));
+  }, [max, have, touched]);
 
   async function go() {
     const n = Number.parseInt(count, 10);
     if (!(n > 0)) return;
     setBusy(true);
+    setError(null);
     try {
       await checkOutPoolLine(store, r, itemId, n);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not record it");
     } finally {
       setBusy(false);
     }
   }
+
+  if (have < 1) return <span className="muted small">None in</span>;
 
   return (
     <>
@@ -50,7 +73,11 @@ function PoolCheckout({ store, r, itemId, max }: { store: Store; r: Reservation;
         style={{ width: "4em" }}
         aria-label={`How many ${nameOf(store.state, itemId)} to check out`}
         value={count}
-        onChange={(e) => setCount(e.target.value)}
+        onChange={(e) => {
+          setTouched(true);
+          setCount(e.target.value);
+          setError(null);
+        }}
       />
       <button
         className="small"
@@ -61,6 +88,16 @@ function PoolCheckout({ store, r, itemId, max }: { store: Store; r: Reservation;
       >
         Check out
       </button>
+      {error && (
+        <>
+          <p className="error" role="alert">
+            {error}
+          </p>
+          <button className="small" type="button" onClick={() => navigate(`/items/${itemId}`)}>
+            Recount
+          </button>
+        </>
+      )}
     </>
   );
 }

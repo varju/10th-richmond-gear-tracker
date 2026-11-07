@@ -28,6 +28,8 @@ by search, and tap **Check out**. It asks how many — starting at 1 — and the
 all, like a whole bag of PFDs, tap **All**. **Return** offers the count you have out; confirm it, or change it if you
 are keeping some back.
 
+The app will not check out more than it shows in. If there are more, tap **Recount** and count them first.
+
 ### No sticker on it?
 
 Search for it first. It may already be in the app, or have lost its sticker.

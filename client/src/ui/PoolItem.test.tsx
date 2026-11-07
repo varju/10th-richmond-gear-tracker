@@ -175,7 +175,7 @@ test("a blank count cannot be recounted", async () => {
   expect(screen.getByRole("button", { name: "Recount" })).toBeDisabled();
 });
 
-test("taking more than are in warns, and never blocks (FR-OUT-22)", async () => {
+test("over the count asks for a recount, and records nothing (FR-OUT-55)", async () => {
   const bowls = await act.createPool(store, { name: "Bowls" }, 5);
   navigate(`/items/${bowls}`);
   renderInShell(<ItemPage store={store} id={bowls} />);
@@ -183,10 +183,79 @@ test("taking more than are in warns, and never blocks (FR-OUT-22)", async () => 
   await user.click(screen.getByRole("button", { name: "Check out" }));
   await user.clear(screen.getByLabelText("How many"));
   await user.type(screen.getByLabelText("How many"), "8");
-  expect(screen.getByRole("note")).toHaveTextContent("Only 5 in");
+  expect(screen.getByRole("note")).toHaveTextContent("Only 5 in. Are there more here?");
+  expect(screen.getByRole("button", { name: "Check out" })).toBeDisabled();
+  await user.type(screen.getByLabelText("How many"), "{Enter}");
+  expect(inv.item(store.state, bowls)?.pool_in).toBe(5);
+  expect(inv.item(store.state, bowls)?.pool_out).toEqual({});
+});
+
+test("Recount to a higher count, then check out (FR-OUT-55)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 5);
+  navigate(`/items/${bowls}`);
+  renderInShell(<ItemPage store={store} id={bowls} />);
+
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+  await user.clear(screen.getByLabelText("How many"));
+  await user.type(screen.getByLabelText("How many"), "8");
+  await user.click(screen.getByRole("button", { name: "Recount" }));
+  expect(screen.getByLabelText("How many")).toHaveValue(5);
+  await user.clear(screen.getByLabelText("How many"));
+  await user.type(screen.getByLabelText("How many"), "8");
+  await user.click(screen.getByRole("button", { name: "Recount" }));
+  await waitFor(() => expect(inv.item(store.state, bowls)?.pool_in).toBe(8));
+  expect(screen.queryByText("Recounted to 8 · Bowls")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("How many")).toHaveValue(8);
   await user.click(screen.getByRole("button", { name: "Check out" }));
   await waitFor(() => expect(inv.item(store.state, bowls)?.pool_in).toBe(0));
   expect(inv.item(store.state, bowls)?.pool_out).toEqual({ alice: 8 });
+});
+
+test("after a recount below what was wanted, check-out comes back at the new count (FR-OUT-55)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 5);
+  navigate(`/items/${bowls}`);
+  renderInShell(<ItemPage store={store} id={bowls} />);
+
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+  await user.clear(screen.getByLabelText("How many"));
+  await user.type(screen.getByLabelText("How many"), "8");
+  await user.click(screen.getByRole("button", { name: "Recount" }));
+  await user.clear(screen.getByLabelText("How many"));
+  await user.type(screen.getByLabelText("How many"), "6");
+  await user.click(screen.getByRole("button", { name: "Recount" }));
+  await waitFor(() => expect(inv.item(store.state, bowls)?.pool_in).toBe(6));
+  expect(screen.getByLabelText("How many")).toHaveValue(6);
+  expect(screen.getByRole("button", { name: "Check out" })).toBeEnabled();
+});
+
+test("a recount to zero closes the form (FR-OUT-55)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 5);
+  navigate(`/items/${bowls}`);
+  renderInShell(<ItemPage store={store} id={bowls} />);
+
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+  await user.clear(screen.getByLabelText("How many"));
+  await user.type(screen.getByLabelText("How many"), "8");
+  await user.click(screen.getByRole("button", { name: "Recount" }));
+  await user.clear(screen.getByLabelText("How many"));
+  await user.type(screen.getByLabelText("How many"), "0");
+  await user.click(screen.getByRole("button", { name: "Recount" }));
+  await waitFor(() => expect(inv.item(store.state, bowls)?.pool_in).toBe(0));
+  expect(screen.queryByLabelText("How many")).not.toBeInTheDocument();
+});
+
+test("cancelling the recount records nothing (FR-OUT-55)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 5);
+  navigate(`/items/${bowls}`);
+  renderInShell(<ItemPage store={store} id={bowls} />);
+
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+  await user.clear(screen.getByLabelText("How many"));
+  await user.type(screen.getByLabelText("How many"), "8");
+  await user.click(screen.getByRole("button", { name: "Recount" }));
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(inv.item(store.state, bowls)?.pool_in).toBe(5);
+  expect(screen.getByRole("button", { name: "Check out" })).toBeEnabled();
 });
 
 test("All checks out everything that is in (FR-OUT-42)", async () => {

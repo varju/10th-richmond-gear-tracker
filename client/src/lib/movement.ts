@@ -162,15 +162,21 @@ export interface PoolCheckInOptions {
   packing?: boolean;
 }
 
+/** Refuse taking more of a pool than this device shows in (FR-OUT-55). */
+export function refuseOverdraw(it: Item, count: number) {
+  const have = poolCounts(it).in;
+  if (count > have) throw new Error(`only ${have} in`);
+}
+
 /**
  * Take some of a pool (FR-OUT-22): several people may have some out at once,
- * against an event like any check-out. Taking more than are in warns, never
- * blocks; that is for the caller to say, not this.
+ * against an event like any check-out. More than are in is refused (FR-OUT-55).
  */
 export async function checkOutPool(store: Store, itemId: string, options: PoolCheckOutOptions) {
   const it = poolItem(store, itemId);
   if (it.retired) throw new Error("retired items cannot be checked out");
   if (!Number.isInteger(options.count) || options.count < 1) throw new Error("pick a count of at least 1");
+  refuseOverdraw(it, options.count);
   const link = await planned(store, options);
   const movement = await move(
     store,

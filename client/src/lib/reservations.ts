@@ -26,7 +26,7 @@ import {
   unitsOf,
 } from "./inventory";
 import { eventNameKey, tidyName } from "./calendar";
-import { correctEvent } from "./movement";
+import { correctEvent, refuseOverdraw } from "./movement";
 import type { Fields, Movement, PoolLot, State } from "./replay";
 import type { Store } from "./store";
 import { localDate } from "./time";
@@ -706,7 +706,9 @@ export async function reserveFromEvent(store: Store, key: string, now: number): 
  */
 export async function checkOutPoolLine(store: Store, r: Reservation, itemId: string, count: number): Promise<void> {
   if (!(count > 0)) return;
-  if (item(store.state, itemId)?.retired) throw new Error("retired items cannot be checked out");
+  const it = item(store.state, itemId);
+  if (it?.retired) throw new Error("retired items cannot be checked out");
+  if (it) refuseOverdraw(it, count);
   await store.record({
     entity_type: "item",
     entity_id: itemId,

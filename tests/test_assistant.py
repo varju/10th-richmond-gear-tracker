@@ -493,6 +493,12 @@ def test_whats_out_narrows_to_one_event(tools, pool_id):
     assert sum(len(holder["items"]) for holder in everything["holders"]) == 3
 
 
+def test_check_out_refuses_more_of_a_pool_than_are_in(pool_id):
+    with pytest.raises(BadRequest, match="only 20 in; recount first"):
+        assistant.check_out(pool_id, count=21)
+    assistant.check_out(pool_id, count=20)
+
+
 def test_list_locations_counts_what_lives_there(tools):
     found = {loc["name"]: loc for loc in assistant.list_locations()["locations"]}
     assert found["Warm locker"]["items"] == 1
@@ -1470,12 +1476,6 @@ def test_checking_in_more_of_a_pool_than_you_have_out_is_refused(tools, pool_id)
         assistant.check_in(pool_id, count=50)
     back = assistant.check_in(pool_id, count=6)
     assert back == {"item_id": pool_id, "count": 6}
-
-
-def test_taking_more_than_are_in_a_pool_warns_and_does_not_block(tools, pool_id):
-    out = assistant.check_out(pool_id, count=25)
-    assert out["warning"] == "only 20 were in"
-    assert assistant.get_item(pool_id)["in"] == 0
 
 
 def test_recount_sets_what_is_on_the_shelf_and_leaves_what_is_out(tools, pool_id):

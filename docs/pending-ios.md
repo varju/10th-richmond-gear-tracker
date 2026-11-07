@@ -64,6 +64,8 @@ What the app does differently.
 - **Weigh** on a weighed item's page takes **Unknown**, which clears what is left.
 - On the pack list, a fully packed line moves under **Show packed** instead of reading "8 of 8". An event's list says "—
   packed" once a line is full.
+- Checking out more of a stack than are in is refused. It asks "Are there more here?" and offers **Recount**, then the
+  check-out.
 
 ## Chores
 

@@ -513,6 +513,88 @@ test("a pool line on the page is checked out by count, and ticks off (FR-RES-13)
   expect(screen.queryByLabelText("How many Bowls to check out")).not.toBeInTheDocument();
 });
 
+test("a pool line starts at what is in, and shows the refusal inline past it (FR-OUT-55)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 3);
+  const camp = await res.createReservation(store, {
+    event: "Cub camp",
+    starts: "2026-11-01",
+    ends: "2026-11-02",
+    items: [],
+    generics: [{ item_id: bowls, quantity: 4 }],
+  });
+  navigate(`/events/${camp}`);
+  renderInShell(<ReservationPage store={store} id={camp} />);
+
+  const count = screen.getByLabelText("How many Bowls to check out");
+  expect(count).toHaveValue(3);
+  await user.clear(count);
+  await user.type(count, "4");
+  await user.click(screen.getByRole("button", { name: "Check out Bowls" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(/only 3 in/i);
+  expect(inv.item(store.state, bowls)?.pool_in).toBe(3);
+  await user.type(count, "0");
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+test("the refusal offers Recount, which goes to the pool's page", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 3);
+  const camp = await res.createReservation(store, {
+    event: "Cub camp",
+    starts: "2026-11-01",
+    ends: "2026-11-02",
+    items: [],
+    generics: [{ item_id: bowls, quantity: 4 }],
+  });
+  navigate(`/events/${camp}`);
+  renderInShell(<ReservationPage store={store} id={camp} />);
+
+  const count = screen.getByLabelText("How many Bowls to check out");
+  await user.clear(count);
+  await user.type(count, "4");
+  await user.click(screen.getByRole("button", { name: "Check out Bowls" }));
+  await screen.findByRole("alert");
+  await user.click(screen.getByRole("button", { name: "Recount" }));
+  expect(location.pathname).toBe(`/items/${bowls}`);
+});
+
+test("a pool line that said None in offers the count again when stock comes back", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 3);
+  await mv.checkOutPool(store, bowls, { count: 3 });
+  const camp = await res.createReservation(store, {
+    event: "Cub camp",
+    starts: "2026-11-01",
+    ends: "2026-11-02",
+    items: [],
+    generics: [{ item_id: bowls, quantity: 4 }],
+  });
+  navigate(`/events/${camp}`);
+  renderInShell(<ReservationPage store={store} id={camp} />);
+  expect(screen.getByText("None in")).toBeInTheDocument();
+
+  await mv.checkInPool(store, bowls, { count: 2 });
+  const count = await screen.findByLabelText("How many Bowls to check out");
+  expect(count).toHaveValue(2);
+  await user.click(screen.getByRole("button", { name: "Check out Bowls" }));
+  await waitFor(() => expect(inv.item(store.state, bowls)?.pool_in).toBe(0));
+});
+
+test("a pool line says None in when none are in (FR-OUT-55)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 3);
+  await mv.checkOutPool(store, bowls, { count: 3 });
+  const camp = await res.createReservation(store, {
+    event: "Cub camp",
+    starts: "2026-11-01",
+    ends: "2026-11-02",
+    items: [],
+    generics: [{ item_id: bowls, quantity: 4 }],
+  });
+  navigate(`/events/${camp}`);
+  renderInShell(<ReservationPage store={store} id={camp} />);
+
+  expect(screen.getByText("None in")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Check out Bowls" })).not.toBeInTheDocument();
+});
+
 test("a retired pool line on the page offers no check-out, only a note (FR-INV-04)", async () => {
   const bowls = newUlid();
   await store.record({

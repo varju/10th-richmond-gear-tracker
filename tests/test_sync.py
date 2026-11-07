@@ -750,7 +750,7 @@ def test_a_pool_moves_by_count(db):
 
 
 def test_pool_overdraw_is_accepted_not_blocked(db):
-    """Taking more than are in warns in the UI; the server never refuses it (FR-OUT-22)."""
+    """A device refuses taking more than are in; the server still accepts it, for offline merges (FR-OUT-24)."""
     push(
         db,
         USER,

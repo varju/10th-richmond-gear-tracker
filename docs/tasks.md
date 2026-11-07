@@ -99,27 +99,6 @@ item. A note on a move is also easily mixed up with **Send home to clean**, whic
 
 **Deferred because:** decide with [Fewer buttons for beginners](#fewer-buttons-for-beginners).
 
-## Refuse a pool check-out of more than are in
-
-Checking out more of a pool than are in says "Only 3 in. This takes it into overdraw." (`ItemPage.tsx`). The word means
-nothing to people, and the move goes ahead. Replay clamps what is in at 0 and adds the excess to what is out, so the
-quantity owned grows unseen.
-
-**Considered:**
-
-- Over the count, ask instead: "Only 3 in. Are there more here?" **Recount** opens the recount (FR-INV-35) with the
-  count the person is taking, then checks out. **Cancel** does nothing. No way to save the overdraw.
-- Same on every pool check-out: item page, scan card (FR-OUT-25), the event page's pool row (`PoolCheckout`), and
-  `check_out` in `assistant.py`, which should refuse with the count in.
-- Blocking uses this device's count. Two offline devices can still overdraw on merge, and that stays allowed
-  (FR-OUT-24).
-- Open question: this device may be stale, e.g. a return recorded offline on another phone. A recount here, then that
-  return synced, counts those twice. Is that rare enough to accept?
-  - Yes.
-- Reword FR-OUT-22 ("warns and never blocks") and FR-MCP-08, and the replay comments that cite it in `replay.py` and
-  `replay.ts`.
-- Client change: a `docs/pending-ios.md` line under Functional.
-
 ## Why records are unsent
 
 When records will not send, nothing says why. The banner shows a reason word ("offline", "error"), not the message. The

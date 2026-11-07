@@ -1651,7 +1651,7 @@ type PoolMode = "out" | "in" | "recount" | "home" | "back" | "missing" | "found"
 
 /**
  * Check out, return, recount, and mark missing or found a pool, by count (FR-OUT-22, FR-OUT-23,
- * FR-INV-35, FR-INV-46, FR-INV-47). Taking more than are in warns, never blocks. A check-out asks
+ * FR-INV-35, FR-INV-46, FR-INV-47). More than are in is refused, offering a recount first (FR-OUT-55). A check-out asks
  * the session's event first, as any check-out does (FR-OUT-05), unless
  * `session` is a reservation's packing session (FR-RES-03).
  */
@@ -1680,6 +1680,8 @@ export function PoolActions({
   const [busy, setBusy] = useState(false);
   // What the check-out records, as the event question found it when the count field opened.
   const [recorded, setRecorded] = useState<Session>({});
+  // The count a refused check-out was after; a recount then returns to it.
+  const [resume, setResume] = useState<number | null>(null);
   const { askThen, question } = useEventQuestion(store, session);
   const state = store.state;
   const me = store.meta.user?.id;
@@ -1709,6 +1711,7 @@ export function PoolActions({
   }
 
   function open(next: PoolMode) {
+    if (next !== "recount") setResume(null);
     setMode(next);
     setError(null);
     setReason("");
@@ -1724,6 +1727,11 @@ export function PoolActions({
       setHolder(null);
       setCount(next === "recount" ? String(counts.in) : "1");
     }
+  }
+
+  function recountFirst() {
+    setResume(n);
+    open("recount");
   }
 
   function pickHolder(id: string) {
@@ -1759,7 +1767,7 @@ export function PoolActions({
   const needsName = mode === "home" && cleaner.trim() === "";
 
   async function submit(amount: number) {
-    if (busy || !mode || !valid(amount) || needsName || overSend) return;
+    if (busy || !mode || !valid(amount) || needsName || overSend || (mode === "out" && amount > counts.in)) return;
     setBusy(true);
     setError(null);
     try {
@@ -1797,6 +1805,18 @@ export function PoolActions({
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not record it");
       setBusy(false);
+      return;
+    }
+    if (mode === "recount" && resume !== null) {
+      const back = Math.min(resume, amount);
+      setResume(null);
+      setBusy(false);
+      if (back < 1) {
+        setMode(null);
+        return;
+      }
+      open("out");
+      setCount(String(back));
       return;
     }
     const label =
@@ -1847,9 +1867,14 @@ export function PoolActions({
         </p>
       )}
       {overdraw && (
-        <p className="notice" role="note">
-          Only {counts.in} in. This takes it into overdraw.
-        </p>
+        <div className="row">
+          <p className="notice" role="note">
+            Only {counts.in} in. Are there more here?
+          </p>
+          <button type="button" disabled={busy} onClick={recountFirst}>
+            Recount
+          </button>
+        </div>
       )}
       {(mode === "in" || mode === "missing") && needsHolderPick && (
         <label className="tight">
@@ -1934,7 +1959,7 @@ export function PoolActions({
       )}
       {mode ? (
         <div className="row" key="go">
-          <button type="submit" className="primary" disabled={busy || !validCount || needsName || overSend}>
+          <button type="submit" className="primary" disabled={busy || !validCount || needsName || overSend || overdraw}>
             {mode === "out"
               ? "Check out"
               : mode === "home"
@@ -1951,7 +1976,13 @@ export function PoolActions({
                           ? "Write off"
                           : "Recount"}
           </button>
-          <button type="button" onClick={() => setMode(null)}>
+          <button
+            type="button"
+            onClick={() => {
+              setMode(null);
+              setResume(null);
+            }}
+          >
             Cancel
           </button>
         </div>

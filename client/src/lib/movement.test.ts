@@ -147,12 +147,19 @@ test("a pool moves by count: several people can have some out at once (FR-OUT-22
   await mv.checkInPool(store, bowls, { count: 1 });
   expect(item(store.state, bowls)).toMatchObject({ pool_in: 12, pool_out: { alice: 6, carol: 2 } });
 
-  // Never blocked; the count still records, clamped at zero (FR-OUT-22).
-  await mv.checkOutPool(store, bowls, { count: 50 });
-  expect(item(store.state, bowls)).toMatchObject({ pool_in: 0, pool_out: { alice: 6, carol: 52 } });
+  await mv.checkOutPool(store, bowls, { count: 12 });
+  expect(item(store.state, bowls)).toMatchObject({ pool_in: 0, pool_out: { alice: 6, carol: 14 } });
 
   await expect(mv.checkOutPool(store, tent, { count: 1 })).rejects.toThrow("not a pool");
   await expect(mv.checkOutPool(store, bowls, { count: 0 })).rejects.toThrow("at least 1");
+});
+
+test("a pool check-out of more than are in is refused (FR-OUT-55)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 5);
+  await expect(mv.checkOutPool(store, bowls, { count: 6 })).rejects.toThrow("only 5 in");
+  expect(item(store.state, bowls)).toMatchObject({ pool_in: 5, pool_out: {} });
+  await mv.checkOutPool(store, bowls, { count: 5 });
+  expect(item(store.state, bowls)).toMatchObject({ pool_in: 0 });
 });
 
 test("a recount sets what is in right now, with or without a reason; what is out is untouched (FR-INV-35)", async () => {

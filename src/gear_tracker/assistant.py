@@ -1841,8 +1841,8 @@ def check_out(
 
     Gear is sent home to be cleaned once it is out, with transfer or send_home_to_clean (FR-OUT-46).
 
-    A pool (FR-INV-34) needs `count`; anything else refuses one (FR-MCP-08). Taking more than are
-    in a pool warns, and is never blocked (FR-OUT-22). `reservation_id` says this packs that
+    A pool (FR-INV-34) needs `count`; anything else refuses one (FR-MCP-08). More than are in a pool
+    is refused; recount first if there are more (FR-OUT-55). `reservation_id` says this packs that
     reservation (FR-RES-02).
 
     An `event` without `reservation_id` joins the live reservation of that name, as a check-out in the
@@ -1865,6 +1865,8 @@ def check_out(
             raise BadRequest("count is only for a pool (FR-OUT-22)")
         if it.get("retired"):
             raise BadRequest("retired items cannot be checked out")
+        if pool and count > (have := views.pool_counts(it)["in"]):
+            raise BadRequest(f"only {have} in; recount first if there are more")
         if not pool and it.get("status") == "out":
             raise Conflict(f"already out with {views.user_name(state, it.get('holder_id'))}")
         movement_id = new_ulid()
@@ -1887,9 +1889,6 @@ def check_out(
         out: dict[str, Any] = {"item_id": it["id"], "event": name or None}
         if pool:
             out["count"] = count
-            still_in = views.pool_counts(it)["in"]
-            if count > still_in:
-                out["warning"] = f"only {still_in} were in"
         else:
             out["status"] = "out"
         return out
