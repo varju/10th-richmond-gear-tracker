@@ -1,0 +1,106 @@
+{
+  "name": "correcting a pool check-out finds its lot under any holder, and a correction that changes nothing leaves the totals",
+  "events": [
+    {
+      "id": "00000000000000000000000024",
+      "entity_type": "item",
+      "entity_id": "p",
+      "type": "event_corrected",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 24,
+      "effective_at": 1000,
+      "payload": {
+        "movement_id": "L2",
+        "event": "Camp",
+        "reservation_id": "r1"
+      }
+    },
+    {
+      "id": "00000000000000000000000025",
+      "entity_type": "item",
+      "entity_id": "p",
+      "type": "event_corrected",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 25,
+      "effective_at": 1100,
+      "payload": {
+        "movement_id": "L1",
+        "event": "Camp",
+        "reservation_id": "r2"
+      }
+    }
+  ],
+  "base": {
+    "item": {
+      "p": {
+        "name": "P",
+        "generic": true,
+        "pool": true,
+        "pool_in": 0,
+        "pool_out": {
+          "bob": 2,
+          "cy": 1
+        },
+        "pool_lots": {
+          "bob": [
+            {
+              "id": "L1",
+              "count": 2,
+              "event": "Camp",
+              "reservation_id": null,
+              "at": 500
+            }
+          ],
+          "cy": [
+            {
+              "id": "L2",
+              "count": 1,
+              "event": "Camp",
+              "reservation_id": "r1",
+              "at": 500
+            }
+          ]
+        }
+      }
+    }
+  },
+  "state": {
+    "item": {
+      "p": {
+        "name": "P",
+        "generic": true,
+        "pool": true,
+        "pool_in": 0,
+        "pool_out": {
+          "bob": 2,
+          "cy": 1
+        },
+        "pool_lots": {
+          "bob": [
+            {
+              "id": "L1",
+              "count": 2,
+              "event": "Camp",
+              "reservation_id": "r2",
+              "at": 500
+            }
+          ],
+          "cy": [
+            {
+              "id": "L2",
+              "count": 1,
+              "event": "Camp",
+              "reservation_id": "r1",
+              "at": 500
+            }
+          ]
+        },
+        "pool_reservations": {
+          "r2": 2
+        }
+      }
+    }
+  }
+}

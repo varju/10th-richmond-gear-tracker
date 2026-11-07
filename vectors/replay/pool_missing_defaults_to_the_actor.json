@@ -1,0 +1,114 @@
+{
+  "name": "a pool count marked missing with no holder named comes off the person who marked it",
+  "events": [
+    {
+      "id": "00000000000000000000000026",
+      "entity_type": "item",
+      "entity_id": "p",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 26,
+      "effective_at": 1000,
+      "payload": {
+        "name": "P",
+        "generic": true,
+        "pool": true,
+        "quantity": 10
+      }
+    },
+    {
+      "id": "00000000000000000000000027",
+      "entity_type": "item",
+      "entity_id": "p",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 27,
+      "effective_at": 1100,
+      "payload": {
+        "holder_id": "alice",
+        "count": 5
+      }
+    },
+    {
+      "id": "00000000000000000000000028",
+      "entity_type": "item",
+      "entity_id": "p",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 28,
+      "effective_at": 1200,
+      "payload": {
+        "holder_id": "bob",
+        "count": 2
+      }
+    },
+    {
+      "id": "00000000000000000000000029",
+      "entity_type": "item",
+      "entity_id": "p",
+      "type": "pool_missing",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 29,
+      "effective_at": 1300,
+      "payload": {
+        "count": 2
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "p": {
+        "name": "P",
+        "generic": true,
+        "pool": true,
+        "quantity": 10,
+        "added_at": 1000,
+        "modified_at": 1000,
+        "status": "in",
+        "holder_id": null,
+        "pool_in": 3,
+        "pool_out": {
+          "alice": 3,
+          "bob": 2
+        },
+        "pool_reservations": {},
+        "pool_lots": {
+          "alice": [
+            {
+              "id": "00000000000000000000000027",
+              "count": 3,
+              "event": null,
+              "reservation_id": null,
+              "at": 1100
+            }
+          ],
+          "bob": [
+            {
+              "id": "00000000000000000000000028",
+              "count": 2,
+              "event": null,
+              "reservation_id": null,
+              "at": 1200
+            }
+          ]
+        },
+        "movement": {
+          "id": "00000000000000000000000028",
+          "type": "checked_out",
+          "holder_id": "bob",
+          "event": null,
+          "reservation_id": null,
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 1200,
+          "count": 2
+        },
+        "pool_missing": 2
+      }
+    }
+  }
+}

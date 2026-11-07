@@ -1,0 +1,98 @@
+{
+  "name": "reservation line edits on a reservation that holds no lines yet, and a quantity change leaves the other lines alone",
+  "events": [
+    {
+      "id": "00000000000000000000000004",
+      "entity_type": "reservation",
+      "entity_id": "r1",
+      "type": "item_added",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 4,
+      "effective_at": 1000,
+      "payload": {
+        "item_id": "tent"
+      }
+    },
+    {
+      "id": "00000000000000000000000005",
+      "entity_type": "reservation",
+      "entity_id": "r2",
+      "type": "item_removed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 5,
+      "effective_at": 1100,
+      "payload": {
+        "item_id": "tent"
+      }
+    },
+    {
+      "id": "00000000000000000000000006",
+      "entity_type": "reservation",
+      "entity_id": "r3",
+      "type": "quantity_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 6,
+      "effective_at": 1200,
+      "payload": {
+        "item_id": "bowls",
+        "quantity": 2
+      }
+    },
+    {
+      "id": "00000000000000000000000007",
+      "entity_type": "reservation",
+      "entity_id": "r3",
+      "type": "quantity_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 7,
+      "effective_at": 1300,
+      "payload": {
+        "item_id": "mugs",
+        "quantity": 3
+      }
+    },
+    {
+      "id": "00000000000000000000000008",
+      "entity_type": "reservation",
+      "entity_id": "r3",
+      "type": "quantity_changed",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 8,
+      "effective_at": 1400,
+      "payload": {
+        "item_id": "bowls",
+        "quantity": 5
+      }
+    }
+  ],
+  "state": {
+    "reservation": {
+      "r1": {
+        "items": ["tent"],
+        "modified_at": 1000
+      },
+      "r2": {
+        "items": [],
+        "modified_at": 1100
+      },
+      "r3": {
+        "generics": [
+          {
+            "item_id": "bowls",
+            "quantity": 5
+          },
+          {
+            "item_id": "mugs",
+            "quantity": 3
+          }
+        ],
+        "modified_at": 1400
+      }
+    }
+  }
+}

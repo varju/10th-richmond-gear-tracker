@@ -1,0 +1,90 @@
+{
+  "name": "a created event does not overwrite a status, holder or state already set, and a pool made without a quantity holds none",
+  "events": [
+    {
+      "id": "00000000000000000000000001",
+      "entity_type": "item",
+      "entity_id": "keeps",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 1,
+      "effective_at": 1000,
+      "payload": {
+        "name": "Keeps",
+        "generic": true,
+        "pool": true,
+        "quantity": 3,
+        "status": "out",
+        "holder_id": "x"
+      }
+    },
+    {
+      "id": "00000000000000000000000002",
+      "entity_type": "item",
+      "entity_id": "empty",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 2,
+      "effective_at": 1100,
+      "payload": {
+        "name": "Empty",
+        "generic": true,
+        "pool": true
+      }
+    },
+    {
+      "id": "00000000000000000000000003",
+      "entity_type": "repair",
+      "entity_id": "r",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 3,
+      "effective_at": 1200,
+      "payload": {
+        "item_id": "keeps",
+        "state": "closed"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "keeps": {
+        "name": "Keeps",
+        "generic": true,
+        "pool": true,
+        "quantity": 3,
+        "status": "out",
+        "holder_id": "x",
+        "added_at": 1000,
+        "modified_at": 1000,
+        "pool_in": 3,
+        "pool_out": {},
+        "pool_reservations": {}
+      },
+      "empty": {
+        "name": "Empty",
+        "generic": true,
+        "pool": true,
+        "added_at": 1100,
+        "modified_at": 1100,
+        "status": "in",
+        "holder_id": null,
+        "pool_in": 0,
+        "pool_out": {},
+        "pool_reservations": {}
+      }
+    },
+    "repair": {
+      "r": {
+        "item_id": "keeps",
+        "state": "closed",
+        "added_at": 1200,
+        "modified_at": 1200,
+        "raised_by": "alice"
+      }
+    }
+  }
+}

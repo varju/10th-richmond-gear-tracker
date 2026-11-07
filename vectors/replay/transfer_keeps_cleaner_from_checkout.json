@@ -1,0 +1,70 @@
+{
+  "name": "a transfer made without seeing the send-home keeps a cleaner named at check-out",
+  "events": [
+    {
+      "id": "00000000000000000000000021",
+      "entity_type": "item",
+      "entity_id": "t",
+      "type": "created",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 21,
+      "effective_at": 1000,
+      "payload": {
+        "name": "Tent"
+      }
+    },
+    {
+      "id": "00000000000000000000000022",
+      "entity_type": "item",
+      "entity_id": "t",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 22,
+      "effective_at": 1100,
+      "payload": {
+        "holder_id": "bob",
+        "cleaner": "Smith"
+      }
+    },
+    {
+      "id": "00000000000000000000000023",
+      "entity_type": "item",
+      "entity_id": "t",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "b",
+      "device_seq": 23,
+      "effective_at": 1200,
+      "payload": {
+        "holder_id": "cy",
+        "supersedes": "00000000000000000000000022"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "t": {
+        "name": "Tent",
+        "added_at": 1000,
+        "modified_at": 1000,
+        "status": "out",
+        "holder_id": "cy",
+        "since": 1200,
+        "movement": {
+          "id": "00000000000000000000000023",
+          "type": "checked_out",
+          "holder_id": "cy",
+          "event": null,
+          "reservation_id": null,
+          "actor_id": "alice",
+          "device_id": "b",
+          "at": 1200,
+          "cleaner": "Smith",
+          "cleaning_id": "00000000000000000000000022"
+        }
+      }
+    }
+  }
+}

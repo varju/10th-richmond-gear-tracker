@@ -1,6 +1,6 @@
 DB ?= gear.db
 
-.PHONY: setup test lint fmt migrate audit check client-install client-test client-build e2e serve ios image scan deploy logs start-over coverage
+.PHONY: setup test lint fmt migrate audit check client-install client-test client-build e2e serve ios image scan deploy logs start-over coverage coverage-floors
 
 setup:
 	./bin/setup
@@ -45,6 +45,15 @@ serve: client-build
 coverage:
 	uv run pytest --cov --cov-report=term-missing:skip-covered --cov-report=html:coverage/python
 	cd client && npx vitest run --coverage
+
+# Server floors, checked against the last coverage run. Fails after checking them all. Only CI calls this.
+coverage-floors:
+	@rc=0; \
+	uv run coverage report --precision=1 --format=total --fail-under=92 || rc=1; \
+	for f in sync replay events; do \
+	  uv run coverage report --precision=1 --include="src/gear_tracker/$$f.py" --format=total --fail-under=95 || rc=1; \
+	done; \
+	exit $$rc
 
 check: lint test client-test
 

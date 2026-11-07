@@ -1,0 +1,71 @@
+{
+  "name": "a pool cleaning end that names no cleaner leaves the lots as they are",
+  "events": [
+    {
+      "id": "00000000000000000000000018",
+      "entity_type": "item",
+      "entity_id": "p",
+      "type": "cleaning_ended",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 18,
+      "effective_at": 1000,
+      "payload": {
+        "holder_id": "bob",
+        "count": 1
+      }
+    }
+  ],
+  "base": {
+    "item": {
+      "p": {
+        "name": "P",
+        "generic": true,
+        "pool": true,
+        "pool_in": 0,
+        "pool_out": {
+          "bob": 2
+        },
+        "pool_lots": {
+          "bob": [
+            {
+              "id": "L1",
+              "count": 2,
+              "event": "Camp",
+              "reservation_id": null,
+              "at": 500,
+              "cleaner": "Smith",
+              "cleaning_id": "L1"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "state": {
+    "item": {
+      "p": {
+        "name": "P",
+        "generic": true,
+        "pool": true,
+        "pool_in": 0,
+        "pool_out": {
+          "bob": 2
+        },
+        "pool_lots": {
+          "bob": [
+            {
+              "id": "L1",
+              "count": 2,
+              "event": "Camp",
+              "reservation_id": null,
+              "at": 500,
+              "cleaner": "Smith",
+              "cleaning_id": "L1"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

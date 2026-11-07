@@ -163,6 +163,9 @@ export default defineConfig({
       include: ["src/**"],
       exclude: ["**/*.test.*", "**/*TestKit.*", "src/test-setup.ts", "**/*.d.ts"],
       reporter: ["text-summary", ["text", { skipFull: true }], "json-summary", "html"],
+      thresholds: process.env.CI
+        ? { lines: 93, branches: 84, "src/lib/replay.ts": { lines: 95, branches: 95 } }
+        : undefined,
     },
   },
 });

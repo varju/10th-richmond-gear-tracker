@@ -1000,7 +1000,8 @@ Use a file, never `:memory:`. An in-memory database silently ignores `journal_mo
 place, and they are the only thing keeping the two replays honest (NFR-MAINT-04).
 
 `make coverage` reports line and branch coverage for the server and client unit tests, not the browser tests. HTML lands
-in `coverage/python` and `client/coverage`. It reports only; nothing fails on low coverage.
+in `coverage/python` and `client/coverage`. Floors fail CI only: `make coverage-floors` for the server,
+`client/vite.config.ts` for the client. Raise them by hand when coverage has clearly grown.
 
 ### Browser tests
 

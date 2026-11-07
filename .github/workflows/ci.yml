@@ -30,6 +30,9 @@ jobs:
       - name: Coverage summary
         if: ${{ !cancelled() && steps.pytest.outcome != 'skipped' }}
         run: uv run coverage report --format=markdown --skip-covered >> "$GITHUB_STEP_SUMMARY"
+      - name: Coverage floors
+        if: ${{ steps.pytest.outcome == 'success' }}
+        run: make coverage-floors
 
   client:
     runs-on: ubuntu-latest

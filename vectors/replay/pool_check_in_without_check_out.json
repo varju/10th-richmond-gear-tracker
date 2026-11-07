@@ -1,0 +1,39 @@
+{
+  "name": "a pool check-in from a holder with nothing out adds to the count and changes no holder",
+  "events": [
+    {
+      "id": "00000000000000000000000010",
+      "entity_type": "item",
+      "entity_id": "bare",
+      "type": "checked_in",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 10,
+      "effective_at": 1000,
+      "payload": {
+        "holder_id": "bob",
+        "count": 3
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "bare": {
+        "pool_out": {},
+        "pool_lots": {},
+        "pool_in": 3,
+        "movement": {
+          "id": "00000000000000000000000010",
+          "type": "checked_in",
+          "holder_id": "bob",
+          "event": null,
+          "reservation_id": null,
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 1000,
+          "count": 3
+        }
+      }
+    }
+  }
+}

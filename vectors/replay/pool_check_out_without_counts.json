@@ -1,0 +1,55 @@
+{
+  "name": "a pool check-out onto an item with no counts yet starts them from zero",
+  "events": [
+    {
+      "id": "00000000000000000000000009",
+      "entity_type": "item",
+      "entity_id": "bare",
+      "type": "checked_out",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 9,
+      "effective_at": 1000,
+      "payload": {
+        "holder_id": "bob",
+        "count": 2,
+        "reservation_id": "res1"
+      }
+    }
+  ],
+  "state": {
+    "item": {
+      "bare": {
+        "pool_out": {
+          "bob": 2
+        },
+        "pool_in": 0,
+        "pool_reservations": {
+          "res1": 2
+        },
+        "pool_lots": {
+          "bob": [
+            {
+              "id": "00000000000000000000000009",
+              "count": 2,
+              "event": null,
+              "reservation_id": "res1",
+              "at": 1000
+            }
+          ]
+        },
+        "movement": {
+          "id": "00000000000000000000000009",
+          "type": "checked_out",
+          "holder_id": "bob",
+          "event": null,
+          "reservation_id": "res1",
+          "actor_id": "alice",
+          "device_id": "a",
+          "at": 1000,
+          "count": 2
+        }
+      }
+    }
+  }
+}

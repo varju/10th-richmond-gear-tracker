@@ -1,0 +1,39 @@
+{
+  "name": "finding a missing count adds it to a pool that has no in count yet",
+  "events": [
+    {
+      "id": "00000000000000000000000014",
+      "entity_type": "item",
+      "entity_id": "p",
+      "type": "pool_found",
+      "actor_id": "alice",
+      "device_id": "a",
+      "device_seq": 14,
+      "effective_at": 1000,
+      "payload": {
+        "count": 1
+      }
+    }
+  ],
+  "base": {
+    "item": {
+      "p": {
+        "name": "P",
+        "generic": true,
+        "pool": true,
+        "pool_missing": 2
+      }
+    }
+  },
+  "state": {
+    "item": {
+      "p": {
+        "name": "P",
+        "generic": true,
+        "pool": true,
+        "pool_missing": 1,
+        "pool_in": 1
+      }
+    }
+  }
+}
