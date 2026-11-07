@@ -7,46 +7,78 @@ changelog.
 
 ---
 
-## Groups of items
+## Canoe trailer as storage
 
-- [ ] Question to consider: A canoe trailer is both storage and an item that can be checked out. Today its contents
-      still show as in at the yard when it is out. Deferred until the group has used pools for PFD bags.
+A canoe trailer is both storage and an item that can be checked out. Today its contents still show as in at the yard
+when the trailer is out.
 
-## User testing feedback
+**Considered:** nothing yet beyond the question.
 
-- [ ] Adding a unit: offer to assign a QR code straight away. It is the likely next step and costs too many clicks now.
-      Deferred: it is already two taps (**Add a unit**, then **Add QR code**), so a prompt on the new unit's page is
-      easier to spot but saves none. Fewer taps means opening the scanner straight after adding, with a way to skip, or
-      a second "Add a unit and scan" button. Scanning an unassigned sticker and picking **Add a unit of…** already does
-      both in one step. Waiting on more user testing.
-- [ ] "What did I miss compared to event X?" Compare what is checked out for the current event with a previous event, to
-      spot forgotten gear. Needs a requirement and an MCP tool in `assistant.py`. Deferred. Draft plan: **Compare
-      with…** on an event's page lists what went out for the past event but not yet for this one, from the movement log
-      by event name and dates; `compare_events` in `assistant.py`. Open question: compare a generic's units by count or
-      unit by unit.
-- [ ] Event gear list: offer check-out order as a sort option, if people miss it. Deferred until someone asks. Plan: a
-      **Sort** switch on the event page, Name or Checked out, remembered per phone.
-- [ ] Consider whether there are too many buttons for beginners. Some of our Scouters likely just want to check gear in
-      and out, and don't need all the extra capabilities related to managing the gear. Plan: tidy for everyone, not a
-      mode or a role. Each screen keeps everyday actions in view; rare ones go under one **More…**, shut by default.
-      Research first: 1. Count the live log's event types over recent months (read-only, `read_audit_log`), split by
-      Admin and User, and assistant (`mcp-…` devices) from phones. Field changes say which field, so edits show which
-      parts of the form are used. Packing carries the reservation id; runs of check-outs seconds apart suggest the
-      scanner. 2. Mark each item-page action everyday or rare from those counts. 3. Watch two or three Scouters on a
-      Friday night for what the log cannot show: searches, filters, screens opened and left, taps cancelled. Do not add
-      tap tracking. 4. Then tidy.
+**Deferred because:** wait until the group has used pools for PFD bags.
 
-      Steps 1 and 2 done (log from 2026-09-02 to 2026-11-02, 2,313 events). One Admin made 95% of them, mostly setup:
-      field changes 1,075 (home 288, category 236, name 179, merge 119, delete 79, number and parent 122), created
-      788 (479 items, 256 codes). Users made 50 events in all, almost only check-outs (18) and QR codes (14). Moves:
-      145 check-outs, 71 check-ins, 67 event corrections, 42 gear-list additions. Only 18 check-out runs (2 to 4 within
-      10 s) suggest the scanner; most check-outs are one at a time. Rare: recount 8, photos 7, notes 5, cleaning 5.
-      Everyday on an item page: check out, check in, change event, add QR code. Rare: edit, recount, photos, notes, send
-      home to clean, merge, several of these, single item, counted stack, duplicate, delete. The log says little about
-      Users yet, so step 3 matters: watch two or three Scouters before tidying. Deferred until then.
+## QR code when adding a unit
 
-- [ ] Consider how we could make better use of the pictures. e.g. could the picture be shown during checkout so you can
-      be sure you have the right item? If there's only one picture, should that be the item's thumbnail? Deferred.
-      Photos are online only (FR-INV-11), so a photo at check-out in a locker would mostly fail to load. Draft plan: the
-      offline copy carries one small thumbnail per item (first photo unless one is picked; a unit falls back to its
-      generic's), shown on the scan card, the item page and the list. Needs FR-INV-11 reworded.
+Offer to put a QR code on a new unit straight away. It is the likely next step and seems to cost too many taps.
+
+**Considered:**
+
+- It is already two taps: **Add a unit**, then **Add QR code**. A prompt on the new unit's page is easier to spot but
+  saves no taps.
+- Fewer taps means opening the scanner straight after adding, with a way to skip, or a second "Add a unit and scan"
+  button.
+- Scanning an unassigned sticker and picking **Add a unit of…** already does both in one step.
+
+**Deferred because:** waiting on more user testing.
+
+## Compare with a past event
+
+"What did I miss compared to event X?" Compare what is out for this event with a past one, to spot forgotten gear.
+
+**Considered:**
+
+- **Compare with…** on an event's page lists what went out for the past event but not yet for this one, from the
+  movement log by event name and dates.
+- `compare_events` in `assistant.py`. Needs a requirement.
+- Open question: compare a generic's units by count, or unit by unit.
+
+**Deferred because:** not given.
+
+## Check-out order on an event's gear list
+
+Offer check-out order as a sort option on an event's gear list, which is now alphabetical.
+
+**Considered:** a **Sort** switch on the event page, Name or Checked out, remembered per phone.
+
+**Deferred because:** wait until someone asks for it.
+
+## Fewer buttons for beginners
+
+Some Scouters only want to check gear in and out, and do not need the gear-management actions.
+
+**Considered:**
+
+- Tidy for everyone, not a mode or a role. Each screen keeps everyday actions in view; rare ones go under one **More…**,
+  shut by default.
+- Research plan: 1. count the live log's event types; 2. mark each item-page action everyday or rare; 3. watch two or
+  three Scouters on a Friday night for what the log cannot show (searches, filters, screens opened and left, taps
+  cancelled); 4. tidy. No tap tracking.
+- Steps 1 and 2 are done (log from 2026-09-02 to 2026-11-02, 2,313 events):
+  - One Admin made 95% of them, mostly setup: 1,075 field changes (home 288, category 236, name 179, merge 119, delete
+    79, number and parent 122) and 788 created (479 items, 256 codes).
+  - Users made 50 events in all, almost only check-outs (18) and QR codes (14).
+  - Moves: 145 check-outs, 71 check-ins, 67 event corrections, 42 gear-list additions. Only 18 check-out runs (2 to 4
+    within 10 s) suggest the scanner.
+  - Rare: recount 8, photos 7, notes 5, cleaning 5.
+  - Everyday on an item page: check out, check in, change event, add QR code. Rare: edit, recount, photos, notes, send
+    home to clean, merge, several of these, single item, counted stack, duplicate, delete.
+
+**Deferred because:** the log says little about Users yet. Watch two or three Scouters (step 3) before tidying.
+
+## Better use of photos
+
+Show a photo during check-out to confirm the right item, and use a lone photo as the item's thumbnail.
+
+**Considered:** the offline copy carries one small thumbnail per item (the first photo unless one is picked; a unit
+falls back to its generic's), shown on the scan card, the item page and the list. Needs FR-INV-11 reworded.
+
+**Deferred because:** photos are online only (FR-INV-11), so a photo at check-out in a locker would mostly fail to load.
