@@ -9,12 +9,6 @@ changelog.
 
 ## Tests
 
-- [ ] Fix the flaky "an Admin merges a duplicate into the item it doubles, and lands on the survivor (FR-INV-13)" in
-      `client/src/ui/ItemPage.test.tsx`. It failed once in a full run: `merged_into` was still undefined right after a
-      `waitFor` on the pathname. It then passed later full runs. The merge is saved before the page moves, and no sync
-      runs in the test, so the cause is not clear from the code. Plan: run the file about 30 times while the machine is
-      kept busy, and record the full error and the tests run before it. Fix the cause found, not with a longer wait. If
-      it never fails, leave this open with a note to capture the error next time.
 - [ ] Fix the flaky "a pool page shows owned, in, and out by holder, and moves by count (FR-INV-36, FR-OUT-22,
       FR-OUT-23)" in `client/src/ui/PoolItem.test.tsx`. It failed once in a full run, then passed later full runs. The
       error was not captured. It may be timing, as the machine was busy with other work. Plan: run the file about 30

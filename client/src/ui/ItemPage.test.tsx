@@ -444,6 +444,7 @@ test("the record's changes are listed with old and new values (FR-USR-09)", asyn
 
 test("an Admin merges a duplicate into the item it doubles, and lands on the survivor (FR-INV-13)", async () => {
   const other = await act.createItem(store, { name: "Tent 1 (again)" });
+  navigate(`/items/${other}`);
   renderInShell(<ItemPage store={store} id={other} />);
   await user.click(screen.getByRole("button", { name: "This is a duplicate record…" }));
   expect(screen.getByText(/second record of/)).toBeInTheDocument();
