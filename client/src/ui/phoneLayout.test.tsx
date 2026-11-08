@@ -40,7 +40,7 @@ test("a move button never shares a row with the shorter minor buttons", async ()
 
   const moves = screen.getByRole("button", { name: "Take over" }).parentElement!;
   const actions = moves.closest<HTMLElement>(".move-actions")!;
-  const minors = within(actions).getByRole("button", { name: "Report a problem" }).parentElement!;
+  const minors = within(actions).getByRole("button", { name: "Transfer to…" }).parentElement!;
   expect(moves).not.toBe(minors);
   expect(moves.querySelectorAll("button.minor")).toHaveLength(0);
   expect([...minors.querySelectorAll("button")].every((b) => b.classList.contains("minor"))).toBe(true);

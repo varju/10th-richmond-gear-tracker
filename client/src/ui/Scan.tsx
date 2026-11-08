@@ -250,6 +250,7 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
               store={store}
               it={card}
               session={packing}
+              reportProblem
               onMoved={(kind, to, cleaner) => {
                 const text = `${
                   to ? `Transferred to ${userName(store.state, to)}` : movedText(kind, cleaner)

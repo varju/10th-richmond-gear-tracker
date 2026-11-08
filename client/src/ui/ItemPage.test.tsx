@@ -223,9 +223,8 @@ test("an item has no way to add a note", async () => {
 test("a fault reported from the page raises a ticket, which flags the item (FR-REP-01, FR-REP-05)", async () => {
   renderInShell(<ItemPage store={store} id={tent} />);
   expect(screen.queryByRole("note")).not.toBeInTheDocument();
-  // The actions area has its own "Report a problem", for one that rides on a move.
-  const main = document.querySelector("main") as HTMLElement;
-  await user.click(within(main).getByRole("button", { name: "Report a problem" }));
+  // One Report a problem on the page, under Repairs; the move buttons do not offer another.
+  await user.click(screen.getByRole("button", { name: "Report a problem" }));
   await user.type(screen.getByLabelText("Problem"), "zipper broken");
   await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -343,7 +342,7 @@ test("cancelling an edit with changes asks; Discard drops them", async () => {
 
 test("a half-typed problem asks on Back; Save records it", async () => {
   withDialog();
-  await user.click(screen.getAllByRole("button", { name: "Report a problem" })[0]!);
+  await user.click(screen.getByRole("button", { name: "Report a problem" }));
   await user.type(screen.getByLabelText("Problem"), "pole bent");
   await user.click(screen.getByRole("button", { name: "Back" }));
   await user.click(within(await dialog()).getByRole("button", { name: "Save" }));
@@ -880,7 +879,7 @@ test("while the event picker is open the move buttons are not shown", async () =
 test("Change event asks first when a problem is half typed", async () => {
   await checkOutUnplanned(store, tent, "Spring camp");
   withDialog();
-  await user.click(screen.getAllByRole("button", { name: "Report a problem" })[0]!);
+  await user.click(screen.getByRole("button", { name: "Report a problem" }));
   await user.type(screen.getByLabelText("Problem"), "pole bent");
   await user.click(screen.getByRole("button", { name: "Change event" }));
   expect(await dialog()).toBeInTheDocument();

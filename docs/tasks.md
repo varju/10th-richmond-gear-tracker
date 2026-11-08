@@ -82,16 +82,3 @@ Show a photo during check-out to confirm the right item, and use a lone photo as
 falls back to its generic's), shown on the scan card, the item page and the list. Needs FR-INV-11 reworded.
 
 **Deferred because:** photos are online only (FR-INV-11), so a photo at check-out in a locker would mostly fail to load.
-
-## One Report a problem on an item page
-
-An item page has two. The move buttons (shared with the scan card) offer **Report a problem**, which raises a ticket on
-the next move. The page has its own under Repairs. People expect the page's one and find no way to save the other
-without moving the item.
-
-**Considered:**
-
-- Hide the move buttons' one on the item page; the scan card keeps it.
-- Give it **Save without moving** on the item page, as the scan card has (FR-OUT-27). Tried and shelved: it left two.
-
-**Deferred because:** decide with [Fewer buttons for beginners](#fewer-buttons-for-beginners).

@@ -26,7 +26,7 @@ const user = userEvent.setup();
 
 test("a move that succeeds still calls onMoved when its fault is raised fine", async () => {
   const onMoved = vi.fn();
-  renderInShell(<MoveActions store={store} it={item(store.state, tent)!} onMoved={onMoved} />);
+  renderInShell(<MoveActions store={store} it={item(store.state, tent)!} onMoved={onMoved} reportProblem />);
 
   await user.click(screen.getByRole("button", { name: "Report a problem" }));
   await user.type(screen.getByLabelText("Problem"), "zipper broken");
@@ -43,7 +43,7 @@ test("a move that succeeds still calls onMoved when its fault is raised fine", a
 test("a move that fails is reported, the fault text is kept for a retry, and no ticket is raised", async () => {
   const onMoved = vi.fn();
   const stale = item(store.state, tent)!;
-  renderInShell(<MoveActions store={store} it={stale} onMoved={onMoved} />);
+  renderInShell(<MoveActions store={store} it={stale} onMoved={onMoved} reportProblem />);
 
   await user.click(screen.getByRole("button", { name: "Report a problem" }));
   await user.type(screen.getByLabelText("Problem"), "zipper broken");
@@ -65,7 +65,7 @@ test("Send home with needs a name, offers recent ones, and keeps the Scouter as 
   await mv.checkIn(store, other);
   await mv.checkOut(store, tent, { event: "Camp" });
   const onMoved = vi.fn();
-  renderInShell(<MoveActions store={store} it={item(store.state, tent)!} onMoved={onMoved} />);
+  renderInShell(<MoveActions store={store} it={item(store.state, tent)!} onMoved={onMoved} reportProblem />);
 
   await user.click(screen.getByRole("button", { name: "Send home with…" }));
   const send = screen.getByRole("button", { name: "Send home" });
@@ -90,7 +90,7 @@ test("Back from a name clears it and leaves the Scouter holding it (FR-OUT-51)",
   await mv.checkOut(store, tent);
   await mv.sendItemHome(store, tent, { cleaner: "Smith family" });
   const onMoved = vi.fn();
-  renderInShell(<MoveActions store={store} it={item(store.state, tent)!} onMoved={onMoved} />);
+  renderInShell(<MoveActions store={store} it={item(store.state, tent)!} onMoved={onMoved} reportProblem />);
 
   await user.click(screen.getByRole("button", { name: "Back from Smith family" }));
 

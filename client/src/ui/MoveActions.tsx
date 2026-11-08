@@ -57,6 +57,8 @@ interface Props {
   onMoved: (kind: MoveKind, to?: string, cleaner?: string) => void;
   /** Offers Save without moving for a typed problem (FR-OUT-27), and says what was saved. */
   onSaved?: (message: string) => void;
+  /** Offers the Report a problem toggle. The item page has its own, under Repairs. */
+  reportProblem?: boolean;
   /** Buttons that follow the movement buttons. */
   children?: ReactNode;
 }
@@ -70,7 +72,16 @@ type Pending = { kind: MoveKind; to?: string; cleaner?: string; act: (options: T
  * A problem raises a ticket once it has moved (FR-OUT-09), or is saved without a move (FR-OUT-27). The shell pushes the move as soon
  * as it is recorded (FR-OFF-03).
  */
-export function MoveActions({ store, it, showEvent = false, session, onMoved, onSaved, children }: Props) {
+export function MoveActions({
+  store,
+  it,
+  showEvent = false,
+  session,
+  onMoved,
+  onSaved,
+  reportProblem = false,
+  children,
+}: Props) {
   const [fault, setFault] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -309,7 +320,7 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
             </button>
           )}
           {/* The minor toggles sit in rows of their own, so a row's buttons share one height. */}
-          {(canTake || out) && !typing && (
+          {reportProblem && (canTake || out) && !typing && (
             <div className="row minors">
               <button type="button" className="minor" onClick={() => setFault("")}>
                 Report a problem

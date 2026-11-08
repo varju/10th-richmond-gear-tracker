@@ -282,7 +282,7 @@ test("a half-typed problem asks before Add another unit creates anything", async
   navigate(`/items/${first}`);
   renderInShell(<Routed store={store} />);
 
-  await user.click(screen.getAllByRole("button", { name: "Report a problem" })[0]!);
+  await user.click(screen.getByRole("button", { name: "Report a problem" }));
   await user.type(screen.getByLabelText("Problem"), "muddy");
   await user.click(screen.getByRole("button", { name: "Add another unit" }));
   expect(await screen.findByRole("alertdialog")).toBeInTheDocument();

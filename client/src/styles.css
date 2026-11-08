@@ -1316,6 +1316,34 @@ h3.section.small {
     flex: 1 1 100%;
     margin: 0;
   }
+
+  .actions:has(> .move-actions) {
+    align-items: center;
+  }
+
+  /* The move buttons join the page's row; notices, fields and pickers take a line. */
+  .actions .move-actions {
+    display: contents;
+  }
+
+  .actions .move-actions > .row {
+    display: flex;
+    gap: 12px;
+  }
+
+  .actions .move-actions > * {
+    touch-action: manipulation;
+  }
+
+  .actions .move-actions > :not(button, .row) {
+    flex: 1 1 100%;
+  }
+
+  /* Below every button, not between them. */
+  .actions .move-actions > .event-hint {
+    order: 1;
+    text-align: left;
+  }
 }
 
 /* --- M15: the desk -------------------------------------------------------------------

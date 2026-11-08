@@ -73,6 +73,8 @@ What the app does differently.
   check-out.
 - A stock check can start on a new shelf. **Belongs here** on a misplaced item, or **All belong here**, makes this shelf
   its home.
+- The item page no longer offers Report a problem among the move buttons; use the one under Repairs. The scan card keeps
+  it.
 
 ## Chores
 
