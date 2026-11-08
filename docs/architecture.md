@@ -302,6 +302,8 @@ Caches the app shell so it starts offline within 3 seconds (NFR-PERF-03). It doe
 not support it, so the app opening is the reliable trigger (FR-OFF-03). Use Background Sync on Android as a bonus, never
 as a design assumption (FR-OFF-08).
 
+A new build waits until the person taps **Reload** (NFR-DEP-14). The app looks for one hourly and when the tab returns.
+
 Because nothing can sync a closed app on iOS, the unsent count is a persistent banner on every screen (FR-OFF-04), and
 work pending more than 3 days interrupts on open (FR-OFF-09). Visibility is the mitigation. The banner gives a fresh
 record a few seconds to land before calling it unsent, so a save does not flash yellow on every tap.

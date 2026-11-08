@@ -124,7 +124,7 @@ export default defineConfig({
     VitePWA({
       // The app has the shell on disk already, and WKWebView has no service worker for it.
       disable: native,
-      registerType: "autoUpdate",
+      registerType: "prompt",
       manifest: {
         name: "Gear Tracker",
         scope: base,

@@ -10,6 +10,7 @@ import { sync, type SyncOutcome } from "./lib/sync";
 import { unsaved } from "./lib/unsaved";
 import { useWide } from "./lib/wide";
 import { Banner } from "./ui/Banner";
+import { UpdateBanner } from "./ui/UpdateBanner";
 import { AnotherOf } from "./ui/AnotherOf";
 import { Audit } from "./ui/Audit";
 import { Bind } from "./ui/Bind";
@@ -203,17 +204,13 @@ export function App({ store, api, now = Date.now }: Props) {
   const shell: Shell = { busy, manualBusy, outcome, now, sync: runSync, syncNow, signOut, api, store };
   const pending = store.pending;
   const stale = pending.filter((e) => e.occurred_at < now() - STALE_PENDING_MS);
+  const interrupted = stale.length > 0 && !interruptSeen;
   return (
     <ShellContext value={shell}>
       <div className="app">
-        <Banner
-          pending={pending}
-          busy={busy}
-          outcome={outcome}
-          now={now}
-          linked={!(stale.length > 0 && !interruptSeen)}
-        />
-        {stale.length > 0 && !interruptSeen ? (
+        <Banner pending={pending} busy={busy} outcome={outcome} now={now} linked={!interrupted} />
+        <UpdateBanner linked={!interrupted} />
+        {interrupted ? (
           <PendingInterrupt
             count={stale.length}
             oldest={Math.min(...stale.map((e) => e.occurred_at))}

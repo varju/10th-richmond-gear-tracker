@@ -99,23 +99,6 @@ item. A note on a move is also easily mixed up with **Send home to clean**, whic
 
 **Deferred because:** decide with [Fewer buttons for beginners](#fewer-buttons-for-beginners).
 
-## Offer a reload when a newer web build is out
-
-A browser tab can run an old build for days. Today the service worker checks for a new build only when the page loads
-(`registerSW({ immediate: true })` in `main.tsx`). When it finds one, `registerType: "autoUpdate"` reloads the page with
-no warning, which can drop a half-filled form.
-
-**Considered:**
-
-- Switch to `registerType: "prompt"`. On `onNeedRefresh`, show a quiet banner: "A new version is ready · **Reload**".
-  Tapping it calls `updateSW()`, which activates the new worker and reloads. Ignoring it changes nothing.
-- Look for a new build when the tab comes back to the front and about hourly while open, with `registration.update()`,
-  from the `onRegisteredSW` callback.
-- Before reloading, go through `guard()` in `unsaved.ts`, so a draft asks first. Unsent records survive a reload: they
-  are in IndexedDB.
-- Web only: the plugin is off in the iPhone build (`disable: native`), so no `docs/pending-ios.md` line.
-- Needs an NFR-DEP Should row. Not something the assistant does, so no FR-MCP row.
-
 ## Set a shelf from a stock check
 
 Most gear has no shelf yet. Walk a shelf, scan what is on it, and say "this is where it belongs".
