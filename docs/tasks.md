@@ -72,6 +72,8 @@ Some Scouters only want to check gear in and out, and do not need the gear-manag
   - Everyday on an item page: check out, check in, change event, add QR code. Rare: edit, recount, photos, notes, send
     home with, merge, several of these, single item, counted stack, duplicate, delete.
 
+When analyzing data, note that the admin is a power user, and isn't representative of most users.
+
 **Deferred because:** the log says little about Users yet. Watch two or three Scouters (step 3) before tidying.
 
 ## Better use of photos
@@ -82,3 +84,15 @@ Show a photo during check-out to confirm the right item, and use a lone photo as
 falls back to its generic's), shown on the scan card, the item page and the list. Needs FR-INV-11 reworded.
 
 **Deferred because:** photos are online only (FR-INV-11), so a photo at check-out in a locker would mostly fail to load.
+
+## Audit log: name sent-home events
+
+The audit log shows `cleaning_started` and `cleaning_ended` instead of a title.
+
+## Audit log: expand a row
+
+Tap a row to see all its details.
+
+## Audit log: link to the item
+
+In an expanded row, link to the item if it still exists.
