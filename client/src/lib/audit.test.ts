@@ -1,9 +1,10 @@
 import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, expect, test } from "vitest";
 import * as act from "./actions";
-import { changes, describeValue, details, EVENT_TYPES } from "./audit";
+import { changes, describeValue, details, entries, EVENT_TYPES } from "./audit";
 import type { ServerEvent } from "./api";
 import * as res from "./reservations";
+import { raiseTicket } from "./repairs";
 import { alice, seedUsers } from "../ui/moveTestKit";
 import { KNOWN_EVENT_TYPES } from "./replay";
 import { openDb } from "./db";
@@ -172,4 +173,49 @@ test("a key the map does not know shows as it is", () => {
     { label: "colour", value: "red" },
     { label: "extra", value: '{"a":1}' },
   ]);
+});
+
+const itemRows = (events: ServerEvent[]) => entries(store.state, events).map((r) => r.item);
+
+test("a row's item: the item, its repair, its code, a reservation's gear", async () => {
+  const tent = await act.createItem(store, { name: "Tent" });
+  const ticket = await raiseTicket(store, tent, "Torn");
+  const camp = "r1";
+  expect(
+    itemRows([
+      serverEvent({ entity_id: tent }),
+      serverEvent({ entity_type: "repair", entity_id: ticket, type: "created" }),
+      serverEvent({ entity_type: "code", entity_id: "AAAAAAAAAA", type: "code_bound", payload: { item_id: tent } }),
+      serverEvent({ entity_type: "reservation", entity_id: camp, type: "item_added", payload: { item_id: tent } }),
+      serverEvent({ entity_type: "reservation", entity_id: camp, type: "created" }),
+    ]),
+  ).toEqual([tent, tent, tent, tent, undefined]);
+});
+
+test("the link goes to the exact item: merged, deleted and retired all link; unknown does not", async () => {
+  const gone = await act.createItem(store, { name: "Gone" });
+  const dup = await act.createItem(store, { name: "Dup" });
+  const keep = await act.createItem(store, { name: "Keep" });
+  const old = await act.createItem(store, { name: "Old" });
+  await act.deleteItem(store, gone);
+  await act.mergeItem(store, dup, keep);
+  await act.retireItem(store, old);
+  expect(itemRows([gone, dup, old, "nope"].map((entity_id) => serverEvent({ entity_id })))).toEqual([
+    gone,
+    dup,
+    old,
+    undefined,
+  ]);
+});
+
+test("a repair with no record falls back to its payload; other types never read the payload", async () => {
+  const tent = await act.createItem(store, { name: "Tent" });
+  const payload = { item_id: tent };
+  expect(
+    itemRows([
+      serverEvent({ entity_type: "repair", entity_id: "gone", type: "created", payload }),
+      serverEvent({ entity_type: "user", entity_id: "alice", type: "created", payload }),
+      serverEvent({ entity_type: "location", entity_id: "l1", type: "created", payload }),
+    ]),
+  ).toEqual([tent, undefined, undefined]);
 });

@@ -104,6 +104,7 @@ test("tapping a row shows every detail of the event", async () => {
     .getAllByRole("term")
     .map((dt) => [dt.textContent, dt.nextElementSibling?.textContent]);
   expect(lines).toEqual([
+    ["Item", "Tent 1"],
     ["Holder", "Carol"],
     ["Count", "2"],
     ["Event", "Camp"],
@@ -111,6 +112,20 @@ test("tapping a row shows every detail of the event", async () => {
     ["Recorded", "2025-08-31 18:00"],
     ["Device", "phone-b"],
   ]);
+});
+
+test("an expanded row links to its item", async () => {
+  log = [serverEvent({ type: "checked_out", payload: { count: 1 } })];
+  mount();
+
+  const list = await screen.findByRole("list", { name: "Audit log" });
+  await user.click(within(list).getByText(/^Checked out/));
+  const lines = within(list)
+    .getAllByRole("term")
+    .map((dt) => dt.textContent);
+  expect(lines[0]).toBe("Item");
+  await user.click(within(list).getByRole("button", { name: "Tent 1" }));
+  expect(location.pathname).toBe(`/items/${tent}`);
 });
 
 test("a code's rows name the item it was on then, never the code (FR-TAG-17)", async () => {

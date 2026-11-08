@@ -84,7 +84,3 @@ Show a photo during check-out to confirm the right item, and use a lone photo as
 falls back to its generic's), shown on the scan card, the item page and the list. Needs FR-INV-11 reworded.
 
 **Deferred because:** photos are online only (FR-INV-11), so a photo at check-out in a locker would mostly fail to load.
-
-## Audit log: link to the item
-
-In an expanded row, link to the item if it still exists.

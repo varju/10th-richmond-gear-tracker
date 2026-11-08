@@ -138,6 +138,8 @@ export interface Entry {
   what: string;
   /** "Tent 1", "Bob", "Hall cupboard". Empty when the thing has no name of its own. */
   on: string;
+  /** The item this event is about, if its record is known. */
+  item?: string;
 }
 
 /** Every event type but `field_changed`, which reads its own payload. */
@@ -216,6 +218,30 @@ function on(state: State, event: ReplayEvent, bound: unknown): string {
   }
 }
 
+function itemOf(state: State, event: ReplayEvent, bound: unknown): string | undefined {
+  const id = event.entity_id;
+  const fromPayload = event.payload.item_id;
+  let found: unknown;
+  switch (event.entity_type) {
+    case "item":
+      found = id;
+      break;
+    case "repair":
+      found = state.repair?.[id]?.item_id ?? fromPayload;
+      break;
+    case "found_report":
+      found = state.found_report?.[id]?.item_id ?? fromPayload;
+      break;
+    case "code":
+      found = bound;
+      break;
+    case "reservation":
+      found = fromPayload;
+      break;
+  }
+  return typeof found === "string" && state.item?.[found] ? found : undefined;
+}
+
 /**
  * The server's answer, as lines to draw (FR-USR-24). It arrives newest first; that order is kept. A code's
  * row names the item its latest earlier bind in this log put it on.
@@ -233,6 +259,7 @@ export function entries<E extends ReplayEvent>(state: State, events: E[]): (Entr
       entity_id: e.entity_id,
       what: what(state, e),
       on: on(state, e, bound.get(e.entity_id)),
+      item: itemOf(state, e, bound.get(e.entity_id)),
       event: e,
     });
   }
@@ -255,8 +282,8 @@ const ID_ONLY = new Set(["movement_id", "note_id", "photo_id", "supersedes"]);
 
 const blank = (v: unknown): boolean => v === null || v === undefined || v === "";
 
-/** Every line of one event, for the expanded row (FR-USR-24). */
-export function details(state: State, event: ServerEvent): Detail[] {
+/** Every line of one event, for the expanded row (FR-USR-24). `linked`: the row shows its item as a link already. */
+export function details(state: State, event: ServerEvent, linked = false): Detail[] {
   const lines: Detail[] = [];
   const p = event.payload;
   if (event.type === "field_changed") {
@@ -274,7 +301,7 @@ export function details(state: State, event: ServerEvent): Detail[] {
         lines.push({ label: "Weight", value: isWeight(weight) ? weightLabel(weight) : "Unknown" });
         continue;
       }
-      if (blank(value) || ID_ONLY.has(key)) continue;
+      if (blank(value) || ID_ONLY.has(key) || (linked && key === "item_id")) continue;
       const text = describeValue(state, key, value);
       if (key === "reservation_id" && text === String(p.event ?? "")) continue;
       lines.push({ label: fieldLabel(key), value: text });

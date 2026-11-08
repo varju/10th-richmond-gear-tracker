@@ -1,6 +1,8 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { type Api, ApiError, type AuditFilter, type ServerEvent, Offline } from "../lib/api";
 import { details, entries, EVENT_TYPES } from "../lib/audit";
+import { nameOf } from "../lib/inventory";
+import { navigate } from "../lib/router";
 import type { State } from "../lib/replay";
 import type { Store } from "../lib/store";
 import { localMinute } from "../lib/time";
@@ -35,7 +37,7 @@ function people(store: Store): { id: string; name: string }[] {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function Row({ state, event, summary }: { state: State; event: ServerEvent; summary: string }) {
+function Row({ state, event, item, summary }: { state: State; event: ServerEvent; item?: string; summary: string }) {
   const [open, setOpen] = useState(false);
   return (
     <li>
@@ -43,7 +45,17 @@ function Row({ state, event, summary }: { state: State; event: ServerEvent; summ
         <summary>{summary}</summary>
         {open && (
           <dl className="facts">
-            {details(state, event).map((d, i) => (
+            {item && (
+              <>
+                <dt>Item</dt>
+                <dd>
+                  <button className="link" type="button" onClick={() => navigate(`/items/${item}`)}>
+                    {nameOf(state, item)}
+                  </button>
+                </dd>
+              </>
+            )}
+            {details(state, event, Boolean(item)).map((d, i) => (
               <Fragment key={i}>
                 <dt>{d.label}</dt>
                 <dd>{d.value}</dd>
@@ -160,6 +172,7 @@ export function Audit({ store, api }: Props) {
               key={r.id}
               state={store.state}
               event={r.event}
+              item={r.item}
               summary={[r.what, r.on, userName(store.state, r.actor_id) || r.actor_id, localMinute(r.at)]
                 .filter(Boolean)
                 .join(" · ")}

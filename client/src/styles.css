@@ -666,8 +666,9 @@ a.link {
   margin: 0;
 }
 
-/* "Tent · #2 · Blue": the name is a link inside the line, as wide as its text, not a full-width button. */
-.facts .one-of button.link {
+/* "Tent · #2 · Blue": a name that is a link inside the line, as wide as its text, not a full-width button. */
+.facts .one-of button.link,
+.history .facts dd > button.link {
   width: auto;
   min-height: 44px;
   /* Still a 44 px target, without making the line taller than its neighbours. */

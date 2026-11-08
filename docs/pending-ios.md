@@ -77,6 +77,7 @@ What the app does differently.
   it.
 - Audit log names sent-home, back-from-cleaning and cleaner-corrected events.
 - Audit log rows expand to show every detail of the event.
+- An expanded audit log row links to its item.
 
 ## Chores
 
