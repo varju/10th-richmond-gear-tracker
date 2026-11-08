@@ -140,7 +140,9 @@ test("Belongs here makes the checked shelf the item's home, and the row leaves M
 
   await user.click(screen.getByRole("button", { name: "Belongs here: Stove" }));
   await waitFor(() => expect(region("Misplaced here")).toHaveTextContent("Nothing out of place."));
-  expect(item(store.state, stove)).toMatchObject({ home_location_id: cold, sub_location: "shelf 4" });
+  await waitFor(() =>
+    expect(item(store.state, stove)).toMatchObject({ home_location_id: cold, sub_location: "shelf 4" }),
+  );
 });
 
 test("Belongs here on Whole location clears the shelf", async () => {
@@ -151,7 +153,7 @@ test("Belongs here on Whole location clears the shelf", async () => {
 
   await user.click(screen.getByRole("button", { name: "Belongs here: Stove" }));
   await waitFor(() => expect(region("Misplaced here")).toHaveTextContent("Nothing out of place."));
-  expect(item(store.state, stove)).toMatchObject({ home_location_id: cold, sub_location: null });
+  await waitFor(() => expect(item(store.state, stove)).toMatchObject({ home_location_id: cold, sub_location: null }));
 });
 
 test("All belong here asks, then moves every misplaced item", async () => {
