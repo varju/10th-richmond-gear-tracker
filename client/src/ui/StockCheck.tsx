@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { seen } from "../lib/actions";
+import { seen, updateItem } from "../lib/actions";
 import { parseCode } from "../lib/codes";
 import {
   code as codeOf,
@@ -26,11 +26,14 @@ import {
 import type { Store } from "../lib/store";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
+import { ConfirmButton } from "./ConfirmButton";
 import { LightButton, useLight } from "./Light";
 import { useFlash } from "./MoveActions";
 import { Page } from "./Page";
 
 const FLASH_MS = 2000;
+const NEW_SHELF = " new";
+const squash = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
 
 /**
  * Walk one location and scan what is there (FR-RPT-09). The person picks where
@@ -51,6 +54,10 @@ function Start({ store }: { store: Store }) {
   const state = store.state;
   const [locationId, setLocationId] = useState("");
   const [sub, setSub] = useState("");
+  const [typed, setTyped] = useState("");
+  const adding = sub === NEW_SHELF;
+  const shelves = subLocations(state, locationId || undefined);
+  const shelf = adding ? shelves.find((s) => squash(s) === squash(typed)) ?? typed.trim() : sub;
   const all = locations(state).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
@@ -61,8 +68,8 @@ function Start({ store }: { store: Store }) {
         <button
           className="primary"
           type="button"
-          disabled={!locationId}
-          onClick={() => store.setMeta({ stock_check: startCheck(locationId, sub, now()) })}
+          disabled={!locationId || (adding && !shelf)}
+          onClick={() => store.setMeta({ stock_check: startCheck(locationId, shelf, now()) })}
         >
           Start
         </button>
@@ -80,6 +87,7 @@ function Start({ store }: { store: Store }) {
           onChange={(e) => {
             setLocationId(e.target.value);
             setSub("");
+            setTyped("");
           }}
         >
           <option value="">Choose</option>
@@ -94,13 +102,20 @@ function Start({ store }: { store: Store }) {
         <span>Shelf</span>
         <select value={sub} onChange={(e) => setSub(e.target.value)} disabled={!locationId}>
           <option value="">Whole location</option>
-          {subLocations(state, locationId || undefined).map((s) => (
+          {shelves.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
           ))}
+          <option value={NEW_SHELF}>New shelf…</option>
         </select>
       </label>
+      {adding && (
+        <label>
+          <span>New shelf</span>
+          <input autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} />
+        </label>
+      )}
     </Page>
   );
 }
@@ -201,7 +216,7 @@ function Walk({ store, check, native }: { store: Store; check: Check; native: bo
         <p className="muted small">
           {where} · {here.length} in place
         </p>
-        <Lists store={store} misplaced={away} notSeen={left} onSeen={(it) => void sighted(it)} />
+        <Lists store={store} check={check} misplaced={away} notSeen={left} onSeen={(it) => void sighted(it)} />
       </Page>
     );
   }
@@ -238,21 +253,68 @@ function Walk({ store, check, native }: { store: Store; check: Check; native: bo
           </p>
         )}
       </div>
-      <Lists store={store} misplaced={away} notSeen={left} onSeen={(it) => void sighted(it)} />
+      <Lists store={store} check={check} misplaced={away} notSeen={left} onSeen={(it) => void sighted(it)} />
     </Page>
   );
 }
 
 interface ListsProps {
   store: Store;
+  check: Check;
   misplaced: Item[];
   notSeen: Item[];
   /** Tapped instead of scanned: no code on it, or the sticker is somewhere awkward. */
   onSeen: (it: Item) => void;
 }
 
-function Lists({ store, misplaced, notSeen, onSeen }: ListsProps) {
+function Lists({ store, check, misplaced, notSeen, onSeen }: ListsProps) {
   const state = store.state;
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const movable = misplaced.filter((it) => !it.deleted && !it.merged_into && !it.retired);
+  const bulk = movable.filter((it) => !it.home_user_id);
+
+  const belongs = (it: Item) =>
+    updateItem(store, it.id, {
+      home_location_id: check.location_id,
+      home_user_id: null,
+      sub_location: check.sub_location ?? "",
+    });
+
+  async function belongsOne(it: Item) {
+    setError(null);
+    setBusy((b) => new Set(b).add(it.id));
+    try {
+      await belongs(it);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not do that");
+    } finally {
+      setBusy((b) => {
+        const next = new Set(b);
+        next.delete(it.id);
+        return next;
+      });
+    }
+  }
+
+  async function belongsAll() {
+    setError(null);
+    setBulkBusy(true);
+    let moved = 0;
+    try {
+      for (const it of bulk) {
+        await belongs(it);
+        moved++;
+      }
+    } catch (e) {
+      const why = e instanceof Error ? e.message : "Could not do that";
+      setError(moved ? `Moved ${moved} of ${bulk.length}. ${why}` : why);
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   return (
     <>
       <section aria-label="Misplaced here">
@@ -262,16 +324,40 @@ function Lists({ store, misplaced, notSeen, onSeen }: ListsProps) {
         ) : (
           <ul className="items">
             {misplaced.map((it) => (
-              <li key={it.id}>
+              <li key={it.id} className="row">
                 <button className="item" type="button" onClick={() => navigate(`/items/${it.id}`)}>
                   <span className="item-name">{displayName(state, it)}</span>
                   <span className="muted small">
                     {homeLabel(state, it) ? `Home: ${homeLabel(state, it)}` : "No home"}
                   </span>
                 </button>
+                {movable.includes(it) && (
+                  <button
+                    className="small"
+                    type="button"
+                    disabled={bulkBusy || busy.has(it.id)}
+                    onClick={() => void belongsOne(it)}
+                    aria-label={`Belongs here: ${displayName(state, it)}`}
+                  >
+                    Belongs here
+                  </button>
+                )}
               </li>
             ))}
           </ul>
+        )}
+        {bulk.length >= 2 && (
+          <ConfirmButton
+            label="All belong here"
+            confirmLabel={`Really move ${bulk.length} homes here?`}
+            onConfirm={belongsAll}
+            disabled={bulkBusy}
+          />
+        )}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
         )}
       </section>
       <section aria-label="Not seen yet">

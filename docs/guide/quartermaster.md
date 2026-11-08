@@ -46,7 +46,9 @@ back.
 Open **Stock check**, pick the **Location** and **Shelf** you are standing at, and tap **Start**. Scan everything on the
 shelf. **Misplaced here** lists gear whose home is somewhere else; **Not seen yet** lists what should be here but has
 not been scanned. Tap **Seen** beside a row for gear with no code, or a sticker you cannot reach. Tap **Finish**, then
-**Done**. A check left running says so on the computer home screen until you finish it.
+**Done**. To make a shelf, pick **New shelf…** and type its name. **Belongs here** on a misplaced row makes this shelf
+the item's home; **All belong here** does it for every row except gear kept by a person, after asking. A check left
+running says so on the computer home screen until you finish it.
 
 ### Recount a stack
 

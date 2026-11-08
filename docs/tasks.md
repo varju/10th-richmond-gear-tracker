@@ -98,20 +98,3 @@ item. A note on a move is also easily mixed up with **Send home to clean**, whic
 - Whether a note on a move earns its place at all, now that gear sent home names the family (FR-OUT-46).
 
 **Deferred because:** decide with [Fewer buttons for beginners](#fewer-buttons-for-beginners).
-
-## Set a shelf from a stock check
-
-Most gear has no shelf yet. Walk a shelf, scan what is on it, and say "this is where it belongs".
-
-**Considered:**
-
-- The start form's **Shelf** list (`StockCheck.tsx`) offers only shelves some item already has. Add **New shelf…**,
-  which opens a text field. A shelf is just a label (FR-SET-03), so typing one makes it.
-- In the walk, each **Misplaced here** row gets **Belongs here**: home becomes this location and shelf. With **Whole
-  location**, it sets the location and clears the shelf.
-- One **All belong here** under the list, which asks first and names the count. It is most of the job when a shelf is
-  new.
-- Each is an ordinary home change on the item, recorded offline like any edit.
-- `update_item` already sets a home, so no new MCP tool. `stock_check` in `assistant.py` could say so in its reply.
-- Needs FR-RPT Could rows next to FR-RPT-09.
-- Client change: a `docs/pending-ios.md` line under Functional.

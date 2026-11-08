@@ -68,6 +68,8 @@ What the app does differently.
   failed.
 - Checking out more of a stack than are in is refused. It asks "Are there more here?" and offers **Recount**, then the
   check-out.
+- A stock check can start on a new shelf. **Belongs here** on a misplaced item, or **All belong here**, makes this shelf
+  its home.
 
 ## Chores
 
