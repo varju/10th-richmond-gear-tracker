@@ -1,7 +1,8 @@
 import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, expect, test } from "vitest";
 import * as act from "./actions";
-import { changes, describeValue } from "./audit";
+import { changes, describeValue, EVENT_TYPES } from "./audit";
+import { KNOWN_EVENT_TYPES } from "./replay";
 import { openDb } from "./db";
 import { Store } from "./store";
 
@@ -49,4 +50,10 @@ test("values read as a person would", async () => {
   expect(describeValue(state, "category_ids", [])).toBe("—");
   // price was dropped as a field (FR-INV-12); old events that changed it still read as dollars.
   expect(describeValue(state, "price", 249.99)).toBe("$249.99");
+});
+
+test("every event type the replay knows has a label in the filter", () => {
+  const labelled = new Set(EVENT_TYPES.map((t) => t.value));
+  const missing = [...KNOWN_EVENT_TYPES].filter((t) => !labelled.has(t));
+  expect(missing).toEqual([]);
 });

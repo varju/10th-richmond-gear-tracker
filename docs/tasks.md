@@ -85,10 +85,6 @@ falls back to its generic's), shown on the scan card, the item page and the list
 
 **Deferred because:** photos are online only (FR-INV-11), so a photo at check-out in a locker would mostly fail to load.
 
-## Audit log: name sent-home events
-
-The audit log shows `cleaning_started` and `cleaning_ended` instead of a title.
-
 ## Audit log: expand a row
 
 Tap a row to see all its details.

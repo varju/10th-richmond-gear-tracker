@@ -65,6 +65,9 @@ test("every kind of event on one screen, said in words, newest first", async () 
     }),
     serverEvent({ type: "field_changed", payload: { field: "name", value: "Tent 1", old: "Tent" } }),
     serverEvent({ type: "checked_out", actor_id: "carol" }),
+    serverEvent({ type: "cleaning_started", actor_id: "carol", payload: { cleaner: "Sam", count: 3 } }),
+    serverEvent({ type: "cleaning_ended", actor_id: "carol", payload: { cleaner: "Sam" } }),
+    serverEvent({ type: "cleaner_corrected", actor_id: "carol", payload: { cleaner: "Pat" } }),
   ];
   mount();
 
@@ -77,6 +80,9 @@ test("every kind of event on one screen, said in words, newest first", async () 
     "Role: user → admin · Carol · Alice · 2025-08-31 17:00",
     "Name: Tent → Tent 1 · Tent 1 · Alice · 2025-08-31 17:00",
     "Checked out · Tent 1 · Carol · 2025-08-31 17:00",
+    "Sent home with Sam · 3 · Tent 1 · Carol · 2025-08-31 17:00",
+    "Back from Sam · Tent 1 · Carol · 2025-08-31 17:00",
+    "Cleaner corrected to Pat · Tent 1 · Carol · 2025-08-31 17:00",
   ]);
 });
 

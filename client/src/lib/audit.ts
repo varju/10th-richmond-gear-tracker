@@ -124,6 +124,9 @@ const HAPPENED: Record<string, string> = {
   quantity_changed: "Quantity changed",
   checked_out: "Checked out",
   checked_in: "Checked in",
+  cleaning_started: "Sent home to clean",
+  cleaning_ended: "Back from cleaning",
+  cleaner_corrected: "Cleaner corrected",
   recounted: "Recounted",
   pool_missing: "Marked missing",
   pool_found: "Found",
@@ -136,7 +139,7 @@ const HAPPENED: Record<string, string> = {
   photo_removed: "Photo removed",
 };
 
-/** A count rides on a pool's movements (FR-OUT-22) and on a recount (FR-INV-35). */
+/** A count rides on a pool's movements (FR-OUT-22), a recount (FR-INV-35) and gear sent home or back. */
 function counted(label: string, payload: Record<string, unknown>): string {
   const count = payload.count;
   return typeof count === "number" ? `${label} · ${count}` : label;
@@ -149,6 +152,12 @@ function what(state: State, event: ReplayEvent): string {
     const to = describeValue(state, field, event.payload.value);
     return `${fieldLabel(field)}: ${from} → ${to}`;
   }
+  const cleaner = typeof event.payload.cleaner === "string" && event.payload.cleaner ? event.payload.cleaner : "";
+  if (event.type === "cleaning_started")
+    return counted(cleaner ? `Sent home with ${cleaner}` : "Sent home to clean", event.payload);
+  if (event.type === "cleaning_ended")
+    return counted(cleaner ? `Back from ${cleaner}` : "Back from cleaning", event.payload);
+  if (event.type === "cleaner_corrected") return cleaner ? `Cleaner corrected to ${cleaner}` : "Cleaner corrected";
   // A build older than an event type still draws the row; it just cannot name it.
   const label = HAPPENED[event.type];
   return label ? counted(label, event.payload) : event.type;

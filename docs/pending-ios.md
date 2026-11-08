@@ -75,6 +75,7 @@ What the app does differently.
   its home.
 - The item page no longer offers Report a problem among the move buttons; use the one under Repairs. The scan card keeps
   it.
+- Audit log names sent-home, back-from-cleaning and cleaner-corrected events.
 
 ## Chores
 
