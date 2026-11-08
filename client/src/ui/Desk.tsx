@@ -44,7 +44,7 @@ export function Desk({ store }: { store: Store }) {
     // Only when the group set a period; without one nothing is overdue (FR-OUT-14).
     ...(report.overdue > 0 ? [{ label: `Overdue · ${report.overdue}`, path: "/out" }] : []),
     ...(store.meta.stock_check ? [{ label: "Stock check in progress", path: "/stock-check" }] : []),
-    ...(unsent > 0 ? [{ label: `Unsent records · ${unsent}`, path: "/settings" }] : []),
+    ...(unsent > 0 ? [{ label: `Unsent records · ${unsent}`, path: "/settings/unsent" }] : []),
   ];
 
   const cutoff = todayIso(now() + AHEAD_DAYS * DAY_MS);

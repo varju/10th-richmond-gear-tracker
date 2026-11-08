@@ -1,7 +1,7 @@
 import type { Shell } from "../shell";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
-import { syncLabel } from "./labels";
+import { plural, syncLabel } from "./labels";
 import { Page } from "./Page";
 import { useStore } from "../useStore";
 import { PrivacyLink } from "./PrivacyLink";
@@ -56,9 +56,14 @@ export function Settings({ store, shell }: Props) {
             </button>
           </>
         )}
+        {store.pending.length > 0 && (
+          <button className="link" type="button" onClick={() => navigate("/settings/unsent")}>
+            {plural(store.pending.length, "unsent record")}
+          </button>
+        )}
         {store.rejected.length > 0 && (
           <button className="link" type="button" onClick={() => navigate("/settings/refused")}>
-            {store.rejected.length} record{store.rejected.length === 1 ? "" : "s"} the server refused
+            {plural(store.rejected.length, "record")} the server refused
           </button>
         )}
         <button className="link" type="button" onClick={() => navigate("/settings/devices")}>

@@ -108,6 +108,28 @@ test("unsent work shows in the banner and blocks signing out", async () => {
   expect(screen.getByText("Sign out after your unsent records are sent.")).toBeInTheDocument();
 });
 
+test("the banner opens the unsent records page", async () => {
+  await store.setMeta({
+    token: "tok",
+    user: { id: "u1", name: "Alice", role: "admin", active: true },
+    cursor: 2,
+    log_id: "log-one",
+  });
+  down = true;
+  await store.record({
+    entity_type: "item",
+    entity_id: "a",
+    type: "note_added",
+    actor_id: "u1",
+    payload: { text: "x" },
+  });
+  navigate("/");
+  mount();
+  await userEvent.setup().click(await screen.findByRole("button", { name: /1 unsent record/ }));
+  expect(location.pathname).toBe("/settings/unsent");
+  expect(await screen.findByRole("heading", { name: "Unsent records" })).toBeInTheDocument();
+});
+
 test("a record made while online is pushed without anyone asking", async () => {
   await store.setMeta({
     token: "tok",

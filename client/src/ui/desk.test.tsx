@@ -148,6 +148,13 @@ test("the desk home opens on what needs a person, then what is out", async () =>
   expect(cells(rows[1]!)).toEqual(["Tent 1", "Alice", "Spring camp", "today"]);
 });
 
+test("the unsent records entry opens the unsent page", async () => {
+  await fixture();
+  mount();
+  await userEvent.setup().click(screen.getByRole("button", { name: /^Unsent records · / }));
+  expect(location.pathname).toBe(`${BASE}/settings/unsent`);
+});
+
 test("with nothing wrong the desk home says so", async () => {
   await fixture();
   await store.setMeta({ cursor: 1 });

@@ -92,7 +92,8 @@ Scan it and tap **Transfer to…**, then type part of their name and tap it. Wor
 ### No signal
 
 Everything except signing in works with no signal. An amber strip counts records still on your device; it clears itself
-when you next open the app in signal. Records waiting three days stop the app and ask you to sync.
+when you next open the app in signal. Tap it to see what is waiting and why. Records waiting three days stop the app and
+ask you to sync.
 
 ## Camps
 

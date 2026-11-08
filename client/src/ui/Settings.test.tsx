@@ -1,6 +1,7 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
+import * as act from "../lib/actions";
 import { BASE, navigate } from "../lib/router";
 import type { Shell } from "../shell";
 import type { Store } from "../lib/store";
@@ -46,6 +47,17 @@ test("an Admin sees every section, in order", () => {
     "AI assistant",
     "Delete my account",
   ]);
+});
+
+test("the unsent link shows only while something is pending", async () => {
+  mount();
+  expect(screen.queryByRole("button", { name: /unsent record/ })).not.toBeInTheDocument();
+  cleanup();
+
+  await act.createItem(store, { name: "Tent 1" });
+  mount();
+  await userEvent.setup().click(screen.getByRole("button", { name: "1 unsent record" }));
+  expect(location.pathname).toBe("/settings/unsent");
 });
 
 test("a link opens its own page", async () => {

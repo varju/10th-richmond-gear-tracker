@@ -52,6 +52,7 @@ import { SettingsDevices } from "./ui/SettingsDevices";
 import { SettingsGroup } from "./ui/SettingsGroup";
 import { SettingsLocations } from "./ui/SettingsLocations";
 import { SettingsRefused } from "./ui/SettingsRefused";
+import { SettingsUnsent } from "./ui/SettingsUnsent";
 import { StockCheck } from "./ui/StockCheck";
 import { SignIn } from "./ui/SignIn";
 import { Users } from "./ui/Users";
@@ -205,7 +206,13 @@ export function App({ store, api, now = Date.now }: Props) {
   return (
     <ShellContext value={shell}>
       <div className="app">
-        <Banner pending={pending} busy={busy} outcome={outcome} now={now} />
+        <Banner
+          pending={pending}
+          busy={busy}
+          outcome={outcome}
+          now={now}
+          linked={!(stale.length > 0 && !interruptSeen)}
+        />
         {stale.length > 0 && !interruptSeen ? (
           <PendingInterrupt
             count={stale.length}
@@ -329,6 +336,7 @@ function Screen({
       if (second === "devices") return <SettingsDevices store={store} api={api} />;
       if (second === "notifications") return <Notifications store={store} api={api} />;
       if (second === "refused") return <SettingsRefused store={store} />;
+      if (second === "unsent") return <SettingsUnsent store={store} shell={shell} />;
       if (second === "assistant") return <SettingsAssistant api={api} />;
       if (second === "account") return <SettingsAccount store={store} api={api} onDeleted={onAccountDeleted} />;
       return <Settings store={store} shell={shell} />;

@@ -99,25 +99,6 @@ item. A note on a move is also easily mixed up with **Send home to clean**, whic
 
 **Deferred because:** decide with [Fewer buttons for beginners](#fewer-buttons-for-beginners).
 
-## Why records are unsent
-
-When records will not send, nothing says why. The banner shows a reason word ("offline", "error"), not the message. The
-desk's **Unsent records** link opens Settings, which has nothing about them.
-
-**Considered:**
-
-- An **Unsent records** page, linked from Settings while anything is unsent and from the banner and the desk's link. It
-  shows:
-  - the last sync attempt: when, and its full message (`SyncOutcome.message`);
-  - the last good sync (`meta.last_sync_at`);
-  - each unsent record: what it is, which item, when recorded;
-  - **Send now**.
-- The last outcome lives only in App state today. Keep it that way: a fresh open retries at once, so the page fills
-  within seconds.
-- Like **Refused records** (`SettingsRefused.tsx`), which covers records the server turned down.
-- Needs an FR-OFF Should row. FR-MCP Won't row: the assistant writes straight to the server and has no queue.
-- Client change: a `docs/pending-ios.md` line under Functional.
-
 ## Offer a reload when a newer web build is out
 
 A browser tab can run an old build for days. Today the service worker checks for a new build only when the page loads
