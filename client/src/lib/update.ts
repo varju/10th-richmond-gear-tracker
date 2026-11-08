@@ -52,13 +52,33 @@ interface Options {
 export function watchForUpdates(register: typeof registerSW, opts: Options = {}): () => void {
   const everyMs = opts.everyMs ?? HOUR_MS;
   const reload = opts.reload ?? (() => window.location.reload());
+  let listenedOn: ServiceWorker | undefined;
+  let registration: ServiceWorkerRegistration | undefined;
   let stop = () => {};
   const updateSW = register({
     immediate: true,
-    onNeedRefresh: () => update.markReady(() => updateSW(true)),
-    // Another tab's Reload installs the worker under this tab too; reload it only if it asked.
-    onNeedReload: () => (update.hasAsked ? reload() : update.markReady(reload)),
+    onNeedRefresh: () =>
+      update.markReady(() => {
+        if (!registration) return updateSW(true);
+        const waiting = registration.waiting;
+        if (!waiting) return reload();
+        if (waiting !== listenedOn) {
+          listenedOn = waiting;
+          const onChange = () => {
+            if (waiting.state !== "activated" && waiting.state !== "redundant") return;
+            waiting.removeEventListener("statechange", onChange);
+            reload();
+          };
+          waiting.addEventListener("statechange", onChange);
+        }
+        return updateSW(true);
+      }),
+    // Another tab's Reload installed it; this tab keeps its banner.
+    onNeedReload: () => {
+      if (!update.hasAsked) update.markReady(reload);
+    },
     onRegisteredSW: (_url, reg) => {
+      registration = reg;
       if (!reg) return;
       let lastVisible = 0;
       const check = () => void reg.update().catch(() => {});

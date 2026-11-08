@@ -16,9 +16,14 @@ function fakeRegister() {
   return { register, calls, captured };
 }
 
-function fakeReg(fail = false) {
+function fakeWaiting() {
+  return Object.assign(new EventTarget(), { state: "installed" });
+}
+
+function fakeReg(fail = false, waiting: ReturnType<typeof fakeWaiting> | null = null) {
   const reg = {
     count: 0,
+    waiting,
     update: async () => {
       reg.count++;
       if (fail) throw new Error("offline");
@@ -46,20 +51,102 @@ test("a waiting build marks an update ready, and applying installs it", () => {
   const { register, calls, captured } = fakeRegister();
   stop = watchForUpdates(register);
   expect(captured.opts?.immediate).toBe(true);
+  captured.opts!.onRegisteredSW!("/sw.js", fakeReg(false, fakeWaiting()) as unknown as ServiceWorkerRegistration);
   captured.opts!.onNeedRefresh!();
   expect(update.ready).toBe(true);
   update.apply();
   expect(calls).toEqual([true]);
 });
 
-test("the tab that asked reloads when the new worker takes over", () => {
+test("applying reloads once the waiting worker activates, without onNeedReload", () => {
+  const { register, calls, captured } = fakeRegister();
+  let reloads = 0;
+  stop = watchForUpdates(register, { reload: () => reloads++ });
+  const waiting = fakeWaiting();
+  captured.opts!.onRegisteredSW!("/sw.js", fakeReg(false, waiting) as unknown as ServiceWorkerRegistration);
+  captured.opts!.onNeedRefresh!();
+  update.apply();
+  expect(calls).toEqual([true]);
+  waiting.dispatchEvent(new Event("statechange"));
+  expect(reloads).toBe(0);
+  waiting.state = "activated";
+  waiting.dispatchEvent(new Event("statechange"));
+  expect(reloads).toBe(1);
+});
+
+test("applying with no waiting worker reloads at once", () => {
+  const { register, calls, captured } = fakeRegister();
+  let reloads = 0;
+  stop = watchForUpdates(register, { reload: () => reloads++ });
+  captured.opts!.onRegisteredSW!("/sw.js", fakeReg() as unknown as ServiceWorkerRegistration);
+  captured.opts!.onNeedRefresh!();
+  update.apply();
+  expect(reloads).toBe(1);
+  expect(calls).toEqual([]);
+});
+
+test("statechange and onNeedReload together reload once", () => {
   const { register, captured } = fakeRegister();
+  let reloads = 0;
+  stop = watchForUpdates(register, { reload: () => reloads++ });
+  const waiting = fakeWaiting();
+  captured.opts!.onRegisteredSW!("/sw.js", fakeReg(false, waiting) as unknown as ServiceWorkerRegistration);
+  captured.opts!.onNeedRefresh!();
+  update.apply();
+  captured.opts!.onNeedReload!();
+  expect(reloads).toBe(0);
+  waiting.state = "activated";
+  waiting.dispatchEvent(new Event("statechange"));
+  expect(reloads).toBe(1);
+});
+
+test("a replaced worker reloads", () => {
+  const { register, captured } = fakeRegister();
+  let reloads = 0;
+  stop = watchForUpdates(register, { reload: () => reloads++ });
+  const waiting = fakeWaiting();
+  captured.opts!.onRegisteredSW!("/sw.js", fakeReg(false, waiting) as unknown as ServiceWorkerRegistration);
+  captured.opts!.onNeedRefresh!();
+  update.apply();
+  waiting.state = "redundant";
+  waiting.dispatchEvent(new Event("statechange"));
+  expect(reloads).toBe(1);
+});
+
+test("two taps add one listener", () => {
+  const { register, calls, captured } = fakeRegister();
+  let reloads = 0;
+  stop = watchForUpdates(register, { reload: () => reloads++ });
+  const waiting = fakeWaiting();
+  captured.opts!.onRegisteredSW!("/sw.js", fakeReg(false, waiting) as unknown as ServiceWorkerRegistration);
+  captured.opts!.onNeedRefresh!();
+  update.apply();
+  update.apply();
+  waiting.state = "activated";
+  waiting.dispatchEvent(new Event("statechange"));
+  expect(reloads).toBe(1);
+  expect(calls).toEqual([true, true]);
+});
+
+test("with no registration, applying asks the worker and does not reload", () => {
+  const { register, calls, captured } = fakeRegister();
   let reloads = 0;
   stop = watchForUpdates(register, { reload: () => reloads++ });
   captured.opts!.onNeedRefresh!();
   update.apply();
-  captured.opts!.onNeedReload!();
-  expect(reloads).toBe(1);
+  expect(calls).toEqual([true]);
+  expect(reloads).toBe(0);
+});
+
+test("a cancelled reload does not stop the next tap", () => {
+  const { register, captured } = fakeRegister();
+  let reloads = 0;
+  stop = watchForUpdates(register, { reload: () => reloads++ });
+  captured.opts!.onRegisteredSW!("/sw.js", fakeReg() as unknown as ServiceWorkerRegistration);
+  captured.opts!.onNeedRefresh!();
+  update.apply();
+  update.apply();
+  expect(reloads).toBe(2);
 });
 
 test("a tab that did not ask keeps the banner, and its Reload reloads", () => {
