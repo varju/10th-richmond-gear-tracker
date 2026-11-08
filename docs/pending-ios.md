@@ -11,16 +11,19 @@ What the app does differently.
 - A check-out under an event name that no reservation takes makes a reservation for today. A later check-out under its
   name joins it, and moves its end date out to that day if it ended in the last week with gear still out.
 - A check-out under a planned event's name links to that event and joins its gear list.
-- Gear can be sent home to be cleaned by a named person, singly or by count from a stack. The name autocompletes, a
-  return from a stack names whose share it is, and What is out shows the cleaner. **Back from cleaning** marks it back
-  with the Scouter. Gear is sent home once it is out, not while it is in, and keeps its event and reservation, but is
-  not counted as packed while it is at a cleaner's home. A stack counts as packed only what is still out for the event.
+- Gear can be sent home with a named person, singly or by count from a stack, for cleaning or any other reason. **Send
+  home with** takes the name, which autocompletes; a return from a stack names whose share it is, and What is out shows
+  who has it. **Back from** the name marks it back with the Scouter. Gear is sent home once it is out, not while it is
+  in, and keeps its event and reservation, but is not counted as packed while it is at someone's home. A stack counts as
+  packed only what is still out for the event.
 - A single item sent home keeps its days out and its place in the history, which reads "Sent home with", and an open
   double check-out stays open.
 - A stack's line on an event no longer grows when some come back or go home and the same number is packed again.
-- Cleaner suggestions include names from stacks and from single items sent home.
-- A stack's page can change the name of a family its share was sent home with.
-- Correcting a cleaner's name renames the whole share, and does nothing once the gear is back.
+- Name suggestions include names from stacks and from single items sent home.
+- A stack's page can change the name of whoever its share was sent home with.
+- Correcting the name gear was sent home with renames the whole share, and does nothing once the gear is back.
+- Add note is gone from items, the scan card and conflicts. Existing notes still show, and can be edited or deleted.
+  Repair tickets keep notes.
 - A recount's reason is optional.
 - Only what cannot be undone asks first. Mark missing, making a single item, and turning an item into several units now
   act on one tap; deleting, removing a photo, cancelling an event and making a counted stack ask with "Really …?" on the

@@ -4,7 +4,7 @@ import { knownCleanerNames } from "../lib/movement";
 import type { Store } from "../lib/store";
 
 /**
- * Who is taking the gear home to clean (FR-OUT-46): a name, required, with the names this phone
+ * Who is taking the gear home with someone (FR-OUT-46): a name, required, with the names this phone
  * has seen lately offered as you type (FR-OUT-48). They come from the local log, so other
  * Scouters' names are here after the last sync and the list works offline.
  */

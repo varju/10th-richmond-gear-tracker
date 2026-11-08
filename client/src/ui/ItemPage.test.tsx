@@ -6,6 +6,7 @@ import * as act from "../lib/actions";
 import { DAY_MS } from "../lib/clock";
 import { currentCode, generics, item, nameOf, unitsOf } from "../lib/inventory";
 import * as mv from "../lib/movement";
+import * as notes from "../lib/notes";
 import { checkOutUnplanned } from "../lib/unplannedTestKit";
 import * as rep from "../lib/repairs";
 import * as res from "../lib/reservations";
@@ -22,6 +23,7 @@ import { alice, carol, renderInShell, seedUsers, inSession } from "./moveTestKit
 // Movement from the item page, for gear with no sticker (FR-OUT-02, FR-OUT-07), and the item's history.
 let store: Store;
 let tent: string;
+const onTent = () => ({ entity_type: "item", entity_id: tent });
 
 beforeEach(async () => {
   store = await openStore();
@@ -48,7 +50,6 @@ const section = (name: string) => {
   const heading = screen.getByRole("heading", { name: new RegExp(`^${name}(?: ·|$)`) });
   return (heading.closest("summary") ?? heading).nextElementSibling!;
 };
-// History's Add note sits above the list now, so the list itself is not the summary's next sibling.
 const historyList = () =>
   screen
     .getByRole("heading", { name: /^History(?: ·|$)/ })
@@ -144,14 +145,16 @@ test("a retired item has no movement buttons", async () => {
 });
 
 test("history lists movements and notes together, newest first (FR-INV-09)", async () => {
-  await mv.checkOut(store, tent, { event: "Spring camp", note: "to a patrol" });
-  await mv.checkIn(store, tent, { note: "muddy" });
+  const out = await mv.checkOut(store, tent, { event: "Spring camp" });
+  await notes.addNote(store, onTent(), "to a patrol", out.id);
+  const back = await mv.checkIn(store, tent);
+  await notes.addNote(store, onTent(), "muddy", back.id);
   await store.setMeta({ user: carol });
   await mv.checkOut(store, tent);
   await store.setMeta({ user: alice });
   await mv.transfer(store, tent, { event: "Cub camp" });
   await mv.transfer(store, tent, { to: "carol" });
-  await mv.addNote(store, tent, "pole repaired");
+  await notes.addNote(store, onTent(), "pole repaired");
   renderInShell(<ItemPage store={store} id={tent} />);
 
   const rows = [...historyList().querySelectorAll(":scope > li")];
@@ -181,7 +184,7 @@ test("a single item sent home reads Sent home, with the corrected name (FR-OUT-4
 });
 
 test("a note is corrected in place and the correction is appended (FR-OUT-16)", async () => {
-  const note = await mv.addNote(store, tent, "handed to a Scout");
+  const note = await notes.addNote(store, onTent(), "handed to a Scout");
   renderInShell(<ItemPage store={store} id={tent} />);
   await user.click(screen.getByText(/^History/));
   const timeline = historyList();
@@ -200,7 +203,7 @@ test("a note is corrected in place and the correction is appended (FR-OUT-16)", 
 });
 
 test("a note is deleted after a second tap, and the log keeps it (FR-OUT-21)", async () => {
-  const note = await mv.addNote(store, tent, "handed to a Scout");
+  const note = await notes.addNote(store, onTent(), "handed to a Scout");
   renderInShell(<ItemPage store={store} id={tent} />);
   await user.click(screen.getByText(/^History/));
   await user.click(screen.getByRole("button", { name: "Delete “handed to a Scout”" }));
@@ -211,19 +214,10 @@ test("a note is deleted after a second tap, and the log keeps it (FR-OUT-21)", a
   expect(store.pending.at(-1)).toMatchObject({ type: "note_deleted", payload: { note_id: note.id } });
 });
 
-test("an item-level note is added from the page", async () => {
+test("an item has no way to add a note", async () => {
   renderInShell(<ItemPage store={store} id={tent} />);
   await user.click(screen.getByText(/^History/));
-  // The actions area has its own "Add note", for a note on the movement.
-  const main = document.querySelector("main") as HTMLElement;
-  await user.click(within(main).getByRole("button", { name: "Add note" }));
-  await user.type(screen.getByLabelText("New note"), "pole repaired");
-  await user.click(screen.getByRole("button", { name: "Save" }));
-  expect(await screen.findByText("pole repaired")).toBeInTheDocument();
-  expect(store.pending.at(-1)).toMatchObject({
-    type: "note_added",
-    payload: { text: "pole repaired" },
-  });
+  expect(screen.queryByRole("button", { name: "Add note" })).not.toBeInTheDocument();
 });
 
 test("a fault reported from the page raises a ticket, which flags the item (FR-REP-01, FR-REP-05)", async () => {
@@ -347,16 +341,16 @@ test("cancelling an edit with changes asks; Discard drops them", async () => {
   expect(item(store.state, tent)?.name).toBe("Tent 1");
 });
 
-test("a half-typed note asks on Back; Save records it", async () => {
+test("a half-typed problem asks on Back; Save records it", async () => {
   withDialog();
-  await user.click(screen.getByText(/^History/));
-  // The first "Add note" is the item's; the move buttons have their own.
-  await user.click(screen.getAllByRole("button", { name: "Add note" })[0]!);
-  await user.type(screen.getByLabelText("New note"), "pole bent");
+  await user.click(screen.getAllByRole("button", { name: "Report a problem" })[0]!);
+  await user.type(screen.getByLabelText("Problem"), "pole bent");
   await user.click(screen.getByRole("button", { name: "Back" }));
   await user.click(within(await dialog()).getByRole("button", { name: "Save" }));
   await waitFor(() =>
-    expect(store.pending.filter((e) => e.type === "note_added").map((e) => e.payload)).toEqual([{ text: "pole bent" }]),
+    expect(store.pending.filter((e) => e.entity_type === "repair").map((e) => e.payload.description)).toEqual([
+      "pole bent",
+    ]),
   );
   await waitFor(() => expect(location.pathname).toBe("/"));
 });
@@ -883,12 +877,11 @@ test("while the event picker is open the move buttons are not shown", async () =
   expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
 });
 
-test("Change event asks first when a note is half typed", async () => {
+test("Change event asks first when a problem is half typed", async () => {
   await checkOutUnplanned(store, tent, "Spring camp");
   withDialog();
-  await user.click(screen.getByText(/^History/));
-  await user.click(screen.getAllByRole("button", { name: "Add note" })[0]!);
-  await user.type(screen.getByLabelText("New note"), "pole bent");
+  await user.click(screen.getAllByRole("button", { name: "Report a problem" })[0]!);
+  await user.type(screen.getByLabelText("Problem"), "pole bent");
   await user.click(screen.getByRole("button", { name: "Change event" }));
   expect(await dialog()).toBeInTheDocument();
   expect(location.search).toBe("");

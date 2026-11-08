@@ -488,10 +488,10 @@ is an ordinary edit, so anyone signed in may do it; merging stays with an Admin,
 
 A check-out is `checked_out` with the holder, the session's event name, and nothing else; a check-in is `checked_in`.
 The holder is whoever is signed in, except on a transfer to another member (FR-OUT-26), where it names them and the
-actor is still the person who tapped. Gear handed to someone without an account is covered by a note (FR-OUT-15), not a
-holder field that would need its own list of people.
+actor is still the person who tapped. Gear handed to someone without an account is covered by Send home with
+(FR-OUT-46), not a holder field that would need its own list of people.
 
-Gear sent home to be cleaned (FR-OUT-46) is a `cleaning_started {cleaner, movement_id}` with no count, on a single item
+Gear sent home with someone (FR-OUT-46) is a `cleaning_started {cleaner, movement_id}` with no count, on a single item
 that is out. `movement_id` names the check-out it goes home from, so a send-home that arrives after the gear came back
 and went out again is ignored. The check-out stands: its holder, event, reservation, `since` and any open double
 check-out are untouched, and replay adds `cleaner` and `cleaning_id`, the event's id, to the item's movement. An earlier
@@ -504,9 +504,9 @@ the distinct names on this device's `cleaning_started` events, and on the `check
 a lot or movement that still has a cleaner and whose `cleaning_id`, else its `id`, is `movement_id`; gear that has come
 back is left alone. `cleaning_started {cleaner, count, holder_id?}` sends part of a pool that is out home: that holder's
 lots not yet at a family take the name, oldest first, splitting a lot when only part goes. Counts, holders and events do
-not change. `cleaning_ended {cleaner?, count?, holder_id?}` is cleaned gear back with its Scouter (FR-OUT-51): a single
-item's movement loses its `cleaner` and `cleaning_id`; a pool's `count` of that holder's lots under `cleaner` lose
-theirs, splitting a lot when only part comes back. Counts and holders do not change.
+not change. `cleaning_ended {cleaner?, count?, holder_id?}` is gear sent home back with its Scouter (FR-OUT-51): a
+single item's movement loses its `cleaner` and `cleaning_id`; a pool's `count` of that holder's lots under `cleaner`
+lose theirs, splitting a lot when only part comes back. Counts and holders do not change.
 
 A pool's lot carries the `cleaner` and the `cleaning_id` of the `cleaning_started` that sent it home. Lot ids stay
 unique: a lot sent home whole keeps its id, a part of one takes the event's id, and one send-home can span several lots.

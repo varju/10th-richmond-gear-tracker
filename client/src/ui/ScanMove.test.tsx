@@ -208,21 +208,6 @@ test("someone else's gear offers Return and Take over with no default; Take over
   });
 });
 
-test("a note typed on the card rides on the movement (FR-OUT-13)", async () => {
-  renderInShell(<Scan store={store} native />);
-  await camera.scan("AAAAAAAAAA");
-  await user.click(within(card()).getByRole("button", { name: "Add note" }));
-  await user.type(screen.getByLabelText("Note"), "handed to a patrol leader");
-  await user.click(within(card()).getByRole("button", { name: "Check out" }));
-  await noEvent();
-  await screen.findByRole("status");
-
-  const out = pending("checked_out")[0]!;
-  expect(pending("note_added").map((e) => e.payload)).toEqual([
-    { text: "handed to a patrol leader", movement_id: out.id },
-  ]);
-});
-
 test("an open ticket shows on the card and does not block the move (FR-REP-05)", async () => {
   await rep.raiseTicket(store, tent, "zipper broken");
   await rep.raiseTicket(store, tent, "pole bent");
@@ -246,8 +231,6 @@ test("a problem typed at check-in raises a ticket after the move, without leavin
   renderInShell(<Scan store={store} native />);
   await camera.scan("AAAAAAAAAA");
   await user.click(within(card()).getByRole("button", { name: "Report a problem" }));
-  // One thing typed at a time: the note button goes while the problem is open.
-  expect(within(card()).queryByRole("button", { name: "Add note" })).not.toBeInTheDocument();
   await user.type(screen.getByLabelText("Problem"), "zipper broken on the bag");
   await user.click(within(card()).getByRole("button", { name: "Return" }));
   expect(await screen.findByText("Returned · Tent 1")).toHaveAttribute("role", "status");
@@ -433,15 +416,20 @@ test("Transfer to… hands gear to another member; the history names both (FR-OU
   expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "bob" });
 });
 
-test("a note or a problem can be saved without moving the item (FR-OUT-27)", async () => {
+test("a problem can be saved without moving the item (FR-OUT-27)", async () => {
   renderInShell(<Scan store={store} native />);
   await camera.scan("AAAAAAAAAA");
-  await user.click(within(card()).getByRole("button", { name: "Add note" }));
-  await user.type(screen.getByLabelText("Note"), "dented pole");
+  expect(within(card()).queryByRole("button", { name: "Add note" })).not.toBeInTheDocument();
+  await user.click(within(card()).getByRole("button", { name: "Report a problem" }));
+  await user.type(screen.getByLabelText("Problem"), "dented pole");
   await user.click(within(card()).getByRole("button", { name: "Save without moving" }));
-  expect(await screen.findByText("Note saved · Tent 1")).toHaveAttribute("role", "status");
+  expect(await screen.findByText("Problem reported · Tent 1")).toHaveAttribute("role", "status");
   expect(screen.queryByRole("region", { name: "Tent 1" })).not.toBeInTheDocument();
-  expect(pending("note_added").map((e) => e.payload)).toEqual([{ text: "dented pole" }]);
+  expect(
+    pending("created")
+      .filter((e) => e.entity_type === "repair")
+      .map((e) => e.payload.description),
+  ).toEqual(["dented pole"]);
   expect(store.pending.filter((e) => e.type.startsWith("checked"))).toHaveLength(0);
   expect(item(store.state, tent)?.status).toBe("in");
 });
@@ -455,7 +443,7 @@ test("an unassigned code still lands on /g/<code>; an unknown one is refused", a
   expect(location.pathname).toBe("/g/BBBBBBBBBB");
 });
 
-test("Skip with a typed note asks first; Keep editing keeps the card, Discard drops it", async () => {
+test("Skip with a typed problem asks first; Keep editing keeps the card, Discard drops it", async () => {
   renderInShell(
     <>
       <Scan store={store} native />
@@ -463,14 +451,14 @@ test("Skip with a typed note asks first; Keep editing keeps the card, Discard dr
     </>,
   );
   await camera.scan("AAAAAAAAAA");
-  await user.click(within(card()).getByRole("button", { name: "Add note" }));
-  await user.type(screen.getByLabelText("Note"), "muddy");
+  await user.click(within(card()).getByRole("button", { name: "Report a problem" }));
+  await user.type(screen.getByLabelText("Problem"), "muddy");
   await user.click(within(card()).getByRole("button", { name: "Skip" }));
   const dialog = await screen.findByRole("alertdialog");
   expect(within(dialog).queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   await user.click(within(dialog).getByRole("button", { name: "Keep editing" }));
   expect(card()).toBeInTheDocument();
-  expect(screen.getByLabelText("Note")).toHaveValue("muddy");
+  expect(screen.getByLabelText("Problem")).toHaveValue("muddy");
 
   await user.click(within(card()).getByRole("button", { name: "Skip" }));
   await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Discard" }));

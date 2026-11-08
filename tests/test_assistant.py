@@ -435,7 +435,7 @@ def test_search_refuses_an_unknown_needs():
 
 
 def test_get_item_carries_the_unit_its_generic_its_history_and_its_tickets(tools):
-    assistant.check_out(tools["t1"], event="Fall Camp", note="one pole bent")
+    assistant.check_out(tools["t1"], event="Fall Camp")
     assistant.raise_ticket(tools["t1"], "bent pole")
     unit = assistant.get_item(tools["t1"])
 
@@ -447,7 +447,7 @@ def test_get_item_carries_the_unit_its_generic_its_history_and_its_tickets(tools
     assert [t["description"] for t in unit["open_tickets"]] == ["bent pole"]
     assert [h["type"] for h in unit["history"]] == ["checked_out"]
     assert unit["history"][0]["by"] == "Alice"
-    assert [n["text"] for n in unit["notes"]] == ["one pole bent"]
+    assert unit["notes"] == []
 
     generic = assistant.get_item(tools["tents"])
     assert generic["generic"] is True
@@ -560,18 +560,18 @@ def test_a_write_is_an_ordinary_event_from_the_assistant_device(db_path, tools, 
 
 def test_device_seq_climbs_across_calls_and_is_kept_on_the_server(db_path, tools):
     assistant.check_out(tools["stove"])
-    assistant.check_in(tools["stove"], note="back on the shelf")
+    assistant.check_in(tools["stove"])
     assistant.check_out(tools["t1"])
 
     mine = [e["device_seq"] for e in logged(db_path) if e["device_id"] == DEVICE]
-    assert mine == [1, 2, 3, 4]  # the check-in carries a note, so it is two events
+    assert mine == [1, 2, 3]
     with open_db(db_path) as conn:
         row = conn.execute("SELECT value FROM meta WHERE key = ?", (f"device_seq:{DEVICE}",)).fetchone()
-    assert int(row["value"]) == 4
+    assert int(row["value"]) == 3
 
 
 def test_check_out_and_in_mirror_the_app(db_path, tools):
-    assistant.check_out(tools["t1"], event="Fall Camp", note="took the spare pegs")
+    assistant.check_out(tools["t1"], event="Fall Camp")
     with pytest.raises(Conflict):
         assistant.check_out(tools["t1"])
     with pytest.raises(BadRequest):
@@ -1746,7 +1746,7 @@ def test_a_pools_line_stays_at_what_is_packed_after_a_return_or_a_send_home(db_p
     assistant.link_out_to_reservation(rid, pool_id)
     assert entity(db_path, "reservation", rid)["generics"] == [{"item_id": pool_id, "quantity": 4}]
 
-    assistant.send_home_to_clean(pool_id, "Smith", 2)
+    assistant.send_home_with(pool_id, "Smith", 2)
     _out_unplanned(db_path, pool_id, FALL["event"], 2)
     assistant.link_out_to_reservation(rid, pool_id)
     assert entity(db_path, "reservation", rid)["generics"] == [{"item_id": pool_id, "quantity": 4}]
@@ -1842,7 +1842,7 @@ def test_a_take_over_with_a_reservation_id_does_not_look_for_another(db_path, to
 
 def test_a_take_over_of_gear_at_a_cleaners_keeps_its_event_and_makes_no_reservation(db_path, tools, bob):
     assistant.check_out(tools["stove"], event="Fall Camp")
-    assistant.send_home_to_clean(tools["stove"], "Smith")
+    assistant.send_home_with(tools["stove"], "Smith")
     [camp] = _reservations_named(db_path, "Fall Camp")
     assistant.transfer(tools["stove"], bob, event="Winter Camp")
     movement = entity(db_path, "item", tools["stove"])["movement"]
@@ -1864,7 +1864,7 @@ def test_a_double_check_out_is_listed_and_settled_either_way(db_path, tools, bob
     assert [c["item_id"] for c in listed] == [tools["t1"], tools["t2"]]
     assert listed[0]["earlier"]["holder"] == "Alice" and listed[0]["later"]["holder"] == "Bob"
 
-    assistant.settle_conflict(tools["t1"], "keep", note="Bob took it at the hall")
+    assistant.settle_conflict(tools["t1"], "keep")
     assistant.settle_conflict(tools["t2"], "back")
     assert assistant.list_conflicts()["conflicts"] == []
     assert entity(db_path, "item", tools["t1"])["holder_id"] == BOB
@@ -2002,8 +2002,12 @@ def test_a_deleted_record_is_not_reshaped_back_to_life(db_path, tools, admin):
         assistant.make_pool(empty, 2)
 
 
-def test_notes_are_added_corrected_and_deleted(tools):
-    note_id = assistant.add_note(tools["stove"], "the burner sticks")["note_id"]
+def test_notes_from_older_app_builds_are_corrected_and_deleted(db_path, tools):
+    assert "add_note" not in {tool.__name__ for tool in assistant.TOOLS}
+    with open_db(db_path) as conn:
+        note_id = events.append_server(
+            conn, ALICE, "item", tools["stove"], "note_added", {"text": "the burner sticks"}
+        ).id
     assert assistant.get_item(tools["stove"])["notes"][0]["note_id"] == note_id
     assistant.correct_note(tools["stove"], note_id, "the left burner sticks")
     assert assistant.get_item(tools["stove"])["notes"][0]["text"] == "the left burner sticks"
@@ -2141,18 +2145,18 @@ def test_a_single_item_goes_home_to_clean_and_the_name_is_corrected(tools):
     assert unit["history"][0]["cleaner"] == "Smith family"
     assert assistant.whats_out()["holders"][0]["items"][0]["cleaner"] == "Smith family"
 
-    assistant.correct_cleaner(tools["t1"], "Smith Family")
+    assistant.correct_sent_home_with(tools["t1"], "Smith Family")
     unit = assistant.get_item(tools["t1"])
     assert unit["cleaner"] == "Smith Family" and unit["history"][0]["cleaner"] == "Smith Family"
 
     with pytest.raises(BadRequest):
-        assistant.correct_cleaner(tools["t2"], "Jones")  # not out for cleaning
+        assistant.correct_sent_home_with(tools["t2"], "Jones")  # not sent home
 
 
 def test_pool_shares_go_home_with_different_families(tools, pool_id):
     assistant.check_out(pool_id, count=9)
-    assistant.send_home_to_clean(pool_id, "Smith", 4)
-    assistant.send_home_to_clean(pool_id, "Jones", 2)
+    assistant.send_home_with(pool_id, "Smith", 4)
+    assistant.send_home_with(pool_id, "Jones", 2)
     with pytest.raises(BadRequest):
         assistant.check_in(tools["stove"], cleaner="Smith")  # a single item has no shares
 
@@ -2170,39 +2174,39 @@ def test_pool_shares_go_home_with_different_families(tools, pool_id):
         {"cleaner": "Smith", "count": 2},
     ]
 
-    assistant.correct_cleaner(pool_id, "Smith-Lee", was="Smith")
+    assistant.correct_sent_home_with(pool_id, "Smith-Lee", was="Smith")
     assert [c["cleaner"] for c in assistant.get_item(pool_id)["cleaners"]] == ["Jones", "Smith-Lee"]
     with pytest.raises(BadRequest):
-        assistant.correct_cleaner(pool_id, "Smith-Lee")  # a pool needs `was`
+        assistant.correct_sent_home_with(pool_id, "Smith-Lee")  # a pool needs `was`
 
 
 def test_one_send_home_over_several_lots_is_renamed_whole(tools, pool_id):
     for count in (2, 2, 3):
         assistant.check_out(pool_id, count=count, event="Fall Camp")
-    assistant.send_home_to_clean(pool_id, "Smth", 5)
-    assert assistant.correct_cleaner(pool_id, "Smith", was="Smth")["corrected"] == 1
+    assistant.send_home_with(pool_id, "Smth", 5)
+    assert assistant.correct_sent_home_with(pool_id, "Smith", was="Smth")["corrected"] == 1
     assert assistant.get_item(pool_id)["cleaners"] == [{"cleaner": "Smith", "count": 5}]
 
 
 def test_cleaned_gear_comes_back_to_the_scouter(tools, pool_id):
     with pytest.raises(BadRequest):
-        assistant.back_from_cleaning(tools["t1"])  # not out for cleaning
+        assistant.back_from_home(tools["t1"])  # not sent home
     assistant.check_out(tools["t1"])
     assistant.transfer(tools["t1"], cleaner="Smith")
-    assistant.back_from_cleaning(tools["t1"])
+    assistant.back_from_home(tools["t1"])
     unit = assistant.get_item(tools["t1"])
     assert unit["holder"] == "Alice" and "cleaner" not in unit
     assert unit["history"][0]["type"] == "cleaning_ended"
     assert assistant.whats_out()["holders"][0]["items"][0].get("cleaner") is None
 
     assistant.check_out(pool_id, count=6)
-    assistant.send_home_to_clean(pool_id, "Smith", 4)
-    assistant.send_home_to_clean(pool_id, "Jones", 2)
+    assistant.send_home_with(pool_id, "Smith", 4)
+    assistant.send_home_with(pool_id, "Jones", 2)
     with pytest.raises(BadRequest):
-        assistant.back_from_cleaning(pool_id)  # a pool needs a name
+        assistant.back_from_home(pool_id)  # a pool needs a name
     with pytest.raises(BadRequest):
-        assistant.back_from_cleaning(pool_id, "Smith", count=5)
-    assistant.back_from_cleaning(pool_id, " smith", count=3)
+        assistant.back_from_home(pool_id, "Smith", count=5)
+    assistant.back_from_home(pool_id, " smith", count=3)
     assert assistant.get_item(pool_id)["cleaners"] == [
         {"cleaner": "Jones", "count": 2},
         {"cleaner": "Smith", "count": 1},
@@ -2230,35 +2234,35 @@ def test_gear_that_is_out_is_sent_home_with_a_transfer(tools):
     with pytest.raises(BadRequest):
         assistant.transfer(tools["t1"], cleaner="  ")
     since = assistant.get_item(tools["t1"])["since"]
-    assistant.transfer(tools["t1"], cleaner=" Smith family ", note="clean the fly")
+    assistant.transfer(tools["t1"], cleaner=" Smith family ")
     unit = assistant.get_item(tools["t1"])
     assert unit["holder"] == "Alice" and unit["cleaner"] == "Smith family"
     assert unit["event"] == "Fall Camp" and unit["since"] == since
     assert unit["history"][0]["type"] == "cleaning_started"
-    assistant.correct_cleaner(tools["t1"], "Smith Family")
+    assistant.correct_sent_home_with(tools["t1"], "Smith Family")
     assert assistant.get_item(tools["t1"])["history"][0]["cleaner"] == "Smith Family"
     with pytest.raises(Conflict):
         assistant.transfer(tools["t1"], cleaner="Jones")
 
 
-def test_send_home_to_clean_takes_a_single_item_without_a_count(tools):
+def test_send_home_with_takes_a_single_item_without_a_count(tools):
     with pytest.raises(BadRequest):
-        assistant.send_home_to_clean(tools["t1"], "Smith")  # not out yet
+        assistant.send_home_with(tools["t1"], "Smith")  # not out yet
     assistant.check_out(tools["t1"], event="Fall Camp")
     with pytest.raises(BadRequest):
-        assistant.send_home_to_clean(tools["t1"], "Smith", 1)  # a single item has no count
-    assistant.send_home_to_clean(tools["t1"], " Smith ", note="clean the fly")
+        assistant.send_home_with(tools["t1"], "Smith", 1)  # a single item has no count
+    assistant.send_home_with(tools["t1"], " Smith ")
     unit = assistant.get_item(tools["t1"])
     assert unit["holder"] == "Alice" and unit["cleaner"] == "Smith" and unit["event"] == "Fall Camp"
     with pytest.raises(Conflict):
-        assistant.send_home_to_clean(tools["t1"], "Jones")
+        assistant.send_home_with(tools["t1"], "Jones")
 
 
 def test_a_transfer_of_gear_at_a_cleaners_keeps_the_send_home_correctable(tools, bob):
     assistant.check_out(tools["t1"], event="Fall Camp")
     assistant.transfer(tools["t1"], cleaner="Smth")
     assistant.transfer(tools["t1"], bob)
-    assistant.correct_cleaner(tools["t1"], "Smith")
+    assistant.correct_sent_home_with(tools["t1"], "Smith")
     unit = assistant.get_item(tools["t1"])
     assert unit["holder"] == "Bob" and unit["cleaner"] == "Smith" and unit["event"] == "Fall Camp"
     assert unit["history"][1]["cleaner"] == "Smith"
@@ -2279,23 +2283,23 @@ def test_sending_gear_home_leaves_its_holder_alone(tools):
 
 def test_a_pool_count_out_at_camp_goes_home_to_clean(tools, pool_id):
     with pytest.raises(BadRequest):
-        assistant.send_home_to_clean(pool_id, "Smith", 1)  # none out yet
+        assistant.send_home_with(pool_id, "Smith", 1)  # none out yet
     with pytest.raises(BadRequest):
-        assistant.send_home_to_clean(tools["t1"], "Smith", 1)  # a single item uses transfer
+        assistant.send_home_with(tools["t1"], "Smith", 1)  # a single item uses transfer
     assistant.check_out(pool_id, count=5, event="Fall Camp")
     with pytest.raises(BadRequest):
-        assistant.send_home_to_clean(pool_id, "Smith", 6)
-    assistant.send_home_to_clean(pool_id, " Smith ", 3)
-    assistant.send_home_to_clean(pool_id, "Jones", 2)
+        assistant.send_home_with(pool_id, "Smith", 6)
+    assistant.send_home_with(pool_id, " Smith ", 3)
+    assistant.send_home_with(pool_id, "Jones", 2)
     with pytest.raises(BadRequest):
-        assistant.send_home_to_clean(pool_id, "Smith", 1)  # all five are at families now
+        assistant.send_home_with(pool_id, "Smith", 1)  # all five are at families now
     assert sorted(assistant.get_item(pool_id)["cleaners"], key=str) == [
         {"cleaner": "Jones", "count": 2},
         {"cleaner": "Smith", "count": 3},
     ]
     lines = [(e.get("cleaner"), e["count"], e.get("event")) for e in assistant.whats_out()["holders"][0]["items"]]
     assert sorted(lines, key=str) == [("Jones", 2, "Fall Camp"), ("Smith", 3, "Fall Camp")]
-    assistant.back_from_cleaning(pool_id, "Smith", count=1)
+    assistant.back_from_home(pool_id, "Smith", count=1)
     assert assistant.get_item(pool_id)["history"][0]["type"] == "cleaning_ended"
 
 
@@ -2523,7 +2527,7 @@ def test_gear_at_a_cleaners_home_keeps_an_ended_event_joinable(db_path, tools, m
     _days_ago(monkeypatch, 3)
     assistant.check_out(tools["stove"], event="Fall Camp")
     monkeypatch.undo()
-    assistant.send_home_to_clean(tools["stove"], "Smith")
+    assistant.send_home_with(tools["stove"], "Smith")
 
     assistant.check_out(tools["t1"], event="Fall Camp")
     [camp] = _reservations_named(db_path, "Fall Camp")

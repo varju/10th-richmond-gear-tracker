@@ -276,15 +276,14 @@ test("Add another unit is only on a live unit under a live generic (FR-INV-45)",
   expect(addAnother()).toBeInTheDocument();
 });
 
-test("a half-typed note asks before Add another unit creates anything", async () => {
+test("a half-typed problem asks before Add another unit creates anything", async () => {
   const tents = await act.createGeneric(store, { name: "4-person tent", home_location_id: cold });
   const first = await act.addUnit(store, tents);
   navigate(`/items/${first}`);
   renderInShell(<Routed store={store} />);
 
-  await user.click(screen.getByText(/^History/));
-  await user.click(screen.getAllByRole("button", { name: "Add note" })[0]!);
-  await user.type(screen.getByLabelText("New note"), "muddy");
+  await user.click(screen.getAllByRole("button", { name: "Report a problem" })[0]!);
+  await user.type(screen.getByLabelText("Problem"), "muddy");
   await user.click(screen.getByRole("button", { name: "Add another unit" }));
   expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
   expect(inv.unitsOf(store.state, tents)).toHaveLength(1);

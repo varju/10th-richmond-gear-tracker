@@ -69,7 +69,6 @@ const unreachable = createApi({
   },
 });
 
-// History's Add note sits above the list now, so the list itself is not the summary's next sibling.
 const historyList = () =>
   screen
     .getByRole("heading", { name: /^History(?: ·|$)/ })

@@ -265,17 +265,17 @@ test("gear at home for cleaning lists its cleaner, one line per family for a sta
   const rows = outRows(whatIsOut(cleaning, T0));
   expect(rows.map((r) => [r.item.name, outFor(r), r.count ?? null])).toEqual(
     expect.arrayContaining([
-      ["Tent", "Cleaning with Smith family", null],
+      ["Tent", "At home with Smith family", null],
       ["Bags", "", 3],
-      ["Bags", "Cleaning with Smith", 5],
-      ["Bags", "Cleaning with Jones", 2],
+      ["Bags", "At home with Smith", 5],
+      ["Bags", "At home with Jones", 2],
     ]),
   );
   expect(rows).toHaveLength(4);
 });
 
 test("a line out for cleaning still names its event (FR-OUT-46)", () => {
-  expect(outFor({ event: "Rainbucket", cleaner: "Smith" })).toBe("Rainbucket · Cleaning with Smith");
+  expect(outFor({ event: "Rainbucket", cleaner: "Smith" })).toBe("Rainbucket · At home with Smith");
   expect(outFor({ event: "Rainbucket" })).toBe("Rainbucket");
   expect(outFor({ event: null })).toBe("");
 });

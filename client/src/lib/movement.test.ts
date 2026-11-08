@@ -4,6 +4,7 @@ import * as act from "./actions";
 import { openDb } from "./db";
 import { item, poolCounts, poolLots } from "./inventory";
 import * as mv from "./movement";
+import * as notes from "./notes";
 import { eventAsked, SESSION_MS, sessionEvent, setSessionEvent } from "./session";
 import { Store } from "./store";
 
@@ -26,11 +27,13 @@ async function storedSessionAt() {
 }
 
 test("check out, then in, with the session event and a note on each", async () => {
-  const out = await mv.checkOut(store, tent, { event: "Spring camp", note: "to a patrol" });
+  const out = await mv.checkOut(store, tent, { event: "Spring camp" });
+  await notes.addNote(store, { entity_type: "item", entity_id: tent }, "to a patrol", out.id);
   expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice" });
   expect(out.payload).toEqual({ holder_id: "alice", event: "Spring camp", reservation_id: expect.any(String) });
 
-  await mv.checkIn(store, tent, { note: "muddy" });
+  const back = await mv.checkIn(store, tent);
+  await notes.addNote(store, { entity_type: "item", entity_id: tent }, "muddy", back.id);
   expect(item(store.state, tent)).toMatchObject({ status: "in", holder_id: null });
 
   const h = mv.history(store, tent);
@@ -86,7 +89,7 @@ test("the wrong direction is refused, and so is retired gear", async () => {
 });
 
 test("a note is corrected by appending; the item shows the new text", async () => {
-  const note = await mv.addNote(store, tent, "handed to a Scout");
+  const note = await notes.addNote(store, { entity_type: "item", entity_id: tent }, "handed to a Scout");
   await mv.correctNote(store, tent, note.id, "handed to a Scout for the weekend");
   expect(item(store.state, tent)?.notes).toEqual([
     { id: note.id, text: "handed to a Scout for the weekend", actor_id: "alice", at: note.effective_at },
@@ -406,7 +409,7 @@ test("a transfer of gear at a cleaner's home keeps the cleaner (FR-OUT-46)", asy
 });
 
 test("cleaned gear comes back to the Scouter, who still holds it (FR-OUT-51)", async () => {
-  await expect(mv.backFromCleaning(store, tent)).rejects.toThrow("not out for cleaning");
+  await expect(mv.backFromCleaning(store, tent)).rejects.toThrow("not sent home");
   await mv.checkOut(store, tent);
   await mv.sendItemHome(store, tent, { cleaner: "Smith" });
   await mv.backFromCleaning(store, tent);
@@ -432,19 +435,18 @@ test("part of a family's share of a stack comes back; the counts do not move (FR
   ]);
 });
 
-test("cleaning ending shows in the history and carries a note (FR-OUT-51)", async () => {
+test("cleaning ending shows in the history (FR-OUT-51)", async () => {
   await mv.checkOut(store, tent);
   await mv.sendItemHome(store, tent, { cleaner: "Smith" });
-  await mv.backFromCleaning(store, tent, { note: "zip stiff" });
+  await mv.backFromCleaning(store, tent);
   const [latest] = mv.history(store, tent);
   expect(latest?.type).toBe("cleaning_ended");
-  expect(latest?.notes.map((n) => n.text)).toEqual(["zip stiff"]);
 });
 
 test("gear already out can be sent home, keeping the Scouter as holder (FR-OUT-46)", async () => {
   const out = await mv.checkOut(store, tent, { event: "Camp" });
   const since = item(store.state, tent)?.since;
-  const sent = await mv.sendItemHome(store, tent, { cleaner: " Smith family ", note: "fly is wet" });
+  const sent = await mv.sendItemHome(store, tent, { cleaner: " Smith family " });
   expect(sent.type).toBe("cleaning_started");
   expect(sent.payload).toEqual({ cleaner: "Smith family", movement_id: out.id });
   expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice", since });
@@ -455,8 +457,7 @@ test("gear already out can be sent home, keeping the Scouter as holder (FR-OUT-4
     cleaning_id: sent.id,
   });
   expect(mv.history(store, tent)[0]).toMatchObject({ type: "cleaning_started", cleaner: "Smith family" });
-  expect(mv.history(store, tent)[0]?.notes.map((n) => n.text)).toEqual(["fly is wet"]);
-  await expect(mv.sendItemHome(store, tent, { cleaner: "Jones" })).rejects.toThrow("already at a cleaner");
+  await expect(mv.sendItemHome(store, tent, { cleaner: "Jones" })).rejects.toThrow("already at someone");
   await expect(
     mv.sendItemHome(store, await act.createItem(store, { name: "Tent 2" }), { cleaner: "Jones" }),
   ).rejects.toThrow("not out");

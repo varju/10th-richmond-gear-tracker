@@ -1,15 +1,7 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import type { Item } from "../lib/inventory";
 import type { Weight } from "../lib/weighing";
-import {
-  addNote,
-  backFromCleaning,
-  checkIn,
-  checkOut,
-  sendItemHome,
-  transfer,
-  type TransferOptions,
-} from "../lib/movement";
+import { backFromCleaning, checkIn, checkOut, sendItemHome, transfer, type TransferOptions } from "../lib/movement";
 import { openRepairs, raiseTicket } from "../lib/repairs";
 import { type Session, sessionEvent } from "../lib/session";
 import type { Store } from "../lib/store";
@@ -26,7 +18,13 @@ export const CONFIRM_MS = 1500;
 /** How long a "Checked out · Tent 1" strip stays up. */
 export const MOVED_MS = 4000;
 
-export type MoveKind = "Checked out" | "Returned" | "Transferred" | "Sent home" | "Back from cleaning";
+export type MoveKind = "Checked out" | "Returned" | "Transferred" | "Sent home" | "Back from home";
+
+/** What a confirmation says: who the gear went home with, or came back from, when a name is given. */
+export function movedText(kind: MoveKind, cleaner?: string): string {
+  if (!cleaner) return kind;
+  return kind === "Back from home" ? `Back from ${cleaner}` : `Sent home with ${cleaner}`;
+}
 
 /** A message that clears itself after `ms`. A newer message restarts the time. */
 export function useFlash(ms: number): [string | null, (message: string) => void, () => void] {
@@ -57,7 +55,7 @@ interface Props {
   session?: Session;
   /** `to` is set on a transfer to another member (FR-OUT-26), which does not pack a reservation. `cleaner` names who took it home. */
   onMoved: (kind: MoveKind, to?: string, cleaner?: string) => void;
-  /** Offers Save without moving for a typed note or problem (FR-OUT-27), and says what was saved. */
+  /** Offers Save without moving for a typed problem (FR-OUT-27), and says what was saved. */
   onSaved?: (message: string) => void;
   /** Buttons that follow the movement buttons. */
   children?: ReactNode;
@@ -69,12 +67,10 @@ type Pending = { kind: MoveKind; to?: string; cleaner?: string; act: (options: T
  * The buttons that move an item, chosen by its state (FR-OUT-06): Check out when it is in, Return
  * when the signed-in person has it, and Return beside Take over, with neither the default, when
  * someone else has it (FR-OUT-12). Anything out can be transferred to another member (FR-OUT-26).
- * An optional note rides on the move (FR-OUT-13), and a problem raises a ticket once it has moved
- * (FR-OUT-09); either can be saved without a move (FR-OUT-27). The shell pushes the move as soon
+ * A problem raises a ticket once it has moved (FR-OUT-09), or is saved without a move (FR-OUT-27). The shell pushes the move as soon
  * as it is recorded (FR-OFF-03).
  */
 export function MoveActions({ store, it, showEvent = false, session, onMoved, onSaved, children }: Props) {
-  const [note, setNote] = useState<string | null>(null);
   const [fault, setFault] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -82,16 +78,12 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
   const [picking, setPicking] = useState(false);
   // Weighed gear asks what it weighs as it comes back (FR-INV-67).
   const [weighing_, setWeighing] = useState(false);
-  // The name being typed for gear sent home to clean (FR-OUT-46); null when not asking.
+  // The name being typed for gear sent home with someone (FR-OUT-46); null when not asking.
   const [cleaner, setCleaner] = useState<string | null>(null);
   // A move waiting on the event question (FR-OUT-05).
   const { askThen, question } = useEventQuestion(store, session);
-  // A typed note or problem goes with a move or Save without moving; leaving asks but cannot save it.
-  useUnsaved(
-    (note !== null && note.trim() !== "") ||
-      (fault !== null && fault.trim() !== "") ||
-      (cleaner !== null && cleaner.trim() !== ""),
-  );
+  // A typed problem goes with a move or Save without moving; leaving asks but cannot save it.
+  useUnsaved((fault !== null && fault.trim() !== "") || (cleaner !== null && cleaner.trim() !== ""));
   const me = store.meta.user?.id;
   const { event } = session ?? sessionEvent(store.meta, store.now());
   const open = openRepairs(store.state, it.id);
@@ -116,7 +108,6 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
       event: recorded.event,
       // Handing gear to someone else is not packing it for the reservation (FR-RES-23).
       reservation_id: to ? undefined : recorded.reservation_id,
-      note: note ?? undefined,
       // Packing has its own fixed session and leaves the plain one alone (FR-RES-25).
       packing: session !== undefined,
     };
@@ -127,7 +118,6 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
       setBusy(false);
       return;
     }
-    setNote(null);
     setPicking(false);
     setCleaner(null);
     // The move already happened; a fault that fails to record is a separate problem and must not
@@ -150,17 +140,12 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
     onMoved(kind, to, cleanerName);
   }
 
-  /** The note or problem on its own, nothing moved: a stock check from the same scan (FR-OUT-27). */
+  /** The problem on its own, nothing moved: a stock check from the same scan (FR-OUT-27). */
   async function saveOnly() {
     setBusy(true);
     setError(null);
     const saved: string[] = [];
     try {
-      if (note?.trim()) {
-        await addNote(store, it.id, note);
-        setNote(null);
-        saved.push("Note saved");
-      }
       if (fault?.trim()) {
         await raiseTicket(store, it.id, fault);
         setFault(null);
@@ -177,8 +162,8 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
 
   // Buttons shift under the finger, so a second tap would record the opposite move.
   const holding = busy || justMoved !== null;
-  const typing = note !== null || fault !== null;
-  const typed = (note?.trim() ?? "") !== "" || (fault?.trim() ?? "") !== "";
+  const typing = fault !== null;
+  const typed = (fault?.trim() ?? "") !== "";
 
   const checkOutMove: Pending = { kind: "Checked out", act: (o) => checkOut(store, it.id, o) };
   const returnMove: Pending = { kind: "Returned", act: (o) => checkIn(store, it.id, o) };
@@ -194,8 +179,9 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
   /** The Return button: weighed gear asks its weight first. */
   const startReturn = () => (weighedOnReturn ? setWeighing(true) : start(returnMove, false));
   const backMove: Pending = {
-    kind: "Back from cleaning",
-    act: (o) => backFromCleaning(store, it.id, { note: o.note }),
+    kind: "Back from home",
+    cleaner: it.movement?.cleaner,
+    act: () => backFromCleaning(store, it.id),
   };
   const takeOver: Pending = { kind: "Transferred", act: (o) => transfer(store, it.id, o) };
   const handTo = (to: string): Pending => ({
@@ -207,7 +193,7 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
   const sendHome = (name: string): Pending => ({
     kind: "Sent home",
     cleaner: name,
-    act: (o) => sendItemHome(store, it.id, { note: o.note, packing: o.packing, cleaner: name }),
+    act: (o) => sendItemHome(store, it.id, { packing: o.packing, cleaner: name }),
   });
 
   const asking = question(children);
@@ -242,18 +228,8 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
           onChange={(e) => setFault(e.target.value)}
         />
       )}
-      {note !== null && (
-        <textarea
-          aria-label="Note"
-          rows={2}
-          autoFocus
-          placeholder="e.g. handed to a patrol leader"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-        />
-      )}
       {cleaner !== null ? (
-        <section className="cleaner-picker" aria-label="Send home to clean">
+        <section className="cleaner-picker" aria-label="Send home with">
           <CleanerField store={store} value={cleaner} onChange={setCleaner} disabled={busy} />
           <div className="row">
             <button
@@ -303,7 +279,7 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
           {canTake && showEvent && <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>}
           {out && movable && it.movement?.cleaner && (
             <button type="button" className="primary" disabled={holding} onClick={() => start(backMove, false)}>
-              Back from cleaning
+              Back from {it.movement.cleaner}
             </button>
           )}
           {out && !theirs && (
@@ -335,9 +311,6 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
           {/* The minor toggles sit in rows of their own, so a row's buttons share one height. */}
           {(canTake || out) && !typing && (
             <div className="row minors">
-              <button type="button" className="minor" onClick={() => setNote("")}>
-                Add note
-              </button>
               <button type="button" className="minor" onClick={() => setFault("")}>
                 Report a problem
               </button>
@@ -346,7 +319,7 @@ export function MoveActions({ store, it, showEvent = false, session, onMoved, on
           {out && movable && !it.movement?.cleaner && session === undefined && !typing && (
             <div className="row minors">
               <button type="button" className="minor" disabled={busy} onClick={() => setCleaner("")}>
-                Send home to clean
+                Send home with…
               </button>
             </div>
           )}

@@ -42,7 +42,7 @@ export function holdingLabel(state: State, it: Item, me: string | undefined, now
   if (cleaner) {
     // The Scouter who handed it over is still the one to chase (FR-OUT-46).
     const via = it.holder_id === me ? "you" : userName(state, it.holder_id);
-    return `Out for cleaning with ${cleaner}${since} · via ${via}`;
+    return `At home with ${cleaner}${since} · via ${via}`;
   }
   const who = it.holder_id === me ? "You have this" : `Out with ${userName(state, it.holder_id)}`;
   const event = typeof it.movement?.event === "string" ? it.movement.event : null;

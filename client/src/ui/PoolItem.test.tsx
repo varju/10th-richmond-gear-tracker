@@ -26,7 +26,7 @@ afterEach(() => unsaved.cancel());
 const user = userEvent.setup();
 const fact = (label: string) => (screen.getByText(label).nextElementSibling as HTMLElement).textContent;
 const shares = () =>
-  [...screen.getByText("Cleaning").nextElementSibling!.querySelectorAll(".cleaning-share > span")].map(
+  [...screen.getByText("At home with").nextElementSibling!.querySelectorAll(".cleaning-share > span")].map(
     (x) => x.textContent,
   );
 
@@ -475,7 +475,7 @@ test("a share of a stack goes home with a family, and a return names whose it is
     ["4", "Smith"],
     ["2", "Jones"],
   ] as const) {
-    await user.click(screen.getByRole("button", { name: "Send home to clean" }));
+    await user.click(screen.getByRole("button", { name: "Send home with…" }));
     const count = screen.getByLabelText("How many");
     await user.clear(count);
     await user.type(count, n);
@@ -502,12 +502,12 @@ test("part of a family's share comes back to the Scouter from the stack's page (
   navigate(`/items/${bags}`);
   renderInShell(<ItemPage store={store} id={bags} />);
 
-  await user.click(screen.getByRole("button", { name: "Back from cleaning" }));
+  await user.click(screen.getByRole("button", { name: "Back from home" }));
   await user.selectOptions(screen.getByLabelText("Back from"), "Smith · 4");
   const count = screen.getByLabelText("How many");
   await user.clear(count);
   await user.type(count, "3");
-  await user.click(screen.getAllByRole("button", { name: "Back from cleaning" })[0]!);
+  await user.click(screen.getAllByRole("button", { name: "Back from home" })[0]!);
 
   await waitFor(() => expect(shares()).toEqual(["Jones · 2", "Smith · 1"]));
 });

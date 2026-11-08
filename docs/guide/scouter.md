@@ -77,13 +77,14 @@ Open the item and tap **Mark missing**. It drops off **What is out** until someo
 Scan it. The card names who has it; tap **Take over**. It never comes back to the locker, and the history keeps both of
 you.
 
-### Send gear home to clean
+### Send gear home with someone
 
-Once gear is out, for example at camp, scan it and tap **Send home to clean**. Type who is taking it; the name is
-required, and names used lately appear as you type. You stay the holder, so it stays on your list until it is back. For
-a stack, give the count; send each family's share on its own. When a parent brings it back, tap **Back from cleaning**;
-it stays with you and leaves the family. For a stack, pick the family and the count. When it goes back to the locker,
-tap **Return**. To fix a typo, open the item and tap **Change name**.
+Once gear is out, for example at camp, scan it and tap **Send home with…**. Use it when someone takes gear home to clean
+it, or borrows it. Type the adult who has it, never a Scout's name; the name is required, and names used lately appear
+as you type. You stay the holder, so it stays on your list until it is back. For a stack, give the count; send each
+person's share on its own. When they bring it back, tap **Back from** and their name; it stays with you and leaves their
+home. For a stack, pick the person and the count, then tap **Back from home**. When it goes back to the locker, tap
+**Return**. To fix a typo, open the item and tap **Change name**.
 
 ### Hand gear to someone else
 

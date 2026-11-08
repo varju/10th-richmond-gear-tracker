@@ -599,7 +599,7 @@ def _ticked(it: Fields, reservation_id: str) -> bool:
 
 
 def pool_packed(it: Fields, reservation_id: str) -> int:
-    """How much of a stack is out under the reservation and not at a family's home (FR-RES-36).
+    """How much of a stack is out under the reservation and not at someone's home (FR-RES-36).
     Mirrors poolPacked in reservations.ts."""
     return sum(
         lot["count"]

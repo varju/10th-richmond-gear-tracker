@@ -70,7 +70,7 @@ Some Scouters only want to check gear in and out, and do not need the gear-manag
     within 10 s) suggest the scanner.
   - Rare: recount 8, photos 7, notes 5, cleaning 5.
   - Everyday on an item page: check out, check in, change event, add QR code. Rare: edit, recount, photos, notes, send
-    home to clean, merge, several of these, single item, counted stack, duplicate, delete.
+    home with, merge, several of these, single item, counted stack, duplicate, delete.
 
 **Deferred because:** the log says little about Users yet. Watch two or three Scouters (step 3) before tidying.
 
@@ -83,18 +83,15 @@ falls back to its generic's), shown on the scan card, the item page and the list
 
 **Deferred because:** photos are online only (FR-INV-11), so a photo at check-out in a locker would mostly fail to load.
 
-## One Add note and one Report a problem on an item page
+## One Report a problem on an item page
 
-An item page has two of each. The move buttons (shared with the scan card) offer **Add note**, which rides on the next
-move, and **Report a problem**, which raises a ticket on the next move. The page has its own **Report a problem** under
-Repairs and **Add note** in History. People expect the page's ones and find no way to save the others without moving the
-item. A note on a move is also easily mixed up with **Send home to clean**, which names who has it.
+An item page has two. The move buttons (shared with the scan card) offer **Report a problem**, which raises a ticket on
+the next move. The page has its own under Repairs. People expect the page's one and find no way to save the other
+without moving the item.
 
 **Considered:**
 
-- Hide the move buttons' pair on the item page; the scan card keeps it. A note on a move is then scan card only.
-- Give the pair **Save without moving** on the item page, as the scan card has (FR-OUT-27). Tried and shelved: it left
-  two of each.
-- Whether a note on a move earns its place at all, now that gear sent home names the family (FR-OUT-46).
+- Hide the move buttons' one on the item page; the scan card keeps it.
+- Give it **Save without moving** on the item page, as the scan card has (FR-OUT-27). Tried and shelved: it left two.
 
 **Deferred because:** decide with [Fewer buttons for beginners](#fewer-buttons-for-beginners).

@@ -68,20 +68,13 @@ test("both versions are shown in words, with who, what for, when, and which devi
   expect(within(card).getByRole("button", { name: "Keep: Carol has it" })).toBeInTheDocument();
 });
 
-test("It is back records a check-in, with the note, and the conflict is gone", async () => {
+test("It is back records a check-in, and the conflict is gone", async () => {
   renderInShell(<Conflicts store={store} />);
-  await user.click(screen.getByRole("button", { name: "Add note" }));
-  await user.type(screen.getByLabelText("Note"), "found in the hall");
+  expect(screen.queryByRole("button", { name: "Add note" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "It is back" }));
   await waitFor(() => expect(screen.getByText("No conflicts.")).toBeInTheDocument());
   expect(item(store.state, tent)?.status).toBe("in");
-  // The note is written after the movement; wait for both.
-  await waitFor(() =>
-    expect(store.pending.slice(-2).map((e) => [e.type, e.payload.text])).toEqual([
-      ["checked_in", undefined],
-      ["note_added", "found in the hall"],
-    ]),
-  );
+  expect(store.pending.at(-1)?.type).toBe("checked_in");
 });
 
 test("Keep records the review and leaves the holder as they are", async () => {

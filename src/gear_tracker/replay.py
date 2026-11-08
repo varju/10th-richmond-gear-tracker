@@ -152,7 +152,7 @@ def return_lots(lots: list[dict[str, Any]], before: int, count: int, cleaner: st
 
     A return naming a cleaner comes off that cleaner's lots first. What is left to take, and any return that
     names nobody, comes off the part no lot explains, then the ordinary lots, then the cleaning lots: each
-    oldest first, so a plain return never swallows a family's lot.
+    oldest first, so a plain return never swallows someone's lot.
     """
     left = min(count, before)
     kept = [dict(lot) for lot in lots]

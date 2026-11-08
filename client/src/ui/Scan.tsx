@@ -26,7 +26,7 @@ import { useStore } from "../useStore";
 import { PoolActions } from "./ItemPage";
 import { EventSuggestions, typedEvents } from "./EventChoice";
 import { holdingLabel, plural, statusLabel, userName } from "./labels";
-import { MOVED_MS, MoveActions, useFlash } from "./MoveActions";
+import { MOVED_MS, MoveActions, movedText, useFlash } from "./MoveActions";
 import { LightButton, useLight } from "./Light";
 import { Page } from "./Page";
 
@@ -252,14 +252,14 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
               session={packing}
               onMoved={(kind, to, cleaner) => {
                 const text = `${
-                  to ? `Transferred to ${userName(store.state, to)}` : cleaner ? `Sent home with ${cleaner}` : kind
+                  to ? `Transferred to ${userName(store.state, to)}` : movedText(kind, cleaner)
                 } · ${displayName(store.state, card)}`;
                 confirm(kind === "Checked out" ? withEvent(text) : text);
                 showCard(null);
                 moved.current.set(card.id, Date.now());
                 // An extra taken during a reservation session joins its gear list (FR-RES-07).
                 // Gear handed to someone else is not packed for it (FR-OUT-26).
-                if (booked && kind !== "Returned" && kind !== "Sent home" && kind !== "Back from cleaning" && !to)
+                if (booked && kind !== "Returned" && kind !== "Sent home" && kind !== "Back from home" && !to)
                   void addExtra(store, booked.id, card.id);
               }}
               onSaved={(message) => {

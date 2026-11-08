@@ -168,7 +168,7 @@ test("Return in Taken home by does not send the stack home", async () => {
   renderInShell(<Scan store={store} native />);
   await camera.scan("AAAAAAAAAA");
   await waitFor(() => expect(card()).toBeInTheDocument());
-  await user.click(within(card()).getByRole("button", { name: "Send home to clean" }));
+  await user.click(within(card()).getByRole("button", { name: "Send home with…" }));
   await user.type(within(card()).getByLabelText("Taken home by"), "Dana{Enter}");
   expect(card()).toBeInTheDocument();
   expect(item(store.state, bowls)?.pool_out).toEqual({ alice: 4 });

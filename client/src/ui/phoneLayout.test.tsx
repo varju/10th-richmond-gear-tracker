@@ -31,7 +31,7 @@ afterEach(() => {
   unsaved.cancel();
 });
 
-test("a move button never shares a row with the shorter note buttons", async () => {
+test("a move button never shares a row with the shorter minor buttons", async () => {
   const tent = await act.createItem(store, { name: "Tent 1" });
   await mv.checkOut(store, tent);
   await store.setMeta({ user: carol });
@@ -40,7 +40,7 @@ test("a move button never shares a row with the shorter note buttons", async () 
 
   const moves = screen.getByRole("button", { name: "Take over" }).parentElement!;
   const actions = moves.closest<HTMLElement>(".move-actions")!;
-  const minors = within(actions).getByRole("button", { name: "Add note" }).parentElement!;
+  const minors = within(actions).getByRole("button", { name: "Report a problem" }).parentElement!;
   expect(moves).not.toBe(minors);
   expect(moves.querySelectorAll("button.minor")).toHaveLength(0);
   expect([...minors.querySelectorAll("button")].every((b) => b.classList.contains("minor"))).toBe(true);

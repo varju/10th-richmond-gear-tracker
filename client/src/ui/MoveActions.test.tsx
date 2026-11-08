@@ -7,7 +7,7 @@ import { item } from "../lib/inventory";
 import * as mv from "../lib/movement";
 import type { Store } from "../lib/store";
 import { openStore } from "./codeTestKit";
-import { CONFIRM_MS, MoveActions } from "./MoveActions";
+import { CONFIRM_MS, MoveActions, movedText } from "./MoveActions";
 import { alice, renderInShell, seedUsers, inSession } from "./moveTestKit";
 
 // The move buttons, and the note or fault that can ride on a move (FR-OUT-13, FR-REP-01).
@@ -58,7 +58,7 @@ test("a move that fails is reported, the fault text is kept for a retry, and no 
   expect(store.pending.some((e) => e.entity_type === "repair")).toBe(false);
 });
 
-test("Send home to clean needs a name, offers recent ones, and keeps the Scouter as holder (FR-OUT-46, FR-OUT-48)", async () => {
+test("Send home with needs a name, offers recent ones, and keeps the Scouter as holder (FR-OUT-46, FR-OUT-48)", async () => {
   const other = await act.createItem(store, { name: "Tent 2" });
   await mv.checkOut(store, other);
   await mv.sendItemHome(store, other, { cleaner: "Smith family" });
@@ -67,7 +67,7 @@ test("Send home to clean needs a name, offers recent ones, and keeps the Scouter
   const onMoved = vi.fn();
   renderInShell(<MoveActions store={store} it={item(store.state, tent)!} onMoved={onMoved} />);
 
-  await user.click(screen.getByRole("button", { name: "Send home to clean" }));
+  await user.click(screen.getByRole("button", { name: "Send home with…" }));
   const send = screen.getByRole("button", { name: "Send home" });
   expect(send).toBeDisabled();
 
@@ -81,20 +81,23 @@ test("Send home to clean needs a name, offers recent ones, and keeps the Scouter
   expect(item(store.state, tent)?.movement?.cleaner).toBe("Smith family");
 });
 
-test("Send home to clean is not offered for gear that is in", () => {
+test("Send home with is not offered for gear that is in", () => {
   renderInShell(<MoveActions store={store} it={item(store.state, tent)!} onMoved={vi.fn()} />);
-  expect(screen.queryByRole("button", { name: "Send home to clean" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Send home with…" })).toBeNull();
 });
 
-test("Back from cleaning clears the family and leaves the Scouter holding it (FR-OUT-51)", async () => {
+test("Back from a name clears it and leaves the Scouter holding it (FR-OUT-51)", async () => {
   await mv.checkOut(store, tent);
   await mv.sendItemHome(store, tent, { cleaner: "Smith family" });
   const onMoved = vi.fn();
   renderInShell(<MoveActions store={store} it={item(store.state, tent)!} onMoved={onMoved} />);
 
-  await user.click(screen.getByRole("button", { name: "Back from cleaning" }));
+  await user.click(screen.getByRole("button", { name: "Back from Smith family" }));
 
-  await waitFor(() => expect(onMoved).toHaveBeenCalledWith("Back from cleaning", undefined, undefined));
+  await waitFor(() => expect(onMoved).toHaveBeenCalledWith("Back from home", undefined, "Smith family"));
+  expect(movedText("Back from home", "Smith family")).toBe("Back from Smith family");
+  expect(movedText("Sent home", "Smith family")).toBe("Sent home with Smith family");
+  expect(movedText("Returned")).toBe("Returned");
   expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice" });
   expect(item(store.state, tent)?.movement?.cleaner).toBeUndefined();
 });
@@ -108,7 +111,7 @@ test("the move buttons pause after a move, so a second tap cannot undo it (FR-OU
   }
   renderInShell(<Page />);
 
-  await user.click(screen.getByRole("button", { name: "Back from cleaning" }));
+  await user.click(screen.getByRole("button", { name: "Back from Smith family" }));
   await waitFor(() => expect(screen.getByRole("button", { name: "Return" })).toBeDisabled());
   await user.click(screen.getByRole("button", { name: "Return" }));
   expect(item(store.state, tent)).toMatchObject({ status: "out", holder_id: "alice" });

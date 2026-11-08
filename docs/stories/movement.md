@@ -52,10 +52,10 @@ Covers: FR-OUT-09, FR-REP-01, FR-REP-05
 ## S-MOVE-05 Fix a detail on the way past
 
 A Scouter scans a stove on the shelf and notices it is stored in the wrong place. They correct its home from the card,
-and leave a note on a dented pot, without moving either.
+and raise a repair ticket on a dented pot, without moving either.
 
 - Any field can be edited from the scan card
-- A note or a repair ticket needs no move
+- A repair ticket needs no move
 - The change is confirmed, not silent
 - The edit is recorded against the item
 
@@ -79,15 +79,16 @@ A Scouter scans a stove that is already out. The card names who has it and since
 
 Covers: FR-OUT-12, FR-OUT-35, FR-OUT-39
 
-## S-MOVE-08 Handed to a youth
+## S-MOVE-08 Lent to a parent
 
-A Scouter checks out a compass and gives it to a Scout for the weekend. They add a note saying so.
+A Scouter checks out a tent and lends it to a parent for the weekend. They tap **Send home with** and type the parent's
+name.
 
-- A note can be attached to one movement without changing the session event
-- The note can be corrected later
+- Sending it home with a name does not change the holder, event or reservation
+- The name can be corrected later
 - No account is needed for the person holding it
 
-Covers: FR-OUT-13, FR-OUT-15, FR-OUT-16
+Covers: FR-OUT-46, FR-OUT-50
 
 ## S-MOVE-09 The sticker came off
 

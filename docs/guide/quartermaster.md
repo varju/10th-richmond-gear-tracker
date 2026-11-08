@@ -23,7 +23,7 @@ sidebar, and on the computer home screen, while any report is open. Open a repor
 
 Two devices with no signal can both check out the same item. **Conflicts** appears while any is open, on the phone and
 on the computer home screen. Each shows both check-outs; tap **It is back** if it came back, or **Keep** if the second
-person still has it. Add a note first if the story needs one.
+person still has it.
 
 ### Mark an item missing
 

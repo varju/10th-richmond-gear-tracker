@@ -182,7 +182,7 @@ export function cleanerKey(name: string): string {
  * A holder's lots after `count` of their `before` are returned (FR-OUT-47). Mirrors return_lots in
  * replay.py. A return naming a cleaner comes off that cleaner's lots first. What is left to take, and
  * any return that names nobody, comes off the part no lot explains, then the ordinary lots, then the
- * cleaning lots: each oldest first, so a plain return never swallows a family's lot.
+ * cleaning lots: each oldest first, so a plain return never swallows someone's lot.
  */
 export function returnLots(lots: PoolLot[], before: number, count: number, cleaner?: string | null): PoolLot[] {
   let left = Math.min(count, before);

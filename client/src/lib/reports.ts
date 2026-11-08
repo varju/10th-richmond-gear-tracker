@@ -21,9 +21,9 @@ export interface OutItem {
   cleaner?: string;
 }
 
-/** What a line is out for: its event, and "Cleaning with Smith" when it went home (FR-OUT-46). */
+/** What a line is out for: its event, and "At home with Smith" when it went home (FR-OUT-46). */
 export const outFor = (entry: Pick<OutItem, "event" | "cleaner">): string =>
-  [entry.event, entry.cleaner && `Cleaning with ${entry.cleaner}`].filter(Boolean).join(" · ");
+  [entry.event, entry.cleaner && `At home with ${entry.cleaner}`].filter(Boolean).join(" · ");
 
 export interface Holder {
   id: string;

@@ -79,12 +79,12 @@ import { boughtLabel, holdingLabel, plural, statusLabel, userName } from "./labe
 import { CleanerField } from "./CleanerField";
 import { EventPicker, useEventQuestion } from "./EventChoice";
 import { ConfirmButton } from "./ConfirmButton";
-import { CONFIRM_MS, MOVED_MS, MoveActions, useFlash } from "./MoveActions";
+import { CONFIRM_MS, MOVED_MS, MoveActions, movedText, useFlash } from "./MoveActions";
 import { leftFact, WeighActions, WeighFields } from "./Weighing";
 import { weighing } from "../lib/weighing";
 import { useKeyboardForm } from "./keyboardForm";
 import { RichText } from "./RichText";
-import { AddNote, NoteLine, NoteList } from "./Notes";
+import { NoteLine, NoteList } from "./Notes";
 import { Page } from "./Page";
 import { Photos } from "./Photos";
 import { datesLabel } from "./Reservations";
@@ -289,7 +289,7 @@ export function ItemPage({ store, id }: Props) {
             store={store}
             it={it}
             showEvent
-            onMoved={(kind) => confirm(`${kind} · ${displayName(state, it)}`)}
+            onMoved={(kind, _to, cleaner) => confirm(`${movedText(kind, cleaner)} · ${displayName(state, it)}`)}
           />
           <button type="button" onClick={() => setEditing(true)}>
             Edit
@@ -366,7 +366,7 @@ export function ItemPage({ store, id }: Props) {
             <dd>{statusLabel(state, it) + (isOverdue(state, it, now()) ? " · Overdue" : "")}</dd>
             {it.status === "out" && it.movement?.cleaner && (
               <>
-                <dt>Cleaning</dt>
+                <dt>At home with</dt>
                 <dd>
                   <OutCleaner store={store} it={it} />
                 </dd>
@@ -472,9 +472,7 @@ export function ItemPage({ store, id }: Props) {
           <h3 className="section">Repairs</h3>
           <Repairs store={store} id={id} />
 
-          <HistorySection store={store} id={id} record={record}>
-            <AddNote store={store} on={onItem} />
-          </HistorySection>
+          <HistorySection store={store} id={id} record={record} />
 
           <ChangesSection store={store} id={id} record={record} />
         </div>
@@ -547,7 +545,7 @@ function CleanerName({
   );
 }
 
-/** Who has the single item at home to clean (FR-OUT-46), put right from here (FR-OUT-50). */
+/** Who has the single item at home with someone (FR-OUT-46), put right from here (FR-OUT-50). */
 function OutCleaner({ store, it }: { store: Store; it: Item }) {
   const m = it.movement as Movement;
   return (
@@ -778,9 +776,7 @@ export function describeMovement(state: State, e: HistoryEntry): string {
     return `Wrote off ${e.count} by ${who}${e.reason ? `: ${e.reason}` : ""} · ${when}`;
   if (e.type === "pool_found") return `Found ${e.count} by ${who} · ${when}`;
   if (e.type === "cleaning_ended") {
-    return `Back from ${e.cleaner ? e.cleaner : "cleaning"}${
-      e.count != null ? ` · ${e.count}` : ""
-    } by ${who} · ${when}`;
+    return `Back from ${e.cleaner ? e.cleaner : "home"}${e.count != null ? ` · ${e.count}` : ""} by ${who} · ${when}`;
   }
   if (e.type === "cleaning_started") {
     return e.count != null
@@ -911,14 +907,13 @@ function History({ store, id, entries }: { store: Store; id: string; entries: Ti
  * (NFR-USE-10). `record` is the server's whole answer, or null when this
  * device is on its own; either way the rows are drawn the same (FR-INV-31).
  */
-function HistorySection({ store, id, record, children }: Props & { record: Log | null; children?: React.ReactNode }) {
+function HistorySection({ store, id, record }: Props & { record: Log | null }) {
   const entries = timeline(record ?? store, id);
   return (
     <details className="fold">
       <summary>
         <h3 className="section">History · {entries.length}</h3>
       </summary>
-      {children}
       <History store={store} id={id} entries={entries} />
       <Reach record={record} />
     </details>
@@ -1480,7 +1475,6 @@ function PoolPage({
 }) {
   const state = store.state;
   const [moved, confirm] = useFlash(MOVED_MS);
-  const onItem = { entity_type: "item", entity_id: id };
   const counts = poolCounts(it);
   const open = openRepairs(state, id);
 
@@ -1535,7 +1529,7 @@ function PoolPage({
         )}
         {cleaningShares(it).length > 0 && (
           <>
-            <dt>Cleaning</dt>
+            <dt>At home with</dt>
             <dd>
               {cleaningShares(it).map((x) => (
                 <div key={x.cleaner} className="cleaning-share">
@@ -1587,9 +1581,7 @@ function PoolPage({
       <h3 className="section">Photos</h3>
       {photos}
 
-      <HistorySection store={store} id={id} record={record}>
-        <AddNote store={store} on={onItem} />
-      </HistorySection>
+      <HistorySection store={store} id={id} record={record} />
 
       {changes}
     </Page>
@@ -1617,7 +1609,7 @@ function returnShares(it: Item, holderId: string | null) {
   return ordinary > 0 ? [{ key: "", count: ordinary }, ...cleaning] : cleaning;
 }
 
-/** Each Scouter's share of the pool at a family's home, by family (FR-OUT-51). */
+/** Each Scouter's share of the pool at someone's home, by person (FR-OUT-51). */
 function cleaningLots(it: Item) {
   const found: { holder_id: string; key: string; cleaner: string; count: number }[] = [];
   for (const held of poolLots(it)) {
@@ -1671,7 +1663,7 @@ export function PoolActions({
 }) {
   const [mode, setMode] = useState<PoolMode | null>(null);
   const [count, setCount] = useState("1");
-  // Who is taking the stack home to clean (FR-OUT-46), and, on a return, whose share comes back (FR-OUT-47).
+  // Who is taking the stack home with someone (FR-OUT-46), and, on a return, whose share comes back (FR-OUT-47).
   const [cleaner, setCleaner] = useState("");
   const [from, setFrom] = useState("");
   const [holder, setHolder] = useState<string | null>(null);
@@ -1740,7 +1732,7 @@ export function PoolActions({
     setCount(mode === "missing" ? "1" : String(shareCount(id, shares(id)[0]?.key ?? "") || 1));
   }
 
-  // Gear at a family's home, by who sent it (FR-OUT-51).
+  // Gear at someone's home, by who sent it (FR-OUT-51).
   const atHome = cleaningLots(it);
   function pickAtHome(value: string) {
     const [id = "", key = ""] = value.split("\0");
@@ -1758,7 +1750,7 @@ export function PoolActions({
   const n = count.trim() === "" ? NaN : Number(count.trim());
   const valid = (amount: number) => Number.isInteger(amount) && (mode === "recount" ? amount >= 0 : amount >= 1);
   const validCount = valid(n);
-  // What the signed-in Scouter has out that is not yet at a family (FR-OUT-46).
+  // What the signed-in Scouter has out that is not yet at someone's home (FR-OUT-46).
   const sendable = (poolLots(it).find((o) => o.holder_id === me)?.lots ?? [])
     .filter((l) => !l.cleaner)
     .reduce((total, l) => total + l.count, 0);
@@ -1825,7 +1817,7 @@ export function PoolActions({
         : mode === "home"
           ? `Sent home ${amount} to ${cleaner.trim()}`
           : mode === "back"
-            ? `Back from ${homeShare?.cleaner ?? "cleaning"} ${amount}`
+            ? `Back from ${homeShare?.cleaner ?? "home"} ${amount}`
             : mode === "in"
               ? `Returned ${amount}`
               : mode === "missing"
@@ -1965,7 +1957,7 @@ export function PoolActions({
               : mode === "home"
                 ? "Send home"
                 : mode === "back"
-                  ? "Back from cleaning"
+                  ? "Back from home"
                   : mode === "in"
                     ? "Return"
                     : mode === "missing"
@@ -2016,12 +2008,12 @@ export function PoolActions({
           )}
           {atHome.length > 0 && (
             <button type="button" onClick={() => begin("back")}>
-              Back from cleaning
+              Back from home
             </button>
           )}
           {session === undefined && sendable > 0 && (
             <button type="button" className="minor" onClick={() => begin("home")}>
-              Send home to clean
+              Send home with…
             </button>
           )}
         </div>

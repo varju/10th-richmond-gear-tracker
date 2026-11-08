@@ -20,8 +20,6 @@ export interface MoveOptions {
   /** The reservation this check-out packs (FR-RES-13). Only a check-out that carries it counts
    * toward that reservation's progress; the event name alone is not enough (it repeats year to year). */
   reservation_id?: string;
-  /** A note on this movement (FR-OUT-15). */
-  note?: string;
   /** Made while packing a reservation, so it leaves the plain session's clock alone (FR-RES-25). */
   packing?: boolean;
 }
@@ -72,18 +70,12 @@ async function move(
   itemId: string,
   type: string,
   payload: Record<string, unknown>,
-  note?: string,
   session?: MoveSession,
 ) {
-  const movement = await store.record(
-    { entity_type: "item", entity_id: itemId, type, actor_id: actor(store), payload },
-    session,
-  );
-  if (note?.trim()) await addNote(store, itemId, note, movement.id);
-  return movement;
+  return store.record({ entity_type: "item", entity_id: itemId, type, actor_id: actor(store), payload }, session);
 }
 
-/** Take it. The holder is whoever is signed in; a note covers anyone else (FR-OUT-04, FR-OUT-15). */
+/** Take it. The holder is whoever is signed in (FR-OUT-04). */
 export async function checkOut(store: Store, itemId: string, options: MoveOptions = {}) {
   const it = current(store, itemId);
   if (it.retired) throw new Error("retired items cannot be checked out");
@@ -99,7 +91,6 @@ export async function checkOut(store: Store, itemId: string, options: MoveOption
       event: options.event?.trim() || null,
       reservation_id: link.id,
     },
-    options.note,
     options.packing ? undefined : { event: options.event?.trim() || null },
   );
   if (link.extra && link.id) await join(store, link.id, itemId);
@@ -115,7 +106,7 @@ export interface CheckInOptions extends MoveOptions {
 export async function checkIn(store: Store, itemId: string, options: CheckInOptions = {}) {
   const it = current(store, itemId);
   if (it.status !== "out") throw new Error("already in");
-  const movement = await move(store, itemId, "checked_in", {}, options.note, options.packing ? undefined : {});
+  const movement = await move(store, itemId, "checked_in", {}, options.packing ? undefined : {});
   await seen(store, itemId);
   if (options.weight !== undefined && weighing(store.state, it)) await weigh(store, itemId, options.weight);
   return movement;
@@ -158,7 +149,6 @@ export interface PoolCheckInOptions {
   holder_id?: string;
   /** Whose share of the pool is coming back (FR-OUT-47). It comes off that cleaner's lots first. */
   cleaner?: string;
-  note?: string;
   packing?: boolean;
 }
 
@@ -188,7 +178,6 @@ export async function checkOutPool(store: Store, itemId: string, options: PoolCh
       event: options.event?.trim() || null,
       reservation_id: link.id,
     },
-    options.note,
     options.packing ? undefined : { event: options.event?.trim() || null },
   );
   if (link.extra && link.id) await join(store, link.id, itemId);
@@ -211,11 +200,10 @@ export async function checkInPool(store: Store, itemId: string, options: PoolChe
   const payload: Record<string, unknown> = { count: options.count };
   if (holder !== actor(store)) payload.holder_id = holder;
   if (options.cleaner !== undefined) payload.cleaner = cleanerName(options.cleaner);
-  return move(store, itemId, "checked_in", payload, options.note, options.packing ? undefined : {});
+  return move(store, itemId, "checked_in", payload, options.packing ? undefined : {});
 }
 
 export interface BackFromCleaning {
-  note?: string;
   /** A pool only: whose share, how many, and which Scouter's it was. */
   cleaner?: string;
   count?: number;
@@ -223,8 +211,8 @@ export interface BackFromCleaning {
 }
 
 /**
- * Cleaned gear is back with the Scouter who sent it home (FR-OUT-51). They still hold it; the family no
- * longer does. A single item needs no detail; a pool names the family and a count.
+ * Gear sent home is back with the Scouter who sent it home (FR-OUT-51). They still hold it; the person no
+ * longer does. A single item needs no detail; a pool names the person and a count.
  */
 export async function backFromCleaning(store: Store, itemId: string, options: BackFromCleaning = {}) {
   const found = item(store.state, itemId);
@@ -245,21 +233,20 @@ export async function backFromCleaning(store: Store, itemId: string, options: Ba
     payload.count = count;
     if (options.holder_id && options.holder_id !== actor(store)) payload.holder_id = options.holder_id;
   } else if (it.status !== "out" || !it.movement?.cleaner) {
-    throw new Error("not out for cleaning");
+    throw new Error("not sent home");
   }
-  return move(store, itemId, "cleaning_ended", payload, options.note);
+  return move(store, itemId, "cleaning_ended", payload);
 }
 
 export interface SendItemHome {
   cleaner: string;
-  note?: string;
   /** Made while packing a reservation, so it leaves the plain session's clock alone (FR-RES-25). */
   packing?: boolean;
 }
 
 /**
- * A single item that is out goes home with a family (FR-OUT-46). It stays out to its holder under the same
- * check-out, so days out, the event and any open double check-out are untouched; only the family's name is added.
+ * A single item that is out goes home with someone (FR-OUT-46). It stays out to its holder under the same
+ * check-out, so days out, the event and any open double check-out are untouched; only the name is added.
  */
 export async function sendItemHome(store: Store, itemId: string, options: SendItemHome) {
   const it = current(store, itemId);
@@ -268,13 +255,12 @@ export async function sendItemHome(store: Store, itemId: string, options: SendIt
   const previous = it.movement as Movement | undefined;
   if (it.status !== "out" || !previous) throw new Error("not out; check it out instead");
   const name = cleanerName(options.cleaner);
-  if (previous.cleaner) throw new Error("already at a cleaner's home");
+  if (previous.cleaner) throw new Error("already at someone's home");
   return move(
     store,
     itemId,
     "cleaning_started",
     { cleaner: name, movement_id: previous.id },
-    options.note,
     options.packing ? undefined : {},
   );
 }
@@ -283,12 +269,11 @@ export interface SendHome {
   cleaner: string;
   count: number;
   holder_id?: string;
-  note?: string;
 }
 
 /**
- * Part of a pool that is out goes home with a family (FR-OUT-46). It stays out to its Scouter under its event;
- * only the family's name is added. The count comes from what that Scouter has out and not already at a family.
+ * Part of a pool that is out goes home with someone (FR-OUT-46). It stays out to its Scouter under its event;
+ * only the name is added. The count comes from what that Scouter has out and not already at someone's home.
  */
 export async function sendHomeFromPool(store: Store, itemId: string, options: SendHome) {
   const it = poolItem(store, itemId);
@@ -301,7 +286,7 @@ export async function sendHomeFromPool(store: Store, itemId: string, options: Se
   if (options.count > has) throw new Error(`only ${has} out that could go home`);
   const payload: Record<string, unknown> = { cleaner: name, count: options.count };
   if (holder !== actor(store)) payload.holder_id = holder;
-  return move(store, itemId, "cleaning_started", payload, options.note);
+  return move(store, itemId, "cleaning_started", payload);
 }
 
 /** How many are in right now, with an optional reason (FR-INV-35). What is already out is untouched; anyone signed in may record one. */
@@ -390,7 +375,6 @@ export async function transfer(store: Store, itemId: string, options: TransferOp
         reservation_id: previous.reservation_id ?? null,
         supersedes: previous.id,
       },
-      options.note,
       options.packing ? undefined : {},
     );
   }
@@ -405,7 +389,6 @@ export async function transfer(store: Store, itemId: string, options: TransferOp
       supersedes: previous.id,
       reservation_id: link.id,
     },
-    options.note,
     options.packing ? undefined : { event: options.event?.trim() || null },
   );
   if (link.extra && link.id) await join(store, link.id, itemId);
@@ -413,10 +396,6 @@ export async function transfer(store: Store, itemId: string, options: TransferOp
 }
 
 const onItem = (itemId: string) => ({ entity_type: "item", entity_id: itemId });
-
-/** A note on the item, or on one of its movements (FR-OUT-13). */
-export const addNote = (store: Store, itemId: string, text: string, movementId?: string) =>
-  notes.addNote(store, onItem(itemId), text, movementId);
 
 /** The original stays in the log; the item shows the new text (FR-OUT-16). */
 export const correctNote = (store: Store, itemId: string, noteId: string, text: string) =>
@@ -646,7 +625,7 @@ export interface HistoryEntry {
   count?: number;
   /** Set only on a "recounted" or "pool_written_off" line (FR-INV-35, FR-INV-49): why. */
   reason?: string | null;
-  /** Set when the gear went home to be cleaned (FR-OUT-46), as its last correction reads. */
+  /** Set when the gear went home with someone (FR-OUT-46), as its last correction reads. */
   cleaner?: string;
 }
 

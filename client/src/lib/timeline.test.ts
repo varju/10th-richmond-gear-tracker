@@ -20,7 +20,7 @@ beforeEach(async () => {
 
 test("movements and notes come back as one list, newest first", async () => {
   await notes.addNote(store, { entity_type: "item", entity_id: tent }, "Fly is patched");
-  await mv.checkOut(store, tent, { note: "took the repair kit too" });
+  await mv.checkOut(store, tent);
   await mv.checkIn(store, tent);
 
   expect(timeline(store, tent).map((e) => [e.kind, e.kind === "note" ? e.note.text : e.movement.type])).toEqual([
@@ -31,7 +31,8 @@ test("movements and notes come back as one list, newest first", async () => {
 });
 
 test("a note made on a movement rides with it rather than standing alone", async () => {
-  await mv.checkOut(store, tent, { note: "took the repair kit too" });
+  const out = await mv.checkOut(store, tent);
+  await notes.addNote(store, { entity_type: "item", entity_id: tent }, "took the repair kit too", out.id);
   const entries = timeline(store, tent);
   expect(entries).toHaveLength(1);
   expect(entries[0]!.kind === "movement" && entries[0]!.movement.notes.map((n) => n.text)).toEqual([

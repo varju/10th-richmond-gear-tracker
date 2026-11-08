@@ -153,7 +153,7 @@ export function ReservationPage({
     if (packed.has(id)) return "Packed";
     if (!unpacked.has(id)) return "";
     const cleaner = rem.items.find((it) => it.id === id)?.movement?.cleaner;
-    return cleaner ? `Not packed · with ${cleaner} to clean` : "Not packed";
+    return cleaner ? `Not packed · at home with ${cleaner}` : "Not packed";
   };
   const anyPacked = packed.size > 0 || rem.generics.some((g) => g.done >= g.quantity);
   const filtering = notPacked && !r.cancelled;

@@ -245,7 +245,7 @@ const wentOut = (it: Item, r: Pick<Reservation, "id">): boolean =>
   it.status === "out" && it.movement?.reservation_id === r.id;
 const ticked = (it: Item, r: Pick<Reservation, "id">): boolean => wentOut(it, r) && !it.movement?.cleaner;
 
-/** How much of a stack is out under the reservation and not at a family's home (FR-RES-36). Mirrored by pool_packed in views.py. */
+/** How much of a stack is out under the reservation and not at someone's home (FR-RES-36). Mirrored by pool_packed in views.py. */
 const poolPacked = (it: Item, r: Pick<Reservation, "id">): number =>
   poolLots(it)
     .flatMap((o) => o.lots)
