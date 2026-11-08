@@ -932,6 +932,20 @@ main:has(> .viewfinder) {
   border-bottom: 1px solid var(--rule);
 }
 
+.history summary {
+  cursor: pointer;
+}
+
+.history .facts {
+  margin-top: 8px;
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.history .facts dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 li.note {
   display: grid;
   grid-template-columns: 1fr auto auto;

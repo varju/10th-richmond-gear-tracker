@@ -85,10 +85,6 @@ falls back to its generic's), shown on the scan card, the item page and the list
 
 **Deferred because:** photos are online only (FR-INV-11), so a photo at check-out in a locker would mostly fail to load.
 
-## Audit log: expand a row
-
-Tap a row to see all its details.
-
 ## Audit log: link to the item
 
 In an expanded row, link to the item if it still exists.

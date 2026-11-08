@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { type Api, ApiError, type AuditFilter, type ServerEvent, Offline } from "../lib/api";
-import { entries, EVENT_TYPES } from "../lib/audit";
+import { details, entries, EVENT_TYPES } from "../lib/audit";
+import type { State } from "../lib/replay";
 import type { Store } from "../lib/store";
 import { localMinute } from "../lib/time";
 import { useStore } from "../useStore";
@@ -32,6 +33,27 @@ function people(store: Store): { id: string; name: string }[] {
   return Object.keys(store.state.user ?? {})
     .map((id) => ({ id, name: userName(store.state, id) || id }))
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function Row({ state, event, summary }: { state: State; event: ServerEvent; summary: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <li>
+      <details onToggle={(e) => setOpen(e.currentTarget.open)}>
+        <summary>{summary}</summary>
+        {open && (
+          <dl className="facts">
+            {details(state, event).map((d, i) => (
+              <Fragment key={i}>
+                <dt>{d.label}</dt>
+                <dd>{d.value}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        )}
+      </details>
+    </li>
+  );
 }
 
 /**
@@ -84,7 +106,8 @@ export function Audit({ store, api }: Props) {
   }
 
   const set = (patch: AuditFilter) => setFilter({ ...filter, ...patch });
-  const rows = entries(store.state, unique(events ?? []));
+  const shown = unique(events ?? []);
+  const rows = entries(store.state, shown);
 
   return (
     <Page title="Audit log" back="/settings">
@@ -133,11 +156,14 @@ export function Audit({ store, api }: Props) {
         // One line each, the same shape an item page's Changes list uses.
         <ol className="history" aria-label="Audit log">
           {rows.map((r) => (
-            <li key={r.id}>
-              {[r.what, r.on, userName(store.state, r.actor_id) || r.actor_id, localMinute(r.at)]
+            <Row
+              key={r.id}
+              state={store.state}
+              event={r.event}
+              summary={[r.what, r.on, userName(store.state, r.actor_id) || r.actor_id, localMinute(r.at)]
                 .filter(Boolean)
                 .join(" · ")}
-            </li>
+            />
           ))}
         </ol>
       )}

@@ -8,9 +8,11 @@
  * events rather than a `Log`.
  */
 import { categoryName, locationName, nameOf, userName } from "./inventory";
+import type { ServerEvent } from "./api";
 import type { Log } from "./record";
 import { isWeight, weightLabel } from "./weighing";
 import type { ReplayEvent, State } from "./replay";
+import { localMinute } from "./time";
 
 export interface Change {
   id: string;
@@ -54,6 +56,19 @@ const LABELS: Record<string, string> = {
   email: "Email",
   role: "Role",
   active: "Active",
+  // Event payloads.
+  holder_id: "Holder",
+  count: "Count",
+  quantity: "Quantity",
+  event: "Event",
+  reservation_id: "Reservation",
+  cleaner: "Cleaner",
+  reason: "Reason",
+  text: "Note",
+  item_id: "Item",
+  content_type: "Type",
+  size: "Size",
+  pool: "Counted stack",
 };
 
 export const fieldLabel = (field: string): string => LABELS[field] ?? field;
@@ -70,9 +85,22 @@ export function describeValue(state: State, field: string, value: unknown): stri
   }
   if (field === "parent_id" || field === "merged_into") return nameOf(state, String(value));
   if ((field === "empty_weight" || field === "capacity") && isWeight(value)) return weightLabel(value);
+  if (field === "holder_id") return userName(state, String(value));
+  if (field === "item_id") return nameOf(state, String(value));
+  if (field === "reservation_id") {
+    const name = state.reservation?.[String(value)]?.event;
+    return name ? String(name) : "(deleted reservation)";
+  }
+  if (field === "size" && typeof value === "number") return fileSize(value);
   if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "object") return JSON.stringify(value);
   if (field === "price" && typeof value === "number") return `$${value.toFixed(2)}`;
   return String(value);
+}
+
+function fileSize(bytes: number): string {
+  if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1000))} KB`;
 }
 
 /** The item's own record changes, newest first. */
@@ -192,9 +220,9 @@ function on(state: State, event: ReplayEvent, bound: unknown): string {
  * The server's answer, as lines to draw (FR-USR-24). It arrives newest first; that order is kept. A code's
  * row names the item its latest earlier bind in this log put it on.
  */
-export function entries(state: State, events: ReplayEvent[]): Entry[] {
+export function entries<E extends ReplayEvent>(state: State, events: E[]): (Entry & { event: E })[] {
   const bound = new Map<string, unknown>();
-  const rows: Entry[] = [];
+  const rows: (Entry & { event: E })[] = [];
   for (const e of [...events].reverse()) {
     if (e.entity_type === "code" && e.type === "code_bound") bound.set(e.entity_id, e.payload.item_id);
     rows.push({
@@ -205,6 +233,7 @@ export function entries(state: State, events: ReplayEvent[]): Entry[] {
       entity_id: e.entity_id,
       what: what(state, e),
       on: on(state, e, bound.get(e.entity_id)),
+      event: e,
     });
   }
   return rows.reverse();
@@ -215,3 +244,46 @@ export const EVENT_TYPES: { value: string; label: string }[] = [
   ...Object.entries(HAPPENED).map(([value, label]) => ({ value, label })),
   { value: "field_changed", label: "Edited" },
 ].sort((a, b) => a.label.localeCompare(b.label));
+
+export interface Detail {
+  label: string;
+  value: string;
+}
+
+/** Ids mean nothing to a person reading the log. */
+const ID_ONLY = new Set(["movement_id", "note_id", "photo_id", "supersedes"]);
+
+const blank = (v: unknown): boolean => v === null || v === undefined || v === "";
+
+/** Every line of one event, for the expanded row (FR-USR-24). */
+export function details(state: State, event: ServerEvent): Detail[] {
+  const lines: Detail[] = [];
+  const p = event.payload;
+  if (event.type === "field_changed") {
+    const field = String(p.field);
+    lines.push(
+      { label: "Field", value: fieldLabel(field) },
+      { label: "From", value: describeValue(state, field, p.old) },
+      { label: "To", value: describeValue(state, field, p.value) },
+    );
+  } else {
+    for (const [key, value] of Object.entries(p)) {
+      if (key === "unit" && event.type === "weighed") continue;
+      if (key === "value" && event.type === "weighed") {
+        const weight = { value, unit: p.unit };
+        lines.push({ label: "Weight", value: isWeight(weight) ? weightLabel(weight) : "Unknown" });
+        continue;
+      }
+      if (blank(value) || ID_ONLY.has(key)) continue;
+      const text = describeValue(state, key, value);
+      if (key === "reservation_id" && text === String(p.event ?? "")) continue;
+      lines.push({ label: fieldLabel(key), value: text });
+    }
+  }
+  const when = localMinute(event.effective_at);
+  const recorded = localMinute(event.received_at);
+  lines.push({ label: "When", value: when });
+  if (recorded !== when) lines.push({ label: "Recorded", value: recorded });
+  lines.push({ label: "Device", value: event.device_id });
+  return lines;
+}

@@ -75,7 +75,7 @@ test("every kind of event on one screen, said in words, newest first", async () 
   expect(
     within(list)
       .getAllByRole("listitem")
-      .map((li) => li.textContent),
+      .map((li) => li.querySelector("summary")?.textContent),
   ).toEqual([
     "Role: user → admin · Carol · Alice · 2025-08-31 17:00",
     "Name: Tent → Tent 1 · Tent 1 · Alice · 2025-08-31 17:00",
@@ -83,6 +83,33 @@ test("every kind of event on one screen, said in words, newest first", async () 
     "Sent home with Sam · 3 · Tent 1 · Carol · 2025-08-31 17:00",
     "Back from Sam · Tent 1 · Carol · 2025-08-31 17:00",
     "Cleaner corrected to Pat · Tent 1 · Carol · 2025-08-31 17:00",
+  ]);
+});
+
+test("tapping a row shows every detail of the event", async () => {
+  log = [
+    serverEvent({
+      type: "checked_out",
+      actor_id: "carol",
+      device_id: "phone-b",
+      received_at: T0 + 3_600_000,
+      payload: { holder_id: "carol", count: 2, event: "Camp", note: null },
+    }),
+  ];
+  mount();
+
+  const list = await screen.findByRole("list", { name: "Audit log" });
+  await user.click(within(list).getByText(/^Checked out · 2/));
+  const lines = within(list)
+    .getAllByRole("term")
+    .map((dt) => [dt.textContent, dt.nextElementSibling?.textContent]);
+  expect(lines).toEqual([
+    ["Holder", "Carol"],
+    ["Count", "2"],
+    ["Event", "Camp"],
+    ["When", "2025-08-31 17:00"],
+    ["Recorded", "2025-08-31 18:00"],
+    ["Device", "phone-b"],
   ]);
 });
 
@@ -101,7 +128,7 @@ test("a code's rows name the item it was on then, never the code (FR-TAG-17)", a
   expect(
     within(list)
       .getAllByRole("listitem")
-      .map((li) => li.textContent),
+      .map((li) => li.querySelector("summary")?.textContent),
   ).toEqual([
     "Code assigned · Tent 2 · Alice · 2025-08-31 17:00",
     "Code freed · Tent 1 · Alice · 2025-08-31 17:00",
