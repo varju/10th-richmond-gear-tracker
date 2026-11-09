@@ -57,6 +57,9 @@ Functional if the app does something differently, otherwise under Chores. Leave 
 dependencies, and web-only code such as the install prompt or anything behind `!NATIVE`. A release empties the list and
 names its tag.
 
+`make testflight` tags every upload `ios-<version>-<build>`. Push a tag to origin only once its build is released on the
+App Store; TestFlight-only tags stay local.
+
 ## Tasks
 
 `docs/tasks.md` is a shrinking list, not a changelog. Delete a task when its work is committed. Git is the record of
