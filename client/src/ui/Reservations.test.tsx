@@ -685,6 +685,83 @@ test("a line whose item this device has no record of stays under Not packed (FR-
   expect(screen.queryByText("Everything is packed.")).not.toBeInTheDocument();
 });
 
+test("the Packing / Returning switch starts on the first day and defaults to Packing until the last day is over (FR-RES-43)", async () => {
+  navigate(`/events/${fall}`);
+  const view = renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
+  expect(screen.queryByRole("button", { name: "Returning" })).not.toBeInTheDocument();
+  view.unmount();
+
+  await mv.checkOut(store, t1, { event: "Fall Camp", reservation_id: fall });
+  const lastDay = () => Date.parse("2026-10-04T19:00:00Z");
+  renderInShell(<ReservationPage store={store} id={fall} />, lastDay);
+  expect(screen.getByRole("button", { name: "Packing" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: /4-person tent #1/ })).toHaveTextContent("Packed");
+  await user.click(screen.getByRole("button", { name: "Returning" }));
+  expect(screen.getByRole("button", { name: /4-person tent #1/ })).toHaveTextContent("Not returned");
+  expect(screen.getByRole("checkbox", { name: "Not returned" })).toBeInTheDocument();
+});
+
+test("after the end the switch defaults to Returning, and Packing shows Not packed again (FR-RES-44)", async () => {
+  navigate(`/events/${fall}`);
+  renderInShell(<ReservationPage store={store} id={fall} />, () => Date.parse("2026-10-10T19:00:00Z"));
+  expect(screen.getByRole("button", { name: "Returning" })).toHaveAttribute("aria-pressed", "true");
+  await user.click(screen.getByRole("button", { name: "Packing" }));
+  expect(screen.getByRole("button", { name: /4-person tent #1/ })).toHaveTextContent("Not packed");
+});
+
+test("an ended event in Packing mode offers no pool check-out", async () => {
+  const bowls = newUlid();
+  await store.record({
+    entity_type: "item",
+    entity_id: bowls,
+    type: "created",
+    actor_id: "alice",
+    payload: { name: "Bowls", generic: true, pool: true, quantity: 10 },
+  });
+  const camp = await res.createReservation(store, {
+    event: "Old Camp",
+    starts: "2026-09-01",
+    ends: "2026-09-02",
+    items: [],
+    generics: [{ item_id: bowls, quantity: 4 }],
+  });
+  navigate(`/events/${camp}`);
+  renderInShell(<ReservationPage store={store} id={camp} />, () => Date.parse("2026-10-10T19:00:00Z"));
+  await user.click(screen.getByRole("button", { name: "Packing" }));
+  expect(screen.getByText("4 × Bowls — 0 packed")).toBeInTheDocument();
+  expect(screen.queryByLabelText("How many Bowls to check out")).not.toBeInTheDocument();
+});
+
+test("a running event switched to Returning offers no pool check-out", async () => {
+  const bowls = newUlid();
+  await store.record({
+    entity_type: "item",
+    entity_id: bowls,
+    type: "created",
+    actor_id: "alice",
+    payload: { name: "Bowls", generic: true, pool: true, quantity: 10 },
+  });
+  const camp = await res.createReservation(store, {
+    event: "Running Camp",
+    starts: "2026-10-01",
+    ends: "2026-10-05",
+    items: [],
+    generics: [{ item_id: bowls, quantity: 4 }],
+  });
+  navigate(`/events/${camp}`);
+  renderInShell(<ReservationPage store={store} id={camp} />, () => Date.parse("2026-10-03T19:00:00Z"));
+  expect(screen.getByLabelText("How many Bowls to check out")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Returning" }));
+  expect(screen.queryByLabelText("How many Bowls to check out")).not.toBeInTheDocument();
+});
+
+test("a cancelled event has no Packing / Returning switch", async () => {
+  await res.cancelReservation(store, fall);
+  navigate(`/events/${fall}`);
+  renderInShell(<ReservationPage store={store} id={fall} />, () => Date.parse("2026-10-04T19:00:00Z"));
+  expect(screen.queryByRole("button", { name: "Returning" })).not.toBeInTheDocument();
+});
+
 test("on an ended event, a line whose item this device has no record of stays under Not returned", async () => {
   await res.addItem(store, fall, newUlid());
   await mv.checkOut(store, t1, { event: "Fall Camp", reservation_id: fall });

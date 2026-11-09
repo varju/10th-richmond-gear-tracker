@@ -4,6 +4,7 @@ import type { Item } from "../lib/inventory";
 import { parentOf } from "../lib/inventory";
 import { refill, weigh } from "../lib/movement";
 import type { Store } from "../lib/store";
+import { Switch } from "./Switch";
 import { ago } from "../lib/time";
 import {
   amountLeft,
@@ -17,26 +18,7 @@ import {
   weightLabel,
 } from "../lib/weighing";
 
-/** lb or kg, one tap each (FR-INV-62). */
-function UnitSwitch({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: WeightUnit;
-  onChange: (unit: WeightUnit) => void;
-}) {
-  return (
-    <div className="unit-switch" role="group" aria-label={label}>
-      {WEIGHT_UNITS.map((u) => (
-        <button key={u} type="button" className="small" aria-pressed={value === u} onClick={() => onChange(u)}>
-          {u}
-        </button>
-      ))}
-    </div>
-  );
-}
+const UNIT_OPTIONS = WEIGHT_UNITS.map((u) => ({ value: u, label: u }));
 
 /** A number and its own unit, for the edit page. Blank, or a number that will not do, is no weight. */
 function WeightBox({
@@ -90,8 +72,9 @@ function WeightBox({
           {positive ? "A number above zero." : "A number of zero or more."}
         </p>
       )}
-      <UnitSwitch
+      <Switch
         label={`${label} unit`}
+        options={UNIT_OPTIONS}
         value={unit}
         onChange={(u) => {
           setUnit(u);
@@ -198,7 +181,7 @@ export function WeighEntry({
             }}
           />
         </label>
-        <UnitSwitch label="Weight unit" value={chosen} onChange={setChosen} />
+        <Switch label="Weight unit" options={UNIT_OPTIONS} value={chosen} onChange={setChosen} />
       </div>
       {hint && <p className="muted small">{hint}</p>}
       <div className="row">

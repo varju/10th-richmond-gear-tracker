@@ -33,9 +33,15 @@ import { useWide } from "../lib/wide";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { ConfirmButton } from "./ConfirmButton";
+import { Switch } from "./Switch";
 import { statusLabel, userName } from "./labels";
 import { Page } from "./Page";
 import { datesLabel } from "./Reservations";
+
+const MODES = [
+  { value: "packing", label: "Packing" },
+  { value: "returning", label: "Returning" },
+] as const;
 
 /** How many of a pool to check out for this line, taken in one count (FR-RES-13, FR-OUT-22). */
 function PoolCheckout({ store, r, itemId, max }: { store: Store; r: Reservation; itemId: string; max: number }) {
@@ -130,6 +136,7 @@ export function ReservationPage({
   const [error, setError] = useState<string | null>(null);
   const [pick, setPick] = useState("");
   const [notPacked, setNotPacked] = useState(false);
+  const [mode, setMode] = useState<"packing" | "returning" | null>(null);
   const wide = useWide();
   const { now } = useShell();
   const state = store.state;
@@ -151,14 +158,17 @@ export function ReservationPage({
   // hides those that are (FR-RES-29, FR-RES-30). A cancelled plan packs nothing, so says nothing.
   const packed = new Set(rem.packed.map((it) => it.id));
   const unpacked = new Set(rem.items.map((it) => it.id));
-  const over = r.ends < todayIso(now());
-  const owed = over ? outstanding(state, r) : { items: [], generics: [] };
+  const today = todayIso(now());
+  const over = r.ends < today;
+  const started = r.starts <= today;
+  const returning = started && (mode ?? (over ? "returning" : "packing")) === "returning";
+  const owed = returning ? outstanding(state, r) : { items: [], generics: [] };
   const stillOut = new Map(owed.items.map((it) => [it.id, it]));
   const outCount = new Map(owed.generics.map((g) => [g.generic.id, g.out]));
   const packMark = (itemId: string) => {
     if (r.cancelled) return "";
     const id = resolveItem(state, itemId);
-    if (over) {
+    if (returning) {
       const cleaner = stillOut.get(id)?.movement?.cleaner;
       if (!stillOut.has(id)) return "";
       return cleaner ? `Not returned · at home with ${cleaner}` : "Not returned";
@@ -173,13 +183,13 @@ export function ReservationPage({
   const filtering = notPacked && !r.cancelled;
   // A line with no record on this device is not packed either, so it stays.
   const keep = (itemId: string) =>
-    (over ? stillOut : unpacked).has(resolveItem(state, itemId)) || !state.item?.[itemId];
+    (returning ? stillOut : unpacked).has(resolveItem(state, itemId)) || !state.item?.[itemId];
   const items = [...(filtering ? r.items.filter(keep) : r.items)].sort((a, b) =>
     compareNames(nameOf(state, a), nameOf(state, b)),
   );
   const generics = !filtering
     ? rem.generics
-    : over
+    : returning
       ? rem.generics.filter((g) => (outCount.get(g.generic.id) ?? 0) > 0)
       : rem.generics.filter((g) => g.done < g.quantity);
   const addedBy = addedByLabel(state, r);
@@ -234,14 +244,17 @@ export function ReservationPage({
         </p>
       )}
       {r.items.length === 0 && r.generics.length === 0 && <p className="muted">No gear listed.</p>}
-      {!r.cancelled && ((over ? anyOut : anyPacked) || notPacked) && (
+      {!r.cancelled && started && (r.items.length > 0 || r.generics.length > 0) && (
+        <Switch label="Mode" options={MODES} value={returning ? "returning" : "packing"} onChange={setMode} />
+      )}
+      {!r.cancelled && ((returning ? anyOut : anyPacked) || notPacked) && (
         <label className="check">
           <input type="checkbox" checked={notPacked} onChange={(e) => setNotPacked(e.target.checked)} />
-          <span>{over ? "Not returned" : "Not packed"}</span>
+          <span>{returning ? "Not returned" : "Not packed"}</span>
         </label>
       )}
       {filtering && items.length === 0 && generics.length === 0 && (
-        <p className="muted">{over ? "Everything is back." : "Everything is packed."}</p>
+        <p className="muted">{returning ? "Everything is back." : "Everything is packed."}</p>
       )}
       {items.length > 0 && (
         <ul className="items">
@@ -290,16 +303,16 @@ export function ReservationPage({
                   <span className="name">
                     {g.quantity} × {nameOf(state, g.generic.id)}
                     {!r.cancelled &&
-                      (over
+                      (returning
                         ? (outCount.get(g.generic.id) ?? 0) > 0 && ` — ${outCount.get(g.generic.id)} not returned`
                         : g.done >= g.quantity
                           ? " — packed"
                           : ` — ${g.done} packed`)}
                   </span>
-                  {pool && !r.cancelled && !over && g.done < g.quantity && !g.generic.retired && (
+                  {pool && !r.cancelled && !over && !returning && g.done < g.quantity && !g.generic.retired && (
                     <PoolCheckout store={store} r={r} itemId={g.generic.id} max={g.quantity - g.done} />
                   )}
-                  {pool && !r.cancelled && !over && g.done < g.quantity && g.generic.retired && (
+                  {pool && !r.cancelled && !over && !returning && g.done < g.quantity && g.generic.retired && (
                     <span className="muted small">Retired</span>
                   )}
                 </li>
