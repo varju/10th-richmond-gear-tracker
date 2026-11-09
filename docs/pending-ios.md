@@ -11,5 +11,6 @@ What the app does differently.
 - Return skips the weight question for gear weighed or refilled since it went out.
 - Unknown at check-in leaves the last weight as it was.
 - A scan's card offers Weigh and Refilled for weighed gear.
+- Runs on iPad.
 
 ## Chores

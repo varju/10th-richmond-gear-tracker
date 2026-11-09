@@ -27,7 +27,13 @@ class PrintPlugin: CAPPlugin, CAPBridgedPlugin {
             }
             let printer = UIPrintInteractionController.shared
             printer.printFormatter = webView.viewPrintFormatter()
-            printer.present(animated: true) { _, _, _ in call.resolve() }
+            let done: UIPrintInteractionController.CompletionHandler = { _, _, _ in call.resolve() }
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                let rect = CGRect(x: webView.bounds.midX, y: webView.safeAreaInsets.top, width: 1, height: 1)
+                printer.present(from: rect, in: webView, animated: true, completionHandler: done)
+            } else {
+                printer.present(animated: true, completionHandler: done)
+            }
         }
     }
 }

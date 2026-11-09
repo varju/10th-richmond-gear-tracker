@@ -7,6 +7,19 @@ changelog.
 
 ---
 
+## Send iPads to the app
+
+Once the App Store has an iPad build, offer it to iPads as to iPhones (NFR-DEP-12). Not before: an iPad sent to the
+iPhone-only build loses the Add to Home Screen hint.
+
+- `client/src/lib/install.ts`: `isIos()` also matches iPadOS Safari, which reports `Macintosh` with
+  `maxTouchPoints > 1`. Replace `isIphone()` with one that is true for iPhone and iPad, not iPod.
+- `InstallPrompt.tsx`: "There’s an iPhone app." becomes wording that fits both. Keep a test that an iPad with no link
+  sees the home-screen hint.
+- Say iPhone or iPad in NFR-DEP-12, the architecture install notes, the Scouter guide's "Install it", the
+  `SettingsGroup.tsx` help text, `docs/deploy.md` and the `iphone_app_url` comment in `inventory.ts`. Fix the
+  `iPhone app` regex in the finder test in `App.test.tsx`. Keep the field name.
+
 ## Canoe trailer as storage
 
 A canoe trailer is both storage and an item that can be checked out. Today its contents still show as in at the yard
