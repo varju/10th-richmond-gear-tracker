@@ -1005,6 +1005,39 @@ def test_packing_is_derived_from_what_went_out_for_the_reservation(tools):
     assert packed["fully_packed"] is True
 
 
+def test_get_reservation_lists_what_is_not_back(tools, pool_id):
+    made = assistant.create_reservation(
+        **FALL,
+        items=[tools["stove"]],
+        generics=[
+            assistant.GenericLine(item_id=tools["tents"], quantity=1),
+            assistant.GenericLine(item_id=pool_id, quantity=4),
+        ],
+    )["reservation_id"]
+    clean = assistant.get_reservation(made)
+    assert clean["not_returned"] == []
+    assert [g["out"] for g in clean["generic_out"]] == [0, 0]
+
+    assistant.check_out(tools["stove"], event="Fall Camp", reservation_id=made)
+    assistant.send_home_with(tools["stove"], "Smith")
+    assistant.check_out(tools["t2"], event="Fall Camp", reservation_id=made)
+    assistant.check_out(pool_id, count=5, event="Fall Camp", reservation_id=made)
+
+    got = assistant.get_reservation(made)
+    assert [(row["name"], row["cleaner"]) for row in got["not_returned"]] == [("Camp stove", "Smith")]
+    assert {g["item_id"]: (g["quantity"], g["out"]) for g in got["generic_out"]} == {
+        tools["tents"]: (1, 1),
+        pool_id: (4, 5),
+    }
+
+    assistant.check_in(tools["stove"])
+    assistant.check_in(tools["t2"])
+    assistant.check_in(pool_id, count=5)
+    back = assistant.get_reservation(made)
+    assert back["not_returned"] == []
+    assert [g["out"] for g in back["generic_out"]] == [0, 0]
+
+
 def test_a_check_out_under_the_event_name_alone_packs_nothing(tools):
     made = assistant.create_reservation(**FALL, items=[tools["stove"]])["reservation_id"]
     assistant.check_out(tools["stove"], event="Fall Camp")

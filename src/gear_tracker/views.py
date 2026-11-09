@@ -588,25 +588,31 @@ def named_items(state: State, r: Fields) -> list[str]:
     return [item_id for item_id in seen if not (state.get("item") or {}).get(item_id, {}).get("deleted")]
 
 
-def _ticked(it: Fields, reservation_id: str) -> bool:
+def _went_out(it: Fields, reservation_id: str) -> bool:
     """Out under a check-out that named this reservation (FR-RES-13). Not the event: an event
-    name repeats year to year, and would read next year's camp as already packed on day one.
-    Gear at a cleaner's home is not with the camp, so it is not packed (FR-RES-36)."""
-    movement = it.get("movement") or {}
-    return (
-        it.get("status") == "out" and movement.get("reservation_id") == reservation_id and not movement.get("cleaner")
-    )
+    name repeats year to year, and would read next year's camp as already packed on day one."""
+    return it.get("status") == "out" and (it.get("movement") or {}).get("reservation_id") == reservation_id
 
 
-def pool_packed(it: Fields, reservation_id: str) -> int:
-    """How much of a stack is out under the reservation and not at someone's home (FR-RES-36).
-    Mirrors poolPacked in reservations.ts."""
+def _ticked(it: Fields, reservation_id: str) -> bool:
+    """Gear at a cleaner's home is not with the camp, so it is not packed (FR-RES-36)."""
+    return _went_out(it, reservation_id) and not (it.get("movement") or {}).get("cleaner")
+
+
+def pool_out(it: Fields, reservation_id: str, home_too: bool) -> int:
+    """How much of a stack is out under the reservation, leaving out what is at someone's home unless home_too.
+    Mirrors poolOut in reservations.ts."""
     return sum(
         lot["count"]
         for out in pool_lots(it)
         for lot in out["lots"]
-        if lot.get("reservation_id") == reservation_id and not lot.get("cleaner")
+        if lot.get("reservation_id") == reservation_id and (home_too or not lot.get("cleaner"))
     )
+
+
+def pool_packed(it: Fields, reservation_id: str) -> int:
+    """Out under the reservation and not at someone's home (FR-RES-36). Mirrors poolPacked in reservations.ts."""
+    return pool_out(it, reservation_id, False)
 
 
 def remaining(state: State, r: Fields) -> dict[str, Any]:
@@ -643,6 +649,36 @@ def remaining(state: State, r: Fields) -> dict[str, Any]:
         "packed": [_packing_row(state, it) for it in named if _ticked(it, reservation_id)],
         "generics": generics,
     }
+
+
+def outstanding(state: State, r: Fields) -> dict[str, Any]:
+    """What is still out under the event, at a cleaner's home or not. Mirrors outstanding in reservations.ts."""
+    reservation_id = r["id"]
+    names = named_items(state, r)
+    chosen = set(names)
+    named = [it for it in (item(state, i) for i in names) if it is not None and _went_out(it, reservation_id)]
+    named.sort(key=lambda it: (home_label(state, it), display_name(state, it)))
+
+    generics = []
+    for line in r.get("generics") or []:
+        generic = item(state, line["item_id"]) or {"id": line["item_id"], "name": "(unknown item)"}
+        if is_pool(generic):
+            out = pool_out(generic, reservation_id, True)
+        else:
+            out = sum(
+                1
+                for u in units_of(state, line["item_id"])
+                if u["id"] not in chosen and not u.get("retired") and _went_out(u, reservation_id)
+            )
+        generics.append(
+            {
+                "item_id": line["item_id"],
+                "name": display_name(state, generic),
+                "quantity": line["quantity"],
+                "out": out,
+            }
+        )
+    return {"items": [_packing_row(state, it) for it in named], "generics": generics}
 
 
 def _packing_row(state: State, it: Fields) -> Fields:

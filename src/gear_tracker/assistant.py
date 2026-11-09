@@ -590,11 +590,12 @@ def list_reservations(upcoming_only: StrictBool = True) -> dict[str, Any]:
 
 
 def get_reservation(reservation_id: str) -> dict[str, Any]:
-    """One reservation: its gear list, what is packed, what is still to pack, and any clash with another camp."""
+    """One reservation: its gear list, what is packed, what is still to pack, what is not back, and any clash."""
     with _open() as (conn, _who):
         state = _state(conn)
         r = _reservation(state, reservation_id)
         rem = views.remaining(state, r)
+        out = views.outstanding(state, r)
         return {
             **_reservation_brief(state, r),
             "cancelled": bool(r.get("cancelled")),
@@ -602,6 +603,8 @@ def get_reservation(reservation_id: str) -> dict[str, Any]:
             "packed": rem["packed"],
             "generic_lines": rem["generics"],
             "fully_packed": views.is_packed(rem),
+            "not_returned": out["items"],
+            "generic_out": out["generics"],
             "clashes": clashes.conflicts(state, r, reservation_id),
         }
 

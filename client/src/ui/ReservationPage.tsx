@@ -18,16 +18,19 @@ import {
   nearby,
   nearbyLabel,
   outElsewhere,
+  outstanding,
   unlinkedLots,
   remaining,
   reservation,
   type Reservation,
+  todayIso,
 } from "../lib/reservations";
 import type { State } from "../lib/replay";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { localMinute } from "../lib/time";
 import { useWide } from "../lib/wide";
+import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { ConfirmButton } from "./ConfirmButton";
 import { statusLabel, userName } from "./labels";
@@ -128,6 +131,7 @@ export function ReservationPage({
   const [pick, setPick] = useState("");
   const [notPacked, setNotPacked] = useState(false);
   const wide = useWide();
+  const { now } = useShell();
   const state = store.state;
   const r = reservation(state, id);
 
@@ -147,22 +151,37 @@ export function ReservationPage({
   // hides those that are (FR-RES-29, FR-RES-30). A cancelled plan packs nothing, so says nothing.
   const packed = new Set(rem.packed.map((it) => it.id));
   const unpacked = new Set(rem.items.map((it) => it.id));
+  const over = r.ends < todayIso(now());
+  const owed = over ? outstanding(state, r) : { items: [], generics: [] };
+  const stillOut = new Map(owed.items.map((it) => [it.id, it]));
+  const outCount = new Map(owed.generics.map((g) => [g.generic.id, g.out]));
   const packMark = (itemId: string) => {
     if (r.cancelled) return "";
     const id = resolveItem(state, itemId);
+    if (over) {
+      const cleaner = stillOut.get(id)?.movement?.cleaner;
+      if (!stillOut.has(id)) return "";
+      return cleaner ? `Not returned · at home with ${cleaner}` : "Not returned";
+    }
     if (packed.has(id)) return "Packed";
     if (!unpacked.has(id)) return "";
     const cleaner = rem.items.find((it) => it.id === id)?.movement?.cleaner;
     return cleaner ? `Not packed · at home with ${cleaner}` : "Not packed";
   };
   const anyPacked = packed.size > 0 || rem.generics.some((g) => g.done >= g.quantity);
+  const anyOut = owed.items.length > 0 || owed.generics.some((g) => g.out > 0);
   const filtering = notPacked && !r.cancelled;
   // A line with no record on this device is not packed either, so it stays.
-  const keep = (itemId: string) => unpacked.has(resolveItem(state, itemId)) || !state.item?.[itemId];
+  const keep = (itemId: string) =>
+    (over ? stillOut : unpacked).has(resolveItem(state, itemId)) || !state.item?.[itemId];
   const items = [...(filtering ? r.items.filter(keep) : r.items)].sort((a, b) =>
     compareNames(nameOf(state, a), nameOf(state, b)),
   );
-  const generics = filtering ? rem.generics.filter((g) => g.done < g.quantity) : rem.generics;
+  const generics = !filtering
+    ? rem.generics
+    : over
+      ? rem.generics.filter((g) => (outCount.get(g.generic.id) ?? 0) > 0)
+      : rem.generics.filter((g) => g.done < g.quantity);
   const addedBy = addedByLabel(state, r);
   // Still out and not packing this camp: linking failed, and It's with us is the way to retry.
   const notLinked = (unlinked ?? "")
@@ -215,13 +234,15 @@ export function ReservationPage({
         </p>
       )}
       {r.items.length === 0 && r.generics.length === 0 && <p className="muted">No gear listed.</p>}
-      {!r.cancelled && (anyPacked || notPacked) && (
+      {!r.cancelled && ((over ? anyOut : anyPacked) || notPacked) && (
         <label className="check">
           <input type="checkbox" checked={notPacked} onChange={(e) => setNotPacked(e.target.checked)} />
-          <span>Not packed</span>
+          <span>{over ? "Not returned" : "Not packed"}</span>
         </label>
       )}
-      {filtering && items.length === 0 && generics.length === 0 && <p className="muted">Everything is packed.</p>}
+      {filtering && items.length === 0 && generics.length === 0 && (
+        <p className="muted">{over ? "Everything is back." : "Everything is packed."}</p>
+      )}
       {items.length > 0 && (
         <ul className="items">
           {items.map((itemId) => {
@@ -268,12 +289,17 @@ export function ReservationPage({
                 <li className="row">
                   <span className="name">
                     {g.quantity} × {nameOf(state, g.generic.id)}
-                    {!r.cancelled && (g.done >= g.quantity ? " — packed" : ` — ${g.done} packed`)}
+                    {!r.cancelled &&
+                      (over
+                        ? (outCount.get(g.generic.id) ?? 0) > 0 && ` — ${outCount.get(g.generic.id)} not returned`
+                        : g.done >= g.quantity
+                          ? " — packed"
+                          : ` — ${g.done} packed`)}
                   </span>
-                  {pool && !r.cancelled && g.done < g.quantity && !g.generic.retired && (
+                  {pool && !r.cancelled && !over && g.done < g.quantity && !g.generic.retired && (
                     <PoolCheckout store={store} r={r} itemId={g.generic.id} max={g.quantity - g.done} />
                   )}
-                  {pool && !r.cancelled && g.done < g.quantity && g.generic.retired && (
+                  {pool && !r.cancelled && !over && g.done < g.quantity && g.generic.retired && (
                     <span className="muted small">Retired</span>
                   )}
                 </li>

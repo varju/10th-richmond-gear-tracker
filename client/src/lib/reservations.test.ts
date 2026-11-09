@@ -529,6 +529,48 @@ test("a reservation naming a merged duplicate packs the survivor (FR-INV-13)", a
   expect(res.conflicts(store.state, other).map((c) => c.detail)).toEqual(["4-person tent #2"]);
 });
 
+test("outstanding counts what is still out under the event, at a cleaner's home too, and not what came back", async () => {
+  const f = await fixture();
+  await store.record({
+    entity_type: "item",
+    entity_id: "bowls",
+    type: "created",
+    actor_id: "alice",
+    payload: { name: "Bowls", generic: true, pool: true, quantity: 10 },
+  });
+  const id = await res.createReservation(store, {
+    ...fall,
+    items: [f.stove, f.t1, f.tarp],
+    generics: [
+      { item_id: f.tents, quantity: 1 },
+      { item_id: "bowls", quantity: 4 },
+    ],
+  });
+  const r = res.reservation(store.state, id)!;
+  expect(res.outstanding(store.state, r).items).toEqual([]);
+  expect(res.outstanding(store.state, r).generics.map((g) => g.out)).toEqual([0, 0]);
+
+  const under = { event: "Fall Camp", reservation_id: id };
+  await mv.checkOut(store, f.stove, under);
+  await mv.sendItemHome(store, f.stove, { cleaner: "Smith" });
+  await mv.checkOut(store, f.t1, under);
+  await mv.checkOut(store, f.t2, under);
+  await mv.checkOut(store, f.t3, { event: "Other trip" });
+  await mv.checkOut(store, f.tarp, under);
+  await mv.checkIn(store, f.tarp);
+  await mv.checkOutPool(store, "bowls", { count: 5, ...under });
+  await mv.sendHomeFromPool(store, "bowls", { cleaner: "Jones", count: 2 });
+
+  const out = res.outstanding(store.state, r);
+  expect(out.items.map(shown)).toEqual(["4-person tent #1", "Stove"]);
+  expect(out.items[1]!.movement?.cleaner).toBe("Smith");
+  // #1 is named; #2 counts for the generic. The pool is not capped at the 4 asked for.
+  expect(out.generics.map((g) => [g.generic.name, g.quantity, g.out])).toEqual([
+    ["4-person tent", 1, 1],
+    ["Bowls", 4, 5],
+  ]);
+});
+
 test("remaining does not count a retired unit as packed", async () => {
   const f = await fixture();
   const id = await res.createReservation(store, { ...fall, items: [], generics: [{ item_id: f.tents, quantity: 2 }] });

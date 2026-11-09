@@ -245,12 +245,15 @@ const wentOut = (it: Item, r: Pick<Reservation, "id">): boolean =>
   it.status === "out" && it.movement?.reservation_id === r.id;
 const ticked = (it: Item, r: Pick<Reservation, "id">): boolean => wentOut(it, r) && !it.movement?.cleaner;
 
-/** How much of a stack is out under the reservation and not at someone's home (FR-RES-36). Mirrored by pool_packed in views.py. */
-const poolPacked = (it: Item, r: Pick<Reservation, "id">): number =>
+/** How much of a stack is out under the reservation, leaving out what is at someone's home unless homeToo. Mirrored by pool_out in views.py. */
+const poolOut = (it: Item, r: Pick<Reservation, "id">, homeToo: boolean): number =>
   poolLots(it)
     .flatMap((o) => o.lots)
-    .filter((l) => l.reservation_id === r.id && !l.cleaner)
+    .filter((l) => l.reservation_id === r.id && (homeToo || !l.cleaner))
     .reduce((n, l) => n + l.count, 0);
+
+/** Out under the reservation and not at someone's home (FR-RES-36). Mirrored by pool_packed in views.py. */
+const poolPacked = (it: Item, r: Pick<Reservation, "id">): number => poolOut(it, r, false);
 
 /**
  * The items a reservation names, as they stand today: a merged duplicate means
@@ -283,6 +286,31 @@ export function remaining(state: State, r: Reservation): Remaining {
   });
 
   return { items: left, packed, generics: generics.sort((a, b) => byName(state)(a.generic, b.generic)) };
+}
+
+export interface Outstanding {
+  items: Item[];
+  generics: { generic: Item; quantity: number; out: number }[];
+}
+
+/** What is still out under the event, at a cleaner's home or not. Mirrored by outstanding in views.py. */
+export function outstanding(state: State, r: Reservation): Outstanding {
+  const byHome = (a: Item, b: Item) => homeLabel(state, a).localeCompare(homeLabel(state, b)) || byName(state)(a, b);
+  const items = namedItems(state, r)
+    .map((id) => (state.item?.[id] ? ({ id, ...state.item[id] } as Item) : undefined))
+    .filter((it): it is Item => it !== undefined && wentOut(it, r))
+    .sort(byHome);
+
+  const chosen = new Set(namedItems(state, r));
+  const generics = r.generics.map((g) => {
+    const generic = item(state, g.item_id) ?? ({ id: g.item_id, name: "(unknown item)" } as Item);
+    const out = isPool(generic)
+      ? poolOut(generic, r, true)
+      : unitsOf(state, g.item_id).filter((u) => !u.retired && !chosen.has(u.id) && wentOut(u, r)).length;
+    return { generic, quantity: g.quantity, out };
+  });
+
+  return { items, generics: generics.sort((a, b) => byName(state)(a.generic, b.generic)) };
 }
 
 export const isPacked = (rem: Remaining): boolean =>

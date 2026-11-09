@@ -304,7 +304,7 @@ test("duplicate carries the gear and the name over, not the dates (FR-RES-10)", 
 
 test("the page shows the gear, opens packing on the scan screen without touching the device session, and can cancel (FR-RES-25)", async () => {
   navigate(`/events/${fall}`);
-  renderInShell(<ReservationPage store={store} id={fall} />);
+  renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
   expect(screen.getByRole("heading", { name: "Fall Camp" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /4-person tent #1/ })).toHaveTextContent("Cold locker · In");
   expect(screen.getByText("1 × 4-person tent — 0 packed")).toBeInTheDocument();
@@ -333,7 +333,7 @@ test("two camps saved on two devices are named against each other on the page (F
     items: [t1],
     generics: [],
   });
-  renderInShell(<ReservationPage store={store} id={fall} />);
+  renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
   expect(screen.getByRole("note")).toHaveTextContent("Needed for Cub camp (4-person tent #1).");
 });
 
@@ -410,6 +410,39 @@ test("the page marks each line packed or not, and Not packed hides the packed on
   expect(screen.getByText("1 × 4-person tent — packed")).toBeInTheDocument();
 });
 
+test("once the event has ended the page says Not returned, and filters by it (FR-RES-41, FR-RES-42)", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  await res.addItem(store, fall, stove);
+  const later = () => Date.parse("2026-10-10T19:00:00Z");
+  navigate(`/events/${fall}`);
+  renderInShell(<ReservationPage store={store} id={fall} />, later);
+  const row = (name: RegExp) => screen.getByRole("button", { name });
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+
+  const under = { event: "Fall Camp", reservation_id: fall };
+  await mv.checkOut(store, t1, under);
+  await mv.checkOut(store, stove, under);
+  await mv.sendItemHome(store, stove, { cleaner: "Smith" });
+  await mv.checkOut(store, t2, under);
+  await waitFor(() => expect(row(/4-person tent #1/)).toHaveTextContent("Not returned"));
+  expect(row(/Stove/)).toHaveTextContent("Not returned · at home with Smith");
+  expect(screen.getByText("1 × 4-person tent — 1 not returned")).toBeInTheDocument();
+  expect(screen.queryByText(/Not packed|Packed/)).not.toBeInTheDocument();
+  expect(screen.queryByRole("checkbox", { name: "Not packed" })).not.toBeInTheDocument();
+
+  await mv.checkIn(store, t1);
+  await waitFor(() => expect(row(/4-person tent #1/)).not.toHaveTextContent("Not returned"));
+  await user.click(screen.getByRole("checkbox", { name: "Not returned" }));
+  expect(screen.queryByRole("button", { name: /4-person tent #1/ })).not.toBeInTheDocument();
+  expect(row(/Stove/)).toBeInTheDocument();
+
+  await mv.backFromCleaning(store, stove);
+  await mv.checkIn(store, stove);
+  await mv.checkIn(store, t2);
+  await waitFor(() => expect(screen.getByText("Everything is back.")).toBeInTheDocument());
+  expect(screen.queryByText(/× 4-person tent/)).not.toBeInTheDocument();
+});
+
 test("at a desk, It's with us sits at the end of its row; on a phone, under it", async () => {
   const sheet = document.createElement("style");
   sheet.textContent = readFileSync(join(import.meta.dirname, "../styles.css"), "utf8");
@@ -474,7 +507,7 @@ test("a camp within seven days of another sharing gear gets a muted hint, not a 
   });
   navigate(`/events/${fall}`);
   // Fall Camp ends 2026-10-04; Winter Prep starts four days later: near, but not overlapping.
-  renderInShell(<ReservationPage store={store} id={fall} />);
+  renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
   expect(screen.queryByRole("note")).not.toBeInTheDocument();
   expect(screen.getByText("Needed for Winter Prep, 2026-10-08 – 2026-10-09")).toBeInTheDocument();
 });
@@ -496,7 +529,7 @@ test("a pool line on the page is checked out by count, and ticks off (FR-RES-13)
     generics: [{ item_id: bowls, quantity: 4 }],
   });
   navigate(`/events/${camp}`);
-  renderInShell(<ReservationPage store={store} id={camp} />);
+  renderInShell(<ReservationPage store={store} id={camp} />, () => T0);
 
   expect(screen.getByText("4 × Bowls — 0 packed")).toBeInTheDocument();
   const count = screen.getByLabelText("How many Bowls to check out");
@@ -523,7 +556,7 @@ test("a pool line starts at what is in, and shows the refusal inline past it (FR
     generics: [{ item_id: bowls, quantity: 4 }],
   });
   navigate(`/events/${camp}`);
-  renderInShell(<ReservationPage store={store} id={camp} />);
+  renderInShell(<ReservationPage store={store} id={camp} />, () => T0);
 
   const count = screen.getByLabelText("How many Bowls to check out");
   expect(count).toHaveValue(3);
@@ -546,7 +579,7 @@ test("the refusal offers Recount, which goes to the pool's page", async () => {
     generics: [{ item_id: bowls, quantity: 4 }],
   });
   navigate(`/events/${camp}`);
-  renderInShell(<ReservationPage store={store} id={camp} />);
+  renderInShell(<ReservationPage store={store} id={camp} />, () => T0);
 
   const count = screen.getByLabelText("How many Bowls to check out");
   await user.clear(count);
@@ -568,7 +601,7 @@ test("a pool line that said None in offers the count again when stock comes back
     generics: [{ item_id: bowls, quantity: 4 }],
   });
   navigate(`/events/${camp}`);
-  renderInShell(<ReservationPage store={store} id={camp} />);
+  renderInShell(<ReservationPage store={store} id={camp} />, () => T0);
   expect(screen.getByText("None in")).toBeInTheDocument();
 
   await mv.checkInPool(store, bowls, { count: 2 });
@@ -589,7 +622,7 @@ test("a pool line says None in when none are in (FR-OUT-55)", async () => {
     generics: [{ item_id: bowls, quantity: 4 }],
   });
   navigate(`/events/${camp}`);
-  renderInShell(<ReservationPage store={store} id={camp} />);
+  renderInShell(<ReservationPage store={store} id={camp} />, () => T0);
 
   expect(screen.getByText("None in")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Check out Bowls" })).not.toBeInTheDocument();
@@ -613,7 +646,7 @@ test("a retired pool line on the page offers no check-out, only a note (FR-INV-0
     generics: [{ item_id: bowls, quantity: 4 }],
   });
   navigate(`/events/${camp}`);
-  renderInShell(<ReservationPage store={store} id={camp} />);
+  renderInShell(<ReservationPage store={store} id={camp} />, () => T0);
 
   expect(screen.getByText("4 × Bowls — 0 packed")).toBeInTheDocument();
   expect(screen.queryByLabelText("How many Bowls to check out")).not.toBeInTheDocument();
@@ -650,6 +683,17 @@ test("a line whose item this device has no record of stays under Not packed (FR-
   await user.click(screen.getByRole("checkbox", { name: "Not packed" }));
   expect(screen.getByText("(unknown item)")).toBeInTheDocument();
   expect(screen.queryByText("Everything is packed.")).not.toBeInTheDocument();
+});
+
+test("on an ended event, a line whose item this device has no record of stays under Not returned", async () => {
+  await res.addItem(store, fall, newUlid());
+  await mv.checkOut(store, t1, { event: "Fall Camp", reservation_id: fall });
+  navigate(`/events/${fall}`);
+  renderInShell(<ReservationPage store={store} id={fall} />, () => Date.parse("2026-10-10T19:00:00Z"));
+
+  await user.click(screen.getByRole("checkbox", { name: "Not returned" }));
+  expect(screen.getByText("(unknown item)")).toBeInTheDocument();
+  expect(screen.queryByText("Everything is back.")).not.toBeInTheDocument();
 });
 
 test("a cancelled reservation marks nothing packed and offers no filter (FR-RES-29)", async () => {
