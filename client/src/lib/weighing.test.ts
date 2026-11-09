@@ -142,7 +142,7 @@ describe("what is left", () => {
 });
 
 describe("check-in", () => {
-  test("with a weight records the reading after the check-in; Unknown clears it; none leaves it", async () => {
+  test("a weight records the reading after the check-in; none leaves it, stale", async () => {
     await mv.checkOut(store, tank, { event: "Camp", packing: true });
     await mv.checkIn(store, tank, { weight: { value: 28, unit: "lb" } });
     expect(store.pending.slice(-2).map((e) => e.type)).toEqual(["checked_in", "weighed"]);
@@ -153,10 +153,14 @@ describe("check-in", () => {
     // Kept, but taken before this trip, so not shown as what is left (FR-INV-69).
     expect(left()).toBeNull();
     expect(readingIsStale(store.state, item(store.state, tank)!)).toBe(true);
+  });
 
+  test("no weight records nothing and keeps a fresh reading", async () => {
     await mv.checkOut(store, tank, { event: "Camp", packing: true });
-    await mv.checkIn(store, tank, { weight: null });
-    expect(left()).toBeNull();
+    await mv.weigh(store, tank, { value: 28, unit: "lb" });
+    await mv.checkIn(store, tank);
+    expect(store.pending.at(-1)?.type).toBe("checked_in");
+    expect(left()).toMatchObject({ left: 10, percent: 50 });
   });
 
   test("an item that is not weighed records no weighing", async () => {

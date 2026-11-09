@@ -186,16 +186,78 @@ test("the weight prompt does not crash when a sync clears the capacity", async (
   expect(screen.queryByLabelText("Weight now")).not.toBeInTheDocument();
 });
 
-test("Unknown returns the item in one tap and clears the old reading", async () => {
+test("Unknown returns the item in one tap and records no weighing", async () => {
   await mv.weigh(store, tank, { value: 30, unit: "lb" });
   await mv.checkOut(store, tank);
   renderInShell(<ItemPage store={store} id={tank} />);
   await user.click(screen.getByRole("button", { name: "Return" }));
   await user.click(screen.getByRole("button", { name: "Unknown" }));
 
-  await waitFor(() => expect(events("weighed").at(-1)).toEqual({ value: null }));
-  expect(item(store.state, tank)?.status).toBe("in");
-  expect(item(store.state, tank)?.reading).toBeNull();
+  await waitFor(() => expect(item(store.state, tank)?.status).toBe("in"));
+  expect(events("weighed")).toEqual([{ value: 30, unit: "lb" }]);
+  expect(item(store.state, tank)?.reading).toMatchObject({ value: 30, unit: "lb" });
+});
+
+test("Return does not ask the weight when it was weighed since it went out", async () => {
+  await mv.checkOut(store, tank);
+  await mv.weigh(store, tank, { value: 28, unit: "lb" });
+  renderInShell(<ItemPage store={store} id={tank} />);
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  await waitFor(() => expect(item(store.state, tank)?.status).toBe("in"));
+  expect(screen.queryByLabelText("Weight now")).not.toBeInTheDocument();
+  expect(events("weighed")).toEqual([{ value: 28, unit: "lb" }]);
+});
+
+test("Return does not ask the weight when it was refilled since it went out", async () => {
+  await mv.checkOut(store, tank);
+  await mv.refill(store, tank);
+  renderInShell(<ItemPage store={store} id={tank} />);
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  await waitFor(() => expect(item(store.state, tank)?.status).toBe("in"));
+  expect(screen.queryByLabelText("Weight now")).not.toBeInTheDocument();
+});
+
+test("Return asks the weight when the reading was taken before it went out", async () => {
+  await mv.weigh(store, tank, { value: 28, unit: "lb" });
+  await mv.checkOut(store, tank);
+  renderInShell(<ItemPage store={store} id={tank} />);
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  expect(screen.getByLabelText("Weight now")).toBeInTheDocument();
+});
+
+test("a scan's card hides Weigh and Refilled while the Return weight prompt is open", async () => {
+  await printCodes(store, ["AAAAAAAAAA"]);
+  await act.bindCode(store, "AAAAAAAAAA", tank);
+  await mv.weigh(store, tank, { value: 28, unit: "lb" });
+  await mv.checkOut(store, tank);
+  navigate("/scan");
+  const camera = fakeCamera();
+  renderInShell(<Scan store={store} native />);
+  await camera.scan("AAAAAAAAAA");
+  const card = await screen.findByRole("region", { name: "Propane" });
+  expect(within(card).getByRole("button", { name: "Weigh" })).toBeInTheDocument();
+  await user.click(within(card).getByRole("button", { name: "Return" }));
+  expect(screen.getByLabelText("Weight now")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Weigh" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Refilled" })).not.toBeInTheDocument();
+});
+
+test("a scan's card offers Weigh and Refilled for a weighed item, and not for a plain one", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  await printCodes(store, ["AAAAAAAAAA", "BBBBBBBBBB"]);
+  await act.bindCode(store, "AAAAAAAAAA", tank);
+  await act.bindCode(store, "BBBBBBBBBB", stove);
+  navigate("/scan");
+  const camera = fakeCamera();
+  renderInShell(<Scan store={store} native />);
+  await camera.scan("AAAAAAAAAA");
+  const card = await screen.findByRole("region", { name: "Propane" });
+  expect(within(card).getByRole("button", { name: "Weigh" })).toBeInTheDocument();
+  expect(within(card).getByRole("button", { name: "Refilled" })).toBeInTheDocument();
+  await user.click(within(card).getByRole("button", { name: "Skip" }));
+  await camera.scan("BBBBBBBBBB");
+  const plain = await screen.findByRole("region", { name: "Stove" });
+  expect(within(plain).queryByRole("button", { name: "Weigh" })).not.toBeInTheDocument();
 });
 
 test("the weight prompt can be cancelled without returning it", async () => {

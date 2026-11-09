@@ -6,7 +6,7 @@ import { openRepairs, raiseTicket } from "../lib/repairs";
 import { type Session, sessionEvent } from "../lib/session";
 import type { Store } from "../lib/store";
 import { useUnsaved } from "../lib/unsaved";
-import { weighing } from "../lib/weighing";
+import { amountLeft, weighing } from "../lib/weighing";
 import { CleanerField } from "./CleanerField";
 import { useEventQuestion } from "./EventChoice";
 import { TransferPicker } from "./TransferPicker";
@@ -61,6 +61,8 @@ interface Props {
   reportProblem?: boolean;
   /** Buttons that follow the movement buttons. */
   children?: ReactNode;
+  /** Shown after the children, only while no question, picker or move is under way. */
+  whenIdle?: ReactNode;
 }
 
 type Pending = { kind: MoveKind; to?: string; cleaner?: string; act: (options: TransferOptions) => Promise<unknown> };
@@ -81,6 +83,7 @@ export function MoveActions({
   onSaved,
   reportProblem = false,
   children,
+  whenIdle,
 }: Props) {
   const [fault, setFault] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -179,16 +182,16 @@ export function MoveActions({
   const checkOutMove: Pending = { kind: "Checked out", act: (o) => checkOut(store, it.id, o) };
   const returnMove: Pending = { kind: "Returned", act: (o) => checkIn(store, it.id, o) };
   const w = weighing(store.state, it);
-  const weighedOnReturn = w !== null;
+  const asksWeightOnReturn = w !== null && amountLeft(store.state, it) === null;
   useEffect(() => {
     if (!w) setWeighing(false);
   }, [w]);
-  const returnWeighed = (weight: Weight | null): Pending => ({
+  const returnWeighed = (weight: Weight): Pending => ({
     kind: "Returned",
     act: (o) => checkIn(store, it.id, { ...o, weight }),
   });
-  /** The Return button: weighed gear asks its weight first. */
-  const startReturn = () => (weighedOnReturn ? setWeighing(true) : start(returnMove, false));
+  /** The Return button: weighed gear with no fresh reading asks its weight first (FR-INV-67, FR-INV-71). */
+  const startReturn = () => (asksWeightOnReturn ? setWeighing(true) : start(returnMove, false));
   const backMove: Pending = {
     kind: "Back from home",
     cleaner: it.movement?.cleaner,
@@ -268,7 +271,7 @@ export function MoveActions({
           }}
           onUnknown={() => {
             setWeighing(false);
-            start(returnWeighed(null), false);
+            start(returnMove, false);
           }}
           onCancel={() => setWeighing(false)}
         />
@@ -344,6 +347,7 @@ export function MoveActions({
         </>
       )}
       {children}
+      {cleaner === null && !(weighing_ && w) && !picking && !holding && whenIdle}
     </div>
   );
 }

@@ -2692,15 +2692,16 @@ def test_check_in_takes_a_weight_and_without_one_the_reading_is_kept_but_stale(t
     assert "left_stale" not in assistant.get_item(tools["stove"])
 
 
-def test_check_in_can_say_the_weight_is_unknown(tools):
+def test_check_in_weight_unknown_records_no_weighing_and_keeps_the_reading(tools, db_path):
     _tank(tools)
-    assistant.weigh(tools["stove"], 28, "lb")
     assistant.check_out(tools["stove"])
     with pytest.raises(BadRequest, match="not both"):
         assistant.check_in(tools["stove"], weight=assistant.Weight(value=23, unit="lb"), weight_unknown=True)
+    assistant.weigh(tools["stove"], 28, "lb")
+    weighed = [e for e in logged(db_path) if e["type"] == "weighed"]
     assistant.check_in(tools["stove"], weight_unknown=True)
-    got = assistant.get_item(tools["stove"])
-    assert got["left"] is None and "left_stale" not in got
+    assert [e for e in logged(db_path) if e["type"] == "weighed"] == weighed
+    assert _left(tools)["left"] == 10
 
 
 def test_check_in_with_a_weight_needs_a_weighed_item(tools, db_path):

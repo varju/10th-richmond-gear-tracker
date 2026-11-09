@@ -29,6 +29,7 @@ import { holdingLabel, plural, statusLabel, userName } from "./labels";
 import { MOVED_MS, MoveActions, movedText, useFlash } from "./MoveActions";
 import { LightButton, useLight } from "./Light";
 import { Page } from "./Page";
+import { WeighActions } from "./Weighing";
 
 const FLASH_MS = 2000;
 /** How long after a move the same sticker is ignored: long enough to lower the phone, short enough to undo a mistake. */
@@ -263,6 +264,7 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
                 if (booked && kind !== "Returned" && kind !== "Sent home" && kind !== "Back from home" && !to)
                   void addExtra(store, booked.id, card.id);
               }}
+              whenIdle={<WeighActions store={store} it={card} />}
               onSaved={(message) => {
                 confirm(`${message} · ${displayName(store.state, card)}`);
                 showCard(null);

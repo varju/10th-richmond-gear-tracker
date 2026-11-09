@@ -1894,8 +1894,9 @@ def check_in(
     """Bring an item back, without a scan (FR-OUT-07). Anyone can check anything in (FR-OUT-08).
 
     An item that is weighed to see what is left (get_item shows `empty_weight` and `capacity`) takes the
-    current `weight` as {value, unit} with the check-in (FR-INV-67). With no scale, set `weight_unknown` to
-    clear the last reading; with neither, the last reading is kept, though get_item then says it is stale.
+    current `weight` as {value, unit} with the check-in (FR-INV-67). `weight_unknown` records nothing, the
+    same as leaving `weight` out; it is kept for older callers. Without a weight the last reading is kept, though
+    get_item then says it is stale.
 
     A pool (FR-INV-34) comes back from one holder: you, unless `holder_id` names someone else who has
     some out (get_item lists them). `count` defaults to all that holder has out; say fewer to leave
@@ -1945,8 +1946,8 @@ def check_in(
         if not pool and it.get("missing"):
             # It turned up (FR-INV-19).
             drafts.append(_draft("item", it["id"], "field_changed", {"field": "missing", "value": False, "old": True}))
-        if weight is not None or weight_unknown:
-            drafts.append(_draft("item", it["id"], "weighed", weight.model_dump() if weight else {"value": None}))
+        if weight is not None:
+            drafts.append(_draft("item", it["id"], "weighed", weight.model_dump()))
         _push(conn, who, drafts)
         if pool:
             return {"item_id": it["id"], "count": count}

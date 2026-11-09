@@ -98,8 +98,8 @@ export async function checkOut(store: Store, itemId: string, options: MoveOption
 }
 
 export interface CheckInOptions extends MoveOptions {
-  /** What weighed gear reads now (FR-INV-67). Null is Unknown, which clears the last reading; left out, none is recorded. */
-  weight?: Weight | null;
+  /** What weighed gear reads now (FR-INV-67). Left out, none is recorded. */
+  weight?: Weight;
 }
 
 /** Anyone can bring anything back (FR-OUT-08). */
@@ -108,7 +108,7 @@ export async function checkIn(store: Store, itemId: string, options: CheckInOpti
   if (it.status !== "out") throw new Error("already in");
   const movement = await move(store, itemId, "checked_in", {}, options.packing ? undefined : {});
   await seen(store, itemId);
-  if (options.weight !== undefined && weighing(store.state, it)) await weigh(store, itemId, options.weight);
+  if (options.weight && weighing(store.state, it)) await weigh(store, itemId, options.weight);
   return movement;
 }
 
