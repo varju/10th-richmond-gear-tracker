@@ -97,3 +97,8 @@ Show a photo during check-out to confirm the right item, and use a lone photo as
 falls back to its generic's), shown on the scan card, the item page and the list. Needs FR-INV-11 reworded.
 
 **Deferred because:** photos are online only (FR-INV-11), so a photo at check-out in a locker would mostly fail to load.
+
+## Drop the workbox-build glob override
+
+`client/package.json` forces glob 14 on workbox-build to patch a minimatch ReDoS. Remove it once workbox-build depends
+on glob 14 or later.
