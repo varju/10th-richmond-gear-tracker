@@ -29,13 +29,14 @@ Covers: FR-SET-01, FR-SET-02, FR-SET-03, FR-USR-01, FR-USR-04
 
 ## S-BOOT-02 Print a sheet of codes
 
-The Quartermaster generates a PDF of unassigned codes and prints it onto a sheet of 32 labels.
+The Quartermaster generates a PDF of unassigned codes and prints it onto a sheet of 32 labels, or on plain paper as 12
+cards to cut out and laminate.
 
 - The sheet contains codes not yet bound to anything
 - Each label shows the QR code and the site address's host, nothing else
 - The layout matches the sticker sheet without manual adjustment
 
-Covers: FR-TAG-02, FR-TAG-16
+Covers: FR-TAG-02, FR-TAG-16, FR-TAG-19
 
 ## S-BOOT-03 The labelling walk
 

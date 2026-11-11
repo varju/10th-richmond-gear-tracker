@@ -2833,11 +2833,12 @@ def delete_category(category_id: str) -> dict[str, Any]:
         return {"category_id": category_id, "deleted": True}
 
 
-def print_codes(sheets: StrictInt = 1) -> dict[str, Any]:
-    """A PDF of fresh unassigned codes, laid out for 32-up label sheets (FR-TAG-02). Admins only.
+def print_codes(sheets: StrictInt = 1, layout: labels.LayoutName = "standard") -> dict[str, Any]:
+    """A PDF of fresh unassigned codes, laid out for label sheets (FR-TAG-02). Admins only.
 
-    `sheets` is 1 to 10, 32 codes to a sheet. The group name, site address and
-    contact must be set first (FR-PUB-01): a code is a public page the moment
+    `sheets` is 1 to 10. `layout` is `standard` (32 per sheet, 1.75 x 1.25 in) or `cards`
+    (12 per page with cut lines, to cut out and laminate).
+    The group name, site address and contact must be set first (FR-PUB-01): a code is a public page the moment
     it goes on gear, and one with no way back to the group is no use to a
     finder. Binding a code to an item still happens by scanning it in the app.
     """
@@ -2845,11 +2846,13 @@ def print_codes(sheets: StrictInt = 1) -> dict[str, Any]:
         accounts._require_admin(who)
         if not 1 <= sheets <= 10:
             raise BadRequest("sheets must be between 1 and 10")
+        if layout not in labels.LAYOUTS:
+            raise BadRequest(f"layout must be one of: {', '.join(labels.LAYOUTS)}")
         group = views.entity(_state(conn), "setting", "group") or {}
         if not group.get("name") or not group.get("code_url") or not group.get("contact"):
             raise Conflict("set the group name, site address and contact in Settings first")
-        made = codes.create_codes(conn, who.user_id, sheets * labels.LABELS_PER_SHEET)
-        pdf = labels.sheet(made, str(group["code_url"]))
+        made = codes.create_codes(conn, who.user_id, sheets * labels.LAYOUTS[layout].labels_per_sheet)
+        pdf = labels.sheet(made, str(group["code_url"]), layout)
         return {"codes": made, "pdf_base64": base64.b64encode(pdf).decode("ascii")}
 
 

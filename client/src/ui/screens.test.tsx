@@ -922,7 +922,26 @@ test("printing posts the sheet count with the bearer token, under the app's base
   expect(calls[0]!.url).toBe("/gear/codes/sheets");
   expect(calls[0]!.init.method).toBe("POST");
   expect(calls[0]!.init.headers).toMatchObject({ Authorization: "Bearer t", "Content-Type": "application/json" });
-  expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ sheets: 3 });
+  expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ sheets: 3, layout: "standard" });
+});
+
+test("choosing cut-and-laminate cards sends the layout", async () => {
+  const bodies: unknown[] = [];
+  const recording: typeof fetch = async (input, init) => {
+    if (!String(input).includes("/codes/sheets")) return offline();
+    bodies.push(JSON.parse(String(init!.body)));
+    return new Response(new Blob(["%PDF"], { type: "application/pdf" }), { status: 200 });
+  };
+  URL.createObjectURL = () => "blob:codes";
+  URL.revokeObjectURL = () => {};
+  window.open = (() => null) as typeof window.open;
+  navigate("/settings/codes");
+  mount(recording);
+  const user = userEvent.setup();
+  await user.selectOptions(screen.getByLabelText("Labels"), "12 per sheet, cut and laminate");
+  await user.click(within(screen.getByRole("main")).getByRole("button", { name: "Print QR codes" }));
+  expect(await screen.findByRole("link", { name: "Download codes.pdf" })).toBeInTheDocument();
+  expect(bodies).toEqual([{ sheets: 1, layout: "cards" }]);
 });
 
 test("a refused print shows the server's message", async () => {

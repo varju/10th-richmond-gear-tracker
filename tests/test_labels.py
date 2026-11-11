@@ -94,7 +94,7 @@ def qr_alone(url: str) -> list[tuple[float, float, float, float]]:
     """The modules of url's QR, drawn where the first label's QR goes."""
     buffer = io.BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=letter)
-    labels.qr_drawing(url, labels.QR_SIZE).drawOn(pdf, LEFT * INCH, (11 - TOP - HEIGHT) * INCH)
+    labels.qr_drawing(url, HEIGHT * INCH).drawOn(pdf, LEFT * INCH, (11 - TOP - HEIGHT) * INCH)
     pdf.showPage()
     pdf.save()
     return boxes(read(buffer.getvalue())[0][0])
@@ -174,3 +174,75 @@ def test_a_long_address_shrinks_and_still_fits():
     assert all(letters)
     assert "".join(c["text"] for c in letters[0]) == labels.site_text(long)
     assert font_size(letters[0]) >= labels.MIN_FONT_SIZE - 0.01
+
+
+CARD_MARGIN, CARD_WIDTH, CARD_HEIGHT = 0.375, (8.5 - 0.75) / 3, (11 - 0.75) / 4
+
+
+def card_rects() -> list[tuple[float, float, float, float]]:
+    return [
+        (
+            CARD_MARGIN + c * CARD_WIDTH,
+            CARD_MARGIN + r * CARD_HEIGHT,
+            CARD_MARGIN + (c + 1) * CARD_WIDTH,
+            CARD_MARGIN + (r + 1) * CARD_HEIGHT,
+        )
+        for r in range(4)
+        for c in range(3)
+    ]
+
+
+@pytest.mark.parametrize(("count", "pages"), [(1, 1), (12, 1), (13, 2), (120, 10)])
+def test_card_pages_needed(count, pages):
+    assert labels.pages_needed(count, "cards") == pages
+
+
+def test_thirteen_card_codes_need_a_second_page():
+    assert len(read(labels.sheet(CODES[:12], SITE, "cards"))) == 1
+    assert len(read(labels.sheet(CODES[:13], SITE, "cards"))) == 2
+
+
+def test_cards_sit_wholly_on_the_page_and_each_has_a_qr_and_the_host():
+    rects, chars = read(labels.sheet(CODES[:12], SITE, "cards"))[0]
+    homes = card_rects()
+    assert all(r[0] >= 0 and r[2] <= 8.5 and r[1] >= 0 and r[3] <= 11 for r in homes), "a label is off the page"
+    for objs in (rects, chars):
+        found: list[list[dict]] = [[] for _ in homes]
+        for obj in objs:
+            x0, x1, top, bottom = (obj[k] / INCH for k in ("x0", "x1", "top", "bottom"))
+            at = [
+                i
+                for i, (a, t, b, d) in enumerate(homes)
+                if a - TOLERANCE <= x0 and x1 <= b + TOLERANCE and t - TOLERANCE <= top and bottom <= d + TOLERANCE
+            ]
+            assert at, f"off every label: {x0:.3f}, {top:.3f}"
+            found[at[0]].append(obj)
+        assert all(found)
+    assert "".join(c["text"] for c in chars[: len("10thrichmond.ca")]) == "10thrichmond.ca"
+    assert all(c["upright"] for c in chars)
+
+
+def test_cards_keep_a_blank_border_inside_the_cut_line():
+    rects, chars = read(labels.sheet(CODES[:1], SITE, "cards"))[0]
+    x0, top, x1, bottom = card_rects()[0]
+    inner = (x0 + 0.25, top + 0.25, x1 - 0.25, bottom - 0.25)
+    modules = [r for r in rects if r["width"] / INCH < 0.5]
+    assert modules
+    for obj in modules + chars:
+        assert obj["x0"] / INCH >= inner[0] - TOLERANCE and obj["x1"] / INCH <= inner[2] + TOLERANCE
+        assert obj["top"] / INCH >= inner[1] - TOLERANCE and obj["bottom"] / INCH <= inner[3] + TOLERANCE
+
+
+def test_a_long_address_on_cards_shrinks_and_stays_inside_the_border():
+    long = "https://the-extraordinarily-long-named-scout-group-of-somewhere.example.org/gear"
+    chars = read(labels.sheet(CODES[:1], long, "cards"))[0][1]
+    assert "".join(c["text"] for c in chars) == labels.site_text(long)
+    assert font_size_upright(chars) >= labels.MIN_FONT_SIZE - 0.01
+    x0, top, x1, bottom = card_rects()[0]
+    assert min(c["x0"] for c in chars) / INCH >= x0 + 0.25 - TOLERANCE
+    assert max(c["x1"] for c in chars) / INCH <= x1 - 0.25 + TOLERANCE
+    assert max(c["bottom"] for c in chars) / INCH <= bottom - 0.25 + TOLERANCE
+
+
+def font_size_upright(chars: list[dict]) -> float:
+    return max(c["bottom"] - c["top"] for c in chars)

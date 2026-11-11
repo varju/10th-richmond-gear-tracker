@@ -75,6 +75,9 @@ export interface Device {
   created_at: number;
 }
 
+/** A sheet of label stock the server can lay codes out on. */
+export type LayoutName = "standard" | "cards";
+
 /** The days a standing join link is good for (FR-USR-19): 1, 7 (the default) or 30, or null to never expire. */
 export type JoinLinkExpiry = 1 | 7 | 30 | null;
 
@@ -400,8 +403,8 @@ export function createApi(options: ApiOptions = {}) {
     /** An <img> cannot send the bearer header, so the bytes are fetched and shown from memory. */
     fetchPhoto: async (id: string): Promise<Blob> => (await raw("GET", `/photos/${id}`)).blob(),
     /** A PDF of fresh unassigned codes (FR-TAG-02). Admins only; the sheet is built on the server. */
-    codeSheets: async (sheets: number): Promise<Blob> =>
-      (await raw("POST", "/codes/sheets", JSON.stringify({ sheets }), "application/json")).blob(),
+    codeSheets: async (sheets: number, layout: LayoutName): Promise<Blob> =>
+      (await raw("POST", "/codes/sheets", JSON.stringify({ sheets, layout }), "application/json")).blob(),
     /** Every live item as a spreadsheet (FR-RPT-03). Any signed-in person. */
     exportCsv: async (): Promise<Blob> => (await raw("GET", "/inventory.csv")).blob(),
     /** What an import would do, without doing it (FR-SET-11). Admins only. */

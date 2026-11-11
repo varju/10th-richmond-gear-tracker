@@ -738,8 +738,8 @@ def create_app(
             # Every sticker is a public page from the moment it goes on gear, and a
             # public page with no way to reach us is no use to a finder (FR-PUB-01).
             raise Conflict("set the group name, site address and contact in Settings first")
-        made = codes.create_codes(conn, who.user_id, body.sheets * labels.LABELS_PER_SHEET)
-        pdf = labels.sheet(made, group["code_url"])
+        made = codes.create_codes(conn, who.user_id, body.sheets * labels.LAYOUTS[body.layout].labels_per_sheet)
+        pdf = labels.sheet(made, group["code_url"], body.layout)
         return Response(
             content=pdf,
             media_type="application/pdf",
@@ -894,6 +894,7 @@ def create_app(
 
 class SheetRequest(Strict):
     sheets: Annotated[int, Field(ge=1, le=10)] = 1
+    layout: labels.LayoutName = "standard"
 
 
 class FoundBody(Strict):

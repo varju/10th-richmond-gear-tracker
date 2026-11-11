@@ -1402,6 +1402,15 @@ def test_print_codes_needs_the_group_set_up_first(admin_tools):
         assistant.print_codes(sheets=11)
 
 
+def test_print_codes_cards_make_twelve_to_a_sheet(admin_tools):
+    assistant.set_group(
+        assistant.GroupFields(name="10th Richmond", code_url="https://example.org/gear", contact="qm@example.org")
+    )
+    assert len(assistant.print_codes(layout="cards")["codes"]) == 12
+    with pytest.raises(BadRequest):
+        assistant.print_codes(layout="round")  # ty: ignore[invalid-argument-type]
+
+
 def test_csv_export_is_open_to_a_user_but_import_is_admin_only(db_path, who, admin, inventory):
     with assistant.acting_as(who, db_path):
         exported = assistant.export_csv()["csv"]

@@ -212,8 +212,9 @@ delete; the message names what is still there.
 
 ### Print a sheet of codes
 
-Open **Settings** > **Print QR codes**, set **Sheets**, and tap **Print QR codes**. A PDF opens for US Letter sheets of
-32 labels, each 1.75 x 1.25 in. The codes are unassigned until someone scans one and binds it to gear.
+Open **Settings** > **Print QR codes**, set **Sheets** and **Labels**, and tap **Print QR codes**. A PDF opens for US
+Letter sheets of 32 labels, each 1.75 x 1.25 in, or for plain paper with 12 cards, 3 across and 4 down, to cut out and
+laminate. The codes are unassigned until someone scans one and binds it to gear.
 
 ### Send invites by mail
 

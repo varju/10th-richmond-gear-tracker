@@ -792,6 +792,7 @@ def test_sheets_body_is_validated(client, admin):
     assert client.post("/codes/sheets", json={"sheets": 0}, headers=admin).status_code == 400
     assert client.post("/codes/sheets", json={"sheets": 11}, headers=admin).status_code == 400
     assert client.post("/codes/sheets", json={"sheets": "1"}, headers=admin).status_code == 400
+    assert client.post("/codes/sheets", json={"layout": "round"}, headers=admin).status_code == 400
 
 
 def test_a_sheet_of_codes(client, admin, db_path):
@@ -823,6 +824,22 @@ def test_a_sheet_of_codes(client, admin, db_path):
     assert found.json()["code"] == code
     assert found.json()["item_id"] is None
     assert "server_time" in found.json()
+
+
+def test_a_cards_sheet_makes_twelve_codes(client, admin, db_path):
+    with open_db(db_path) as conn:
+        events.append_server(
+            conn,
+            "alice",
+            "setting",
+            "group",
+            "created",
+            {"name": "10th Richmond", "code_url": "https://example.org", "contact": "gear@example.org"},
+        )
+    r = client.post("/codes/sheets", json={"sheets": 2, "layout": "cards"}, headers=admin)
+    assert r.status_code == 200, r.text
+    with open_db(db_path) as conn:
+        assert len(derived.snapshot(conn)["code"]) == 24
 
 
 def test_looking_up_a_code(client):

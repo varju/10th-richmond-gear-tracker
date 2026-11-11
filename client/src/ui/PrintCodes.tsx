@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { type Api, ApiError, Offline } from "../lib/api";
+import { type Api, ApiError, type LayoutName, Offline } from "../lib/api";
 import { NATIVE } from "../lib/server";
 import { NOT_SHARED, shareFile } from "../lib/share";
 
@@ -12,13 +12,14 @@ interface Props {
 }
 
 /**
- * A PDF of unassigned codes on 32-up label sheets (S-BOOT-02). The one thing
+ * A PDF of unassigned codes on 32-up or 12-up cut-and-laminate sheets (S-BOOT-02). The one thing
  * in these screens that needs the server: the PDF is built there. It goes
  * through the API like every other call, so it finds the server wherever the
  * app is served from.
  */
 export function PrintCodes({ api, onDone, native = NATIVE }: Props) {
   const [sheets, setSheets] = useState("1");
+  const [layout, setLayout] = useState<LayoutName>("standard");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -30,7 +31,7 @@ export function PrintCodes({ api, onDone, native = NATIVE }: Props) {
     setError(null);
     try {
       // Clamped here, not while typing, so the field never fights the thumb.
-      const pdf = await api.codeSheets(Math.min(10, Math.max(1, Number(sheets) || 1)));
+      const pdf = await api.codeSheets(Math.min(10, Math.max(1, Number(sheets) || 1)), layout);
       if (native) {
         setPdf(pdf);
         // Straight away, while the tap still counts: the sheet will not open after a long wait.
@@ -67,6 +68,13 @@ export function PrintCodes({ api, onDone, native = NATIVE }: Props) {
         <label className="tight">
           <span>Sheets</span>
           <input type="number" min={1} max={10} value={sheets} onChange={(e) => setSheets(e.target.value)} />
+        </label>
+        <label className="tight">
+          <span>Labels</span>
+          <select value={layout} onChange={(e) => setLayout(e.target.value as LayoutName)}>
+            <option value="standard">32 per sheet, 1.75″ × 1.25″</option>
+            <option value="cards">12 per sheet, cut and laminate</option>
+          </select>
         </label>
         <button type="button" onClick={print} disabled={busy}>
           Print QR codes

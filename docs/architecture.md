@@ -749,6 +749,9 @@ the app appends `/g/<code>` to it to make the URL.
 Beside the QR, the label prints that address's host alone, such as `example.org`, reading top to bottom along the
 label's height. A finder who cannot scan can still find the group's site, and through it the group (FR-TAG-16).
 
+The cards layout (FR-TAG-19) is for plain paper: 12 cards to a page with cut lines, a blank border inside each for
+laminate to seal, and the host on one horizontal line under the QR. Each layout's geometry lives in `labels.LAYOUTS`.
+
 ### Code lifecycle
 
 Code identifiers must not be guessable (NFR-SEC-04), so they are random, not sequential. A code has three states:
