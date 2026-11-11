@@ -34,3 +34,4 @@ app-review.txt
 !.claude/
 .claude/*
 !.claude/agents/
+!.claude/skills/
