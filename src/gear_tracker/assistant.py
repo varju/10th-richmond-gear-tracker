@@ -2842,7 +2842,7 @@ def print_codes(sheets: StrictInt = 1, layout: labels.LayoutName = "standard") -
     """A PDF of fresh unassigned codes, laid out for label sheets (FR-TAG-02). Admins only.
 
     `sheets` is 1 to 10. `layout` is `standard` (32 per sheet, 1.75 x 1.25 in) or `cards`
-    (12 per page with cut lines, to cut out and laminate).
+    (12 per page, to cut out and laminate).
     The group name, site address and contact must be set first (FR-PUB-01): a code is a public page the moment
     it goes on gear, and one with no way back to the group is no use to a
     finder. Binding a code to an item still happens by scanning it in the app.

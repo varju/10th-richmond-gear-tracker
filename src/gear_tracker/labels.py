@@ -35,11 +35,9 @@ CARD_MARGIN = 0.375 * inch
 CARD_WIDTH = (PAGE_WIDTH - 2 * CARD_MARGIN) / 3
 CARD_HEIGHT = (PAGE_HEIGHT - 2 * CARD_MARGIN) / 4
 CARD_BORDER = 0.25 * inch
-"""Blank all round inside the cut line, so laminate can seal past the QR."""
+"""Blank all round inside the card's edge, so laminate can seal past the QR."""
 CARD_TEXT_BAND = 0.3125 * inch
 """The height under the QR for the site address."""
-CUT_LINE_WIDTH = 0.5
-CUT_LINE_GREY = 0.75
 
 FONT = "Helvetica-Bold"
 MIN_FONT_SIZE = 5
@@ -108,11 +106,6 @@ class CardLayout(Layout):
 
     def draw(self, pdf: canvas.Canvas, x: float, y: float, url: str, text: str, fit: tuple[float, float]) -> None:
         qr = min(self._inner_width, self.label_height - 2 * CARD_BORDER - CARD_TEXT_BAND)
-        pdf.saveState()
-        pdf.setLineWidth(CUT_LINE_WIDTH)
-        pdf.setStrokeGray(CUT_LINE_GREY)
-        pdf.rect(x, y, self.label_width, self.label_height)
-        pdf.restoreState()
         band = y + CARD_BORDER
         qr_drawing(url, qr).drawOn(pdf, x + (self.label_width - qr) / 2, band + CARD_TEXT_BAND)
         _line(pdf, x + self.label_width / 2, band + CARD_TEXT_BAND / 2, text, *fit, 0)

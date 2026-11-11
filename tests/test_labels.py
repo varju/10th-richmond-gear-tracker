@@ -222,7 +222,7 @@ def test_cards_sit_wholly_on_the_page_and_each_has_a_qr_and_the_host():
     assert all(c["upright"] for c in chars)
 
 
-def test_cards_keep_a_blank_border_inside_the_cut_line():
+def test_cards_keep_a_blank_border_inside_the_edge():
     rects, chars = read(labels.sheet(CODES[:1], SITE, "cards"))[0]
     x0, top, x1, bottom = card_rects()[0]
     inner = (x0 + 0.25, top + 0.25, x1 - 0.25, bottom - 0.25)
