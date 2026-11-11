@@ -590,7 +590,7 @@ test("an Admin adds a category in Settings and it appears (FR-SET-07)", async ()
   expect(screen.getByLabelText("New category")).toHaveValue("");
 });
 
-test("deleting a category in use is refused and names the item (FR-SET-07, FR-SET-05)", async () => {
+test("deleting a category in use asks first and says how many items lose it (FR-SET-12)", async () => {
   const f = await fixture();
   const camp = await act.createCategory(store, "Camp kitchen");
   await act.updateItem(store, f.stove, { category_ids: [camp] });
@@ -598,8 +598,10 @@ test("deleting a category in use is refused and names the item (FR-SET-07, FR-SE
   mount();
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Delete Camp kitchen" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("In use by Stove");
+  expect(screen.getByRole("button", { name: "Really delete Camp kitchen?" })).toHaveTextContent("Remove from 1 item?");
   expect(inv.categories(store.state)).toHaveLength(1);
+  await user.click(screen.getByRole("button", { name: "Really delete Camp kitchen?" }));
+  await waitFor(() => expect(inv.categories(store.state)).toEqual([]));
 });
 
 test("a group name that arrives after the settings page opens fills the form", async () => {

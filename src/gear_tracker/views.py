@@ -786,12 +786,12 @@ def location_blockers(state: State, location_id: str) -> list[Fields]:
     return sorted(found, key=lambda it: display_name(state, it))
 
 
-def category_blockers(state: State, category_id: str) -> list[Fields]:
-    """Items that stop a category being deleted (FR-SET-05). Raw ids, not categories_of: a
-    category already gone from categories(state) must still be able to name what was pointing at
-    it. Mirrors `categoryBlockers` in inventory.ts."""
+def category_items(state: State, category_id: str) -> list[Fields]:
+    """Items filed under a category, retired ones too, merged ones not (FR-SET-12). Raw ids: a deleted category
+    still finds them. Mirrors `categoryItems` in inventory.ts."""
     return sorted(
-        (it for it in items(state) if category_id in _raw_category_ids(it)), key=lambda it: display_name(state, it)
+        (it for it in items(state) if category_id in _raw_category_ids(it) and not it.get("merged_into")),
+        key=lambda it: display_name(state, it),
     )
 
 

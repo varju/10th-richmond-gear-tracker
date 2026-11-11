@@ -646,14 +646,10 @@ export function blockers(state: State, locationId: string): Item[] {
     .sort(byName(state));
 }
 
-/**
- * Items that stop a category being deleted (FR-SET-05). Retired items count:
- * they can come back. Raw ids, not categoriesOf: a category already gone from
- * categories(state) must still be able to name what was pointing at it.
- */
-export function categoryBlockers(state: State, categoryId: string): Item[] {
+/** Items filed under a category, retired ones too, merged ones not (FR-SET-12). Raw ids: a deleted category still finds them. */
+export function categoryItems(state: State, categoryId: string): Item[] {
   return items(state)
-    .filter((it) => rawCategoryIds(it).includes(categoryId))
+    .filter((it) => rawCategoryIds(it).includes(categoryId) && !it.merged_into)
     .sort(byName(state));
 }
 

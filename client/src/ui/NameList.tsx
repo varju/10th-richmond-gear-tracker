@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { InUse } from "../lib/actions";
+import { ConfirmButton } from "./ConfirmButton";
 import { useUnsaved } from "../lib/unsaved";
 
 interface Named {
@@ -14,13 +15,17 @@ interface Props {
   onAdd: (name: string) => Promise<unknown>;
   onRename: (id: string, name: string) => Promise<unknown>;
   onDelete: (id: string) => Promise<unknown>;
+  /** How many items lose this name when it is deleted. Above 0, Delete asks first. */
+  inUse?: (id: string) => number;
 }
 
-/** Locations: a list of names to add to, rename, or delete (FR-SET-02, FR-SET-05). */
-export function NameList({ noun, items, onAdd, onRename, onDelete }: Props) {
+/** Locations and categories: a list of names to add to, rename, or delete (FR-SET-02, FR-SET-05, FR-SET-12). */
+export function NameList({ noun, items, onAdd, onRename, onDelete, inUse }: Props) {
   const [adding, setAdding] = useState("");
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const using = new Map(items.map((n) => [n.id, inUse?.(n.id) ?? 0]));
 
   // A name typed but not added, or a rename not saved, is a draft; leaving asks first.
   const original = editing ? items.find((n) => n.id === editing.id)?.name : undefined;
@@ -83,9 +88,20 @@ export function NameList({ noun, items, onAdd, onRename, onDelete }: Props) {
               >
                 Rename
               </button>
-              <button className="small" type="button" onClick={() => remove(n.id)} aria-label={`Delete ${n.name}`}>
-                Delete
-              </button>
+              {(using.get(n.id) ?? 0) > 0 ? (
+                <ConfirmButton
+                  className="small"
+                  label="Delete"
+                  confirmLabel={using.get(n.id) === 1 ? "Remove from 1 item?" : `Remove from ${using.get(n.id)} items?`}
+                  ariaLabel={`Delete ${n.name}`}
+                  confirmAriaLabel={`Really delete ${n.name}?`}
+                  onConfirm={() => remove(n.id)}
+                />
+              ) : (
+                <button className="small" type="button" onClick={() => remove(n.id)} aria-label={`Delete ${n.name}`}>
+                  Delete
+                </button>
+              )}
             </li>
           ),
         )}

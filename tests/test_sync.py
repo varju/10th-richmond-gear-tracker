@@ -416,7 +416,7 @@ def test_anyone_may_create_a_category_but_only_an_admin_changes_one(db):
         payload={"field": "name", "value": "Tarps", "old": "Tents"},
         device_seq=2,
     )
-    assert reasons(db, USER, renamed) == ["categories are renamed and deleted by an Admin (FR-SET-05)"]
+    assert reasons(db, USER, renamed) == ["categories are renamed and deleted by an Admin (FR-SET-12)"]
     assert reasons(db, ADMIN, {**renamed, "id": new_ulid()}) == []
 
 

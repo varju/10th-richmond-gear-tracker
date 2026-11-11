@@ -7,7 +7,7 @@ from __future__ import annotations
 from gear_tracker import views
 from gear_tracker.views import (
     DAY_MS,
-    category_blockers,
+    category_items,
     codes_for,
     current_code,
     has_gear_out,
@@ -359,15 +359,26 @@ def test_current_code_breaks_a_tie_on_bound_at_by_the_larger_id():
     assert current_code(state, "stove") == "ZZZZZZZZZZ"
 
 
-# --- category_blockers: a deleted category still sees what pointed at it -----------------
+# --- category_items: a deleted category still sees what pointed at it -----------------
 
 
-def test_category_blockers_finds_an_item_after_its_category_is_deleted():
+def test_category_items_finds_an_item_after_its_category_is_deleted():
     state = {
         "item": {"stove": {"name": "Camp stove", "category_ids": ["camping"]}},
         "category": {"camping": {"name": "Camping", "deleted": True}},
     }
-    assert [it["name"] for it in category_blockers(state, "camping")] == ["Camp stove"]
+    assert [it["name"] for it in category_items(state, "camping")] == ["Camp stove"]
+
+
+def test_category_items_leaves_out_a_merged_duplicate():
+    state = {
+        "item": {
+            "stove": {"name": "Camp stove", "category_ids": ["camping"]},
+            "dup": {"name": "Camp stove", "category_ids": ["camping"], "merged_into": "stove"},
+        },
+        "category": {"camping": {"name": "Camping"}},
+    }
+    assert [it["id"] for it in category_items(state, "camping")] == ["stove"]
 
 
 # --- has_gear_out: an ordinary item, a generic's units, and a pool -----------------------

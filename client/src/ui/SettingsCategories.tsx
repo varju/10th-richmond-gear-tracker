@@ -1,5 +1,5 @@
 import { createCategory, deleteCategory, renameCategory } from "../lib/actions";
-import { categories } from "../lib/inventory";
+import { categories, categoryItems } from "../lib/inventory";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { NameList } from "./NameList";
@@ -32,6 +32,7 @@ export function SettingsCategories({ store }: Props) {
         onAdd={(name) => createCategory(store, name)}
         onRename={(id, name) => renameCategory(store, id, name)}
         onDelete={(id) => deleteCategory(store, id)}
+        inUse={(id) => categoryItems(store.state, id).length}
       />
     </Page>
   );

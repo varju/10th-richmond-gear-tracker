@@ -425,11 +425,12 @@ An item's home can instead be a person: `home_user_id`, set by `field_changed` a
 build does not know it and shows no home; the gear is still in and moves as usual. A person made inactive keeps what
 they keep, and the item reads "Kept by Sam (inactive)".
 
-**Categories** are entities like locations (FR-SET-07): the same create, rename and delete, and the same in-use check
-(FR-SET-05). Each item carries `category_ids`, a list, on a single item or on a generic; a unit carries none and reads
-its generic's, so re-filing a generic re-files its units. An item from before September 2026 may still carry the old,
-single `category_id`, and readers treat it as a list of one. The phone list groups by category, uncategorised last; the
-desk table gets a sortable column instead, because a table already sorts.
+**Categories** are entities like locations (FR-SET-07): the same create, rename and delete. Unlike a location, one in
+use can be deleted (FR-SET-12): no item event is written, because readers drop deleted category ids. Each item carries
+`category_ids`, a list, on a single item or on a generic; a unit carries none and reads its generic's, so re-filing a
+generic re-files its units. An item from before September 2026 may still carry the old, single `category_id`, and
+readers treat it as a list of one. The phone list groups by category, uncategorised last; the desk table gets a sortable
+column instead, because a table already sorts.
 
 **CSV export and import** (FR-RPT-03, FR-SET-11) are one module, `inventory_csv.py`, reached from Settings and from
 `gear-admin export` and `gear-admin import`. The export is derived state, one row per live item, home and category by

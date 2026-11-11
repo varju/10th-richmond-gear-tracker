@@ -1377,14 +1377,22 @@ def test_an_admin_manages_locations_and_categories(db_path, admin_tools):
     assert added["location_id"] not in [loc["location_id"] for loc in assistant.list_locations()["locations"]]
 
 
-def test_deleting_a_location_or_category_still_in_use_is_blocked_and_names_what_uses_it(admin_tools):
-    with pytest.raises(Conflict) as loc_exc:
+def test_deleting_a_location_still_in_use_is_blocked_and_names_what_uses_it(admin_tools):
+    with pytest.raises(Conflict) as exc:
         assistant.delete_location(admin_tools["warm"])
-    assert "Camp stove" in loc_exc.value.message
+    assert "Camp stove" in exc.value.message
 
-    with pytest.raises(Conflict) as cat_exc:
+
+def test_deleting_a_category_in_use_names_the_items_it_came_off(admin_tools):
+    deleted = assistant.delete_category(admin_tools["tents_cat"])
+    assert deleted["removed_from"] == ["4-person tent"]
+    assert admin_tools["tents_cat"] not in [c["category_id"] for c in assistant.list_categories()["categories"]]
+    with pytest.raises(NotFound):
         assistant.delete_category(admin_tools["tents_cat"])
-    assert "4-person tent" in cat_exc.value.message
+    with pytest.raises(NotFound):
+        assistant.rename_category(admin_tools["tents_cat"], "Shelters")
+    with pytest.raises(NotFound):
+        assistant.create_item("Tarp", category_ids=[admin_tools["tents_cat"]])
 
 
 def test_print_codes_needs_the_group_set_up_first(admin_tools):

@@ -936,7 +936,8 @@ def _keeper(state: dict[str, Any], user_id: str | None) -> None:
 
 
 def _category(state: dict[str, Any], category_id: str | None) -> None:
-    if category_id and views.entity(state, "category", category_id) is None:
+    cat = views.entity(state, "category", category_id) if category_id else None
+    if category_id and (cat is None or cat.get("deleted")):
         raise NotFound(f"no category with id {category_id}; call list_categories")
 
 
@@ -2803,7 +2804,7 @@ def rename_category(category_id: str, name: str) -> dict[str, Any]:
         accounts._require_admin(who)
         state = _state(conn)
         cat = views.entity(state, "category", category_id)
-        if cat is None:
+        if cat is None or cat.get("deleted"):
             raise NotFound(f"no category with id {category_id}")
         if not name.strip():
             raise BadRequest("a category needs a name")
@@ -2816,21 +2817,25 @@ def rename_category(category_id: str, name: str) -> dict[str, Any]:
 
 
 def delete_category(category_id: str) -> dict[str, Any]:
-    """Blocked while any item points at it; the error names them (FR-SET-05). Admins only."""
+    """Deletes it even when in use; the items filed under it lose it and are listed in
+    `removed_from` (FR-SET-12). Admins only."""
     with _open() as (conn, who):
         accounts._require_admin(who)
         state = _state(conn)
-        if views.entity(state, "category", category_id) is None:
+        category = views.entity(state, "category", category_id)
+        if category is None or category.get("deleted"):
             raise NotFound(f"no category with id {category_id}")
-        using = views.category_blockers(state, category_id)
-        if using:
-            raise Conflict("in use by " + ", ".join(views.display_name(state, it) for it in using))
+        using = views.category_items(state, category_id)
         _push(
             conn,
             who,
             [_draft("category", category_id, "field_changed", {"field": "deleted", "value": True, "old": None})],
         )
-        return {"category_id": category_id, "deleted": True}
+        return {
+            "category_id": category_id,
+            "deleted": True,
+            "removed_from": [views.display_name(state, it) for it in using],
+        }
 
 
 def print_codes(sheets: StrictInt = 1, layout: labels.LayoutName = "standard") -> dict[str, Any]:

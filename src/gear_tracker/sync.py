@@ -202,7 +202,7 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
         raise Rejected("locations are an Admin's job (FR-SET-05)")
     if entity_type == "category" and principal.role != "admin" and kind != "created":
         # Anyone signed in may add a category, same as the item editor (see assistant.add_category).
-        raise Rejected("categories are renamed and deleted by an Admin (FR-SET-05)")
+        raise Rejected("categories are renamed and deleted by an Admin (FR-SET-12)")
     if entity_type == "item" and kind == "field_changed":
         payload = incoming.get("payload")
         field = payload.get("field") if isinstance(payload, dict) else None

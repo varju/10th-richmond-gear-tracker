@@ -15,6 +15,7 @@ What the app does differently.
 - The inventory table's unit arrow sits in the margin left of the name.
 - The inventory table moves Category after Status, can group by category, and Option-click folds all.
 - The Print QR codes screen offers 12 cut-and-laminate cards per page.
+- A category in use can be deleted after a warning; its items lose it.
 
 ## Chores
 

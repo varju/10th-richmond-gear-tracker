@@ -207,8 +207,8 @@ lost. An Admin can do it for anyone under **Users**.
 
 ### Locations and categories
 
-Add, rename and delete them under **Settings** > **Locations** and **Settings** > **Categories**. One in use will not
-delete; the message names what is still there.
+Add, rename and delete them under **Settings** > **Locations** and **Settings** > **Categories**. A location in use will
+not delete; the message names what is still there. A category in use asks first, then comes off its items.
 
 ### Print a sheet of codes
 

@@ -818,14 +818,15 @@ test("a row whose category was deleted since counts as no category (FR-SET-07)",
   expect(groups).toEqual([[null, ["Stove", "Tent 1", "Tent 2"]]]);
 });
 
-test("a category in use cannot be deleted, and the error names the items (FR-SET-05)", async () => {
+test("deleting a category in use takes it off the items and keeps their others (FR-SET-12)", async () => {
   const f = await withUnits();
   const tents = await act.createCategory(store, "Tents");
-  await act.updateItem(store, f.tents, { category_ids: [tents] });
-  await expect(act.deleteCategory(store, tents)).rejects.toThrow("in use by 4-person tent");
-  await act.updateItem(store, f.tents, { category_ids: [] });
+  const camping = await act.createCategory(store, "Camping");
+  await act.updateItem(store, f.tents, { category_ids: [tents, camping] });
+  expect(inv.categoryItems(store.state, tents).map((it) => it.name)).toEqual(["4-person tent"]);
   await act.deleteCategory(store, tents);
-  expect(inv.categories(store.state)).toEqual([]);
+  expect(inv.categories(store.state).map((c) => c.name)).toEqual(["Camping"]);
+  expect(inv.categoriesOf(store.state, inv.item(store.state, f.tents)!)).toEqual([camping]);
 });
 
 test("the Needs filter finds single items, units and pools that lack a code, a location or a shelf (FR-INV-51)", async () => {

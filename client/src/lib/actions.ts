@@ -9,7 +9,6 @@ import {
   blockers,
   categories,
   categoriesOf,
-  categoryBlockers,
   codesFor,
   displayName,
   type Item,
@@ -553,12 +552,8 @@ export const createCategory = (store: Store, name: string) => created(store, "ca
 export const renameCategory = (store: Store, id: string, name: string) =>
   changed(store, "category", id, { name: name.trim() });
 
-/** Blocked while any item points at it; the error names them (FR-SET-05). */
-export async function deleteCategory(store: Store, id: string): Promise<void> {
-  const using = categoryBlockers(store.state, id);
-  if (using.length) throw new InUse(using.map((it) => displayName(store.state, it)));
-  await changed(store, "category", id, { deleted: true });
-}
+/** Items filed under it lose it; readers drop deleted ids (FR-SET-12). */
+export const deleteCategory = (store: Store, id: string) => changed(store, "category", id, { deleted: true });
 
 // --- group ---------------------------------------------------------------------------------
 
