@@ -12,5 +12,6 @@ What the app does differently.
 - Unknown at check-in leaves the last weight as it was.
 - A scan's card offers Weigh and Refilled for weighed gear.
 - Runs on iPad.
+- The inventory table's unit arrow sits in the margin left of the name.
 
 ## Chores

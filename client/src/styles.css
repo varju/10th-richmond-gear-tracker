@@ -1481,22 +1481,38 @@ h3.section.small {
   text-decoration: none;
 }
 
-/* A generic's arrow opens and shuts its units. */
+/* A generic's arrow sits in main's left padding; its tap area overlaps the name. */
 .grid .name {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
+  position: relative;
 }
 
 button.unit-fold {
-  width: auto;
-  min-width: 44px;
+  position: absolute;
+  left: -24px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
   min-height: 44px;
-  padding: 0;
+  padding: 0 20px 0 0;
   border: 0;
   background: none;
   font-weight: 400;
+  line-height: 44px;
+  text-align: center;
+}
+
+button.unit-fold:focus-visible {
+  outline: none;
+}
+
+button.unit-fold > span {
+  display: inline-block;
+  width: 24px;
+}
+
+button.unit-fold:focus-visible > span {
+  outline: 3px solid var(--warn);
+  outline-offset: -3px;
 }
 
 .grid tr.unit td:first-child {

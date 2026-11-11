@@ -240,7 +240,6 @@ function ItemRows({ store, row, showCategory, open, onToggle }: RowProps) {
       <tr>
         <td>
           <div className="name">
-            <ItemLink id={row.item.id}>{row.name}</ItemLink>
             {row.kind === "generic" && row.units.length > 0 && (
               <button
                 className="unit-fold muted small"
@@ -252,6 +251,7 @@ function ItemRows({ store, row, showCategory, open, onToggle }: RowProps) {
                 <span aria-hidden="true">{open ? "▾" : "▸"}</span>
               </button>
             )}
+            <ItemLink id={row.item.id}>{row.name}</ItemLink>
           </div>
         </td>
         {showCategory && <td>{categoryNames(state, row.item)}</td>}
