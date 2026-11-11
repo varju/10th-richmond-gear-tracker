@@ -275,7 +275,7 @@ test("a Category column appears once one exists, and sorts (FR-SET-07)", async (
     const row = within(screen.getByRole("table"))
       .getAllByRole("row")
       .find((r) => within(r).queryByRole("link", { name: rowName }));
-    return cells(row!)[1];
+    return cells(row!)[3];
   };
   expect(category("Stove")).toBe("Camp kitchen");
   expect(category("Tent 1")).toBe("Shelter");
@@ -498,4 +498,150 @@ test("the desk home ignores list parameters meant for the table", async () => {
   mount();
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Gear Tracker");
   expect(screen.getByText("Nothing is out.")).toBeInTheDocument();
+});
+
+async function categorised() {
+  const f = await fixture();
+  const camp = await act.createCategory(store, "Camp kitchen");
+  const shelter = await act.createCategory(store, "Shelter");
+  await act.updateItem(store, f.stove, { category_ids: [camp] });
+  await act.updateItem(store, f.tent, { category_ids: [camp, shelter] });
+  return { ...f, camp, shelter };
+}
+
+const headings = () =>
+  within(screen.getByRole("table"))
+    .getAllByRole("rowheader")
+    .map((h) => h.textContent);
+const body = () =>
+  within(screen.getByRole("table"))
+    .getAllByRole("row")
+    .slice(1)
+    .map(
+      (r) =>
+        within(r).queryAllByRole("link")[0]?.textContent ??
+        `[${within(r).getByRole("rowheader").textContent?.replace(/^[▾▸]/, "")}]`,
+    );
+
+test("the inventory columns run Name, Home, Status, Category, Flags", async () => {
+  await categorised();
+  navigate("/items");
+  mount();
+  expect(
+    within(screen.getByRole("table"))
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent?.trim()),
+  ).toEqual(["Name ▲", "Home", "Status", "Category", "Flags"]);
+});
+
+test("no categories, no group checkbox", async () => {
+  await fixture();
+  navigate("/items");
+  mount();
+  expect(screen.queryByRole("checkbox", { name: "Group by category" })).not.toBeInTheDocument();
+});
+
+test("grouping by category puts rows under folding headings (FR-INV-74)", async () => {
+  await categorised();
+  navigate("/items");
+  mount();
+  const user = userEvent.setup();
+
+  await user.click(screen.getByRole("checkbox", { name: "Group by category" }));
+  expect(location.search).toContain("group=category");
+  expect(screen.queryByRole("columnheader", { name: /^Category/ })).not.toBeInTheDocument();
+  expect(body()).toEqual(["[Camp kitchen]", "Stove", "Tent 1", "[Shelter]", "Tent 1", "[No category]", "3x3 tarp"]);
+  expect(headings()).toHaveLength(3);
+
+  const fold = screen.getByRole("button", { name: "Category Camp kitchen" });
+  expect(fold).toHaveAttribute("aria-expanded", "true");
+  await user.click(fold);
+  expect(fold).toHaveAttribute("aria-expanded", "false");
+  expect(body()).toEqual(["[Camp kitchen]", "[Shelter]", "Tent 1", "[No category]", "3x3 tarp"]);
+  await user.click(fold);
+  expect(body()).toContain("Stove");
+
+  // Sorting by Category has no column while grouped, so it falls back to name.
+  navigate("/items?group=category&sort=category");
+  expect(body().slice(0, 3)).toEqual(["[Camp kitchen]", "Stove", "Tent 1"]);
+
+  await user.click(screen.getByRole("checkbox", { name: "Group by category" }));
+  expect(location.search).not.toContain("group");
+  expect(screen.getByRole("columnheader", { name: /^Category/ })).toBeInTheDocument();
+});
+
+test("Option-click on a fold sets every fold of its kind (FR-INV-75)", async () => {
+  await categorised();
+  navigate("/items?group=category");
+  mount();
+  const user = userEvent.setup();
+  const expanded = (name: string) => screen.getByRole("button", { name }).getAttribute("aria-expanded");
+
+  await user.keyboard("{Alt>}");
+  await user.click(screen.getByRole("button", { name: "Category Shelter" }));
+  await user.keyboard("{/Alt}");
+  expect(["Camp kitchen", "Shelter", "No category"].map((n) => expanded(`Category ${n}`))).toEqual([
+    "false",
+    "false",
+    "false",
+  ]);
+
+  await user.keyboard("{Alt>}");
+  await user.click(screen.getByRole("button", { name: "Category Shelter" }));
+  await user.keyboard("{/Alt}");
+  expect(expanded("Category Camp kitchen")).toBe("true");
+
+  await user.keyboard("{Alt>}");
+  await user.click(screen.getByRole("button", { name: "Units of 3x3 tarp" }));
+  await user.keyboard("{/Alt}");
+  expect(expanded("Units of 3x3 tarp")).toBe("true");
+  expect(body()).toContain("3x3 tarp #1");
+});
+
+test("category folds shut while browsing start open again for a search", async () => {
+  await categorised();
+  navigate("/items?group=category");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Category Camp kitchen" }));
+  expect(screen.getByRole("button", { name: "Category Camp kitchen" })).toHaveAttribute("aria-expanded", "false");
+  await user.type(screen.getByLabelText("Search"), "t");
+  expect(screen.getByRole("button", { name: "Category Camp kitchen" })).toHaveAttribute("aria-expanded", "true");
+});
+
+test("the row count is the same grouped or not, and folds do not change it", async () => {
+  await categorised();
+  navigate("/items");
+  mount();
+  const user = userEvent.setup();
+  expect(screen.getByText("3 rows")).toBeInTheDocument();
+  await user.click(screen.getByRole("checkbox", { name: "Group by category" }));
+  expect(screen.getByText("3 rows")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Category Camp kitchen" }));
+  expect(screen.getByText("3 rows")).toBeInTheDocument();
+});
+
+test("grouped with a sort on Category, Name shows ascending and its first click turns it around", async () => {
+  await categorised();
+  navigate("/items?group=category&sort=category&dir=down");
+  mount();
+  const name = () => screen.getByRole("columnheader", { name: /^Name/ });
+  expect(name()).toHaveAttribute("aria-sort", "ascending");
+  expect(name()).toHaveTextContent("▲");
+  await userEvent.setup().click(screen.getByRole("button", { name: /^Name/ }));
+  expect(location.search).toContain("dir=down");
+  expect(location.search).not.toContain("sort=");
+  expect(name()).toHaveAttribute("aria-sort", "descending");
+});
+
+test("a sort on Category survives grouping and ungrouping", async () => {
+  await categorised();
+  navigate("/items?sort=category");
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("checkbox", { name: "Group by category" }));
+  expect(location.search).toContain("sort=category");
+  await user.click(screen.getByRole("checkbox", { name: "Group by category" }));
+  expect(location.search).toContain("sort=category");
+  expect(screen.getByRole("columnheader", { name: /^Category/ })).toHaveAttribute("aria-sort", "ascending");
 });

@@ -1465,6 +1465,15 @@ h3.section.small {
   font-weight: 500;
 }
 
+.grid th[scope="rowgroup"] {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.grid tbody + tbody th[scope="rowgroup"] {
+  padding-top: 20px;
+}
+
 /* A cell is not a row: a link in one takes the width of its words. */
 .grid button.link {
   width: auto;
@@ -1707,6 +1716,7 @@ button.unit-fold:focus-visible > span {
   }
 
   .grid th,
+  .grid th[scope="rowgroup"],
   .grid td {
     color: #000;
     border-bottom-color: #ccc;

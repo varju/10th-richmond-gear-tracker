@@ -68,7 +68,8 @@ reason if you like. It leaves the count the group owns.
 
 Tap **New item**, name it, pick a home, and tap **Save**. On a computer the button sits above the inventory table, which
 sorts by any column and keeps search and the filters in view. Click the arrow beside a name to show its units; a search
-or filter shows them already.
+or filter shows them already. Once the group has categories, tick **Group by category** to fold the table under category
+headings. Option-click an arrow (Alt-click on Windows) to open or shut every fold of its kind.
 
 A home can also be a person: in the home field, pick someone under **Kept by**. Gear kept by Sam shows as "Kept by Sam",
 counts as in, and is not on **What is out**. Check it out and in as usual; it goes back to Sam. The **Location** filter

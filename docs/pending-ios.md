@@ -13,5 +13,8 @@ What the app does differently.
 - A scan's card offers Weigh and Refilled for weighed gear.
 - Runs on iPad.
 - The inventory table's unit arrow sits in the margin left of the name.
+- The inventory table moves Category after Status, can group by category, and Option-click folds all.
 
 ## Chores
+
+- The guide covers grouping the inventory table.
