@@ -307,7 +307,7 @@ test("the page shows the gear, opens packing on the scan screen without touching
   renderInShell(<ReservationPage store={store} id={fall} />, () => T0);
   expect(screen.getByRole("heading", { name: "Fall Camp" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /4-person tent #1/ })).toHaveTextContent("Cold locker · In");
-  expect(screen.getByText("1 × 4-person tent — 0 packed")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^1 × 4-person tent/ })).toHaveTextContent("0 packed");
   expect(screen.queryByRole("note")).not.toBeInTheDocument();
   // Who made it, and when (FR-RES-18): set at replay from the creating event's actor.
   expect(screen.getByText(/^Added by Alice/)).toBeInTheDocument();
@@ -392,12 +392,12 @@ test("the page marks each line packed or not, and Not packed hides the packed on
   await mv.checkOut(store, t1, { event: "Fall Camp", reservation_id: fall });
   await waitFor(() => expect(tent()).toHaveTextContent(/^4-person tent #1Packed/));
   expect(screen.getByRole("button", { name: /Stove/ })).toHaveTextContent("Not packed");
-  expect(screen.getByText("1 × 4-person tent — 0 packed")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^1 × 4-person tent/ })).toHaveTextContent("0 packed");
 
   await user.click(screen.getByRole("checkbox", { name: "Not packed" }));
   expect(tent()).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Stove/ })).toBeInTheDocument();
-  expect(screen.getByText("1 × 4-person tent — 0 packed")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^1 × 4-person tent/ })).toHaveTextContent("0 packed");
 
   // The last unit and the stove go: the filter leaves nothing, and says so.
   await mv.checkOut(store, t2, { event: "Fall Camp", reservation_id: fall });
@@ -407,7 +407,7 @@ test("the page marks each line packed or not, and Not packed hides the packed on
 
   await user.click(screen.getByRole("checkbox", { name: "Not packed" }));
   expect(tent()).toBeInTheDocument();
-  expect(screen.getByText("1 × 4-person tent — packed")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^1 × 4-person tent/ })).toHaveTextContent("packed");
 });
 
 test("once the event has ended the page says Not returned, and filters by it (FR-RES-41, FR-RES-42)", async () => {
@@ -426,7 +426,7 @@ test("once the event has ended the page says Not returned, and filters by it (FR
   await mv.checkOut(store, t2, under);
   await waitFor(() => expect(row(/4-person tent #1/)).toHaveTextContent("Not returned"));
   expect(row(/Stove/)).toHaveTextContent("Not returned · at home with Smith");
-  expect(screen.getByText("1 × 4-person tent — 1 not returned")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^1 × 4-person tent/ })).toHaveTextContent("1 not returned");
   expect(screen.queryByText(/Not packed|Packed/)).not.toBeInTheDocument();
   expect(screen.queryByRole("checkbox", { name: "Not packed" })).not.toBeInTheDocument();
 
@@ -462,6 +462,34 @@ test("an event page keeps its filter and mode through Back, and starts clear whe
   navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />, later);
   expect(await screen.findByRole("checkbox", { name: "Not returned" })).not.toBeChecked();
+});
+
+test("a counted line on an event opens its item, while packing and returning", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  const camp = await res.createReservation(store, {
+    event: "Bowl camp",
+    starts: "2026-11-01",
+    ends: "2026-11-02",
+    items: [],
+    generics: [
+      { item_id: bowls, quantity: 4 },
+      { item_id: tents, quantity: 1 },
+    ],
+  });
+  navigate(`/events/${camp}`);
+  renderInShell(<ReservationPage store={store} id={camp} />, () => T0);
+  await user.click(screen.getByRole("button", { name: /^4 × Bowls/ }));
+  expect(location.pathname).toBe(`/items/${bowls}`);
+  cleanup();
+
+  navigate(`/events/${camp}`);
+  renderInShell(<ReservationPage store={store} id={camp} />, () => Date.parse("2026-11-03T19:00:00Z"));
+  await mv.checkOut(store, t1, { event: "Bowl camp", reservation_id: camp });
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: /^1 × 4-person tent/ })).toHaveTextContent("1 not returned"),
+  );
+  await user.click(screen.getByRole("button", { name: /^1 × 4-person tent/ }));
+  expect(location.pathname).toBe(`/items/${tents}`);
 });
 
 test("at a desk, It's with us sits at the end of its row; on a phone, under it", async () => {
@@ -552,12 +580,12 @@ test("a pool line on the page is checked out by count, and ticks off (FR-RES-13)
   navigate(`/events/${camp}`);
   renderInShell(<ReservationPage store={store} id={camp} />, () => T0);
 
-  expect(screen.getByText("4 × Bowls — 0 packed")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^4 × Bowls/ })).toHaveTextContent("0 packed");
   const count = screen.getByLabelText("How many Bowls to check out");
   expect(count).toHaveValue(4);
   await user.click(screen.getByRole("button", { name: "Check out Bowls" }));
 
-  await waitFor(() => expect(screen.getByText("4 × Bowls — packed")).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole("button", { name: /^4 × Bowls/ })).toHaveTextContent("packed"));
   expect(inv.poolCounts(inv.item(store.state, bowls)!)).toMatchObject({
     owned: 10,
     in: 6,
@@ -669,7 +697,7 @@ test("a retired pool line on the page offers no check-out, only a note (FR-INV-0
   navigate(`/events/${camp}`);
   renderInShell(<ReservationPage store={store} id={camp} />, () => T0);
 
-  expect(screen.getByText("4 × Bowls — 0 packed")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^4 × Bowls/ })).toHaveTextContent("0 packed");
   expect(screen.queryByLabelText("How many Bowls to check out")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Check out Bowls" })).not.toBeInTheDocument();
   expect(screen.getByText("Retired")).toBeInTheDocument();
@@ -749,7 +777,7 @@ test("an ended event in Packing mode offers no pool check-out", async () => {
   navigate(`/events/${camp}`);
   renderInShell(<ReservationPage store={store} id={camp} />, () => Date.parse("2026-10-10T19:00:00Z"));
   await user.click(screen.getByRole("button", { name: "Packing" }));
-  expect(screen.getByText("4 × Bowls — 0 packed")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^4 × Bowls/ })).toHaveTextContent("0 packed");
   expect(screen.queryByLabelText("How many Bowls to check out")).not.toBeInTheDocument();
 });
 
@@ -856,7 +884,7 @@ test("an event's gear lists are in alphabetical order by name, also under Not pa
   navigate(`/events/${order}`);
   renderInShell(<ReservationPage store={store} id={order} />, () => T0);
   const names = () => [...document.querySelectorAll(".items .item-name")].map((e) => e.textContent);
-  const generics = () => [...document.querySelectorAll(".names .name")].map((e) => e.textContent?.split(" — ")[0]);
+  const generics = () => [...document.querySelectorAll(".names .item-name")].map((e) => e.textContent);
   expect(names()).toEqual(["Apple press", "Mango stove", "Zebra tarp"]);
   expect(generics()).toEqual(["2 × Axes", "1 × Pots"]);
 

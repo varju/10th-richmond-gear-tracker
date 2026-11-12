@@ -22,6 +22,7 @@ What the app does differently.
 - The top bar has a search button off Home that opens Home with the search box focused. The house asks before dropping
   an unsaved draft.
 - An event page keeps its Packing or Returning mode and its filter box when you come Back to it.
+- A counted line on an event's gear list opens its item.
 
 ## Chores
 

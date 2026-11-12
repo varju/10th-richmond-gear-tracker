@@ -7,19 +7,6 @@ changelog.
 
 ---
 
-## Open a counted line from an event's gear list
-
-On an event's gear list, a line like "3 × Fire trays — 2 not returned" cannot be tapped, unlike the named items above
-it. Checking those in means finding the item another way.
-
-- `ReservationPage.tsx`: make each line in the `names` list a button to `/items/<id>`, styled like the `items` list.
-  Name "3 × Fire trays"; detail line "2 packed" or "2 not returned", as the line reads today. The packing **Check out**
-  box stays as its own control on the row. Update `Reservations.test.tsx`, which pins today's text.
-- Same for both modes and for every such line: counted stacks and generics with units.
-- A generic's page does not say which of its units are out under this event. Out of scope here.
-- Shares `ReservationPage.tsx` with "Keep an event page's filter on Back": do them one after the other.
-- Client change: add a line to `docs/pending-ios.md`.
-
 ## Always ask a weighed item's weight at check-in
 
 Returning a weighed item sometimes asks its weight and sometimes does not, which looks like the scanner and the item

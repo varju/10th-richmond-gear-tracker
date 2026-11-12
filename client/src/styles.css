@@ -730,6 +730,11 @@ a.link {
   align-items: center;
 }
 
+.names li.row > button.item {
+  flex: 1;
+  border-bottom: 0;
+}
+
 .names input {
   min-height: 44px;
 }

@@ -308,18 +308,25 @@ export function ReservationPage({
           {generics.map((g) => {
             const pool = isPool(g.generic);
             const note = near[g.generic.id];
+            const out = outCount.get(g.generic.id) ?? 0;
+            const detail = r.cancelled
+              ? ""
+              : returning
+                ? out > 0
+                  ? `${out} not returned`
+                  : ""
+                : g.done >= g.quantity
+                  ? "packed"
+                  : `${g.done} packed`;
             return (
               <Fragment key={g.generic.id}>
                 <li className="row">
-                  <span className="name">
-                    {g.quantity} × {nameOf(state, g.generic.id)}
-                    {!r.cancelled &&
-                      (returning
-                        ? (outCount.get(g.generic.id) ?? 0) > 0 && ` — ${outCount.get(g.generic.id)} not returned`
-                        : g.done >= g.quantity
-                          ? " — packed"
-                          : ` — ${g.done} packed`)}
-                  </span>
+                  <button className="item" type="button" onClick={() => navigate(`/items/${g.generic.id}`)}>
+                    <span className="item-name">
+                      {g.quantity} × {nameOf(state, g.generic.id)}
+                    </span>
+                    {detail && <span className="muted small">{detail}</span>}
+                  </button>
                   {pool && !r.cancelled && !over && !returning && g.done < g.quantity && !g.generic.retired && (
                     <PoolCheckout store={store} r={r} itemId={g.generic.id} max={g.quantity - g.done} />
                   )}
