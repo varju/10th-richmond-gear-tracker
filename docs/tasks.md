@@ -103,6 +103,22 @@ out under, so the gear that likely belongs to this event is easy to find.
 - Add a requirement, and an FR-MCP Won't row (layout only; `whats_out` already gives each item's event).
 - Client change: add a line to `docs/pending-ios.md`.
 
+## Tidy the desk inventory's filter bar
+
+The desk **Inventory** screen opens with six labelled boxes reading "Any", two checkboxes, two buttons and a row count
+before any gear shows.
+
+**Considered:**
+
+- The filters do not line up with the columns below, and two match no column (Shelf; Needs, where the table says Flags).
+- Filters as part of the column headers, or the rarer ones (Shelf, Needs, Show retired) under one **More filters**, with
+  set filters shown as removable chips.
+- "188 rows" could say items, and sit with the table rather than above its header.
+- **New item** and **Scan** float on the checkbox row; they could join the header or the actions.
+- Files: `ItemTable.tsx`, `Filters.tsx`.
+
+**Deferred because:** wants a design review first. Not urgent.
+
 ## Send iPads to the app
 
 Once the App Store has an iPad build, offer it to iPads as to iPhones (NFR-DEP-12). Not before: an iPad sent to the
