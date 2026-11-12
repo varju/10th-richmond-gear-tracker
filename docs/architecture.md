@@ -175,6 +175,15 @@ left the group; rejecting them instead would violate NFR-DATA-01.
 
 An Admin can also revoke one device without touching the account, for a phone that was lost (FR-USR-14).
 
+**Each session row remembers its device** (NFR-DEP-16). Every request sends `X-Gear-Client`: `web <commit>`, or
+`ios <version> (<build>) <commit>` from the app. The row keeps that version, when it was last seen, and a short label
+such as "Safari on iPhone", made from the User-Agent and the header (`clients.py`); never the raw User-Agent.
+Authenticating is a read, so the row is rewritten only when the version changes or last seen is a day old: a write per
+request would queue every sync behind SQLite's one write lock. The label is refreshed on the same write, so a session
+from before this gets one on its next request. Older app builds send no header and show version unknown. The devices
+list shows each device's most recently seen row, and `client_versions` counts devices per version, so an old API shape
+is dropped only once no device sends it.
+
 ### Why not a sync framework
 
 The append-only log makes sync small enough to own. A framework would be the largest and least familiar dependency in
@@ -357,8 +366,9 @@ in the wrapper; a volunteer on the web must never be second class, or NFR-DEP-01
 **How it differs from the web build.** One build flag, `SERVER_URL`, makes the native build; no Capacitor code ships to
 the browser. The page's origin is `capacitor://localhost`, so:
 
-- API calls go to `SERVER_URL`, and the server lets that one origin in by CORS, with the bearer header. Photos already
-  come through `fetch` with the header, so they need nothing more.
+- API calls go to `SERVER_URL`, and the server lets that one origin in by CORS, with the bearer and version headers.
+  Photos already come through `fetch` with the headers, so they need nothing more. A header the server does not allow
+  fails the preflight, and so every request: deploy the server before an app build sends a new one.
 - Links people copy, print or mail (join links, the MCP address) are built from `SERVER_URL`, not the page's origin.
 - No service worker, no manifest, no install prompt.
 - WKWebView cannot download, open a window, or print. A file goes to the share sheet instead (`lib/share.ts`), and print

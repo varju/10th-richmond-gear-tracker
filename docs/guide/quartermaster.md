@@ -201,8 +201,9 @@ Anything that device never sent is gone.
 
 ### Your devices
 
-**Settings** > **Your devices** lists the devices and assistants signed in as you. Tap **Revoke** beside one you have
-lost. An Admin can do it for anyone under **Users**.
+**Settings** > **Your devices** lists the devices and assistants signed in as you, such as "iPhone app" or "Chrome on
+Mac", with the app version and when each was last seen. Tap **Revoke** beside one you have lost. An Admin can do it for
+anyone under **Users**.
 
 ## Setup
 

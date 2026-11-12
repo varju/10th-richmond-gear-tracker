@@ -2,6 +2,7 @@
  * The server's HTTP API, as typed functions. Every response carries
  * server_time, so every call also yields a fresh clock offset (NFR-DATA-13).
  */
+import { CLIENT_HEADER, clientVersion } from "./appVersion";
 import { measureOffset } from "./clock";
 import type { ReplayEvent, State } from "./replay";
 
@@ -69,10 +70,14 @@ export interface LinkResult {
   mail_error?: string;
 }
 
-/** A device or an assistant with an open session (FR-USR-14). `created_at` is its latest sign-in. */
+/** A device or an assistant with an open session (FR-USR-14): its most recently seen one. */
 export interface Device {
   device_id: string;
   created_at: number;
+  /** Null for a session from before the server kept these (FR-USR-32, FR-USR-33, FR-USR-34). */
+  last_seen_at?: number | null;
+  label?: string | null;
+  client_version?: string | null;
 }
 
 /** A sheet of label stock the server can lay codes out on. */
@@ -247,7 +252,7 @@ export function createApi(options: ApiOptions = {}) {
   const fetchFn = options.fetch ?? ((...args) => fetch(...args));
 
   async function request<T>(method: string, path: string, body?: unknown): Promise<Timed<T>> {
-    const headers: Record<string, string> = { Accept: "application/json" };
+    const headers: Record<string, string> = { Accept: "application/json", [CLIENT_HEADER]: clientVersion() };
     const bearer = token();
     if (bearer) headers.Authorization = `Bearer ${bearer}`;
     if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -287,7 +292,7 @@ export function createApi(options: ApiOptions = {}) {
 
   /** Bytes, not JSON: photos go up and come down whole. */
   async function raw(method: string, path: string, body?: BodyInit, contentType?: string): Promise<Response> {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { [CLIENT_HEADER]: clientVersion() };
     const bearer = token();
     if (bearer) headers.Authorization = `Bearer ${bearer}`;
     if (contentType) headers["Content-Type"] = contentType;

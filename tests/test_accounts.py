@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import time
+
 import pydantic
 import pytest
 
 from gear_tracker import accounts, views
-from gear_tracker.accounts import Invite, Redeem, SignIn
-from gear_tracker.db import connect
+from gear_tracker.accounts import Client, Invite, Redeem, SignIn
+from gear_tracker.db import BUSY_TIMEOUT_MS, connect
 from gear_tracker.derived import snapshot
 from gear_tracker.errors import (
     BadRequest,
@@ -653,6 +655,139 @@ def test_users_manage_their_own_devices(db, admin):
 def test_admin_lists_or_revokes_devices_for_nobody(db, admin):
     with pytest.raises(NotFound):
         accounts.list_devices(db, admin, "nobody")
+
+
+# --- what each device last said (FR-USR-32, FR-USR-33, FR-USR-34, NFR-DEP-16) ---------------------------------
+
+WEB = Client(version="web abc1234", label="Safari on iPhone")
+HOUR = 3_600_000
+
+
+def session_row(db, device_id):
+    return db.execute(
+        "SELECT label, client_version, last_seen_at FROM sessions WHERE device_id = ?", (device_id,)
+    ).fetchone()
+
+
+def test_sign_in_keeps_the_label_and_version(db, admin):
+    accounts.sign_in(db, SignIn(email="alex@example.org", password="correct horse", device_id="p"), T0, client=WEB)
+    [device] = accounts.list_devices(db, admin, admin.user_id)
+    assert device == {
+        "device_id": "p",
+        "created_at": T0,
+        "last_seen_at": T0,
+        "label": "Safari on iPhone",
+        "client_version": "web abc1234",
+    }
+
+
+def test_last_seen_is_written_once_a_day_or_when_the_version_changes(db, admin):
+    session = accounts.sign_in(
+        db, SignIn(email="alex@example.org", password="correct horse", device_id="p"), T0, client=WEB
+    )
+
+    writes = db.total_changes
+    assert accounts.authenticate(db, session.token, seen=WEB, now=T0 + HOUR) is not None
+    assert accounts.authenticate(db, session.token, seen=Client(), now=T0 + 2 * HOUR) is not None
+    assert db.total_changes == writes, "a request within the day, same version, is a read"
+    assert tuple(session_row(db, "p")) == ("Safari on iPhone", "web abc1234", T0)
+
+    newer = Client(version="web def5678", label="Safari on iPhone")
+    accounts.authenticate(db, session.token, seen=newer, now=T0 + 3 * HOUR)
+    assert tuple(session_row(db, "p")) == ("Safari on iPhone", "web def5678", T0 + 3 * HOUR)
+
+    # A day on, a request with no header still counts as seen, and keeps the version it had.
+    accounts.authenticate(db, session.token, seen=Client(), now=T0 + 3 * HOUR + DAY)
+    assert tuple(session_row(db, "p")) == ("Safari on iPhone", "web def5678", T0 + 3 * HOUR + DAY)
+
+
+def test_last_seen_is_skipped_not_waited_for_while_another_write_holds_the_lock(db, db_path, admin):
+    session = accounts.sign_in(
+        db, SignIn(email="alex@example.org", password="correct horse", device_id="p"), T0, client=WEB
+    )
+    other = connect(db_path)
+    other.execute("BEGIN IMMEDIATE")
+    try:
+        started = time.monotonic()
+        assert accounts.authenticate(db, session.token, seen=WEB, now=T0 + DAY) is not None
+        assert time.monotonic() - started < 1
+    finally:
+        other.execute("ROLLBACK")
+        other.close()
+    assert session_row(db, "p")["last_seen_at"] == T0
+    assert db.execute("PRAGMA busy_timeout").fetchone()[0] == BUSY_TIMEOUT_MS
+
+
+def test_a_session_from_before_gets_its_label_on_its_next_request(db, admin):
+    session = accounts.sign_in(db, SignIn(email="alex@example.org", password="correct horse", device_id="p"), T0)
+    db.execute("UPDATE sessions SET last_seen_at = NULL")
+    [before] = accounts.list_devices(db, admin, admin.user_id)
+    assert (before["label"], before["client_version"], before["last_seen_at"]) == (None, None, None)
+
+    accounts.authenticate(db, session.token, seen=Client(label="iPhone"), now=T0 + HOUR)
+    assert tuple(session_row(db, "p")) == ("iPhone", None, T0 + HOUR)
+
+
+def test_an_assistant_keeps_no_label_or_version(db, admin):
+    alex = accounts.authenticate(
+        db, accounts.sign_in(db, SignIn(email="alex@example.org", password="correct horse", device_id="p")).token
+    )
+    assert alex is not None
+    device_id, session = accounts.connect_assistant(db, alex, now=T0)
+    accounts.authenticate(db, session.token, seen=WEB, now=T0 + DAY)
+    assert tuple(session_row(db, device_id)) == (None, None, T0 + DAY)
+
+
+def test_devices_are_listed_once_each_by_their_latest_session_last_seen_first(db, admin):
+    user_id, token = invite(db, admin)
+    old = join(db, token, device="phone", now=T0)
+    laptop = accounts.sign_in(
+        db, SignIn(email="bea@example.org", password="battery staple", device_id="laptop"), T0 + HOUR, client=WEB
+    )
+    again = accounts.sign_in(
+        db, SignIn(email="bea@example.org", password="battery staple", device_id="phone"), T0 + 2 * HOUR
+    )
+    accounts.authenticate(db, old.token, seen=Client(version="ios 1.0.4 (450) abc1234"), now=T0 + 3 * DAY)
+    accounts.authenticate(db, laptop.token, seen=WEB, now=T0 + 2 * DAY)
+    accounts.authenticate(db, again.token, seen=Client(), now=T0 + DAY)
+
+    devices = accounts.list_devices(db, admin, user_id)
+    assert [(d["device_id"], d["created_at"], d["last_seen_at"]) for d in devices] == [
+        ("phone", T0, T0 + 3 * DAY),
+        ("laptop", T0 + HOUR, T0 + 2 * DAY),
+    ]
+    assert devices[0]["client_version"] == "ios 1.0.4 (450) abc1234"
+
+
+def test_client_versions_count_devices_across_users(db, admin):
+    user_id, token = invite(db, admin)
+    join(db, token, device="phone-b", now=T0)
+    alex = accounts.sign_in(
+        db, SignIn(email="alex@example.org", password="correct horse", device_id="phone-a"), T0 + HOUR, client=WEB
+    )
+    accounts.sign_in(
+        db, SignIn(email="bea@example.org", password="battery staple", device_id="laptop-b"), T0, client=WEB
+    )
+    lost = accounts.sign_in(
+        db,
+        SignIn(email="bea@example.org", password="battery staple", device_id="old-b"),
+        T0,
+        client=Client(version="web 0000000"),
+    )
+    accounts.revoke_device(db, admin, user_id, "old-b", now=T0)
+    me = accounts.authenticate(db, alex.token)
+    assert me is not None
+    accounts.connect_assistant(db, me, now=T0 + 2 * HOUR)
+
+    assert accounts.client_versions(db, admin) == [
+        {"client_version": "web abc1234", "devices": 2, "last_seen_at": T0 + HOUR},
+        {"client_version": None, "devices": 1, "last_seen_at": T0},
+    ]
+    assert accounts.authenticate(db, lost.token) is None
+
+    bea = Principal(user_id=user_id, device_id="phone-b", active=True, role="user")
+    with pytest.raises(Forbidden):
+        accounts.client_versions(db, bea)
 
 
 # --- standing join links (FR-USR-19) ----------------------------------------------------------

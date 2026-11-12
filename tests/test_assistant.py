@@ -1195,6 +1195,26 @@ def test_devices_are_listed_and_revoked_for_self_or_by_an_admin(admin_tools, adm
         assistant.revoke_device(admin_id, "mcp-01CCCCCCCCCCCCCCCCCCCCCCCC")
 
 
+def test_devices_say_what_they_are_and_which_version_they_run(admin_tools, admin_id, db_path):
+    """FR-MCP-58, FR-MCP-59."""
+    with open_db(db_path) as conn:
+        accounts._open_session(
+            conn, admin_id, "phone-a", events.now_ms(), accounts.Client("web abc1234", "Safari on iPhone")
+        )
+    [phone] = [d for d in assistant.list_devices(admin_id)["devices"] if d["device_id"] == "phone-a"]
+    assert (phone["label"], phone["client_version"]) == ("Safari on iPhone", "web abc1234")
+    assert phone["last_seen_at"] == phone["created_at"]
+
+    assert [(v["client_version"], v["devices"]) for v in assistant.client_versions()["versions"]] == [
+        ("web abc1234", 1)
+    ]
+
+
+def test_client_versions_are_admin_only(tools):
+    with pytest.raises(Forbidden):
+        assistant.client_versions()
+
+
 def test_an_admin_creates_lists_and_revokes_a_join_link(admin_tools, admin_id):
     made = assistant.create_join_link()
     assert made["token"]

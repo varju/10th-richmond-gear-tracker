@@ -33,6 +33,7 @@ from gear_tracker import (
     accounts,
     assistant,
     calendars,
+    clients,
     codes,
     derived,
     events,
@@ -283,8 +284,14 @@ def bearer(request: Request) -> str | None:
     return token if scheme.lower() == "bearer" and token else None
 
 
+def client_of(request: Request) -> accounts.Client:
+    """The version header and a device label from the User-Agent (FR-USR-32, NFR-DEP-16)."""
+    version = clients.version(request.headers.get(clients.HEADER))
+    return accounts.Client(version=version, label=clients.label(request.headers.get("User-Agent"), version))
+
+
 def by_token(request: Request, conn: sqlite3.Connection) -> Principal | None:
-    return accounts.authenticate(conn, bearer(request))
+    return accounts.authenticate(conn, bearer(request), seen=client_of(request))
 
 
 class GearApp(FastAPI):
@@ -300,7 +307,7 @@ class GearApp(FastAPI):
             super().build_middleware_stack(),
             allow_origins=[APP_ORIGIN],
             allow_methods=["GET", "POST", "PUT", "DELETE"],
-            allow_headers=["Authorization", "Content-Type"],
+            allow_headers=["Authorization", "Content-Type", clients.HEADER],
         )
 
 
@@ -522,7 +529,7 @@ def create_app(
                 wait = accounts.wait_text(sign_in_limit.wait_ms(address, now))
                 raise TooMany(f"Too many attempts from this network. Try again in {wait}.")
             try:
-                session = accounts.sign_in(conn, body, now, address)
+                session = accounts.sign_in(conn, body, now, address, client_of(request))
             except Unauthorized, Locked:
                 raise
             except BaseException:
@@ -536,8 +543,8 @@ def create_app(
             raise
 
     @app.post("/auth/redeem")
-    def redeem(conn: Db, body: accounts.Redeem) -> dict[str, Any]:
-        return session_response(accounts.redeem(conn, body))
+    def redeem(request: Request, conn: Db, body: accounts.Redeem) -> dict[str, Any]:
+        return session_response(accounts.redeem(conn, body, client=client_of(request)))
 
     @app.post("/join")
     def do_join(request: Request, conn: Db, body: accounts.Join) -> dict[str, Any]:
@@ -552,7 +559,7 @@ def create_app(
             raise TooMany("too many join attempts; try again later")
         join_limits["address"].record(address, now)
         join_limits["all"].record("all", now)
-        return session_response(accounts.join(conn, body, now))
+        return session_response(accounts.join(conn, body, now, client_of(request)))
 
     @app.post("/auth/sign-out")
     def sign_out(request: Request, conn: Db, _who: Who) -> dict[str, Any]:

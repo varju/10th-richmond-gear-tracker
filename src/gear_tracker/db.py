@@ -7,12 +7,14 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
+BUSY_TIMEOUT_MS = 5000
+
 # WAL lets readers carry on while a write is in flight, which is what makes one
 # SQLite file survive a handful of volunteers syncing at once (NFR-PERF-08).
 PRAGMAS = (
     "PRAGMA journal_mode = WAL",
     "PRAGMA foreign_keys = ON",
-    "PRAGMA busy_timeout = 5000",
+    f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}",
     "PRAGMA synchronous = NORMAL",
 )
 

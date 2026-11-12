@@ -35,3 +35,12 @@ export function useAppVersion(): AppVersion | null {
     return () => listeners.delete(l);
   }, appVersion);
 }
+
+/** Sent on every request, so the server knows which builds still sync (NFR-DEP-16). Matches clients.py. */
+export const CLIENT_HEADER = "X-Gear-Client";
+
+/** "web <commit>", or "ios <version> (<build>) <commit>" in the app. */
+export function clientVersion(native = NATIVE, app = appVersion()): string {
+  if (!native) return `web ${__GIT_SHA__}`;
+  return app ? `ios ${app.version} (${app.build}) ${__GIT_SHA__}` : `ios ${__GIT_SHA__}`;
+}

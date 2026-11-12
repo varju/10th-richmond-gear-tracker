@@ -21,6 +21,7 @@ import pydantic
 from pydantic import ConfigDict, EmailStr, StringConstraints, TypeAdapter
 
 from gear_tracker import derived, events, notify, passwords
+from gear_tracker.db import BUSY_TIMEOUT_MS
 from gear_tracker.errors import (
     ApiError,
     BadRequest,
@@ -49,6 +50,9 @@ LINK_TTL_MS = 7 * DAY_MS
 
 ASSISTANT_PREFIX = "mcp-"
 """What makes a device_id an assistant's, not an ordinary device's (FR-MCP-02). The client reads the same prefix."""
+
+SEEN_EVERY_MS = DAY_MS
+"""How stale a session's last_seen_at may get before a request rewrites it (NFR-DEP-16)."""
 
 MINUTE_MS = 60_000
 
@@ -145,6 +149,14 @@ class Join(Strict):
     email: Email
     password: Password
     device_id: NonEmpty
+
+
+@dataclass(frozen=True)
+class Client:
+    """What a request said about its device: the version header, and the label made from it (see clients.py)."""
+
+    version: str | None = None
+    label: str | None = None
 
 
 @dataclass(frozen=True)
@@ -295,12 +307,18 @@ def _issue_link(conn: sqlite3.Connection, user_id: str, kind: str, now: int) -> 
     return token
 
 
-def _open_session(conn: sqlite3.Connection, user_id: str, device_id: str, now: int) -> Session:
+def _open_session(
+    conn: sqlite3.Connection, user_id: str, device_id: str, now: int, client: Client | None = None
+) -> Session:
     _check_device(device_id)
+    client = client or Client()
     token = _new_token()
     conn.execute(
-        "INSERT INTO sessions (token_hash, user_id, device_id, created_at) VALUES (?, ?, ?, ?)",
-        (_hash_token(token), user_id, device_id, now),
+        """
+        INSERT INTO sessions (token_hash, user_id, device_id, created_at, last_seen_at, label, client_version)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (_hash_token(token), user_id, device_id, now, now, client.label, client.version),
     )
     return Session(token=token, user=get_user(conn, user_id))
 
@@ -467,7 +485,13 @@ def _clear_lock(conn: sqlite3.Connection, email: str, now: int) -> bool:
     return locked
 
 
-def sign_in(conn: sqlite3.Connection, body: SignIn, now: int | None = None, address: str | None = None) -> Session:
+def sign_in(
+    conn: sqlite3.Connection,
+    body: SignIn,
+    now: int | None = None,
+    address: str | None = None,
+    client: Client | None = None,
+) -> Session:
     """A lock is checked first, before any hashing (NFR-SEC-15). Counting is by email, not account,
     so an unknown email gets the same answers in the same time as a known one (NFR-SEC-19).
     `address` is only for the Admins' mail when this locks an account (FR-USR-26).
@@ -490,7 +514,7 @@ def sign_in(conn: sqlite3.Connection, body: SignIn, now: int | None = None, addr
     _succeed(conn, email, locked_until, now)
     if not get_user(conn, row["user_id"])["active"]:
         raise Deactivated("this account has been deactivated")
-    return _open_session(conn, row["user_id"], body.device_id, now)
+    return _open_session(conn, row["user_id"], body.device_id, now, client)
 
 
 def unlock(conn: sqlite3.Connection, who: Principal, user_id: str, now: int | None = None) -> None:
@@ -515,7 +539,7 @@ def _already_used(kind: str) -> ApiError:
     return ResetUsed("this reset link has already been used; ask an Admin for a new one")
 
 
-def redeem(conn: sqlite3.Connection, body: Redeem, now: int | None = None) -> Session:
+def redeem(conn: sqlite3.Connection, body: Redeem, now: int | None = None, client: Client | None = None) -> Session:
     """Use an invite or reset link: set the password, open a session. The link is spent either way.
 
     The check and the spend are one transaction, so two concurrent redeems of
@@ -555,7 +579,7 @@ def redeem(conn: sqlite3.Connection, body: Redeem, now: int | None = None) -> Se
             conn.execute(
                 "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL", (now, link["user_id"])
             )
-        session = _open_session(conn, link["user_id"], body.device_id, now)
+        session = _open_session(conn, link["user_id"], body.device_id, now, client)
         conn.execute("COMMIT")
     except BaseException:
         conn.execute("ROLLBACK")
@@ -567,7 +591,7 @@ def redeem(conn: sqlite3.Connection, body: Redeem, now: int | None = None) -> Se
     return session
 
 
-def join(conn: sqlite3.Connection, body: Join, now: int | None = None) -> Session:
+def join(conn: sqlite3.Connection, body: Join, now: int | None = None, client: Client | None = None) -> Session:
     """Whoever opens a standing join link makes their own account (FR-USR-19).
 
     Unlike redeem, the link is not spent: it is good until it expires or an
@@ -587,7 +611,7 @@ def join(conn: sqlite3.Connection, body: Join, now: int | None = None) -> Sessio
     except Conflict:
         raise Conflict("an account with that email already exists; sign in instead") from None
     conn.execute("UPDATE accounts SET password_hash = ? WHERE user_id = ?", (password_hash, user_id))
-    session = _open_session(conn, user_id, body.device_id, now)
+    session = _open_session(conn, user_id, body.device_id, now, client)
     notify.user_joined(conn, user_id)
     return session
 
@@ -612,19 +636,59 @@ def connect_assistant(conn: sqlite3.Connection, who: Principal, now: int | None 
     return device_id, _open_session(conn, who.user_id, device_id, now)
 
 
-def authenticate(conn: sqlite3.Connection, token: str | None) -> Principal | None:
-    """Bearer token in, Principal out. A deactivated user still gets one, marked inactive (FR-OFF-06)."""
+def authenticate(
+    conn: sqlite3.Connection, token: str | None, seen: Client | None = None, now: int | None = None
+) -> Principal | None:
+    """Bearer token in, Principal out. A deactivated user still gets one, marked inactive (FR-OFF-06).
+
+    With `seen`, the session also records the client's version and when it was last seen (NFR-DEP-16).
+    """
     if not token:
         return None
+    token_hash = _hash_token(token)
     row = conn.execute(
-        "SELECT user_id, device_id FROM sessions WHERE token_hash = ? AND revoked_at IS NULL", (_hash_token(token),)
+        """
+        SELECT user_id, device_id, client_version, last_seen_at FROM sessions
+        WHERE token_hash = ? AND revoked_at IS NULL
+        """,
+        (token_hash,),
     ).fetchone()
     if row is None:
         return None
     user = derived.get_entity(conn, "user", row["user_id"])
     if user is None:
         return None
+    if seen is not None:
+        _seen(conn, token_hash, row, seen, now_ms() if now is None else now)
     return Principal(user_id=row["user_id"], device_id=row["device_id"], active=user["active"], role=user["role"])
+
+
+def _seen(conn: sqlite3.Connection, token_hash: str, row: sqlite3.Row, client: Client, now: int) -> None:
+    """A write only when something changed or a day has passed: every request comes through here,
+    and a write takes SQLite's one write lock."""
+    if row["device_id"].startswith(ASSISTANT_PREFIX):
+        # An assistant's label is "Assistant", and it has no version.
+        client = Client()
+    changed = client.version is not None and client.version != row["client_version"]
+    stale = row["last_seen_at"] is None or now - row["last_seen_at"] >= SEEN_EVERY_MS
+    if not (changed or stale):
+        return
+    # A request with no header, or a User-Agent we cannot name, keeps what was there.
+    # Skipped rather than waited for while another write holds the lock: it never fails a request.
+    conn.execute("PRAGMA busy_timeout = 0")
+    try:
+        conn.execute(
+            """
+            UPDATE sessions
+            SET last_seen_at = ?, client_version = coalesce(?, client_version), label = coalesce(?, label)
+            WHERE token_hash = ?
+            """,
+            (now, client.version, client.label, token_hash),
+        )
+    except sqlite3.OperationalError:
+        pass
+    finally:
+        conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
 
 
 # --- what Admins do ------------------------------------------------------------------------
@@ -852,22 +916,54 @@ def reactivate(conn: sqlite3.Connection, who: Principal, user_id: str, now: int 
 # --- devices -------------------------------------------------------------------------------
 
 
-def list_devices(conn: sqlite3.Connection, who: Principal, user_id: str) -> list[dict[str, Any]]:
-    """The devices a user is signed in on: one row per device with an open session, latest sign-in first.
+_LATEST_PER_DEVICE = """
+    SELECT * FROM (
+        SELECT *, coalesce(last_seen_at, created_at) AS seen,
+            row_number() OVER (PARTITION BY device_id ORDER BY coalesce(last_seen_at, created_at) DESC) AS nth
+        FROM sessions WHERE revoked_at IS NULL {where}
+    ) WHERE nth = 1
+"""
+"""Each device's most recently seen open session. Sessions from before last_seen_at count from sign-in."""
 
-    A User sees their own (FR-USR-17); an Admin sees anyone's (FR-USR-14).
+
+def list_devices(conn: sqlite3.Connection, who: Principal, user_id: str) -> list[dict[str, Any]]:
+    """The devices a user is signed in on: one row per device with an open session, last seen first.
+
+    A User sees their own (FR-USR-17); an Admin sees anyone's (FR-USR-14). `label` and
+    `client_version` are null when unknown (FR-USR-32, FR-USR-33, FR-USR-34).
     """
     _require_admin_or_self(who, user_id)
     get_user(conn, user_id)
     rows = conn.execute(
-        """
-        SELECT device_id, max(created_at) AS created_at FROM sessions
-        WHERE user_id = ? AND revoked_at IS NULL
-        GROUP BY device_id ORDER BY created_at DESC, device_id
-        """,
-        (user_id,),
+        _LATEST_PER_DEVICE.format(where="AND user_id = ?") + " ORDER BY seen DESC, device_id", (user_id,)
     )
-    return [{"device_id": r["device_id"], "created_at": r["created_at"]} for r in rows]
+    return [
+        {
+            "device_id": r["device_id"],
+            "created_at": r["created_at"],
+            "last_seen_at": r["last_seen_at"],
+            "label": r["label"],
+            "client_version": r["client_version"],
+        }
+        for r in rows
+    ]
+
+
+def client_versions(conn: sqlite3.Connection, who: Principal) -> list[dict[str, Any]]:
+    """Each client version still signed in, with how many devices use it and when one was last seen
+    (NFR-DEP-16). Assistants are left out.
+    A null version is a session not seen since versions were recorded, or a client too old to send one.
+    Admins only."""
+    _require_admin(who)
+    rows = conn.execute(
+        f"""
+        SELECT client_version, count(*) AS devices, max(seen) AS last_seen_at
+        FROM ({_LATEST_PER_DEVICE.format(where="AND substr(device_id, 1, ?) != ?")})
+        GROUP BY client_version ORDER BY last_seen_at DESC
+        """,
+        (len(ASSISTANT_PREFIX), ASSISTANT_PREFIX),
+    )
+    return [dict(r) for r in rows]
 
 
 def revoke_device(

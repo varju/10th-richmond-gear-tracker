@@ -153,7 +153,7 @@ test("an Admin's own device cannot be revoked here; sign out instead", async () 
   mount();
   await user.click(await screen.findByRole("button", { name: /Alice/ }));
   const phones = await screen.findByRole("list", { name: "Devices of Alice" });
-  expect(phones).toHaveTextContent("This device");
+  expect(phones).toHaveTextContent("(this device)");
   expect(within(phones).getByRole("button", { name: "Revoke" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Deactivate" })).toBeDisabled();
 });

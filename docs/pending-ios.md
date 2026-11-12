@@ -24,6 +24,8 @@ What the app does differently.
 - A counted line on an event's gear list opens its item.
 - New event opens with the Event field focused.
 - An event page's **Link other gear that is out** list groups gear by the event it is out under.
+- Your devices names each device, such as "iPhone app" or "Chrome on Mac", with its app version and when it was last
+  seen. The app sends its version to the server with every request.
 
 ## Chores
 

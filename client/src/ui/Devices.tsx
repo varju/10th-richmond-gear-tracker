@@ -61,11 +61,20 @@ export function DeviceList({ userId, me, myDevice, api, onError, label }: Props)
       <ul className="names" aria-label={label}>
         {devices.map((d) => {
           const mine = me && d.device_id === myDevice;
-          const kind = isAssistant(d.device_id) ? "Assistant" : mine ? "This device" : "Device";
+          const assistant = isAssistant(d.device_id);
+          const name = assistant ? "Assistant" : d.label ?? "Device";
+          const details = [
+            assistant ? null : d.client_version ?? "version unknown",
+            d.last_seen_at == null ? null : `seen ${localDate(d.last_seen_at)}`,
+            `signed in ${localDate(d.created_at)}`,
+          ];
           return (
             <li key={d.device_id} className="row">
-              <span className="small">
-                {kind} · signed in {localDate(d.created_at)}
+              <span className="small name">
+                {name}
+                {mine ? " (this device)" : ""}
+                <br />
+                <span className="muted">{details.filter(Boolean).join(" · ")}</span>
               </span>
               <button
                 type="button"

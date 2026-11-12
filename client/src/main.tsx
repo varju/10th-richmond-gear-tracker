@@ -12,6 +12,8 @@ import { watchForUpdates } from "./lib/update";
 import "./styles.css";
 
 watchForUpdates(registerSW);
+// Before the first request, which names the app's version (NFR-DEP-16).
+await startAppVersion();
 
 const store = await Store.open(await openDb());
 const api = createApi({ base: API_BASE, token: () => store.meta.token });
@@ -22,4 +24,3 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>,
 );
 followLinks();
-void startAppVersion();

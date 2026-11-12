@@ -7,7 +7,7 @@ every group. The group's name and mail address are filled in from its settings w
 
 from html import escape
 
-UPDATED = "12 October 2026"
+UPDATED = "11 November 2026"
 
 STYLE = """
 :root { color-scheme: dark; }
@@ -53,6 +53,8 @@ def page(group: str, mail_from: str | None) -> str:
 it.</li>
 <li>Each check-out, check-in and other change to the gear, with who made it and when.</li>
 <li>Notes, repair tickets and photos that members add.</li>
+<li>For each device you sign in on: what kind it is, such as "Safari on iPhone", which version of the app it runs, and
+when it last connected. Not the full details your browser sends.</li>
 <li>Found-gear reports. Anyone who finds our gear can tell us where it is, with no account. We keep what they type,
 including any contact details they give. Every member can see it, and members who asked for found-gear alerts get it
 by email.</li>

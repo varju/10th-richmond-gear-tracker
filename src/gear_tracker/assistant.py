@@ -2561,9 +2561,21 @@ def update_user(user_id: str, fields: accounts.UserEdit) -> dict[str, Any]:
 
 
 def list_devices(user_id: str) -> dict[str, Any]:
-    """The devices one account is signed in on (FR-USR-14). Your own always; anyone's if you are an Admin."""
+    """The devices one account is signed in on (FR-USR-14), last seen first: each one's label, such as
+    "Safari on iPhone", its client version, when it signed in and when it was last seen (ms). A null
+    label or version is unknown; an assistant has neither. Your own always; anyone's if you are an Admin."""
     with _open() as (conn, who):
         return {"devices": accounts.list_devices(conn, who, user_id)}
+
+
+def client_versions() -> dict[str, Any]:
+    """Each client version still signed in, across all users: how many devices use it, and when one was
+    last seen (ms).
+    A null version is a device not seen since versions were recorded, or a client too old to send one.
+    Assistants are left out.
+    Admins only (NFR-DEP-16)."""
+    with _open() as (conn, who):
+        return {"versions": accounts.client_versions(conn, who)}
 
 
 def revoke_device(user_id: str, device_id: str) -> dict[str, Any]:
@@ -3012,6 +3024,7 @@ TOOLS = [
     set_user_role,
     list_devices,
     revoke_device,
+    client_versions,
     create_join_link,
     list_join_links,
     rename_join_link,

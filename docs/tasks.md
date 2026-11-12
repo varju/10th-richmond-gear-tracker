@@ -7,44 +7,6 @@ changelog.
 
 ---
 
-## Record each device's client version
-
-Know which client builds still sync, so an old API shape is dropped only once no device uses it.
-
-- The client sends a version header on every request: its git commit (`__GIT_SHA__`, already in both builds), plus the
-  app version and build in the iPhone app, from `appVersion()` in `client/src/lib/appVersion.ts`.
-- Add the header to CORS `allow_headers` in `GearApp.build_middleware_stack` in `src/gear_tracker/app.py`, with a test
-  from `capacitor://localhost`. Deploy the server before any app build sends it: a preflight naming an unknown header
-  fails every request from the app.
-- The server keeps the latest version and when it was seen on the session row of the token used. Write only when the
-  version changes or last seen is over a day old: `accounts.authenticate` is a read today, and a write per request takes
-  SQLite's write lock. Migration 0014.
-- Old builds send nothing and show as unknown; assistant sessions show nothing.
-- Show it per device in the devices lists (most recently seen row per device) and in `list_devices`.
-- New Admin tool `client_versions` in `assistant.py`: each version with its device count and last seen, across all
-  users. Add FR-MCP rows for it and for `list_devices`.
-- A requirement. Check whether `src/gear_tracker/privacy.py` needs a line.
-- Client change: add a line to `docs/pending-ios.md`.
-
-## Tell devices apart on Your devices
-
-**Your devices** lists each sign-in as "Device · signed in <date>". A lost phone can't be told from an old laptop
-browser. The `sessions` table keeps only `device_id` and `created_at`.
-
-- At sign-in, keep a short label on the session row, such as "iPhone app", "iPad app", "Safari on iPhone" or "Chrome on
-  Mac". Build it from the User-Agent, and from the app's version header (see Record each device's client version). Keep
-  the label only, not the raw User-Agent; check `src/gear_tracker/privacy.py`. Sessions from before this show "Device".
-- Show when each device was last seen beside when it signed in, and sort by last seen. The client-version task adds that
-  column.
-- The same in an Admin's view of a user's devices, and in `list_devices`.
-- Do it with Record each device's client version, or right after it: they touch the same row and can share
-  migration 0014.
-
-**Considered:**
-
-- Let a person name a device. Costs taps; the label covers most cases.
-- Sign out devices not seen for some months. The list in testing had 13 rows, most likely dead browsers.
-
 ## Scanner stops reading with the camera live
 
 Once in the iPhone app, the scan screen showed a live picture but read no codes. Home, then Scan again, fixed it. What

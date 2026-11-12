@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, expect, test } from "vitest";
-import { createApi } from "../lib/api";
+import { createApi, type Device } from "../lib/api";
 import { openDb } from "../lib/db";
 import { Store } from "../lib/store";
 import { SettingsDevices } from "./SettingsDevices";
@@ -10,7 +10,7 @@ import { SettingsDevices } from "./SettingsDevices";
 // "Your devices" in Settings (FR-USR-17), the same list Users.tsx shows an Admin for someone else.
 const T0 = 1_756_684_800_000;
 let store: Store;
-let devices: { device_id: string; created_at: number }[];
+let devices: Device[];
 let calls: string[];
 
 const fetchFake = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
@@ -31,9 +31,15 @@ beforeEach(async () => {
   store = await Store.open(await openDb("devices", new IDBFactory()), () => T0);
   await store.setMeta({ token: "t", user: { id: "u2", name: "Bob", role: "user", active: true } });
   devices = [
-    { device_id: store.meta.device_id, created_at: T0 },
+    {
+      device_id: store.meta.device_id,
+      created_at: T0 - 86_400_000,
+      last_seen_at: T0,
+      label: "Safari on iPhone",
+      client_version: "web abc1234",
+    },
     { device_id: "phone-other", created_at: T0 - 86_400_000 },
-    { device_id: "mcp-assistant", created_at: T0 - 3_600_000 },
+    { device_id: "mcp-assistant", created_at: T0 - 3_600_000, last_seen_at: T0 - 3_600_000 },
   ];
 });
 
@@ -46,10 +52,11 @@ test("Settings shows a non-admin their own devices; the one in use cannot be rev
 
   const list = await screen.findByRole("list", { name: "Your devices" });
   const rows = within(list).getAllByRole("listitem");
-  expect(rows.map((r) => r.textContent)).toEqual([
-    expect.stringContaining("This device"),
-    expect.stringContaining("Device"),
-    expect.stringContaining("Assistant"),
+  // What it is, which version, when last seen (FR-USR-32, FR-USR-33, FR-USR-34). A session from before shows "Device".
+  expect(rows.map((r) => r.querySelector("span")?.textContent)).toEqual([
+    "Safari on iPhone (this device)web abc1234 · seen 2025-08-31 · signed in 2025-08-30",
+    "Deviceversion unknown · signed in 2025-08-30",
+    "Assistantseen 2025-08-31 · signed in 2025-08-31",
   ]);
 
   const revokeButtons = within(list).getAllByRole("button", { name: "Revoke" });

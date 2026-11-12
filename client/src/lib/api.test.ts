@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { ApiError, createApi } from "./api";
+import { clientVersion } from "./appVersion";
 
 const T0 = 1_756_684_800_000;
 
@@ -60,4 +61,23 @@ test("push sends round_trip_ms only when given", async () => {
 
   await api.push("device-a", T0, [], 250);
   expect(body.round_trip_ms).toBe(250);
+});
+
+test("every request names the client's version, photos too (NFR-DEP-16)", async () => {
+  const sent: (string | null)[] = [];
+  const fetch = async (_url: string, init: RequestInit) => {
+    sent.push(new Headers(init.headers).get("X-Gear-Client"));
+    return new Response(JSON.stringify({ snapshot: {}, cursor: 0, log_id: "log-one" }), { status: 200 });
+  };
+  const api = createApi({ fetch: fetch as typeof globalThis.fetch, now: () => T0 });
+
+  await api.bootstrap();
+  await api.fetchPhoto("p1");
+  expect(sent).toEqual(["web dev", "web dev"]);
+});
+
+test("the app's version header carries its version and build once read", () => {
+  expect(clientVersion(true, { version: "1.0.4", build: "450" })).toBe("ios 1.0.4 (450) dev");
+  expect(clientVersion(true, null)).toBe("ios dev");
+  expect(clientVersion(false, null)).toBe("web dev");
 });

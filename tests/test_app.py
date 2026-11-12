@@ -521,6 +521,37 @@ def test_the_app_may_send_its_bearer_header(real):
     assert "access-control-allow-credentials" not in r.headers
 
 
+def test_the_app_may_send_its_version_header(real):
+    """A preflight naming a header the server does not allow fails every request from the app (NFR-DEP-16)."""
+    r = preflight(real, "capacitor://localhost", headers="authorization,content-type,x-gear-client")
+    assert r.status_code == 200
+    allowed = {h.strip().lower() for h in r.headers["access-control-allow-headers"].split(",")}
+    assert "x-gear-client" in allowed
+
+
+IPAD_APP_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+
+
+def test_a_devices_label_and_version_come_from_its_requests(real):
+    """FR-USR-32 to FR-USR-34: named at sign-in; an older build with no header still signs in and syncs."""
+    app = {**APP, "User-Agent": IPAD_APP_UA, "X-Gear-Client": "ios 1.0.4 (450) abc1234"}
+    r = real.post(
+        "/auth/sign-in",
+        headers=app,
+        json={"email": "alex@example.org", "password": "correct horse", "device_id": "pad"},
+    )
+    assert r.status_code == 200
+    auth = {**app, "Authorization": f"Bearer {r.json()['token']}"}
+    old_build = {**APP, "User-Agent": IPAD_APP_UA, **sign_in(real, device="old-pad")}
+    assert real.get("/sync/bootstrap", headers=old_build).status_code == 200
+
+    alex_id = real.get("/users", headers=auth).json()["users"][0]["id"]
+    devices = {d["device_id"]: d for d in real.get(f"/users/{alex_id}/devices", headers=auth).json()["devices"]}
+    assert (devices["pad"]["label"], devices["pad"]["client_version"]) == ("iPad app", "ios 1.0.4 (450) abc1234")
+    assert devices["old-pad"]["client_version"] is None
+    assert devices["pad"]["last_seen_at"] is not None
+
+
 def test_the_app_signs_in_and_syncs_cross_origin(real):
     r = real.post(
         "/auth/sign-in",
