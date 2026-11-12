@@ -2,6 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import * as act from "../lib/actions";
+import { startAppVersion } from "../lib/appVersion";
 import { BASE, navigate } from "../lib/router";
 import type { Shell } from "../shell";
 import type { Store } from "../lib/store";
@@ -166,4 +167,16 @@ test("the foot links to the privacy policy (FR-PUB-07)", () => {
   const link = screen.getByRole("link", { name: "Privacy" });
   expect(link).toHaveAttribute("href", `${location.origin}${BASE}/privacy`);
   expect(link).toHaveAttribute("target", "_blank");
+});
+
+test("the app shows its version and build (NFR-DEP-15)", async () => {
+  await startAppVersion({ nativePromise: async () => ({ version: "1.0.4", build: "57" }) }, true);
+  mount();
+  expect(screen.getByText("App 1.0.4 (57)")).toBeInTheDocument();
+});
+
+test("the web build shows no app version", async () => {
+  await startAppVersion(undefined, false);
+  mount();
+  expect(screen.queryByText(/^App /)).not.toBeInTheDocument();
 });

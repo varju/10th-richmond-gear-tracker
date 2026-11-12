@@ -8,6 +8,24 @@ class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(PrintPlugin())
         bridge?.registerPluginInstance(LinkPlugin())
         bridge?.registerPluginInstance(ScannerPlugin())
+        bridge?.registerPluginInstance(VersionPlugin())
+    }
+}
+
+/// Says which build of the app this is, read from the binary so it cannot drift
+/// (client/src/lib/appVersion.ts).
+@objc(VersionPlugin)
+class VersionPlugin: CAPPlugin, CAPBridgedPlugin {
+    let identifier = "VersionPlugin"
+    let jsName = "VersionPlugin"
+    let pluginMethods: [CAPPluginMethod] = [CAPPluginMethod(name: "get", returnType: CAPPluginReturnPromise)]
+
+    @objc func get(_ call: CAPPluginCall) {
+        let info = Bundle.main.infoDictionary
+        call.resolve([
+            "version": info?["CFBundleShortVersionString"] as? String ?? "",
+            "build": info?["CFBundleVersion"] as? String ?? "",
+        ])
     }
 }
 

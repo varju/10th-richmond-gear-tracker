@@ -1,4 +1,5 @@
 import type { Shell } from "../shell";
+import { useAppVersion } from "../lib/appVersion";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { plural, syncLabel } from "./labels";
@@ -14,6 +15,7 @@ interface Props {
 /** Who is signed in, the sync line, and a link to each section. Sign out lives in the menu. */
 export function Settings({ store, shell }: Props) {
   useStore(store);
+  const app = useAppVersion();
 
   return (
     <Page
@@ -88,6 +90,11 @@ export function Settings({ store, shell }: Props) {
           <a href={`https://github.com/varju/10th-richmond-gear-tracker/commit/${__GIT_SHA__}`}>{__GIT_SHA__}</a>
         )}
       </p>
+      {app && (
+        <p className="muted small">
+          App {app.version} ({app.build})
+        </p>
+      )}
     </Page>
   );
 }

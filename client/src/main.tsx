@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { registerSW } from "virtual:pwa-register";
 import { App } from "./App";
 import { createApi } from "./lib/api";
+import { startAppVersion } from "./lib/appVersion";
 import { openDb } from "./lib/db";
 import { followLinks } from "./lib/links";
 import { API_BASE } from "./lib/server";
@@ -21,3 +22,4 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>,
 );
 followLinks();
+void startAppVersion();

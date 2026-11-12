@@ -67,24 +67,12 @@ Conflicts screen (`Conflicts.tsx`) asks too, like any return.
   leaves the last weight as it was", don't append.
 - Shares `MoveActions.tsx` with "Check out first, ask the event after": do them one after the other.
 
-## Show the app version in the iPhone app
-
-Show the app's version and build, e.g. "App 1.0.4 (57)", in Settings by the **Source** line. Web builds show nothing
-new.
-
-- Read `CFBundleShortVersionString` and `CFBundleVersion` at runtime from a small native method beside the plugins in
-  `ios/App/App/MainViewController.swift`. It cannot drift from the binary, and a sideloaded build shows its own number.
-  Not baked in at build: `Makefile.local` is untracked, and only `testflight` sets the build number.
-- It is async: read once at start and keep it for "Record each device's client version".
-- Add a requirement.
-- Client change: add a line to `docs/pending-ios.md`.
-
 ## Record each device's client version
 
 Know which client builds still sync, so an old API shape is dropped only once no device uses it.
 
 - The client sends a version header on every request: its git commit (`__GIT_SHA__`, already in both builds), plus the
-  app version and build in the iPhone app once "Show the app version in the iPhone app" is done.
+  app version and build in the iPhone app, from `appVersion()` in `client/src/lib/appVersion.ts`.
 - Add the header to CORS `allow_headers` in `GearApp.build_middleware_stack` in `src/gear_tracker/app.py`, with a test
   from `capacitor://localhost`. Deploy the server before any app build sends it: a preflight naming an unknown header
   fails every request from the app.
@@ -149,6 +137,17 @@ answered, and walk off with nothing recorded.
   event up front.
 - Docs: "The first check-out asks for the event" and the pool line in `docs/guide/scouter.md`; the session paragraph in
   `docs/architecture.md`.
+- Client change: add a line to `docs/pending-ios.md`.
+
+## Focus the event name on New event
+
+Tapping **New event** on Events opens the form with nothing focused, so it takes another tap to start typing.
+
+- Focus the **Event** field in `ReservationForm.tsx` for a new event only, not on Edit. Focusing it also opens its
+  suggestions, so today's calendar events show at once.
+- iOS raises the keyboard only for a focus inside the tap, so `autoFocus` alone may not do it. Do as "Search button in
+  the top bar" does: in the **New event** handler in `Reservations.tsx`, `flushSync(() => navigate("/events/new"))`,
+  then focus the field. Check on an iPhone, in Safari and in the app.
 - Client change: add a line to `docs/pending-ios.md`.
 
 ## Send iPads to the app

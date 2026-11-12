@@ -18,6 +18,7 @@ What the app does differently.
 - A category in use can be deleted after a warning; its items lose it.
 - An item can carry more than one QR code: Replace QR code is now Add QR code, and Details counts them.
 - Shaking the phone no longer offers to undo typing.
+- Settings shows the app version and build.
 
 ## Chores
 
