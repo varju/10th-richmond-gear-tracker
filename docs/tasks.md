@@ -7,6 +7,160 @@ changelog.
 
 ---
 
+## Keep an event page's filter on Back
+
+On a past event, tick **Not returned**, open an item, tap Back: the box is clear again.
+
+- `ReservationPage.tsx` holds `notPacked` and `mode` in plain `useState`. Keep both in the history entry with
+  `entryState` and `setEntryState` from `client/src/lib/router.ts`, as `ItemTable.tsx` does.
+- Back, forward and reload restore them; opening the event afresh starts clear.
+- Client change: add a line to `docs/pending-ios.md`.
+
+## Search button in the top bar
+
+Off Home, searching takes two taps: ⌂, then the search box. Add a magnifying glass to the top bar that goes Home with
+the search box focused.
+
+- `client/src/ui/Page.tsx`: on the right, just left of ☰, where apps usually put search. ⌂ and ‹ stay on the left as
+  navigation. Shown when ⌂ is (phone layout, off Home). An inline SVG in the header's colour, not an emoji.
+- In the tap handler, `flushSync(() => navigate("/"))`, then focus Home's search box. The focus is inside the tap, so
+  iOS raises the keyboard, and nothing is stored, so Back and reload do not refocus. Check on an iPhone, in Safari and
+  in the app.
+- Check whether ⌂ loses an unsaved draft without asking. Search does what ⌂ does; if ⌂ loses drafts, fix both.
+- Add a requirement.
+- Client change: add a line to `docs/pending-ios.md`.
+
+## Open a counted line from an event's gear list
+
+On an event's gear list, a line like "3 × Fire trays — 2 not returned" cannot be tapped, unlike the named items above
+it. Checking those in means finding the item another way.
+
+- `ReservationPage.tsx`: make each line in the `names` list a button to `/items/<id>`, styled like the `items` list.
+  Name "3 × Fire trays"; detail line "2 packed" or "2 not returned", as the line reads today. The packing **Check out**
+  box stays as its own control on the row. Update `Reservations.test.tsx`, which pins today's text.
+- Same for both modes and for every such line: counted stacks and generics with units.
+- A generic's page does not say which of its units are out under this event. Out of scope here.
+- Shares `ReservationPage.tsx` with "Keep an event page's filter on Back": do them one after the other.
+- Client change: add a line to `docs/pending-ios.md`.
+
+## Always ask a weighed item's weight at check-in
+
+Returning a weighed item sometimes asks its weight and sometimes does not, which looks like the scanner and the item
+page differ. Both use `MoveActions.tsx`; the question is skipped when the item was weighed or refilled since it went out
+(FR-INV-71). Ask every time, with three answers:
+
+- A weight, as now.
+- **Keep**, showing the last reading as typed, with its unit (e.g. "Keep 18 lb"), or "Keep Full" after **Refilled**.
+  Offered whenever there is a reading, even one from before the item went out. Keep records a `weighed` event with that
+  value, so the reading is current again. The main button when offered: a Scouter with no scale taps it, not Unknown.
+- **Unknown**, which records `weighed` with no value and clears what is left, as Unknown on **Weigh** does (FR-INV-70).
+
+Both reuse `weighed`, so replay and `vectors/replay/` are unchanged. Pools are not weighed. **It is back** on the
+Conflicts screen (`Conflicts.tsx`) asks too, like any return.
+
+- Requirements: move FR-INV-71 and FR-INV-72 to Won't, each saying what replaced it: Keep now guards a reading taken at
+  camp, the reason 7fd7686 made Unknown keep it. Add rows for Keep and for Unknown at check-in.
+- Assistant: `check_in`'s `weight_unknown` records `weighed` with no value again (7fd7686 made it record nothing). Add a
+  `keep` option. Update FR-MCP-45.
+- Guides: the weight sections of `docs/guide/scouter.md` and `docs/guide/quartermaster.md`.
+- `docs/pending-ios.md`: replace the unreleased lines "Return skips the weight question…" and "Unknown at check-in
+  leaves the last weight as it was", don't append.
+- Shares `MoveActions.tsx` with "Check out first, ask the event after": do them one after the other.
+
+## Show the app version in the iPhone app
+
+Show the app's version and build, e.g. "App 1.0.4 (57)", in Settings by the **Source** line. Web builds show nothing
+new.
+
+- Read `CFBundleShortVersionString` and `CFBundleVersion` at runtime from a small native method beside the plugins in
+  `ios/App/App/MainViewController.swift`. It cannot drift from the binary, and a sideloaded build shows its own number.
+  Not baked in at build: `Makefile.local` is untracked, and only `testflight` sets the build number.
+- It is async: read once at start and keep it for "Record each device's client version".
+- Add a requirement.
+- Client change: add a line to `docs/pending-ios.md`.
+
+## Record each device's client version
+
+Know which client builds still sync, so an old API shape is dropped only once no device uses it.
+
+- The client sends a version header on every request: its git commit (`__GIT_SHA__`, already in both builds), plus the
+  app version and build in the iPhone app once "Show the app version in the iPhone app" is done.
+- Add the header to CORS `allow_headers` in `GearApp.build_middleware_stack` in `src/gear_tracker/app.py`, with a test
+  from `capacitor://localhost`. Deploy the server before any app build sends it: a preflight naming an unknown header
+  fails every request from the app.
+- The server keeps the latest version and when it was seen on the session row of the token used. Write only when the
+  version changes or last seen is over a day old: `accounts.authenticate` is a read today, and a write per request takes
+  SQLite's write lock. Migration 0014.
+- Old builds send nothing and show as unknown; assistant sessions show nothing.
+- Show it per device in the devices lists (most recently seen row per device) and in `list_devices`.
+- New Admin tool `client_versions` in `assistant.py`: each version with its device count and last seen, across all
+  users. Add FR-MCP rows for it and for `list_devices`.
+- A requirement. Check whether `src/gear_tracker/privacy.py` needs a line.
+- Client change: add a line to `docs/pending-ios.md`.
+
+## Scanner stops reading with the camera live
+
+Once in the iPhone app, the scan screen showed a live picture but read no codes. Home, then Scan again, fixed it. What
+came before is not known; no way to reproduce it yet.
+
+The app scans natively (`ios/App/App/ScannerPlugin.swift`), so the web scanner's suspects do not apply. A code read
+found no clear cause. Suspects, most likely first:
+
+1. Focus or zoom stuck: `configure()` limits autofocus to near, and `aim()` zooms up to 3x. A fresh start re-aims, which
+   fits Home then Scan fixing it.
+2. The picture was frozen, not live: a native pause, or a heat interruption.
+3. A stale `rectOfInterest`, if `aim()` ran during an interruption and nothing re-aimed after.
+4. An IndexedDB write that never settles: `seen()` in plain mode, or `bindCode` in Scan new code, where `bound.current`
+   then drops every code.
+
+**Next:** a hidden diagnostics line on the scan screen (long-press the viewfinder) to screenshot next time: plugin state
+(scanning, paused, running, interrupted, `rectOfInterest`, zoom, lens position, focus adjusting, codes seen and dropped)
+and JS state (codes received and dropped, `cardOpen`, `cardItem`, `bound`, a `handle` still waiting).
+
+**Considered:** re-run `aim()` on resume and when an interruption ends, and re-trigger focus when nothing is read for a
+few seconds. A guess until the diagnostics say which.
+
+## Check out first, ask the event after
+
+The first check-out of a plain session asks "Which event?" before it moves anything. Scouters miss that it must be
+answered, and walk off with nothing recorded.
+
+- The first check-out moves at once, with no event. A take-over or transfer moves at once and keeps the event and
+  reservation the gear was already out under (as the cleaner branch of `transfer()` does), so nothing drops off an
+  event's list.
+- A strip then asks "Which event?" with Last used, today's calendar events, a typed name, and **No event**. **Create**
+  and **No event** are equal answers, both styled as primary. No Cancel: the move is done, and Return undoes a
+  check-out.
+- An answer does what an answer given first does today (`planned()` in `client/src/lib/movement.ts`): find or make the
+  reservation, correct each waiting move to it by id with `correctEvent`, and join its gear list (FR-OUT-45, FR-RES-38).
+  `changeEvent` is not enough: it does not relink a move no reservation took. The session then uses the answer.
+- Waiting moves are held by movement id in `meta`, so the strip survives leaving the screen and a restart. They lapse
+  with the session, four hours after the last move (FR-OUT-38); a no-event move must now start or extend the session. A
+  waiting move since returned or taken over by someone else is dropped from the list.
+- On the scan screen the strip is the `SessionEvent` bar above the viewfinder while unanswered, not a second control. On
+  item pages it sits above the actions. **Change** there or on **Events** (FR-OUT-43) while moves wait counts as the
+  answer.
+- Pools follow the same rule: `PoolActions` in `ItemPage.tsx` has its own `useEventQuestion`.
+- Ignoring the strip loses only the event, never the move.
+- Files: `EventChoice.tsx`, `MoveActions.tsx`, `Scan.tsx`, `ItemPage.tsx`, `client/src/lib/session.ts`,
+  `client/src/lib/store.ts`, `client/src/lib/movement.ts`. Reservation sessions are unchanged: they know their event.
+- Requirements: reword FR-OUT-05, FR-OUT-37, FR-OUT-38, FR-OUT-44 (the first
+  confirmation names no event), and FR-OUT-41 / FR-RES-40 for the relink. The assistant's `check_out` already takes the
+  event up front.
+- Docs: "The first check-out asks for the event" and the pool line in `docs/guide/scouter.md`; the session paragraph in
+  `docs/architecture.md`.
+- Client change: add a line to `docs/pending-ios.md`.
+
+## No "Undo Typing" after pocketing the phone
+
+After typing a count (a pool's return), locking the phone and pocketing it, iOS shows "Undo Typing?" on unlock. That is
+iOS's shake to undo, set off by the pocket.
+
+- iPhone app: set `UIApplication.shared.applicationSupportsShakeToEdit = false` at launch in
+  `ios/App/App/AppDelegate.swift`. Nothing in the app uses shake to undo.
+- Safari cannot turn it off, and the undo outlives the field, so a blur would not help. Leave Safari as is.
+- iPhone app change: add a line to `docs/pending-ios.md`.
+
 ## Send iPads to the app
 
 Once the App Store has an iPad build, offer it to iPads as to iPhones (NFR-DEP-12). Not before: an iPad sent to the
