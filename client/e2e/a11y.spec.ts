@@ -39,7 +39,7 @@ test("the main screens have no WCAG 2.2 AA violations", async ({ page }) => {
   // The inventory is a table at a desk and the phone's list at a phone's width.
   await page.goto("/items");
   if (wide) await expect(page.getByRole("table")).toBeVisible();
-  else await expect(page.getByLabel("Search")).toBeVisible();
+  else await expect(page.getByLabel("Search", { exact: true })).toBeVisible();
   await audit(page, "inventory");
 
   await page.getByRole("button", { name: "New item" }).click();
