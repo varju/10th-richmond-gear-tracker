@@ -84,7 +84,7 @@ test("a printed code becomes an item", async ({ browser, page, request }) => {
   await expect(page.getByText("Cold locker / shelf 4")).toBeVisible();
   // The code sits in the Details fold, closed until asked for.
   await page.getByText("Details", { exact: true }).click();
-  await expect(page.locator("dt:text-is('QR code') + dd")).toHaveText("Yes");
+  await expect(page.locator("dt:text-is('QR codes') + dd")).toHaveText("1");
 
   // The sticker's URL now opens the item.
   await page.goto(`/g/${code}`);

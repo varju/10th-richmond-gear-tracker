@@ -1096,7 +1096,7 @@ test("adding a QR code to a new unit: back shows the unit once, with its code, t
   await read("ABCDEFGH23");
   await waitFor(() => expect(location.pathname).toBe(unit));
   // The page behind is drawn from the store, so it already shows the new code.
-  expect(screen.getByText("QR code").nextElementSibling).toHaveTextContent("Yes");
+  expect(screen.getByText("QR codes").nextElementSibling).toHaveTextContent("1");
 
   await user.click(screen.getByRole("button", { name: "Back" }));
   expect(location.pathname).toBe(`/items/${tents}`);

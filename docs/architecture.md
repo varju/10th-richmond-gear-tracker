@@ -445,9 +445,10 @@ Shelves are labels on items, not entities (FR-SET-03). The suggestion list is wh
 
 A code is an entity whose id is the code itself. The server creates them when it prints a sheet; devices may only bind
 them, with one `code_bound` event carrying the item id. Replay records `item_id` and `bound_at` on the code and nothing
-on the item, so an item's current code is a question answered by reading its codes: the one bound last is current, the
-rest are replaced and still resolve (FR-TAG-05). The server refuses a second binding of the same code at push time; the
-two-phones-offline race leaves the loser's item without a code and a rejection explaining why.
+on the item, so an item's codes are found by reading the codes. Every one resolves to the item (FR-TAG-05, FR-TAG-20);
+the one bound last is its current code, which the CSV export and the assistant show. The server refuses a second binding
+of the same code at push time; the two-phones-offline race leaves the loser's item without a code and a rejection
+explaining why.
 
 A device may also release a bound code, deliberately, with a `code_released` event that clears `item_id` (FR-TAG-14).
 Unlike a replace, this is not superseded by a new sticker: the code goes back to unassigned and may be bound to a
@@ -756,18 +757,17 @@ each for laminate to seal, and the host on one horizontal line under the QR. Eac
 
 ### Code lifecycle
 
-Code identifiers must not be guessable (NFR-SEC-04), so they are random, not sequential. A code has three states:
+Code identifiers must not be guessable (NFR-SEC-04), so they are random, not sequential. A code has two states:
 
 - **unassigned** — printed, not yet on anything. Scanning offers create-or-bind (FR-TAG-07).
-- **assigned** — bound to an item. Scanning opens it (FR-TAG-06).
-- **replaced** — was bound, superseded by a new sticker. Still resolves to its item, never reused (FR-TAG-05).
+- **assigned** — bound to an item. Scanning opens it (FR-TAG-06). An item may carry any number of codes: one per bag of
+  a tent packed in three, or a new sticker for a lost one (FR-TAG-20). All of them open the item, so a sticker that
+  turns up in a field two years later resolves correctly (FR-TAG-05). There is no "replaced" state: a new sticker and an
+  extra one are the same event.
 
-An item has one current code and any number of replaced ones. A sticker that turns up in a field two years later
-resolves correctly.
-
-A fourth move, releasing, takes an assigned or replaced code deliberately back to unassigned (FR-TAG-14): the sticker is
-off the gear, and the printed code is free to go on something else. Unlike a replace, nothing else takes its place on
-the item. Deleting an item (FR-INV-32) releases every code on it.
+A third move, releasing, takes an assigned code deliberately back to unassigned (FR-TAG-14): the sticker is off the
+gear, and the printed code is free to go on something else. Nothing else takes its place on the item. Deleting an item
+(FR-INV-32) releases every code on it.
 
 **Keep the URL short.** Length costs physical module size, which is what survives a scuffed sticker in a dim locker. In
 the label's 1.25in printed box including the quiet zone, at error correction M:

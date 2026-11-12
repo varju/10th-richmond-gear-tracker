@@ -88,7 +88,7 @@ export function Bind({ store, code }: { store: Store; code: string }) {
                 confirmLabel={
                   <>
                     {label(it)}
-                    <span className="ask">Really replace its QR code?</span>
+                    <span className="ask">Add another QR code to it?</span>
                   </>
                 }
                 onConfirm={() => bind(it)}

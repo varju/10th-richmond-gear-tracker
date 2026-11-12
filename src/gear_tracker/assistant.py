@@ -1153,7 +1153,7 @@ def mark_missing(item_id: str) -> dict[str, Any]:
 
 def assign_code(code: str, item_id: str) -> dict[str, Any]:
     """Put a printed code on an item (FR-TAG-04). The code must be one we printed and not on anything;
-    an item that already has a code gets the new one, and the old one still resolves (FR-TAG-05)."""
+    an item may carry several, and every one resolves to it (FR-TAG-05, FR-TAG-20)."""
     with _open() as (conn, who):
         if not codes.is_code(code):
             raise BadRequest("not a code")

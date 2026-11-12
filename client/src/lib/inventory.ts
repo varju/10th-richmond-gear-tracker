@@ -369,9 +369,9 @@ export function recentGenerics(state: State, limit = 4): Item[] {
 
 // --- codes --------------------------------------------------------------------------------
 
-export type CodeStatus = "unassigned" | "assigned" | "replaced" | "unknown";
+export type CodeStatus = "unassigned" | "assigned" | "unknown";
 
-/** Every code that has ever been on the item, newest binding first. The first is its current code.
+/** Every code on the item, newest binding first. An item may carry several (FR-TAG-20).
  * A code on a merged duplicate counts as the survivor's, so the old sticker still finds the item. */
 export function codesFor(state: State, itemId: string): Code[] {
   return codes(state)
@@ -385,8 +385,7 @@ export const currentCode = (state: State, itemId: string): Code | undefined => c
 export function codeStatus(state: State, id: string): CodeStatus {
   const c = code(state, id);
   if (!c) return "unknown";
-  if (!c.item_id) return "unassigned";
-  return currentCode(state, resolveItem(state, c.item_id))?.id === id ? "assigned" : "replaced";
+  return c.item_id ? "assigned" : "unassigned";
 }
 
 /** "Kept by Sam", with "(inactive)" once Sam is deactivated (FR-INV-59). */

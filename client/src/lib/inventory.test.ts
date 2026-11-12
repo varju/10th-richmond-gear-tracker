@@ -525,7 +525,7 @@ test("the item's current code is the latest binding; older ones still resolve", 
   const f = await fixture();
   await act.bindCode(store, "ABCDEFGH23", f.t1);
   await act.bindCode(store, "BCDEFGHJ34", f.t1);
-  expect(inv.codeStatus(store.state, "ABCDEFGH23")).toBe("replaced");
+  expect(inv.codeStatus(store.state, "ABCDEFGH23")).toBe("assigned");
   expect(inv.codeStatus(store.state, "BCDEFGHJ34")).toBe("assigned");
   expect(inv.codeStatus(store.state, "ZZZZZZZZZZ")).toBe("unknown");
   expect(inv.code(store.state, "ABCDEFGH23")?.item_id).toBe(f.t1);
@@ -613,7 +613,7 @@ test("a merged duplicate leaves the list, and its sticker finds the survivor (FR
   expect(inv.resolveItem(store.state, f.t2)).toBe(f.t2);
   expect(inv.aliases(store.state, f.t2)).toEqual([f.t2, f.t1]);
   expect(inv.codesFor(store.state, f.t2).map((c) => c.id)).toEqual(["BCDEFGHJ34", "ABCDEFGH23"]);
-  expect(inv.codeStatus(store.state, "ABCDEFGH23")).toBe("replaced");
+  expect(inv.codeStatus(store.state, "ABCDEFGH23")).toBe("assigned");
   expect(inv.codeStatus(store.state, "BCDEFGHJ34")).toBe("assigned");
   expect(store.pending.at(-1)?.payload).toEqual({ field: "merged_into", value: f.t2, old: null });
 

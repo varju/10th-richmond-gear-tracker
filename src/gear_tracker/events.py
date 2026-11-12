@@ -606,7 +606,7 @@ class CodeBound(_Incoming):
 
 
 class CodeReleased(_Incoming):
-    """A code comes off an item, on purpose (FR-TAG-14). Unlike a replaced code (FR-TAG-05), the code goes
+    """A code comes off an item, on purpose (FR-TAG-14). Unlike a lost sticker (FR-TAG-05), the code goes
     back to unassigned: scanning it again offers a new item or a bind (FR-TAG-07)."""
 
     type: Literal["code_released"]

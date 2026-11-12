@@ -201,7 +201,6 @@ export function ItemPage({ store, id }: Props) {
   }
 
   const codes = codesFor(state, id);
-  const current = codes[0];
   const onItem = { entity_type: "item", entity_id: id };
   const open = openRepairs(state, id);
   const mergedFrom = aliases(state, id).slice(1);
@@ -244,7 +243,6 @@ export function ItemPage({ store, id }: Props) {
         store={store}
         id={id}
         it={it}
-        current={current}
         codes={codes}
         onEdit={() => setEditing(true)}
         photos={<Photos store={store} on={onItem} />}
@@ -295,7 +293,7 @@ export function ItemPage({ store, id }: Props) {
             Edit
           </button>
           <button type="button" onClick={() => navigate(`/scan?for=${id}`)}>
-            {current ? "Replace QR code" : "Add QR code"}
+            Add QR code
           </button>
           {it.parent_id && !it.retired && (
             <button type="button" onClick={() => setMoving(true)}>
@@ -453,11 +451,8 @@ export function ItemPage({ store, id }: Props) {
             <dl className="facts">
               <dt>Bought</dt>
               <dd>{boughtLabel(state, it) || "—"}</dd>
-              <dt>QR code</dt>
-              <dd>
-                {current ? "Yes" : "None"}
-                {codes.length > 1 && <span className="muted"> · {codes.length - 1} replaced</span>}
-              </dd>
+              <dt>QR codes</dt>
+              <dd>{codes.length || "None"}</dd>
               <dt>Added</dt>
               <dd>{it.added_at ? localDate(it.added_at) : "—"}</dd>
               <dt>Modified</dt>
@@ -1458,7 +1453,6 @@ function PoolPage({
   store,
   id,
   it,
-  current,
   codes,
   onEdit,
   photos,
@@ -1466,7 +1460,6 @@ function PoolPage({
   record,
 }: Props & {
   it: Item;
-  current: Code | undefined;
   codes: Code[];
   onEdit: () => void;
   photos: React.ReactNode;
@@ -1489,7 +1482,7 @@ function PoolPage({
             Edit
           </button>
           <button type="button" onClick={() => navigate(`/scan?for=${id}`)}>
-            {current ? "Replace QR code" : "Add QR code"}
+            Add QR code
           </button>
           <DuplicateButton id={id} />
         </>
@@ -1563,11 +1556,8 @@ function PoolPage({
         <dl className="facts">
           <dt>Bought</dt>
           <dd>{boughtLabel(state, it) || "—"}</dd>
-          <dt>QR code</dt>
-          <dd>
-            {current ? "Yes" : "None"}
-            {codes.length > 1 && <span className="muted"> · {codes.length - 1} replaced</span>}
-          </dd>
+          <dt>QR codes</dt>
+          <dd>{codes.length || "None"}</dd>
           <dt>Added</dt>
           <dd>{it.added_at ? localDate(it.added_at) : "—"}</dd>
           <dt>Modified</dt>

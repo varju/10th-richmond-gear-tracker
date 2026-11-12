@@ -86,7 +86,7 @@ def aliases(state: State, item_id: str) -> list[str]:
 
 def codes_for(state: State, item_id: str) -> list[str]:
     """Every code that resolves, through merges, to this item: the one bound last first, so the
-    first is its current code and the rest are replaced (FR-TAG-05).
+    first is its current code (FR-TAG-05, FR-TAG-20).
 
     A released code (FR-TAG-14) has no `item_id` and is never listed. Two codes bound in the same
     millisecond are ordered by id, the larger first. Mirrors codesFor in inventory.ts."""

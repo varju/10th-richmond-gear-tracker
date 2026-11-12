@@ -281,12 +281,15 @@ test("marking an item missing takes one tap from Edit, and flags it without movi
   expect(item(store.state, tent)).toMatchObject({ status: "in", missing: false });
 });
 
-test("the QR button offers to add a code or replace the one it has", async () => {
+test("Details counts the item's QR codes (FR-TAG-20)", async () => {
   renderInShell(<ItemPage store={store} id={tent} />);
-  expect(screen.getByRole("button", { name: "Add QR code" })).toBeInTheDocument();
+  await user.click(screen.getByText("Details"));
+  expect(screen.getByText("QR codes").nextElementSibling).toHaveTextContent("None");
 
   await act.bindCode(store, "AAAAAAAAAA", tent);
-  expect(await screen.findByRole("button", { name: "Replace QR code" })).toBeInTheDocument();
+  await act.bindCode(store, "BBBBBBBBBB", tent);
+  await waitFor(() => expect(screen.getByText("QR codes").nextElementSibling).toHaveTextContent("2"));
+  expect(screen.getByRole("button", { name: "Add QR code" })).toBeInTheDocument();
 });
 
 test("?edit=1 opens the form straight away, and saving drops it from the URL", async () => {

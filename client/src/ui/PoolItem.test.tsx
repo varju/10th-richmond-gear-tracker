@@ -364,13 +364,12 @@ test("a pool's container can carry a code, on the pool page's Details (FR-TAG-15
   renderInShell(<ItemPage store={store} id={bowls} />);
 
   await user.click(screen.getByText("Details"));
-  expect(fact("QR code")).toBe("None");
+  expect(fact("QR codes")).toBe("None");
   expect(screen.getByRole("button", { name: "Add QR code" })).toBeInTheDocument();
 
   await printCodes(store, ["ABCDEFGH23"]);
   await act.bindCode(store, "ABCDEFGH23", bowls);
-  expect(fact("QR code")).toBe("Yes");
-  expect(screen.getByRole("button", { name: "Replace QR code" })).toBeInTheDocument();
+  expect(fact("QR codes")).toBe("1");
 });
 
 test("a single item becomes a counted stack, the way it becomes a generic (FR-INV-26, FR-INV-34)", async () => {

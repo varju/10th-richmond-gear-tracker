@@ -23,7 +23,7 @@ test("an assigned code opens its item", async () => {
   await waitFor(() => expect(location.pathname).toBe(`/items/${tent}`));
 });
 
-test("a replaced code still opens its item (FR-TAG-05)", async () => {
+test("every code on an item opens it (FR-TAG-05, FR-TAG-20)", async () => {
   const tent = await act.createItem(store, { name: "Tent" });
   await act.bindCode(store, "AAAAAAAAAA", tent);
   await act.bindCode(store, "BBBBBBBBBB", tent);

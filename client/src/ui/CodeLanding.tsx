@@ -24,7 +24,7 @@ export function CodeLanding({ store, code }: { store: Store; code: string }) {
   const itemId = bound ? resolveItem(state, bound) : undefined;
 
   useEffect(() => {
-    if ((status === "assigned" || status === "replaced") && itemId) {
+    if (status === "assigned" && itemId) {
       void seen(store, itemId);
       navigate(`/items/${itemId}`, true);
     }
