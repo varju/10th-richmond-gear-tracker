@@ -18,8 +18,8 @@ else has offers **Return** and **Take over**: pick the one you mean. Any order, 
 ### Gear you weigh, like a propane tank
 
 Some gear is set up to be weighed, so the app can say how much is left. When you tap **Return**, type what it weighs now
-and pick **lb** or **kg**. If you weighed or refilled it since it went out, Return skips the question. No scale? Tap
-**Unknown**; the last weight stays as it was. A scan shows **Weigh** and **Refilled** too. On its page, **Weigh**
+and pick **lb** or **kg**. No scale? Tap **Keep** to say the last weight still holds (it shows, such as "Keep 18 lb"),
+or **Unknown** if you do not know what is left. A scan shows **Weigh** and **Refilled** too. On its page, **Weigh**
 records a weight any time (or **Unknown**), and **Refilled** says it is full again. The page and the list say "About 8
 lb left (40%)".
 

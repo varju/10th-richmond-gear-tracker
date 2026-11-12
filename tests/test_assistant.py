@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import email
+import json
 import socket
 from typing import TypedDict
 
@@ -2709,16 +2710,58 @@ def test_check_in_takes_a_weight_and_without_one_the_reading_is_kept_but_stale(t
     assert "left_stale" not in assistant.get_item(tools["stove"])
 
 
-def test_check_in_weight_unknown_records_no_weighing_and_keeps_the_reading(tools, db_path):
+def test_check_in_weight_unknown_clears_what_is_left(tools, db_path):
+    _tank(tools)
+    assistant.weigh(tools["stove"], 28, "lb")
+    assistant.check_out(tools["stove"])
+    assistant.check_in(tools["stove"], weight_unknown=True)
+    assert json.loads([e["payload"] for e in logged(db_path) if e["type"] == "weighed"][-1])["value"] is None
+    got = assistant.get_item(tools["stove"])
+    assert got["left"] is None and "left_stale" not in got
+
+
+def test_check_in_keep_records_the_last_reading_as_current_even_from_before_it_went_out(tools, db_path):
+    _tank(tools)
+    assistant.weigh(tools["stove"], 28, "lb")
+    assistant.check_out(tools["stove"])
+    assistant.check_in(tools["stove"], keep=True)
+    assert json.loads([e["payload"] for e in logged(db_path) if e["type"] == "weighed"][-1]) == {
+        "value": 28,
+        "unit": "lb",
+    }
+    assert _left(tools)["left"] == 10
+    assert "left_stale" not in assistant.get_item(tools["stove"])
+
+
+def test_check_in_keep_after_refilled_stays_full(tools):
+    _tank(tools)
+    assistant.refilled(tools["stove"])
+    assistant.check_out(tools["stove"])
+    assistant.check_in(tools["stove"], keep=True)
+    assert _left(tools)["full"] is True
+
+
+def test_check_in_keep_needs_a_reading(tools, db_path):
     _tank(tools)
     assistant.check_out(tools["stove"])
-    with pytest.raises(BadRequest, match="not both"):
-        assistant.check_in(tools["stove"], weight=assistant.Weight(value=23, unit="lb"), weight_unknown=True)
+    with pytest.raises(BadRequest, match="no reading to keep"):
+        assistant.check_in(tools["stove"], keep=True)
+    assistant.weigh(tools["stove"], unknown=True)
+    with pytest.raises(BadRequest, match="no reading to keep"):
+        assistant.check_in(tools["stove"], keep=True)
+
+
+def test_check_in_takes_one_of_weight_unknown_and_keep(tools):
+    _tank(tools)
     assistant.weigh(tools["stove"], 28, "lb")
-    weighed = [e for e in logged(db_path) if e["type"] == "weighed"]
-    assistant.check_in(tools["stove"], weight_unknown=True)
-    assert [e for e in logged(db_path) if e["type"] == "weighed"] == weighed
-    assert _left(tools)["left"] == 10
+    assistant.check_out(tools["stove"])
+    w = assistant.Weight(value=23, unit="lb")
+    with pytest.raises(BadRequest, match="one of them"):
+        assistant.check_in(tools["stove"], weight=w, weight_unknown=True)
+    with pytest.raises(BadRequest, match="one of them"):
+        assistant.check_in(tools["stove"], weight=w, keep=True)
+    with pytest.raises(BadRequest, match="one of them"):
+        assistant.check_in(tools["stove"], weight_unknown=True, keep=True)
 
 
 def test_check_in_with_a_weight_needs_a_weighed_item(tools, db_path):

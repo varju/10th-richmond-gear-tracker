@@ -146,6 +146,8 @@ export function WeighEntry({
   submitLabel,
   onSubmit,
   onUnknown,
+  keepLabel,
+  onKeep,
   onCancel,
   busy,
   hint,
@@ -155,6 +157,9 @@ export function WeighEntry({
   submitLabel: string;
   onSubmit: (weight: Weight) => void;
   onUnknown?: () => void;
+  /** Offered with the last reading, as "Keep 18 lb"; it becomes the main button (FR-INV-77). */
+  keepLabel?: string | null;
+  onKeep?: () => void;
   onCancel: () => void;
   busy?: boolean;
   hint?: string;
@@ -185,7 +190,17 @@ export function WeighEntry({
       </div>
       {hint && <p className="muted small">{hint}</p>}
       <div className="row">
-        <button type="button" className="primary" disabled={busy || amount === null} onClick={submit}>
+        {keepLabel && onKeep && (
+          <button type="button" className="primary" disabled={busy} onClick={onKeep}>
+            {keepLabel}
+          </button>
+        )}
+        <button
+          type="button"
+          className={keepLabel && onKeep ? undefined : "primary"}
+          disabled={busy || amount === null}
+          onClick={submit}
+        >
           {submitLabel}
         </button>
         {onUnknown && (

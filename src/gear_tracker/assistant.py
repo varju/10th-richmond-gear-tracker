@@ -1891,13 +1891,15 @@ def check_in(
     cleaner: str | None = None,
     weight: Weight | None = None,
     weight_unknown: StrictBool = False,
+    keep: StrictBool = False,
 ) -> dict[str, Any]:
     """Bring an item back, without a scan (FR-OUT-07). Anyone can check anything in (FR-OUT-08).
 
     An item that is weighed to see what is left (get_item shows `empty_weight` and `capacity`) takes the
-    current `weight` as {value, unit} with the check-in (FR-INV-67). `weight_unknown` records nothing, the
-    same as leaving `weight` out; it is kept for older callers. Without a weight the last reading is kept, though
-    get_item then says it is stale.
+    current `weight` as {value, unit} with the check-in (FR-INV-67). With no scale, `keep` says the last reading
+    still holds (an error if there is none; FR-INV-77), and `weight_unknown` clears what is left until the next
+    reading (FR-INV-78). Give at most one. With none, the last reading is left as it was, though get_item then
+    says it is stale.
 
     A pool (FR-INV-34) comes back from one holder: you, unless `holder_id` names someone else who has
     some out (get_item lists them). `count` defaults to all that holder has out; say fewer to leave
@@ -1912,10 +1914,14 @@ def check_in(
             raise BadRequest("that item does not move; one of its units does")
         if cleaner is not None and not pool:
             raise BadRequest("cleaner is only for a pool; anyone can check anything else in")
-        if weight is not None and weight_unknown:
-            raise BadRequest("give a weight or say it is unknown, not both")
-        if weight is not None or weight_unknown:
+        if (weight is not None) + weight_unknown + keep > 1:
+            raise BadRequest("give a weight, or say it is unknown, or keep the last reading: one of them")
+        if weight is not None or weight_unknown or keep:
             _weighable(state, it)
+        if keep:
+            reading = it.get("reading")
+            if not isinstance(reading, dict) or not (reading.get("full") or views._sound(reading)):
+                raise BadRequest("there is no reading to keep; give a weight or say it is unknown")
         holder = holder_id or who.user_id
         if pool:
             have = next((o["count"] for o in views.pool_counts(it)["out"] if o["holder_id"] == holder), 0)
@@ -1949,6 +1955,13 @@ def check_in(
             drafts.append(_draft("item", it["id"], "field_changed", {"field": "missing", "value": False, "old": True}))
         if weight is not None:
             drafts.append(_draft("item", it["id"], "weighed", weight.model_dump()))
+        elif weight_unknown:
+            drafts.append(_draft("item", it["id"], "weighed", {"value": None}))
+        elif keep:
+            if reading.get("full"):
+                drafts.append(_draft("item", it["id"], "refilled", {}))
+            else:
+                drafts.append(_draft("item", it["id"], "weighed", {"value": reading["value"], "unit": reading["unit"]}))
         _push(conn, who, drafts)
         if pool:
             return {"item_id": it["id"], "count": count}

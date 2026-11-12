@@ -101,3 +101,25 @@ test("the home screen counts open conflicts and the item page points at the scre
   await user.click(within(notice).getByRole("button", { name: "Review" }));
   expect(location.pathname).toBe("/conflicts");
 });
+
+test("It is back asks a weighed item's weight, with Keep for a reading from before it went out", async () => {
+  await act.updateItem(store, tent, {
+    empty_weight: { value: 18, unit: "lb" },
+    capacity: { value: 20, unit: "lb" },
+  });
+  const weighed: ServerEvent = {
+    ...checkout("01000000000000000000000000", "phone-a", "bob", T0 - 9_000_000),
+    seq: 3,
+    type: "weighed",
+    payload: { value: 28, unit: "lb" },
+  };
+  await store.receive([weighed], 3);
+  renderInShell(<Conflicts store={store} />);
+  await user.click(screen.getByRole("button", { name: "It is back" }));
+  expect(item(store.state, tent)?.status).toBe("out");
+  await user.click(screen.getByRole("button", { name: "Keep 28 lb" }));
+  await waitFor(() => expect(store.pending.at(-1)?.type).toBe("weighed"));
+  expect(item(store.state, tent)?.status).toBe("in");
+  expect(store.pending.slice(-2).map((e) => e.type)).toEqual(["checked_in", "weighed"]);
+  expect(store.pending.at(-1)?.payload).toEqual({ value: 28, unit: "lb" });
+});

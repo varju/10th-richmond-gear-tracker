@@ -7,9 +7,11 @@ import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { localMinute } from "../lib/time";
 import { guard } from "../lib/unsaved";
+import { keepLabel, weighing } from "../lib/weighing";
 import { useStore } from "../useStore";
 import { userName } from "./labels";
 import { Page } from "./Page";
+import { WeighEntry, weighHint } from "./Weighing";
 
 /** Two check-outs the machine would not choose between, for a person to settle (FR-OFF-10). */
 export function Conflicts({ store }: { store: Store }) {
@@ -46,6 +48,8 @@ function ConflictCard({ store, conflict }: { store: Store; conflict: OpenConflic
   const state = store.state;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const w = weighing(state, it);
 
   async function settle(act: () => Promise<unknown>) {
     setBusy(true);
@@ -74,14 +78,33 @@ function ConflictCard({ store, conflict }: { store: Store; conflict: OpenConflic
           {error}
         </p>
       )}
-      <div className="row">
-        <button type="button" className="primary" disabled={busy} onClick={() => settle(() => checkIn(store, it.id))}>
-          It is back
-        </button>
-        <button type="button" disabled={busy} onClick={() => settle(() => reviewConflict(store, it.id))}>
-          Keep: {userName(state, later.holder_id as string | null)} has it
-        </button>
-      </div>
+      {asking && w ? (
+        <WeighEntry
+          unit={w.unit}
+          submitLabel="Return"
+          hint={weighHint(store, it)}
+          busy={busy}
+          onSubmit={(weight) => void settle(() => checkIn(store, it.id, { weight }))}
+          onUnknown={() => void settle(() => checkIn(store, it.id, { weight: null }))}
+          keepLabel={keepLabel(state, it)}
+          onKeep={() => void settle(() => checkIn(store, it.id, { keep: true }))}
+          onCancel={() => setAsking(false)}
+        />
+      ) : (
+        <div className="row">
+          <button
+            type="button"
+            className="primary"
+            disabled={busy}
+            onClick={() => (w ? setAsking(true) : void settle(() => checkIn(store, it.id)))}
+          >
+            It is back
+          </button>
+          <button type="button" disabled={busy} onClick={() => settle(() => reviewConflict(store, it.id))}>
+            Keep: {userName(state, later.holder_id as string | null)} has it
+          </button>
+        </div>
+      )}
     </section>
   );
 }

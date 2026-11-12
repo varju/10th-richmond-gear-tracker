@@ -7,30 +7,6 @@ changelog.
 
 ---
 
-## Always ask a weighed item's weight at check-in
-
-Returning a weighed item sometimes asks its weight and sometimes does not, which looks like the scanner and the item
-page differ. Both use `MoveActions.tsx`; the question is skipped when the item was weighed or refilled since it went out
-(FR-INV-71). Ask every time, with three answers:
-
-- A weight, as now.
-- **Keep**, showing the last reading as typed, with its unit (e.g. "Keep 18 lb"), or "Keep Full" after **Refilled**.
-  Offered whenever there is a reading, even one from before the item went out. Keep records a `weighed` event with that
-  value, so the reading is current again. The main button when offered: a Scouter with no scale taps it, not Unknown.
-- **Unknown**, which records `weighed` with no value and clears what is left, as Unknown on **Weigh** does (FR-INV-70).
-
-Both reuse `weighed`, so replay and `vectors/replay/` are unchanged. Pools are not weighed. **It is back** on the
-Conflicts screen (`Conflicts.tsx`) asks too, like any return.
-
-- Requirements: move FR-INV-71 and FR-INV-72 to Won't, each saying what replaced it: Keep now guards a reading taken at
-  camp, the reason 7fd7686 made Unknown keep it. Add rows for Keep and for Unknown at check-in.
-- Assistant: `check_in`'s `weight_unknown` records `weighed` with no value again (7fd7686 made it record nothing). Add a
-  `keep` option. Update FR-MCP-45.
-- Guides: the weight sections of `docs/guide/scouter.md` and `docs/guide/quartermaster.md`.
-- `docs/pending-ios.md`: replace the unreleased lines "Return skips the weight question…" and "Unknown at check-in
-  leaves the last weight as it was", don't append.
-- Shares `MoveActions.tsx` with "Check out first, ask the event after": do them one after the other.
-
 ## Record each device's client version
 
 Know which client builds still sync, so an old API shape is dropped only once no device uses it.
@@ -112,6 +88,19 @@ Tapping **New event** on Events opens the form with nothing focused, so it takes
 - iOS raises the keyboard only for a focus inside the tap, so `autoFocus` alone may not do it. Do as `searchHome` in
   `Page.tsx` does: in the **New event** handler in `Reservations.tsx`, `flushSync(() => navigate("/events/new"))`, then
   focus the field. Check on an iPhone, in Safari and in the app.
+- Client change: add a line to `docs/pending-ios.md`.
+
+## Group "Link other gear that is out" by event
+
+The **Link other gear that is out** list on an event's page is one alphabetical list. Group it by the event each item is
+out under, so the gear that likely belongs to this event is easy to find.
+
+- `ReservationPage.tsx`: an `<optgroup>` per event, labelled with the event name. Gear out with no event comes first, in
+  a group "No event". Event groups follow, sorted by name. Items stay sorted by name within a group.
+- A pool with unlinked lots under more than one event goes in a group "Several events", after "No event".
+- `outElsewhere` in `client/src/lib/reservations.ts` stays as is; group in the page or in a helper beside it, with a
+  test.
+- Add a requirement, and an FR-MCP Won't row (layout only; `whats_out` already gives each item's event).
 - Client change: add a line to `docs/pending-ios.md`.
 
 ## Send iPads to the app

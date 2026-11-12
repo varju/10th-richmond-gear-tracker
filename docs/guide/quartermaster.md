@@ -121,9 +121,10 @@ gear that differs slightly; nothing is saved until you tap **Save**.
 ### Gear you weigh, like a propane tank
 
 Edit the item and open **Weighed to see what is left**. Give its **Empty weight** and its **Capacity**, the weight of a
-full load of contents. Each has its own **lb** or **kg**. An item with both asks for its weight when it is returned,
-unless it was weighed since it went out, and shows what is left. For several of the same thing, set the capacity on the
-name; each unit sets its own empty weight and uses the name's capacity unless it has one.
+full load of contents. Each has its own **lb** or **kg**. An item with both asks for its weight every time it is
+returned, with **Keep** for the last reading and **Unknown** for what is left not being known, and shows what is left.
+For several of the same thing, set the capacity on the name; each unit sets its own empty weight and uses the name's
+capacity unless it has one.
 
 ### Bought on
 

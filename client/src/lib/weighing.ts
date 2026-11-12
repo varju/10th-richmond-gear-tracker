@@ -105,6 +105,20 @@ export function readingIsStale(state: State, it: Item): boolean {
   return weighing(state, it) !== null && Boolean((it.reading as Reading | null | undefined)?.stale);
 }
 
+/** The latest reading a weighed item has, even one from before it last went out; null for none or Unknown. */
+export function lastReading(state: State, it: Item): Reading | null {
+  const reading = it.reading as Reading | null | undefined;
+  if (!weighing(state, it) || !reading || typeof reading !== "object") return null;
+  return reading.full || isWeight(reading) ? reading : null;
+}
+
+/** "Keep 18 lb", or "Keep Full" after Refilled; null when there is no reading to keep (FR-INV-77). */
+export function keepLabel(state: State, it: Item): string | null {
+  const reading = lastReading(state, it);
+  if (!reading) return null;
+  return reading.full ? "Keep Full" : `Keep ${weightLabel(reading)}`;
+}
+
 /** "About 8 lb left (40%)", or "Full (20 lb)" after Refilled. */
 export function leftLabel(a: AmountLeft): string {
   return a.full ? `Full (${a.left} ${a.unit})` : `About ${a.left} ${a.unit} left (${a.percent}%)`;

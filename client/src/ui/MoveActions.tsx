@@ -6,7 +6,7 @@ import { openRepairs, raiseTicket } from "../lib/repairs";
 import { type Session, sessionEvent } from "../lib/session";
 import type { Store } from "../lib/store";
 import { useUnsaved } from "../lib/unsaved";
-import { amountLeft, weighing } from "../lib/weighing";
+import { keepLabel, weighing } from "../lib/weighing";
 import { CleanerField } from "./CleanerField";
 import { useEventQuestion } from "./EventChoice";
 import { TransferPicker } from "./TransferPicker";
@@ -182,16 +182,15 @@ export function MoveActions({
   const checkOutMove: Pending = { kind: "Checked out", act: (o) => checkOut(store, it.id, o) };
   const returnMove: Pending = { kind: "Returned", act: (o) => checkIn(store, it.id, o) };
   const w = weighing(store.state, it);
-  const asksWeightOnReturn = w !== null && amountLeft(store.state, it) === null;
   useEffect(() => {
     if (!w) setWeighing(false);
   }, [w]);
-  const returnWeighed = (weight: Weight): Pending => ({
+  const returnWeighed = (answer: { weight: Weight | null } | { keep: true }): Pending => ({
     kind: "Returned",
-    act: (o) => checkIn(store, it.id, { ...o, weight }),
+    act: (o) => checkIn(store, it.id, { ...o, ...answer }),
   });
-  /** The Return button: weighed gear with no fresh reading asks its weight first (FR-INV-67, FR-INV-71). */
-  const startReturn = () => (asksWeightOnReturn ? setWeighing(true) : start(returnMove, false));
+  /** The Return button: weighed gear always asks its weight first (FR-INV-67). */
+  const startReturn = () => (w ? setWeighing(true) : start(returnMove, false));
   const backMove: Pending = {
     kind: "Back from home",
     cleaner: it.movement?.cleaner,
@@ -267,11 +266,16 @@ export function MoveActions({
           busy={busy}
           onSubmit={(weight) => {
             setWeighing(false);
-            start(returnWeighed(weight), false);
+            start(returnWeighed({ weight }), false);
           }}
           onUnknown={() => {
             setWeighing(false);
-            start(returnMove, false);
+            start(returnWeighed({ weight: null }), false);
+          }}
+          keepLabel={keepLabel(store.state, it)}
+          onKeep={() => {
+            setWeighing(false);
+            start(returnWeighed({ keep: true }), false);
           }}
           onCancel={() => setWeighing(false)}
         />

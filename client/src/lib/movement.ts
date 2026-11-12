@@ -12,7 +12,7 @@ import { addExtra, extendToToday, makeEventToday, plannedFor, removeItem, reserv
 import { cleanerKey, type Movement, type Note, type ReplayEvent, replayOrder, type State } from "./replay";
 import { eventAsked, setSessionEvent } from "./session";
 import type { MoveSession, Store } from "./store";
-import { isWeight, type Weight, weighing } from "./weighing";
+import { isWeight, lastReading, type Weight, weighing } from "./weighing";
 
 export interface MoveOptions {
   /** The session's event name (FR-OUT-05). */
@@ -98,17 +98,26 @@ export async function checkOut(store: Store, itemId: string, options: MoveOption
 }
 
 export interface CheckInOptions extends MoveOptions {
-  /** What weighed gear reads now (FR-INV-67). Left out, none is recorded. */
-  weight?: Weight;
+  /** What weighed gear reads now (FR-INV-67). Null is Unknown, which clears what is left (FR-INV-78). Left out, none is recorded. */
+  weight?: Weight | null;
+  /** The last reading still holds: record it again as current (FR-INV-77). */
+  keep?: boolean;
 }
 
 /** Anyone can bring anything back (FR-OUT-08). */
 export async function checkIn(store: Store, itemId: string, options: CheckInOptions = {}) {
   const it = current(store, itemId);
   if (it.status !== "out") throw new Error("already in");
+  if (options.keep && !lastReading(store.state, it))
+    throw new Error("There is no weight to keep. Weigh it or tap Unknown.");
   const movement = await move(store, itemId, "checked_in", {}, options.packing ? undefined : {});
   await seen(store, itemId);
-  if (options.weight && weighing(store.state, it)) await weigh(store, itemId, options.weight);
+  if (weighing(store.state, it)) {
+    const reading = options.keep ? lastReading(store.state, it) : null;
+    if (reading?.full) await refill(store, itemId);
+    else if (reading) await weigh(store, itemId, { value: reading.value, unit: reading.unit });
+    else if (options.weight !== undefined) await weigh(store, itemId, options.weight);
+  }
   return movement;
 }
 

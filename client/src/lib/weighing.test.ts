@@ -233,3 +233,9 @@ describe("a make-single unit", () => {
     expect(item(store.state, unit)?.capacity).toEqual({ value: 30, unit: "lb" });
   });
 });
+
+test("Keep with no reading left to keep refuses, and nothing moves", async () => {
+  await mv.checkOut(store, tank, {});
+  await expect(mv.checkIn(store, tank, { keep: true })).rejects.toThrow(/no weight to keep/);
+  expect(item(store.state, tank)).toMatchObject({ status: "out" });
+});

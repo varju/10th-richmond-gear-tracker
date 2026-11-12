@@ -186,43 +186,66 @@ test("the weight prompt does not crash when a sync clears the capacity", async (
   expect(screen.queryByLabelText("Weight now")).not.toBeInTheDocument();
 });
 
-test("Unknown returns the item in one tap and records no weighing", async () => {
+test("Return always asks the weight, even when it was weighed or refilled since it went out", async () => {
+  await mv.checkOut(store, tank);
+  await mv.weigh(store, tank, { value: 28, unit: "lb" });
+  renderInShell(<ItemPage store={store} id={tank} />);
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  expect(screen.getByLabelText("Weight now")).toBeInTheDocument();
+  expect(item(store.state, tank)?.status).toBe("out");
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await mv.refill(store, tank);
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  expect(screen.getByLabelText("Weight now")).toBeInTheDocument();
+});
+
+test("Keep shows the last reading, even one from before it went out, and records it as current", async () => {
+  await mv.weigh(store, tank, { value: 28, unit: "lb" });
+  await mv.checkOut(store, tank);
+  expect(item(store.state, tank)?.reading).toMatchObject({ stale: true });
+  renderInShell(<ItemPage store={store} id={tank} />);
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  expect(screen.getByRole("button", { name: "Keep 28 lb" })).toHaveClass("primary");
+  await user.click(screen.getByRole("button", { name: "Keep 28 lb" }));
+
+  await waitFor(() => expect(events("weighed")).toHaveLength(2));
+  expect(events("weighed")).toEqual([
+    { value: 28, unit: "lb" },
+    { value: 28, unit: "lb" },
+  ]);
+  expect(item(store.state, tank)?.reading).not.toHaveProperty("stale");
+  expect(item(store.state, tank)?.reading).toMatchObject({ value: 28, unit: "lb" });
+});
+
+test("Keep after Refilled says Full and keeps it full", async () => {
+  await mv.refill(store, tank);
+  await mv.checkOut(store, tank);
+  renderInShell(<ItemPage store={store} id={tank} />);
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  await user.click(screen.getByRole("button", { name: "Keep Full" }));
+  await waitFor(() => expect(events("refilled")).toHaveLength(2));
+  expect(item(store.state, tank)?.reading).toMatchObject({ full: true });
+  expect(item(store.state, tank)?.reading).not.toHaveProperty("stale");
+});
+
+test("Keep is not offered when there is no reading", async () => {
+  await mv.checkOut(store, tank);
+  renderInShell(<ItemPage store={store} id={tank} />);
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  expect(screen.queryByRole("button", { name: /^Keep/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Unknown" })).toBeInTheDocument();
+});
+
+test("Unknown returns the item in one tap and clears what is left", async () => {
   await mv.weigh(store, tank, { value: 30, unit: "lb" });
   await mv.checkOut(store, tank);
   renderInShell(<ItemPage store={store} id={tank} />);
   await user.click(screen.getByRole("button", { name: "Return" }));
   await user.click(screen.getByRole("button", { name: "Unknown" }));
 
-  await waitFor(() => expect(item(store.state, tank)?.status).toBe("in"));
-  expect(events("weighed")).toEqual([{ value: 30, unit: "lb" }]);
-  expect(item(store.state, tank)?.reading).toMatchObject({ value: 30, unit: "lb" });
-});
-
-test("Return does not ask the weight when it was weighed since it went out", async () => {
-  await mv.checkOut(store, tank);
-  await mv.weigh(store, tank, { value: 28, unit: "lb" });
-  renderInShell(<ItemPage store={store} id={tank} />);
-  await user.click(screen.getByRole("button", { name: "Return" }));
-  await waitFor(() => expect(item(store.state, tank)?.status).toBe("in"));
-  expect(screen.queryByLabelText("Weight now")).not.toBeInTheDocument();
-  expect(events("weighed")).toEqual([{ value: 28, unit: "lb" }]);
-});
-
-test("Return does not ask the weight when it was refilled since it went out", async () => {
-  await mv.checkOut(store, tank);
-  await mv.refill(store, tank);
-  renderInShell(<ItemPage store={store} id={tank} />);
-  await user.click(screen.getByRole("button", { name: "Return" }));
-  await waitFor(() => expect(item(store.state, tank)?.status).toBe("in"));
-  expect(screen.queryByLabelText("Weight now")).not.toBeInTheDocument();
-});
-
-test("Return asks the weight when the reading was taken before it went out", async () => {
-  await mv.weigh(store, tank, { value: 28, unit: "lb" });
-  await mv.checkOut(store, tank);
-  renderInShell(<ItemPage store={store} id={tank} />);
-  await user.click(screen.getByRole("button", { name: "Return" }));
-  expect(screen.getByLabelText("Weight now")).toBeInTheDocument();
+  await waitFor(() => expect(events("weighed").at(-1)).toEqual({ value: null }));
+  expect(item(store.state, tank)?.status).toBe("in");
+  expect(item(store.state, tank)?.reading).toBeNull();
 });
 
 test("a scan's card hides Weigh and Refilled while the Return weight prompt is open", async () => {
