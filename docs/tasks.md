@@ -151,16 +151,6 @@ answered, and walk off with nothing recorded.
   `docs/architecture.md`.
 - Client change: add a line to `docs/pending-ios.md`.
 
-## No "Undo Typing" after pocketing the phone
-
-After typing a count (a pool's return), locking the phone and pocketing it, iOS shows "Undo Typing?" on unlock. That is
-iOS's shake to undo, set off by the pocket.
-
-- iPhone app: set `UIApplication.shared.applicationSupportsShakeToEdit = false` at launch in
-  `ios/App/App/AppDelegate.swift`. Nothing in the app uses shake to undo.
-- Safari cannot turn it off, and the undo outlives the field, so a blur would not help. Leave Safari as is.
-- iPhone app change: add a line to `docs/pending-ios.md`.
-
 ## Send iPads to the app
 
 Once the App Store has an iPad build, offer it to iPads as to iPhones (NFR-DEP-12). Not before: an iPad sent to the

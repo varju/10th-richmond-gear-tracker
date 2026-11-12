@@ -17,6 +17,7 @@ What the app does differently.
 - The Print QR codes screen offers 12 cut-and-laminate cards per page.
 - A category in use can be deleted after a warning; its items lose it.
 - An item can carry more than one QR code: Replace QR code is now Add QR code, and Details counts them.
+- Shaking the phone no longer offers to undo typing.
 
 ## Chores
 
