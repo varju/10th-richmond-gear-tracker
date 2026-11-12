@@ -7,15 +7,6 @@ changelog.
 
 ---
 
-## Keep an event page's filter on Back
-
-On a past event, tick **Not returned**, open an item, tap Back: the box is clear again.
-
-- `ReservationPage.tsx` holds `notPacked` and `mode` in plain `useState`. Keep both in the history entry with
-  `entryState` and `setEntryState` from `client/src/lib/router.ts`, as `ItemTable.tsx` does.
-- Back, forward and reload restore them; opening the event afresh starts clear.
-- Client change: add a line to `docs/pending-ios.md`.
-
 ## Open a counted line from an event's gear list
 
 On an event's gear list, a line like "3 × Fire trays — 2 not returned" cannot be tapped, unlike the named items above
@@ -131,9 +122,9 @@ Tapping **New event** on Events opens the form with nothing focused, so it takes
 
 - Focus the **Event** field in `ReservationForm.tsx` for a new event only, not on Edit. Focusing it also opens its
   suggestions, so today's calendar events show at once.
-- iOS raises the keyboard only for a focus inside the tap, so `autoFocus` alone may not do it. Do as "Search button in
-  the top bar" does: in the **New event** handler in `Reservations.tsx`, `flushSync(() => navigate("/events/new"))`,
-  then focus the field. Check on an iPhone, in Safari and in the app.
+- iOS raises the keyboard only for a focus inside the tap, so `autoFocus` alone may not do it. Do as `searchHome` in
+  `Page.tsx` does: in the **New event** handler in `Reservations.tsx`, `flushSync(() => navigate("/events/new"))`, then
+  focus the field. Check on an iPhone, in Safari and in the app.
 - Client change: add a line to `docs/pending-ios.md`.
 
 ## Send iPads to the app

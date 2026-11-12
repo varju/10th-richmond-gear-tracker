@@ -443,6 +443,27 @@ test("once the event has ended the page says Not returned, and filters by it (FR
   expect(screen.queryByText(/× 4-person tent/)).not.toBeInTheDocument();
 });
 
+test("an event page keeps its filter and mode through Back, and starts clear when opened afresh", async () => {
+  const later = () => Date.parse("2026-10-10T19:00:00Z");
+  await mv.checkOut(store, t1, { event: "Fall Camp", reservation_id: fall });
+  navigate(`/events/${fall}`);
+  renderInShell(<ReservationPage store={store} id={fall} />, later);
+  await user.click(await screen.findByRole("checkbox", { name: "Not returned" }));
+  await user.click(screen.getByRole("button", { name: "Packing" }));
+  expect(screen.getByRole("checkbox", { name: "Not packed" })).toBeChecked();
+  cleanup();
+
+  renderInShell(<ReservationPage store={store} id={fall} />, later);
+  expect(await screen.findByRole("checkbox", { name: "Not packed" })).toBeChecked();
+  expect(screen.getByRole("button", { name: "Packing" })).toHaveAttribute("aria-pressed", "true");
+  cleanup();
+
+  navigate("/events");
+  navigate(`/events/${fall}`);
+  renderInShell(<ReservationPage store={store} id={fall} />, later);
+  expect(await screen.findByRole("checkbox", { name: "Not returned" })).not.toBeChecked();
+});
+
 test("at a desk, It's with us sits at the end of its row; on a phone, under it", async () => {
   const sheet = document.createElement("style");
   sheet.textContent = readFileSync(join(import.meta.dirname, "../styles.css"), "utf8");

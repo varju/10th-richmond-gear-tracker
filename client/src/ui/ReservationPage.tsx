@@ -26,7 +26,7 @@ import {
   todayIso,
 } from "../lib/reservations";
 import type { State } from "../lib/replay";
-import { navigate } from "../lib/router";
+import { entryState, navigate, setEntryState } from "../lib/router";
 import type { Store } from "../lib/store";
 import { localMinute } from "../lib/time";
 import { useWide } from "../lib/wide";
@@ -135,8 +135,19 @@ export function ReservationPage({
   useStore(store);
   const [error, setError] = useState<string | null>(null);
   const [pick, setPick] = useState("");
-  const [notPacked, setNotPacked] = useState(false);
-  const [mode, setMode] = useState<"packing" | "returning" | null>(null);
+  const [notPacked, setNotPackedNow] = useState(() => entryState("notPacked") === true);
+  const [mode, setModeNow] = useState<"packing" | "returning" | null>(() => {
+    const kept = entryState("mode");
+    return kept === "packing" || kept === "returning" ? kept : null;
+  });
+  const setNotPacked = (value: boolean) => {
+    setEntryState("notPacked", value);
+    setNotPackedNow(value);
+  };
+  const setMode = (value: "packing" | "returning") => {
+    setEntryState("mode", value);
+    setModeNow(value);
+  };
   const wide = useWide();
   const { now } = useShell();
   const state = store.state;

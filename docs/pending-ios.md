@@ -21,6 +21,7 @@ What the app does differently.
 - Settings shows the app version and build.
 - The top bar has a search button off Home that opens Home with the search box focused. The house asks before dropping
   an unsaved draft.
+- An event page keeps its Packing or Returning mode and its filter box when you come Back to it.
 
 ## Chores
 
