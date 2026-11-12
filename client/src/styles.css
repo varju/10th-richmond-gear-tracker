@@ -461,6 +461,20 @@ button.corner {
   line-height: 1;
 }
 
+/* Search sits just left of the menu. */
+button.search {
+  position: absolute;
+  right: 52px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  min-height: 44px;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 button.warn,
 button.primary.warn {
   background: transparent;

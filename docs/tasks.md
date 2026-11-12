@@ -16,20 +16,6 @@ On a past event, tick **Not returned**, open an item, tap Back: the box is clear
 - Back, forward and reload restore them; opening the event afresh starts clear.
 - Client change: add a line to `docs/pending-ios.md`.
 
-## Search button in the top bar
-
-Off Home, searching takes two taps: ⌂, then the search box. Add a magnifying glass to the top bar that goes Home with
-the search box focused.
-
-- `client/src/ui/Page.tsx`: on the right, just left of ☰, where apps usually put search. ⌂ and ‹ stay on the left as
-  navigation. Shown when ⌂ is (phone layout, off Home). An inline SVG in the header's colour, not an emoji.
-- In the tap handler, `flushSync(() => navigate("/"))`, then focus Home's search box. The focus is inside the tap, so
-  iOS raises the keyboard, and nothing is stored, so Back and reload do not refocus. Check on an iPhone, in Safari and
-  in the app.
-- Check whether ⌂ loses an unsaved draft without asking. Search does what ⌂ does; if ⌂ loses drafts, fix both.
-- Add a requirement.
-- Client change: add a line to `docs/pending-ios.md`.
-
 ## Open a counted line from an event's gear list
 
 On an event's gear list, a line like "3 × Fire trays — 2 not returned" cannot be tapped, unlike the named items above

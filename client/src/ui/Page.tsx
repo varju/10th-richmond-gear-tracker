@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { useWide } from "../lib/wide";
-import { leaveBack } from "../lib/unsaved";
+import { guard, leave, leaveBack } from "../lib/unsaved";
 import { navigate, useRoute } from "../lib/router";
 import { useShell } from "../shell";
 import { Sections } from "./Sections";
@@ -16,7 +17,7 @@ interface Props {
 
 /**
  * Every screen: header, scrolling body, actions at the thumb. The header
- * carries a house (off Home), back where there is a step back, the title
+ * carries a house and a search (off Home), back where there is a step back, the title
  * (which also goes home), and the menu button. The desk keeps the sections in
  * its sidebar instead, so its header has neither house nor menu.
  */
@@ -31,11 +32,20 @@ export function Page({ title, back, children, actions }: Props) {
   const search = route.query.toString();
   useEffect(() => setOpen(false), [route.path, search]);
 
+  const searchHome = () =>
+    guard(() => {
+      flushSync(() => {
+        setOpen(false);
+        navigate("/");
+      });
+      document.querySelector<HTMLInputElement>("main input[type=search]")?.focus();
+    });
+
   return (
     <>
       <header>
         {menu && route.path !== "/" && (
-          <button className="home" type="button" onClick={() => navigate("/")} aria-label="Home">
+          <button className="home" type="button" onClick={() => leave("/")} aria-label="Home">
             ⌂
           </button>
         )}
@@ -46,12 +56,28 @@ export function Page({ title, back, children, actions }: Props) {
         )}
         {store ? (
           <h1>
-            <button className="title" type="button" onClick={() => navigate("/")}>
+            <button className="title" type="button" onClick={() => leave("/")}>
               {title}
             </button>
           </h1>
         ) : (
           <h1>{title}</h1>
+        )}
+        {menu && route.path !== "/" && (
+          <button className="search" type="button" onClick={searchHome} aria-label="Search all gear">
+            <svg
+              viewBox="0 0 24 24"
+              width="22"
+              height="22"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              aria-hidden="true"
+            >
+              <circle cx="10" cy="10" r="6.5" />
+              <path d="M15 15l6 6" strokeLinecap="round" />
+            </svg>
+          </button>
         )}
         {menu && (
           <button

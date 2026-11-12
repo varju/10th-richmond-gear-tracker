@@ -12,8 +12,10 @@ import * as rep from "../lib/repairs";
 import * as res from "../lib/reservations";
 import { depth, navigate } from "../lib/router";
 import { Store } from "../lib/store";
+import { unsaved } from "../lib/unsaved";
 import { printCodes } from "./codeTestKit";
 import { stopWebCamera, webCamera } from "./scanTestKit";
+import { desk } from "./widthTestKit";
 
 // The decoder, fed what the camera sees next.
 const decoder = vi.hoisted(() => ({ next: [] as string[] }));
@@ -719,6 +721,39 @@ test("the phone header has a house that goes home, on every screen but Home", as
   await userEvent.setup().click(screen.getByRole("button", { name: "Home" }));
   expect(location.pathname).toBe("/");
   expect(screen.queryByRole("button", { name: "Home" })).not.toBeInTheDocument();
+});
+
+test("the phone header has a search that goes Home with the search box focused, off Home only", async () => {
+  await fixture();
+  navigate("/repairs");
+  mount();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Search all gear" }));
+  expect(location.pathname).toBe("/");
+  expect(screen.getByLabelText("Search")).toHaveFocus();
+  expect(screen.queryByRole("button", { name: "Search all gear" })).not.toBeInTheDocument();
+});
+
+test("the house and the search ask before dropping an unsaved draft", async () => {
+  await fixture();
+  navigate("/repairs");
+  mount();
+  const user = userEvent.setup();
+  unsaved.register("draft", {});
+  await user.click(screen.getByRole("button", { name: "Home" }));
+  expect(location.pathname).toBe("/repairs");
+  unsaved.cancel();
+  await user.click(screen.getByRole("button", { name: "Search all gear" }));
+  expect(location.pathname).toBe("/repairs");
+  unsaved.cancel();
+  unsaved.unregister("draft");
+});
+
+test("the desk header has no search button", async () => {
+  await fixture();
+  desk();
+  navigate("/repairs");
+  mount();
+  expect(screen.queryByRole("button", { name: "Search all gear" })).not.toBeInTheDocument();
 });
 
 test("the title is a link home, on every screen", async () => {

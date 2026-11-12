@@ -19,6 +19,8 @@ What the app does differently.
 - An item can carry more than one QR code: Replace QR code is now Add QR code, and Details counts them.
 - Shaking the phone no longer offers to undo typing.
 - Settings shows the app version and build.
+- The top bar has a search button off Home that opens Home with the search box focused. The house asks before dropping
+  an unsaved draft.
 
 ## Chores
 
