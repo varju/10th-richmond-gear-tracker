@@ -71,13 +71,13 @@ import { timeline, type TimelineEntry } from "../lib/timeline";
 import type { Store } from "../lib/store";
 import { localDate, localMinute } from "../lib/time";
 import { guard, useUnsaved } from "../lib/unsaved";
-import { type Session, sessionEvent } from "../lib/session";
+import { eventAsked, type Session, sessionEvent } from "../lib/session";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { BoughtOn, HomeFields, ItemFields, SEVERAL } from "./ItemFields";
 import { boughtLabel, holdingLabel, plural, statusLabel, userName } from "./labels";
 import { CleanerField } from "./CleanerField";
-import { EventPicker, useEventQuestion } from "./EventChoice";
+import { EventPicker, EventStrip } from "./EventChoice";
 import { ConfirmButton } from "./ConfirmButton";
 import { CONFIRM_MS, MOVED_MS, MoveActions, movedText, useFlash } from "./MoveActions";
 import { leftFact, WeighActions, WeighFields } from "./Weighing";
@@ -283,6 +283,7 @@ export function ItemPage({ store, id }: Props) {
       back="/"
       actions={
         <>
+          <EventStrip store={store} />
           <MoveActions
             store={store}
             it={it}
@@ -610,7 +611,7 @@ function ChangeOutEvent({ store, it }: { store: Store; it: Item }) {
       label="Correct event"
       busy={busy}
       error={error}
-      lastUsed={sessionEvent(store.meta, store.now()).event}
+      lastUsed={eventAsked(store.meta, store.now()) ? store.meta.session_event : undefined}
       hide={event}
       onPick={(name) => void pick(name)}
       onCancel={() => back(`/items/${it.id}`)}
@@ -1477,6 +1478,7 @@ function PoolPage({
       back="/"
       actions={
         <>
+          <EventStrip store={store} />
           <PoolActions store={store} it={it} onMoved={confirm} />
           <button type="button" onClick={onEdit}>
             Edit
@@ -1660,14 +1662,13 @@ export function PoolActions({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // What the check-out records, as the event question found it when the count field opened.
-  const [recorded, setRecorded] = useState<Session>({});
   // The count a refused check-out was after; a recount then returns to it.
   const [resume, setResume] = useState<number | null>(null);
-  const { askThen, question } = useEventQuestion(store, session);
   const state = store.state;
   const me = store.meta.user?.id;
-  const event = mode === "out" ? recorded.event : undefined;
+  // Read when the move is made (FR-OUT-05): before the event is answered, a check-out waits for it.
+  const recorded = () => session ?? sessionEvent(store.meta, store.now());
+  const { event, waits } = mode === "out" ? recorded() : {};
   const counts = poolCounts(it);
   const mine = counts.out.find((o) => o.holder_id === me)?.count ?? 0;
   // Return needs a holder to pick from only when there is a real choice to make (FR-OUT-23):
@@ -1682,15 +1683,6 @@ export function PoolActions({
     const list = shares(id);
     return (list.find((x) => x.key === key) ?? list[0])?.count ?? holderCount(id);
   };
-
-  function begin(next: PoolMode) {
-    if (next === "out")
-      askThen((s) => {
-        setRecorded(s);
-        open("out");
-      });
-    else open(next);
-  }
 
   function open(next: PoolMode) {
     if (next !== "recount") setResume(null);
@@ -1754,10 +1746,12 @@ export function PoolActions({
     setError(null);
     try {
       if (mode === "out") {
+        const { event, reservation_id, waits } = recorded();
         await checkOutPool(store, it.id, {
           count: amount,
-          event: recorded.event,
-          reservation_id: recorded.reservation_id,
+          event,
+          reservation_id,
+          waits,
           packing: session !== undefined,
         });
       } else if (mode === "home") {
@@ -1832,9 +1826,6 @@ export function PoolActions({
       </div>
     );
   }
-
-  const asking = question(children);
-  if (asking) return asking;
 
   return (
     <PoolForm className="move-actions" onSubmit={() => void submit(n)}>
@@ -1931,7 +1922,7 @@ export function PoolActions({
           />
         </label>
       )}
-      {mode === "out" && <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>}
+      {mode === "out" && !waits && <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>}
       {(mode === "out" ? counts.in : mode === "home" ? sendable : 0) > 1 && (
         <div className="row">
           <button type="button" disabled={busy} onClick={() => void submit(mode === "home" ? sendable : counts.in)}>
@@ -1970,39 +1961,39 @@ export function PoolActions({
         </div>
       ) : (
         <div className="row" key="pick">
-          <button type="button" className="primary" onClick={() => begin("out")}>
+          <button type="button" className="primary" onClick={() => open("out")}>
             Check out
           </button>
           {counts.out.length > 0 && (
-            <button type="button" onClick={() => begin("in")}>
+            <button type="button" onClick={() => open("in")}>
               Return
             </button>
           )}
-          <button type="button" onClick={() => begin("recount")}>
+          <button type="button" onClick={() => open("recount")}>
             Recount
           </button>
           {counts.out.length > 0 && (
-            <button type="button" onClick={() => begin("missing")}>
+            <button type="button" onClick={() => open("missing")}>
               Mark missing
             </button>
           )}
           {counts.missing > 0 && (
-            <button type="button" onClick={() => begin("found")}>
+            <button type="button" onClick={() => open("found")}>
               Found
             </button>
           )}
           {counts.missing > 0 && (
-            <button type="button" onClick={() => begin("writeoff")}>
+            <button type="button" onClick={() => open("writeoff")}>
               Write off
             </button>
           )}
           {atHome.length > 0 && (
-            <button type="button" onClick={() => begin("back")}>
+            <button type="button" onClick={() => open("back")}>
               Back from home
             </button>
           )}
           {session === undefined && sendable > 0 && (
-            <button type="button" className="minor" onClick={() => begin("home")}>
+            <button type="button" className="minor" onClick={() => open("home")}>
               Send home with…
             </button>
           )}

@@ -9,8 +9,19 @@ import * as notes from "./notes";
 import type { Log } from "./record";
 import { eventNameKey, tidyName } from "./calendar";
 import { addExtra, extendToToday, makeEventToday, plannedFor, removeItem, reservation } from "./reservations";
-import { cleanerKey, type Movement, type Note, type ReplayEvent, replayOrder, type State } from "./replay";
-import { eventAsked, setSessionEvent } from "./session";
+import {
+  cleanerKey,
+  endCleaning,
+  type Movement,
+  type Note,
+  type PoolLot,
+  type ReplayEvent,
+  replayOrder,
+  returnLots,
+  startCleaning,
+  type State,
+} from "./replay";
+import { eventAsked, setSessionEvent, settleWaiting, waitingIds } from "./session";
 import type { MoveSession, Store } from "./store";
 import { isWeight, lastReading, type Weight, weighing } from "./weighing";
 
@@ -22,6 +33,8 @@ export interface MoveOptions {
   reservation_id?: string;
   /** Made while packing a reservation, so it leaves the plain session's clock alone (FR-RES-25). */
   packing?: boolean;
+  /** Made before the plain session's event was answered (FR-OUT-05). See `Session`. */
+  waits?: boolean;
 }
 
 /** A cleaner's name, trimmed; blank is an error. */
@@ -50,8 +63,9 @@ function current(store: Store, itemId: string): Item {
  * none is, one is made for today (FR-RES-38). The reservation is stamped on the move, and the gear
  * joins its list once the move is made.
  */
-async function planned(store: Store, options: { event?: string; reservation_id?: string; packing?: boolean }) {
-  if (options.reservation_id || options.packing) return { id: options.reservation_id ?? null, extra: false };
+async function planned(store: Store, options: MoveOptions) {
+  if (options.reservation_id || options.packing || options.waits)
+    return { id: options.reservation_id ?? null, extra: false };
   const name = options.event ? tidyName(options.event) : "";
   if (!name) return { id: null, extra: false };
   const r = plannedFor(store.state, name, () => store.now());
@@ -91,10 +105,72 @@ export async function checkOut(store: Store, itemId: string, options: MoveOption
       event: options.event?.trim() || null,
       reservation_id: link.id,
     },
-    options.packing ? undefined : { event: options.event?.trim() || null },
+    plainSession(options),
   );
   if (link.extra && link.id) await join(store, link.id, itemId);
+  if (options.waits && !options.packing) await takeAnswer(store, movement.id, itemId);
   return movement;
+}
+
+/**
+ * A waiting check-out that found the session already answered, by a tab whose settings this one had
+ * not seen, takes the answer as if it had waited for it.
+ */
+async function takeAnswer(store: Store, movementId: string, itemId: string) {
+  if (store.meta.session_waiting !== undefined || !eventAsked(store.meta, store.now())) return;
+  const event = store.meta.session_event;
+  if (event) await answerMove(store, event, movementId, itemId);
+}
+
+/**
+ * A move made before its event was known takes it, as if it had been given first: corrected to the
+ * event by id and linked to its reservation, found or made for today, and the gear joins that list
+ * (FR-OUT-45, FR-RES-38). A move that already reads so is not corrected again.
+ */
+async function answerMove(store: Store, event: string, movementId: string, itemId: string) {
+  const link = await planned(store, { event });
+  const now = readingOf(store, itemId, movementId);
+  if (now?.event !== event || now.reservation_id !== link.id) {
+    await correctEvent(store, itemId, movementId, event, link.id);
+  }
+  if (link.id) await join(store, link.id, itemId);
+}
+
+/** What a move the item is still out under reads now: a single item's movement, or a pool's lot. */
+function readingOf(store: Store, itemId: string, movementId: string) {
+  const it = item(store.state, itemId);
+  if (!it) return undefined;
+  if (isPool(it))
+    return poolLots(it)
+      .flatMap((held) => held.lots)
+      .find((lot) => lot.id === movementId);
+  return it.movement?.id === movementId ? it.movement : undefined;
+}
+
+/** The check-outs a pool's return would use up, as replay takes them off the holder's lots. */
+function usedUp(it: Item, holder: string, count: number, cleaner?: string): string[] {
+  const lots = it.pool_lots?.[holder] ?? [];
+  const before = it.pool_out?.[holder] ?? 0;
+  const left = before > count ? returnLots(lots, before, count, cleaner) : [];
+  return lots.filter((lot) => !left.some((l) => l.id === lot.id)).map((lot) => lot.id);
+}
+
+const SPLIT = "split";
+
+/**
+ * The waiting list's view of a pool's send-home or return from home: when it splits a lot, the part
+ * that moves takes the new event's id, and still waits if the lot it came from does (FR-OUT-05).
+ */
+function splitting(lots: PoolLot[] | undefined, apply: (lots: PoolLot[], newId: string) => PoolLot[]) {
+  const after = lots ? apply(lots, SPLIT) : [];
+  const i = after.findIndex((l) => l.id === SPLIT);
+  return i > 0 ? { splits: after[i - 1]!.id } : undefined;
+}
+
+/** What a check-out tells the plain session; nothing while packing. */
+function plainSession(options: MoveOptions): MoveSession | undefined {
+  if (options.packing) return undefined;
+  return options.waits ? { waits: true } : { event: options.event?.trim() || null };
 }
 
 export interface CheckInOptions extends MoveOptions {
@@ -110,7 +186,13 @@ export async function checkIn(store: Store, itemId: string, options: CheckInOpti
   if (it.status !== "out") throw new Error("already in");
   if (options.keep && !lastReading(store.state, it))
     throw new Error("There is no weight to keep. Weigh it or tap Unknown.");
-  const movement = await move(store, itemId, "checked_in", {}, options.packing ? undefined : {});
+  const movement = await move(
+    store,
+    itemId,
+    "checked_in",
+    {},
+    options.packing ? undefined : { ends: [it.movement!.id] },
+  );
   await seen(store, itemId);
   if (weighing(store.state, it)) {
     const reading = options.keep ? lastReading(store.state, it) : null;
@@ -187,9 +269,10 @@ export async function checkOutPool(store: Store, itemId: string, options: PoolCh
       event: options.event?.trim() || null,
       reservation_id: link.id,
     },
-    options.packing ? undefined : { event: options.event?.trim() || null },
+    plainSession(options),
   );
   if (link.extra && link.id) await join(store, link.id, itemId);
+  if (options.waits && !options.packing) await takeAnswer(store, movement.id, itemId);
   return movement;
 }
 
@@ -209,7 +292,8 @@ export async function checkInPool(store: Store, itemId: string, options: PoolChe
   const payload: Record<string, unknown> = { count: options.count };
   if (holder !== actor(store)) payload.holder_id = holder;
   if (options.cleaner !== undefined) payload.cleaner = cleanerName(options.cleaner);
-  return move(store, itemId, "checked_in", payload, options.packing ? undefined : {});
+  const ends = usedUp(it, holder, options.count, payload.cleaner as string | undefined);
+  return move(store, itemId, "checked_in", payload, options.packing ? undefined : { ends });
 }
 
 export interface BackFromCleaning {
@@ -228,6 +312,7 @@ export async function backFromCleaning(store: Store, itemId: string, options: Ba
   if (!found) throw new Error("no such item");
   const it = isPool(found) ? found : current(store, itemId);
   const payload: Record<string, unknown> = {};
+  let session: MoveSession | undefined;
   if (isPool(it)) {
     const held = poolLots(it).find((o) => o.holder_id === (options.holder_id ?? actor(store)));
     const key = cleanerKey(options.cleaner ?? "");
@@ -241,10 +326,13 @@ export async function backFromCleaning(store: Store, itemId: string, options: Ba
     payload.cleaner = options.cleaner!.trim();
     payload.count = count;
     if (options.holder_id && options.holder_id !== actor(store)) payload.holder_id = options.holder_id;
+    const cleaner = payload.cleaner as string;
+    const lots = it.pool_lots?.[options.holder_id ?? actor(store)];
+    session = splitting(lots, (all, id) => endCleaning(all, count, cleaner, id));
   } else if (it.status !== "out" || !it.movement?.cleaner) {
     throw new Error("not sent home");
   }
-  return move(store, itemId, "cleaning_ended", payload);
+  return move(store, itemId, "cleaning_ended", payload, session);
 }
 
 export interface SendItemHome {
@@ -295,7 +383,8 @@ export async function sendHomeFromPool(store: Store, itemId: string, options: Se
   if (options.count > has) throw new Error(`only ${has} out that could go home`);
   const payload: Record<string, unknown> = { cleaner: name, count: options.count };
   if (holder !== actor(store)) payload.holder_id = holder;
-  return move(store, itemId, "cleaning_started", payload);
+  const session = splitting(it.pool_lots?.[holder], (lots, id) => startCleaning(lots, options.count, name, id));
+  return move(store, itemId, "cleaning_started", payload, session);
 }
 
 /** How many are in right now, with an optional reason (FR-INV-35). What is already out is untouched; anyone signed in may record one. */
@@ -362,7 +451,8 @@ export interface TransferOptions extends MoveOptions {
  * another member (FR-OUT-26). Names the check-out it replaces, so replay knows it is not a
  * conflict. Carries the reservation like a check-out does: gear never returned from the last trip
  * is packed for this one by transfer (FR-RES-22). Gear at a cleaner's home stays there with the new holder, under
- * its event and reservation; replay carries the cleaner across.
+ * its event and reservation; replay carries the cleaner across. So does a transfer made before the plain session's
+ * event is answered, so nothing drops off an event's list (FR-OUT-56).
  */
 export async function transfer(store: Store, itemId: string, options: TransferOptions = {}) {
   const it = current(store, itemId);
@@ -372,7 +462,7 @@ export async function transfer(store: Store, itemId: string, options: TransferOp
   if (it.status !== "out" || !previous) throw new Error("not out; check it out instead");
   const to = options.to ?? actor(store);
   if (to === it.holder_id) throw new Error("they already have it");
-  if (previous.cleaner) {
+  if (previous.cleaner || options.waits) {
     // At a cleaner's home it is still the event's gear (FR-OUT-46): event and reservation carry over.
     return move(
       store,
@@ -384,7 +474,7 @@ export async function transfer(store: Store, itemId: string, options: TransferOp
         reservation_id: previous.reservation_id ?? null,
         supersedes: previous.id,
       },
-      options.packing ? undefined : {},
+      options.packing ? undefined : { supersedes: previous.id },
     );
   }
   const link = await planned(store, options);
@@ -398,7 +488,7 @@ export async function transfer(store: Store, itemId: string, options: TransferOp
       supersedes: previous.id,
       reservation_id: link.id,
     },
-    options.packing ? undefined : { event: options.event?.trim() || null },
+    options.packing ? undefined : { event: options.event?.trim() || null, supersedes: previous.id },
   );
   if (link.extra && link.id) await join(store, link.id, itemId);
   return movement;
@@ -425,16 +515,20 @@ export async function correctEvent(
   movementId: string,
   event: string | null,
   reservationId?: string | null,
+  session?: MoveSession,
 ) {
   const it = item(store.state, itemId);
   if (!it) throw new Error("no such item");
-  return store.record({
-    entity_type: "item",
-    entity_id: itemId,
-    type: "event_corrected",
-    actor_id: actor(store),
-    payload: { movement_id: movementId, event: event?.trim() || null, reservation_id: reservationId ?? null },
-  });
+  return store.record(
+    {
+      entity_type: "item",
+      entity_id: itemId,
+      type: "event_corrected",
+      actor_id: actor(store),
+      payload: { movement_id: movementId, event: event?.trim() || null, reservation_id: reservationId ?? null },
+    },
+    session,
+  );
 }
 
 /**
@@ -449,20 +543,57 @@ export async function changeEvent(store: Store, itemId: string, name: string | n
   if (it.status !== "out" || !m) throw new Error("only gear that is out has an event to correct");
   const event = name ? tidyName(name) : "";
   const old = typeof m.reservation_id === "string" ? m.reservation_id : null;
-  if (!old) return correctEvent(store, itemId, m.id, event || null);
+  // Corrected by hand, a waiting check-out has its event: a later answer must not overwrite it.
+  const settles = store.meta.session_waiting?.includes(m.id) ? { ends: [m.id] } : undefined;
+  if (!old) return correctEvent(store, itemId, m.id, event || null, null, settles);
   const matched = event ? plannedFor(store.state, event, () => store.now())?.id : undefined;
   const target = event ? matched ?? (await makeEventToday(store, event)) : null;
   if (target === old) return;
-  const corrected = await correctEvent(store, itemId, m.id, event || null, target);
+  const corrected = await correctEvent(store, itemId, m.id, event || null, target, settles);
   if (target) await join(store, target, itemId);
   const before = reservation(store.state, old);
   if (before?.items.includes(itemId) && addedBy(store, old, itemId, m.id)) await removeItem(store, old, itemId);
   return corrected;
 }
 
+/**
+ * The check-outs waiting for the session's event that the item is still out under: a return or a
+ * transfer since drops one.
+ */
+export function waitingMoves(store: Store): { id: string; itemId: string }[] {
+  return waitingIds(store.meta, store.now()).flatMap((id) => {
+    const recorded = store.knownEvent(id);
+    const it = recorded && item(store.state, recorded.entity_id);
+    if (!it) return [];
+    const live = isPool(it)
+      ? poolLots(it).some((held) => held.lots.some((lot) => lot.id === id))
+      : it.status === "out" && it.movement?.id === id;
+    return live ? [{ id, itemId: it.id }] : [];
+  });
+}
+
+/**
+ * Answer the session's event (FR-OUT-05): each waiting check-out takes it (`answerMove`), and the
+ * session then uses it. Each correction takes its move off the waiting list in the same write, so a
+ * retry after a failure corrects none twice. A check-out that joins the list meanwhile takes it too.
+ */
+export async function answerEvent(store: Store, name: string | undefined) {
+  const event = name ? tidyName(name) : "";
+  for (;;) {
+    const asked = waitingIds(store.meta, store.now());
+    if (event)
+      for (const { id, itemId } of waitingMoves(store)) {
+        await answerMove(store, event, id, itemId);
+        await settleWaiting(store, id);
+      }
+    const left = await setSessionEvent(store, event || undefined, asked);
+    if (left.length === 0) return;
+  }
+}
+
 /** Whether the item joined the reservation's list after the check-out, so only that check-out put it there. */
 function addedBy(store: Store, reservationId: string, itemId: string, movementId: string): boolean {
-  const checkout = store.known.find((e) => e.id === movementId);
+  const checkout = store.knownEvent(movementId);
   if (!checkout) return false;
   return store
     .eventsFor("reservation", reservationId)

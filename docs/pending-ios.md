@@ -28,6 +28,8 @@ What the app does differently.
   seen. The app sends its version to the server with every request.
 - A long press on the scan viewfinder shows a hidden line of scanner state, for a screenshot when the scanner stops
   reading.
+- The first check-out of a session moves at once, then asks "Which event?" above the viewfinder or the item's buttons.
+  The answer applies to the gear taken while it waited. A take-over or transfer before then keeps the gear's event.
 
 ## Chores
 

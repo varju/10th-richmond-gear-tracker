@@ -1,7 +1,7 @@
 // Shared setup for the movement tests: users the server knows, and a shell whose sync can be asserted on.
 import type { ReactNode } from "react";
-import { render } from "@testing-library/react";
-import { vi } from "vitest";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import { expect, vi } from "vitest";
 import type { Api, ServerEvent, User } from "../lib/api";
 import type { Store } from "../lib/store";
 import { type Shell, ShellContext } from "../shell";
@@ -63,4 +63,13 @@ export function renderInShell(node: ReactNode, now: () => number = Date.now, api
   };
   const result = render(<ShellContext value={shell}>{node}</ShellContext>);
   return { ...result, sync };
+}
+
+/** The event question, once it takes taps (STRIP_SETTLE_MS). */
+export async function eventStrip(): Promise<HTMLElement> {
+  const region = await screen.findByRole("region", { name: "Which event" });
+  await waitFor(() => expect(within(region).getByRole("button", { name: "No event" })).toBeEnabled(), {
+    timeout: 2000,
+  });
+  return region;
 }

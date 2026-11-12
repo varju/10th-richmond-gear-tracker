@@ -10,13 +10,30 @@ import type { CalendarEvent, OutgoingEvent, ServerEvent, User } from "./api";
 import { RETENTION_MS } from "./clock";
 import { done, req } from "./db";
 import { apply, type Fields, KNOWN_EVENT_TYPES, replay, type ReplayEvent, replayOrder, type State } from "./replay";
-import { eventAsked } from "./session";
+import { afterMove, type SessionMeta } from "./session";
 import { newUlid } from "./ulid";
 
-const SESSION_KEYS = ["session_event", "session_event_at", "session_reservation_id"] as const;
+export const SESSION_KEYS = [
+  "session_event",
+  "session_event_at",
+  "session_reservation_id",
+  "session_waiting",
+  "session_waiting_user",
+] as const;
 
-/** A move made in the plain session. `event` is the event it stamped; a return stamps none and leaves it out. */
-export type MoveSession = { event?: string | null };
+/**
+ * A move made in the plain session. `event` is the event it stamped; a return stamps none and leaves it out.
+ * `waits` is a check-out made before the session's event was answered. `supersedes` is the movement a
+ * transfer replaces. `ends` are the waiting check-outs a return or a correction by hand settles. `splits`
+ * is the waiting pool check-out whose lot a send-home or return from home splits.
+ */
+export type MoveSession = {
+  event?: string | null;
+  waits?: boolean;
+  supersedes?: string;
+  ends?: string[];
+  splits?: string;
+};
 
 /** no: waiting to push. yes: the server has it. rejected: the server refused it; kept for the record, not replayed. */
 export type Sent = "no" | "yes" | "rejected";
@@ -46,6 +63,10 @@ export interface Meta {
   session_reservation_id?: string;
   /** When the session event was last set or answered, or a move made in it (FR-OUT-38). It ends SESSION_MS after. */
   session_event_at?: number;
+  /** Check-outs made before the session's event was answered, by movement id. Absent once it is answered. */
+  session_waiting?: string[];
+  /** Who made the waiting check-outs. To anyone else signed in, the session has ended. */
+  session_waiting_user?: string;
   /** The last measured round trip to the server, in ms. Sent with a push so the server can allow for latency. */
   round_trip_ms?: number;
   token?: string;
@@ -180,6 +201,12 @@ export class Store {
     return this.known.filter((e) => e.entity_type === entity_type && e.entity_id === entity_id).sort(replayOrder);
   }
 
+  /** A known event by id. */
+  knownEvent(id: string): StoredEvent | undefined {
+    const e = this.events.get(id);
+    return e?.sent === "rejected" ? undefined : e;
+  }
+
   /** What one person recorded, as far as this device knows: the last 90 days at most. */
   eventsBy(actor_id: string): StoredEvent[] {
     return this.known.filter((e) => e.actor_id === actor_id);
@@ -220,23 +247,49 @@ export class Store {
   }
 
   /**
+   * Change `keys` of the settings by what `change` makes of them as stored, in one transaction, so a
+   * write from another tab in between is not lost. Returns the keys as written.
+   */
+  async updateMeta<K extends keyof Meta>(
+    keys: readonly K[],
+    change: (read: Pick<Meta, K>) => Partial<Meta>,
+  ): Promise<Pick<Meta, K>> {
+    const tx = this.db.transaction("meta", "readwrite");
+    const store = tx.objectStore("meta");
+    const values = await Promise.all(keys.map((key) => req(store.get(key))));
+    const read = Object.fromEntries(keys.map((key, i) => [key, values[i]])) as Pick<Meta, K>;
+    const patch = change(read);
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === undefined) store.delete(key);
+      else store.put(value, key);
+    }
+    await done(tx);
+    const written = { ...read, ...patch } as Pick<Meta, K>;
+    for (const key of new Set([...keys, ...(Object.keys(patch) as (keyof Meta)[])])) {
+      const value = (written as Partial<Meta>)[key];
+      if (value === undefined) delete this.meta[key];
+      else Object.assign(this.meta, { [key]: value });
+    }
+    this.notify();
+    return written;
+  }
+
+  /**
    * Record something that happened here. Stamped with the current clock offset (NFR-DATA-13).
    *
    * The sequence number is read from IndexedDB inside this transaction, not from the in-memory
    * copy: two tabs on the same device share one database, and reading from memory let them hand
    * out the same number, which the server then refused as a duplicate (docs/tasks.md, "Sync").
-   * `session` is a move made in the plain scanning session. If that session still runs, by the
-   * settings read in this same transaction, its clock moves on to this event (FR-OUT-38). A move
-   * that stamped an event extends it only if that is still the session's event, so a stale tab
-   * does not keep another tab's different event going.
+   * `session` is a move made in the plain scanning session. The session moves on by the settings
+   * read in this same transaction (`afterMove`, FR-OUT-38).
    */
   async record(input: Recording, session?: MoveSession): Promise<StoredEvent> {
     const occurred_at = this.now();
     const tx = this.db.transaction(["meta", "events"], "readwrite");
     const metaStore = tx.objectStore("meta");
-    const [stored, session_event, session_event_at, session_reservation_id] = (await Promise.all(
+    const [stored, ...values] = (await Promise.all(
       ["device_seq", ...(session ? SESSION_KEYS : [])].map((key) => req(metaStore.get(key))),
-    )) as [number | undefined, string | undefined, number | undefined, string | undefined];
+    )) as [number | undefined, ...unknown[]];
     const device_seq = (stored ?? this.meta.device_seq) + 1;
     const event: StoredEvent = {
       ...input,
@@ -250,21 +303,21 @@ export class Store {
     };
     tx.objectStore("events").put(event);
     metaStore.put(device_seq, "device_seq");
-    const read = { session_event, session_event_at, session_reservation_id };
-    const extend =
-      session !== undefined &&
-      eventAsked(read, occurred_at) &&
-      (!("event" in session) || (session.event || undefined) === session_event);
-    if (extend) {
-      read.session_event_at = occurred_at;
-      metaStore.put(occurred_at, "session_event_at");
+    const read = Object.fromEntries(SESSION_KEYS.map((key, i) => [key, values[i]])) as SessionMeta;
+    const next = session ? afterMove(read, session, event.id, occurred_at, this.meta.user) : undefined;
+    if (next) {
+      for (const key of SESSION_KEYS) {
+        if (next[key] === undefined) metaStore.delete(key);
+        else metaStore.put(next[key], key);
+      }
     }
     await done(tx);
     this.meta.device_seq = device_seq;
     if (session) {
-      for (const [key, value] of Object.entries(read)) {
-        if (value === undefined) delete this.meta[key as keyof typeof read];
-        else Object.assign(this.meta, { [key]: value });
+      const known = next ?? read;
+      for (const key of SESSION_KEYS) {
+        if (known[key] === undefined) delete this.meta[key];
+        else Object.assign(this.meta, { [key]: known[key] });
       }
     }
     this.events.set(event.id, event);

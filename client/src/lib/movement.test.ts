@@ -5,7 +5,8 @@ import { openDb } from "./db";
 import { item, poolCounts, poolLots } from "./inventory";
 import * as mv from "./movement";
 import * as notes from "./notes";
-import { eventAsked, SESSION_MS, sessionEvent, setSessionEvent } from "./session";
+import { createReservation, reservation, reservations, todayIso } from "./reservations";
+import { afterMove, eventAsked, SESSION_MS, sessionEvent, setSessionEvent } from "./session";
 import { Store } from "./store";
 
 let store: Store;
@@ -328,19 +329,19 @@ test("a packing link left by an older build is not a plain session: a move does 
   await store.setMeta({ session_event: "Fall camp", session_event_at: clock, session_reservation_id: "r1" });
   const at = store.meta.session_event_at!;
   expect(eventAsked(store.meta, at + 1)).toBe(false);
-  expect(sessionEvent(store.meta, at + 1)).toEqual({});
+  expect(sessionEvent(store.meta, at + 1)).toEqual({ waits: true });
   await mv.checkOut(store, tent, { event: "Fall camp" });
   expect(await storedSessionAt()).toBe(at);
-  await setSessionEvent(store, "Spring camp");
+  await setSessionEvent(store, "Spring camp", []);
   expect(store.meta.session_reservation_id).toBeUndefined();
   expect(sessionEvent(store.meta, store.now())).toEqual({ event: "Spring camp" });
 });
 
 test("setting the event trims it, and a change leaves earlier moves under theirs", async () => {
-  await setSessionEvent(store, " Spring camp ");
+  await setSessionEvent(store, " Spring camp ", []);
   expect(store.meta.session_event).toBe("Spring camp");
   await mv.checkOut(store, tent, { event: "Spring camp" });
-  await setSessionEvent(store, "Cub camp");
+  await setSessionEvent(store, "Cub camp", []);
   expect(store.meta.session_event).toBe("Cub camp");
   expect(store.pending.filter((e) => e.type === "event_corrected")).toHaveLength(0);
   expect(item(store.state, tent)?.movement).toMatchObject({ event: "Spring camp" });
@@ -535,4 +536,322 @@ test("part of a stack out at camp goes home, keeping its holder and event (FR-OU
   ]);
   expect(poolCounts(item(store.state, bags)!)).toMatchObject({ in: 15, out: [{ holder_id: "alice", count: 5 }] });
   expect(mv.history(store, bags)[0]).toMatchObject({ type: "cleaning_started", count: 3, cleaner: "Smith" });
+});
+
+const carol = { id: "carol", name: "Carol", role: "user", active: true } as const;
+const alice = { id: "alice", name: "Alice", role: "user", active: true } as const;
+
+/** A store opened afresh on the same database, as after a restart. */
+async function reopened() {
+  return Store.open(await openDb("test", factory), () => clock++);
+}
+
+test("the first check-out moves at once with no event, starts the session, and waits for the answer (FR-OUT-05)", async () => {
+  await store.setMeta({ session_event: "Spring camp", session_event_at: clock - SESSION_MS });
+  const out = await mv.checkOut(store, tent, { waits: true });
+  expect(out.payload).toEqual({ holder_id: "alice", event: null, reservation_id: null });
+  expect(reservations(store.state)).toEqual([]);
+  expect(store.meta).toMatchObject({ session_event_at: out.occurred_at, session_waiting: [out.id] });
+  expect(sessionEvent(store.meta, store.now())).toEqual({ waits: true });
+
+  const stove = await act.createItem(store, { name: "Stove" });
+  const next = await mv.checkOut(store, stove, { waits: true });
+  const restarted = await reopened();
+  expect(restarted.meta).toMatchObject({ session_event_at: next.occurred_at, session_waiting: [out.id, next.id] });
+  expect(mv.waitingMoves(restarted)).toEqual([
+    { id: out.id, itemId: tent },
+    { id: next.id, itemId: stove },
+  ]);
+  // Last used is still offered.
+  expect(restarted.meta.session_event).toBe("Spring camp");
+});
+
+test("an answer relinks the waiting moves by id and joins the reservation's list; the session then uses it (FR-OUT-45, FR-RES-38)", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  const out = await mv.checkOut(store, tent, { waits: true });
+  const lot = await mv.checkOutPool(store, bowls, { count: 4, waits: true });
+
+  await mv.answerEvent(store, " Cub camp ");
+  const [made] = reservations(store.state);
+  expect(made).toMatchObject({ event: "Cub camp", starts: todayIso(store.now()), items: [tent] });
+  expect(made!.generics).toEqual([expect.objectContaining({ item_id: bowls, quantity: 4 })]);
+  expect(store.pending.filter((e) => e.type === "event_corrected").map((e) => [e.entity_id, e.payload])).toEqual([
+    [tent, { movement_id: out.id, event: "Cub camp", reservation_id: made!.id }],
+    [bowls, { movement_id: lot.id, event: "Cub camp", reservation_id: made!.id }],
+  ]);
+  expect(item(store.state, tent)?.movement).toMatchObject({ event: "Cub camp", reservation_id: made!.id });
+  expect(poolLots(item(store.state, bowls)!)[0]!.lots).toEqual([
+    expect.objectContaining({ id: lot.id, event: "Cub camp", reservation_id: made!.id }),
+  ]);
+  expect(store.meta.session_waiting).toBeUndefined();
+  expect(sessionEvent(store.meta, store.now())).toEqual({ event: "Cub camp" });
+  expect(mv.waitingMoves(store)).toEqual([]);
+});
+
+test("an answer naming a planned event links the waiting moves to it (FR-OUT-45)", async () => {
+  const today = todayIso(store.now());
+  const fall = await createReservation(store, {
+    event: "Fall Camp",
+    starts: today,
+    ends: today,
+    items: [],
+    generics: [],
+  });
+  await mv.checkOut(store, tent, { waits: true });
+  await mv.answerEvent(store, "fall camp");
+  expect(reservations(store.state).map((r) => r.id)).toEqual([fall]);
+  expect(reservation(store.state, fall)?.items).toEqual([tent]);
+  expect(item(store.state, tent)?.movement).toMatchObject({ reservation_id: fall });
+});
+
+test("No event answers without correcting anything", async () => {
+  await mv.checkOut(store, tent, { waits: true });
+  await mv.answerEvent(store, undefined);
+  expect(store.pending.filter((e) => e.type === "event_corrected")).toEqual([]);
+  expect(reservations(store.state)).toEqual([]);
+  expect(mv.waitingMoves(store)).toEqual([]);
+  expect(sessionEvent(store.meta, store.now())).toEqual({ event: undefined });
+});
+
+test("waiting moves lapse with the session; the next check-out starts a new list (FR-OUT-38, FR-OUT-57)", async () => {
+  const out = await mv.checkOut(store, tent, { waits: true });
+  clock += SESSION_MS;
+  expect(mv.waitingMoves(store)).toEqual([]);
+  await mv.answerEvent(store, "Cub camp");
+  expect(store.pending.filter((e) => e.type === "event_corrected")).toEqual([]);
+
+  await store.setMeta({ session_event_at: clock - SESSION_MS });
+  const stove = await act.createItem(store, { name: "Stove" });
+  const next = await mv.checkOut(store, stove, { waits: true });
+  expect(store.meta.session_waiting).toEqual([next.id]);
+  expect(item(store.state, tent)?.movement).toMatchObject({ id: out.id, event: null });
+});
+
+test("a waiting move since returned, or taken over on another phone, is dropped", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  const stove = await act.createItem(store, { name: "Stove" });
+  await mv.checkOut(store, tent, { waits: true });
+  const kept = await mv.checkOut(store, stove, { waits: true });
+  await mv.checkOutPool(store, bowls, { count: 2, waits: true });
+  await mv.checkIn(store, tent);
+  await mv.checkInPool(store, bowls, { count: 2 });
+  await store.receive(
+    [
+      {
+        id: "0Z000000000000000000000001",
+        entity_type: "item",
+        entity_id: stove,
+        type: "checked_out",
+        actor_id: "carol",
+        device_id: "carols-phone",
+        device_seq: 1,
+        occurred_at: clock,
+        clock_offset: 0,
+        effective_at: clock,
+        received_at: clock,
+        seq: 1,
+        payload: { holder_id: "carol", event: null, reservation_id: null, supersedes: kept.id },
+      },
+    ],
+    1,
+  );
+  expect(mv.waitingMoves(store)).toEqual([]);
+
+  await mv.checkOut(store, tent, { waits: true });
+  expect(mv.waitingMoves(store).map((m) => m.itemId)).toEqual([tent]);
+  await mv.answerEvent(store, "Cub camp");
+  expect(store.pending.filter((e) => e.type === "event_corrected").map((e) => e.entity_id)).toEqual([tent]);
+  expect(item(store.state, stove)?.movement).toMatchObject({ holder_id: "carol", event: null });
+});
+
+test("a Give to on this phone waits in place of the move it replaces, and takes the answer", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  const out = await mv.checkOut(store, tent, { waits: true });
+  const lent = await mv.checkOut(store, stove, { waits: true });
+  const toBob = await mv.transfer(store, tent, { to: "bob", waits: true });
+  const toCarol = await mv.transfer(store, stove, { to: "carol", waits: true });
+  expect(toBob.payload).toMatchObject({ supersedes: out.id, event: null });
+  expect(toCarol.payload).toMatchObject({ supersedes: lent.id, event: null });
+  expect(store.meta.session_waiting).toEqual([toBob.id, toCarol.id]);
+  expect((await reopened()).meta.session_waiting).toEqual([toBob.id, toCarol.id]);
+
+  await mv.answerEvent(store, "Cub camp");
+  const [cub] = reservations(store.state);
+  expect(cub?.items).toEqual([tent, stove]);
+  expect(item(store.state, tent)?.movement).toMatchObject({ id: toBob.id, event: "Cub camp", reservation_id: cub!.id });
+  expect(item(store.state, stove)?.movement).toMatchObject({ id: toCarol.id, event: "Cub camp", holder_id: "carol" });
+});
+
+test("someone else signed in on the phone never sees or answers another person's waiting session", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  const out = await mv.checkOut(store, tent, { waits: true });
+  expect(store.meta.session_waiting_user).toBe("alice");
+  await store.setMeta({ user: carol });
+  expect(eventAsked(store.meta, store.now())).toBe(false);
+  expect(mv.waitingMoves(store)).toEqual([]);
+  // Taking over Alice's tent keeps its event, and does not join her list.
+  const taken = await mv.transfer(store, tent, { waits: true });
+  expect(store.meta.session_waiting).toEqual([out.id]);
+  // Carol's own first check-out starts her own waiting session; Alice's list is never answered by her.
+  const mine = await mv.checkOut(store, stove, { waits: true });
+  expect(store.meta).toMatchObject({ session_waiting: [mine.id], session_waiting_user: "carol" });
+  await mv.answerEvent(store, "Cub camp");
+  expect(store.pending.filter((e) => e.type === "event_corrected").map((e) => e.payload.movement_id)).toEqual([
+    mine.id,
+  ]);
+  expect(item(store.state, tent)?.movement).toMatchObject({ id: taken.id, event: null });
+});
+
+test("the same person signed back in finds their waiting session as they left it", async () => {
+  const out = await mv.checkOut(store, tent, { waits: true });
+  await store.setMeta({ token: undefined, user: undefined });
+  expect(mv.waitingMoves(store)).toEqual([]);
+  await store.setMeta({ user: alice });
+  expect(mv.waitingMoves(store)).toEqual([{ id: out.id, itemId: tent }]);
+});
+
+test("returning a waiting check-out takes it off the list; the last one off ends the session", async () => {
+  await store.setMeta({ session_event: "Spring camp", session_event_at: clock - SESSION_MS });
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  const out = await mv.checkOut(store, tent, { waits: true });
+  const lot = await mv.checkOutPool(store, bowls, { count: 3, waits: true });
+  await mv.checkInPool(store, bowls, { count: 1 });
+  expect(store.meta.session_waiting).toEqual([out.id, lot.id]);
+  await mv.checkIn(store, tent);
+  expect(store.meta.session_waiting).toEqual([lot.id]);
+  await mv.checkInPool(store, bowls, { count: 2 });
+  const after = await reopened();
+  expect(after.meta.session_waiting).toBeUndefined();
+  expect(after.meta.session_event_at).toBeUndefined();
+  // Last used stays; the next check-out waits again rather than reading a stale answer.
+  expect(after.meta.session_event).toBe("Spring camp");
+  expect(sessionEvent(store.meta, store.now())).toEqual({ waits: true });
+});
+
+test("a waiting check-out corrected by hand leaves the list, so a later answer does not overwrite it", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  const out = await mv.checkOut(store, tent, { waits: true });
+  const other = await mv.checkOut(store, stove, { waits: true });
+  await mv.changeEvent(store, tent, "Scout camp");
+  expect(store.meta.session_waiting).toEqual([other.id]);
+  await mv.answerEvent(store, "Cub camp");
+  expect(item(store.state, tent)?.movement).toMatchObject({ id: out.id, event: "Scout camp" });
+  expect(item(store.state, stove)?.movement).toMatchObject({ event: "Cub camp" });
+});
+
+test("an answer that fails after a correction corrects no move twice, and joins it on retry", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  const first = await mv.checkOut(store, tent, { waits: true });
+  const second = await mv.checkOut(store, stove, { waits: true });
+  // Where an answer that failed between the first correction and its join leaves things.
+  const cub = await createReservation(store, {
+    event: "Cub camp",
+    starts: todayIso(store.now()),
+    ends: todayIso(store.now()),
+    items: [],
+    generics: [],
+  });
+  await mv.correctEvent(store, tent, first.id, "Cub camp", cub);
+  expect(store.meta.session_waiting).toEqual([first.id, second.id]);
+
+  await mv.answerEvent(store, "Cub camp");
+  expect(store.pending.filter((e) => e.type === "event_corrected").map((e) => e.payload.movement_id)).toEqual([
+    first.id,
+    second.id,
+  ]);
+  expect(reservation(store.state, cub)?.items).toEqual([tent, stove]);
+  expect(store.meta.session_waiting).toBeUndefined();
+});
+
+test("a waiting check-out from a tab that missed the answer takes it, and does not reopen the question", async () => {
+  // This tab saw no session; another tab answered Cub camp since.
+  const other = await reopened();
+  await other.setMeta({ session_event: "Cub camp", session_event_at: clock });
+  const out = await mv.checkOut(store, tent, { waits: true });
+  expect(store.meta.session_waiting).toBeUndefined();
+  expect(store.meta.session_event_at).toBe(out.occurred_at);
+  expect(sessionEvent(store.meta, store.now())).toEqual({ event: "Cub camp" });
+  const [cub] = reservations(store.state);
+  expect(cub).toMatchObject({ event: "Cub camp", items: [tent] });
+  expect(item(store.state, tent)?.movement).toMatchObject({ id: out.id, event: "Cub camp", reservation_id: cub!.id });
+});
+
+test("a waiting check-out into a session answered with No event stays with no event", async () => {
+  await setSessionEvent(store, undefined, []);
+  await mv.checkOut(store, tent, { waits: true });
+  expect(store.meta.session_waiting).toBeUndefined();
+  expect(store.pending.filter((e) => e.type === "event_corrected")).toEqual([]);
+});
+
+test("a take-over or transfer before the answer keeps the event and reservation the gear is out under (FR-OUT-56)", async () => {
+  const out = await mv.checkOut(store, tent, { event: "Fall Camp", reservation_id: "r-fall" });
+  await store.setMeta({ user: carol });
+  const taken = await mv.transfer(store, tent, { waits: true });
+  expect(taken.payload).toEqual({
+    holder_id: "carol",
+    event: "Fall Camp",
+    reservation_id: "r-fall",
+    supersedes: out.id,
+  });
+  const handed = await mv.transfer(store, tent, { to: "alice", waits: true });
+  expect(handed.payload).toMatchObject({ holder_id: "alice", event: "Fall Camp", reservation_id: "r-fall" });
+  expect(store.meta.session_waiting).toBeUndefined();
+  expect(eventAsked(store.meta, store.now())).toBe(false);
+});
+
+test("a check-out made while an answer is being saved takes the answer too", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  await mv.checkOut(store, tent, { waits: true });
+  const answering = mv.answerEvent(store, "Cub camp");
+  const late = await mv.checkOut(store, stove, { waits: true });
+  expect(store.meta.session_waiting).toContain(late.id);
+  await answering;
+  expect(store.meta.session_waiting).toBeUndefined();
+  expect(item(store.state, stove)?.movement).toMatchObject({ id: late.id, event: "Cub camp" });
+  expect(reservations(store.state)[0]?.items).toEqual([tent, stove]);
+});
+
+test("saving an answer settles only the check-outs it answered", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  const first = await mv.checkOut(store, tent, { waits: true });
+  const second = await mv.checkOut(store, stove, { waits: true });
+  expect(await setSessionEvent(store, "Cub camp", [first.id])).toEqual([second.id]);
+  expect((await reopened()).meta).toMatchObject({ session_event: "Cub camp", session_waiting: [second.id] });
+  expect(sessionEvent(store.meta, store.now())).toEqual({ waits: true });
+});
+
+test("every part of a waiting pool lot split by sending some home takes the answer", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  const out = await mv.checkOutPool(store, bowls, { count: 6, waits: true });
+  const home = await mv.sendHomeFromPool(store, bowls, { count: 4, cleaner: "Dana" });
+  const back = await mv.backFromCleaning(store, bowls, { cleaner: "Dana", count: 1 });
+  expect(store.meta.session_waiting).toEqual([out.id, home.id, back.id]);
+
+  await mv.answerEvent(store, "Cub camp");
+  const [cub] = reservations(store.state);
+  const lots = poolLots(item(store.state, bowls)!)[0]!.lots;
+  expect(lots.map((l) => [l.count, l.event, l.reservation_id])).toEqual([
+    [2, "Cub camp", cub!.id],
+    [3, "Cub camp", cub!.id],
+    [1, "Cub camp", cub!.id],
+  ]);
+  // The three still at Dana's are not packed (FR-RES-36).
+  expect(cub!.generics).toEqual([expect.objectContaining({ item_id: bowls, quantity: 3 })]);
+  expect(store.meta.session_waiting).toBeUndefined();
+});
+
+test("a send-home of a whole waiting lot keeps it under its own id", async () => {
+  const bowls = await act.createPool(store, { name: "Bowls" }, 20);
+  const out = await mv.checkOutPool(store, bowls, { count: 2, waits: true });
+  await mv.sendHomeFromPool(store, bowls, { count: 2, cleaner: "Dana" });
+  expect(store.meta.session_waiting).toEqual([out.id]);
+});
+
+test("a transfer from a stale tab still waits in place of the move it replaces", () => {
+  const read = { session_event: "Fall camp", session_event_at: 1_000, session_waiting: ["w", "x"] };
+  expect(afterMove(read, { event: "Spring camp", supersedes: "w" }, "t", 2_000, undefined)).toEqual({
+    ...read,
+    session_waiting: ["t", "x"],
+  });
+  expect(afterMove(read, { event: "Spring camp", supersedes: "z" }, "t", 2_000, undefined)).toBeUndefined();
 });

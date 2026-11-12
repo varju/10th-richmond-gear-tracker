@@ -76,6 +76,25 @@ test("the Events page shows the event check-outs go to, and changes it", async (
   expect(await screen.findByText("Check-outs have no event")).toBeInTheDocument();
 });
 
+test("Change on Events while check-outs wait answers them (FR-OUT-43)", async () => {
+  const out = await mv.checkOut(store, t2, { waits: true });
+  navigate("/events");
+  renderInShell(<Reservations store={store} />, () => T0);
+  expect(screen.getByText("Check-outs are waiting: which event?")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Change" }));
+  await user.type(screen.getByLabelText("Event"), "Apple Day");
+  await user.click(screen.getByRole("button", { name: "Create" }));
+  expect(await screen.findByText("Check-outs go to: Apple Day")).toBeInTheDocument();
+  const made = res.reservations(store.state).find((r) => r.event === "Apple Day");
+  expect(made?.items).toEqual([t2]);
+  expect(inv.item(store.state, t2)?.movement).toMatchObject({
+    id: out.id,
+    event: "Apple Day",
+    reservation_id: made!.id,
+  });
+  expect(mv.waitingMoves(store)).toEqual([]);
+});
+
 test("Back from changing the check-out event returns to Events", async () => {
   navigate("/items");
   navigate("/events");

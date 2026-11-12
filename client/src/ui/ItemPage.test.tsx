@@ -18,7 +18,7 @@ import { unsaved } from "../lib/unsaved";
 import { openStore } from "./codeTestKit";
 import { ItemPage } from "./ItemPage";
 import { LeaveDialog } from "./LeaveDialog";
-import { alice, carol, renderInShell, seedUsers, inSession } from "./moveTestKit";
+import { alice, carol, eventStrip, renderInShell, seedUsers, inSession } from "./moveTestKit";
 
 // Movement from the item page, for gear with no sticker (FR-OUT-02, FR-OUT-07), and the item's history.
 let store: Store;
@@ -56,18 +56,61 @@ const historyList = () =>
     .closest("details")!
     .querySelector("ol.history") as HTMLElement;
 
-test("a check-out from the page asks the event when no session is running, as a scan does (FR-OUT-05, FR-OUT-38)", async () => {
+test("a check-out from the page moves at once when no session is running, then asks the event above the actions (FR-OUT-05, FR-OUT-38)", async () => {
   await store.setMeta({ session_event: "Spring camp", session_event_at: store.now() - SESSION_MS });
   renderInShell(<ItemPage store={store} id={tent} />);
-  expect(actions()).toHaveTextContent("No event");
+  // The move will wait for the question, so no hint names an event.
+  expect(actions().querySelector(".event-hint")).toBeNull();
+  expect(screen.queryByRole("region", { name: "Which event" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Check out" }));
+  await screen.findByText("Checked out · Tent 1");
+  const [out] = store.pending.filter((e) => e.type === "checked_out");
+  expect(out!.payload).toEqual({ holder_id: "alice", event: null, reservation_id: null });
+
+  const ask = await eventStrip();
+  expect(actions()).toContainElement(ask);
+  expect(ask.compareDocumentPosition(screen.getByRole("button", { name: "Return" }))).toBe(
+    Node.DOCUMENT_POSITION_FOLLOWING,
+  );
+  await user.click(within(ask).getByRole("button", { name: /Spring camp/ }));
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Which event" })).not.toBeInTheDocument());
+  expect(item(store.state, tent)?.movement).toMatchObject({ id: out!.id, event: "Spring camp" });
+});
+
+test("the strip ignores taps for a moment after it appears, so a quick second tap is not an answer", async () => {
+  renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+  await screen.findByText("Checked out · Tent 1");
   await user.click(
     within(screen.getByRole("region", { name: "Which event" })).getByRole("button", { name: "No event" }),
   );
-  await screen.findByText("Checked out · Tent 1");
-  expect(store.pending.filter((e) => e.type === "checked_out").map((e) => e.payload)).toEqual([
-    { holder_id: "alice", event: null, reservation_id: null },
-  ]);
+  expect(mv.waitingMoves(store)).toHaveLength(1);
+  await user.click(within(await eventStrip()).getByRole("button", { name: "No event" }));
+  await waitFor(() => expect(mv.waitingMoves(store)).toEqual([]));
+});
+
+test("Return undoes a wrong first check-out, and the question goes with it", async () => {
+  renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Check out" }));
+  await eventStrip();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Return" })).toBeEnabled(), { timeout: 3000 });
+  await user.click(screen.getByRole("button", { name: "Return" }));
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Which event" })).not.toBeInTheDocument());
+  expect(store.meta.session_waiting).toBeUndefined();
+});
+
+test("the strip survives leaving the page and a restart", async () => {
+  const factory = new IDBFactory();
+  const first = await Store.open(await openDb("restart", factory), store.now);
+  await first.setMeta({ user: alice });
+  const stove = await act.createItem(first, { name: "Stove" });
+  await mv.checkOut(first, stove, { waits: true });
+  renderInShell(<ItemPage store={first} id={stove} />);
+  expect(screen.getByRole("region", { name: "Which event" })).toBeInTheDocument();
+  cleanup();
+  const restarted = await Store.open(await openDb("restart", factory), store.now);
+  renderInShell(<ItemPage store={restarted} id={stove} />);
+  expect(screen.getByRole("region", { name: "Which event" })).toBeInTheDocument();
 });
 
 test("Check out from the page records the session event and syncs (FR-OUT-02)", async () => {
@@ -753,6 +796,17 @@ test("the correction hides the event already recorded, and offers Last used only
   await user.click(await screen.findByRole("button", { name: "Change event" }));
   await screen.findByRole("region", { name: "Correct event" });
   expect(within(picker()).getByRole("button", { name: /Cub camp.*Last used/ })).toBeInTheDocument();
+});
+
+test("the correction offers Last used while the session waits for its event", async () => {
+  await store.setMeta({ session_event: "Cub camp", session_event_at: store.now() - SESSION_MS });
+  const stove = await act.createItem(store, { name: "Stove" });
+  await mv.checkOut(store, stove, { waits: true });
+  await checkOutUnplanned(store, tent, "Spring camp");
+  renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Change event" }));
+  const picker = await screen.findByRole("region", { name: "Correct event" });
+  expect(within(picker).getByRole("button", { name: /Cub camp.*Last used/ })).toBeInTheDocument();
 });
 
 test("Back from changing the event returns to the item", async () => {

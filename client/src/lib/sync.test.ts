@@ -5,6 +5,7 @@ import { RETENTION_MS } from "./clock";
 import { openDb } from "./db";
 import { pendingPhotos, queuePhoto } from "./photos";
 import { SNAPSHOT_VERSION, Store } from "./store";
+import { awaitingAnswer, sessionEvent } from "./session";
 import { sync } from "./sync";
 
 const T0 = 1_756_684_800_000;
@@ -271,12 +272,32 @@ test("a deactivated account gets its last push in, then is signed out", async ()
   expect(store.meta.token).toBeUndefined();
 });
 
-test("a 401 signs out", async () => {
-  await store.setMeta({ token: "expired" });
+test("a 401 signs out and keeps the waiting check-outs for whoever made them", async () => {
+  await store.setMeta({
+    token: "expired",
+    user: { id: "alice", name: "Alice", role: "user", active: true },
+    session_event: "Cub camp",
+    session_event_at: clock,
+    session_waiting: ["m1"],
+    session_waiting_user: "alice",
+  });
   server.handle = async () =>
     new Response(JSON.stringify({ error: "unauthorized", message: "no", server_time: T0 }), { status: 401 });
   expect(await sync(store, api(), () => clock)).toMatchObject({ ok: false, reason: "signed_out" });
-  expect(store.meta.token).toBeUndefined();
+  expect(store.meta).toMatchObject({ session_waiting: ["m1"], session_waiting_user: "alice", session_event_at: clock });
+  // Signed out, no one's session is waiting; signed back in, Alice's is.
+  expect(sessionEvent(store.meta, clock)).toEqual({ waits: true });
+  expect(awaitingAnswer(store.meta, clock)).toBe(false);
+  await store.setMeta({ user: { id: "alice", name: "Alice", role: "user", active: true } });
+  expect(awaitingAnswer(store.meta, clock)).toBe(true);
+});
+
+test("a 401 leaves an answered session running", async () => {
+  await store.setMeta({ token: "expired", session_event: "Cub camp", session_event_at: clock });
+  server.handle = async () =>
+    new Response(JSON.stringify({ error: "unauthorized", message: "no", server_time: T0 }), { status: 401 });
+  expect(await sync(store, api(), () => clock)).toMatchObject({ ok: false, reason: "signed_out" });
+  expect(store.meta).toMatchObject({ session_event: "Cub camp", session_event_at: clock });
 });
 
 test("sync trims history past the retention window", async () => {

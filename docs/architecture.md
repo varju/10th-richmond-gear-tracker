@@ -538,14 +538,31 @@ owned falls. The field is absent until the first mark, so existing vectors do no
 holder, and its return of that count clears the missing count: a return of more than the holder has out takes the excess
 off `pool_missing` (FR-INV-50).
 
-The session event (FR-OUT-05) is a device setting in `meta`, for plain scanning. Any check-out or transfer, on the scan
-card or the item page, asks for it when no session is running, offering the last one used. `session_event_at` records
-when it was last set or answered. A move moves it on in the same write, if the `meta` read in that transaction says the
-session still runs: for a check-out or transfer, under the event the move stamped; a return, which stamps no event,
-moves on whatever session runs. Packing moves and a recount do not. A session ends four hours after that (FR-OUT-38).
-The check is made when the move is made, not when the screen drew, so an event that ended since asks again rather than
-recording nothing. It is not a record, so two phones at one camp each type the name once and nothing is shared or
-reconciled.
+The session event (FR-OUT-05) is a device setting in `meta`, for plain scanning. A check-out made with no session
+running, or before its event is answered, moves at once with no event and no reservation. Its movement id joins
+`session_waiting`, which starts the session. A strip then asks the event: the bar above the viewfinder on the scan
+screen, above the actions on an item page. It ignores taps for half a second after it appears, so the tap after a
+check-out is not taken as an answer. A transfer made before the answer keeps the event and reservation the gear is out
+under (FR-OUT-56), so nothing drops off an event's list, and its id waits in place of the one it supersedes. A pool's
+send-home or return from home that splits a waiting lot gives the moving part the new event's id; that id waits too. The
+answer, from the strip or from **Change** on **Events**, finds or makes the reservation as a check-out would (FR-OUT-45,
+FR-RES-38). It appends an `event_corrected` for each waiting move by id, joins the gear to that list, and only then
+takes the id off `session_waiting`. A retry skips a move that already reads as the answer, so nothing is corrected
+twice. The last write saves the answer and drops the ids it answered; a check-out that joined the list meanwhile is
+answered in another pass. The strip shows until that write lands. A return of a waiting move, or a correction of one by
+hand, takes it off the list; the last one off ends the session, keeping its event as Last used. A check-out from a tab
+that missed the answer takes the answer at once instead of reopening the question. There is no Cancel: the moves are
+done, and ignoring the strip loses only the event. `session_waiting_user` names who made the waiting moves. Signing out
+leaves the list, so an expired token loses nothing. To anyone else signed in, that session has ended: they see no strip,
+and their first check-out starts a session of their own.
+
+`session_event_at` records when the session last started, was set or answered. A move moves it on in the same write, if
+the `meta` read in that transaction says the session still runs: for a check-out or transfer, under the event the move
+stamped; a return, which stamps no event, moves on whatever session runs. Packing moves and a recount do not. A session
+ends four hours after that (FR-OUT-38), and the waiting list lapses with it (FR-OUT-57). The check is made when the move
+is made, not when the screen drew, so an event that ended since waits for a new answer rather than recording nothing. It
+is not a record, so two phones at one camp each type the name once and nothing is shared or reconciled. The server sees
+only ordinary check-outs and corrections.
 
 Changing the event mid-session leaves earlier moves under the event they were made with; the item page corrects one
 (FR-OUT-41).

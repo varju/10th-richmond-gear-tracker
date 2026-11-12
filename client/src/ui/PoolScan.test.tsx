@@ -10,7 +10,7 @@ import type { Store } from "../lib/store";
 import { unsaved } from "../lib/unsaved";
 import { openStore, printCodes } from "./codeTestKit";
 import { type FakeCamera, fakeCamera, stopFakeCamera } from "./scanTestKit";
-import { alice, renderInShell, seedUsers } from "./moveTestKit";
+import { alice, eventStrip, renderInShell, seedUsers } from "./moveTestKit";
 import { Scan } from "./Scan";
 
 // Scanning a pool's own code: it may carry one on its container (FR-TAG-15), and
@@ -52,21 +52,30 @@ test("scanning a pool's code offers Check out, Return, and Recount, like its own
   await waitFor(() => expect(item(store.state, bowls)?.pool_out).toEqual({}));
 });
 
-test("a pool's first check-out of a session asks the event, then opens the count field at 1 (FR-OUT-05, FR-OUT-25)", async () => {
+test("a pool's first check-out of a session opens the count field at 1, moves, then asks the event (FR-OUT-05, FR-OUT-25)", async () => {
   renderInShell(<Scan store={store} native />);
   await camera.scan("AAAAAAAAAA");
   await waitFor(() => expect(card()).toBeInTheDocument());
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
-  await user.click(
-    within(screen.getByRole("region", { name: "Which event" })).getByRole("button", { name: "No event" }),
-  );
+  expect(screen.queryByRole("region", { name: "Which event" })).not.toBeInTheDocument();
   const count = await within(card()).findByLabelText("How many");
   expect(count).toHaveValue(1);
   await user.clear(count);
   await user.type(count, "6");
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
-  await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Bowls" })).not.toBeInTheDocument());
   expect(item(store.state, bowls)?.pool_out).toEqual({ alice: 6 });
+  expect(store.pending.filter((e) => e.type === "checked_out").map((e) => e.payload)).toEqual([
+    { holder_id: "alice", count: 6, event: null, reservation_id: null },
+  ]);
+
+  const ask = await eventStrip();
+  await user.type(within(ask).getByLabelText("Event"), "Cub camp");
+  await user.click(within(ask).getByRole("button", { name: "Create" }));
+  expect(await screen.findByText("Event: Cub camp")).toBeInTheDocument();
+  const [cub] = res.reservations(store.state);
+  expect(cub).toMatchObject({ event: "Cub camp", generics: [{ item_id: bowls, quantity: 6 }] });
+  expect(screen.getByText("Event: Cub camp")).toBeInTheDocument();
 });
 
 test("scanning a pool's code takes the whole stack with All (FR-OUT-42)", async () => {
@@ -74,9 +83,6 @@ test("scanning a pool's code takes the whole stack with All (FR-OUT-42)", async 
   await camera.scan("AAAAAAAAAA");
   await waitFor(() => expect(card()).toBeInTheDocument());
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
-  await user.click(
-    within(screen.getByRole("region", { name: "Which event" })).getByRole("button", { name: "No event" }),
-  );
   await user.click(await within(card()).findByRole("button", { name: "All 20" }));
   await waitFor(() => expect(item(store.state, bowls)?.pool_out).toEqual({ alice: 20 }));
 });
@@ -131,9 +137,6 @@ test("the count panel is a keyboard form: a tap off the number box closes the pa
   await camera.scan("AAAAAAAAAA");
   await waitFor(() => expect(card()).toBeInTheDocument());
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
-  await user.click(
-    within(screen.getByRole("region", { name: "Which event" })).getByRole("button", { name: "No event" }),
-  );
   const count = await within(card()).findByLabelText("How many");
   expect(count).toHaveFocus();
   expect(count.closest("form")).toBe(within(card()).getByRole("button", { name: "Check out" }).closest("form"));
@@ -145,7 +148,7 @@ test("the count panel is a keyboard form: a tap off the number box closes the pa
   count.focus();
   await user.clear(count);
   await user.type(count, "3{Enter}");
-  await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Bowls" })).not.toBeInTheDocument());
   expect(item(store.state, bowls)?.pool_out).toEqual({ alice: 3 });
 });
 

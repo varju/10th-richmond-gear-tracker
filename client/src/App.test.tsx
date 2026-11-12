@@ -7,6 +7,7 @@ import { createApi } from "./lib/api";
 import { DAY_MS } from "./lib/clock";
 import { openDb } from "./lib/db";
 import { navigate } from "./lib/router";
+import { awaitingAnswer, sessionEvent } from "./lib/session";
 import { SNAPSHOT_VERSION, Store } from "./lib/store";
 
 const T0 = 1_756_684_800_000;
@@ -106,6 +107,31 @@ test("unsent work shows in the banner and blocks signing out", async () => {
   await user.click(screen.getByRole("button", { name: "Menu" }));
   expect(screen.getByRole("button", { name: "Sign out" })).toBeDisabled();
   expect(screen.getByText("Sign out after your unsent records are sent.")).toBeInTheDocument();
+});
+
+test("signing out keeps the waiting check-outs, and the next person signed in is not asked about them", async () => {
+  await store.setMeta({
+    token: "tok",
+    user: { id: "u9", name: "Zed", role: "user", active: true },
+    cursor: 2,
+    log_id: "log-one",
+    snapshot_version: SNAPSHOT_VERSION,
+    session_event: "Cub camp",
+    session_event_at: T0,
+    session_waiting: ["m1"],
+    session_waiting_user: "u9",
+  });
+  mount();
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Menu" }));
+  await user.click(screen.getByRole("button", { name: "Sign out" }));
+  await user.type(await screen.findByLabelText("Email"), "alice@example.org");
+  await user.type(screen.getByLabelText("Password"), "pw");
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  await screen.findByRole("button", { name: "Scan" });
+  expect(store.meta).toMatchObject({ user: { id: "u1" }, session_waiting: ["m1"], session_waiting_user: "u9" });
+  expect(awaitingAnswer(store.meta, T0)).toBe(false);
+  expect(sessionEvent(store.meta, T0)).toEqual({ waits: true });
 });
 
 test("the banner opens the unsent records page", async () => {

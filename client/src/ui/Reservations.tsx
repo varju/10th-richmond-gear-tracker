@@ -9,8 +9,9 @@ import {
   unplanned,
   upcoming,
 } from "../lib/reservations";
+import { answerEvent } from "../lib/movement";
 import { back, navigate, useRoute } from "../lib/router";
-import { sessionEvent, setSessionEvent } from "../lib/session";
+import { awaitingAnswer, sessionEvent } from "../lib/session";
 import type { Store } from "../lib/store";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
@@ -106,7 +107,10 @@ function UnplannedRows({ store, list, now }: { store: Store; list: Unplanned[]; 
   );
 }
 
-/** The picker for the event this device's check-outs record; it is open while the address has `change`. */
+/**
+ * The picker for the event this device's check-outs record; it is open while the address has `change`.
+ * It answers check-outs waiting for the event (FR-OUT-43).
+ */
 function ChangeEvent({ store, event }: { store: Store; event: string | undefined }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,7 +119,7 @@ function ChangeEvent({ store, event }: { store: Store; event: string | undefined
     if (busy) return;
     setBusy(true);
     try {
-      await setSessionEvent(store, name);
+      await answerEvent(store, name);
       if (new URLSearchParams(location.search).has("change")) back("/events");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not change the event");
@@ -137,11 +141,16 @@ function ChangeEvent({ store, event }: { store: Store; event: string | undefined
   );
 }
 
-/** The event this device's check-outs record, with a way to change it (FR-OUT-05). */
-function CurrentEvent({ event }: { event: string | undefined }) {
+/** The event this device's check-outs record, with a way to change it (FR-OUT-05). `waiting`: check-outs wait for the answer. */
+function CurrentEvent({ event, waiting }: { event: string | undefined; waiting: boolean }) {
+  const text = waiting
+    ? "Check-outs are waiting: which event?"
+    : event
+      ? `Check-outs go to: ${event}`
+      : "Check-outs have no event";
   return (
     <div className="session">
-      <span>{event ? `Check-outs go to: ${event}` : "Check-outs have no event"}</span>
+      <span>{text}</span>
       <button type="button" className="minor" onClick={() => navigate("/events?change=1")}>
         Change
       </button>
@@ -182,7 +191,7 @@ export function Reservations({ store }: { store: Store }) {
         </button>
       }
     >
-      <CurrentEvent event={event} />
+      <CurrentEvent event={event} waiting={awaitingAnswer(store.meta, now())} />
       {ahead.length === 0 && gone.length === 0 && loose.length === 0 && <p>No events.</p>}
       {ahead.length > 0 && <Rows list={ahead} />}
       {loose.length > 0 && <UnplannedRows store={store} list={loose} now={now} />}

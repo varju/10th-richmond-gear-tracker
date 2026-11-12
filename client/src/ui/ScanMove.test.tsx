@@ -10,7 +10,7 @@ import { unsaved } from "../lib/unsaved";
 import { openStore, printCodes } from "./codeTestKit";
 import { type FakeCamera, fakeCamera, stopFakeCamera } from "./scanTestKit";
 import { LeaveDialog } from "./LeaveDialog";
-import { alice, carol, renderInShell, seedUsers } from "./moveTestKit";
+import { alice, carol, eventStrip, renderInShell, seedUsers } from "./moveTestKit";
 import * as mv from "../lib/movement";
 import { reservations, todayIso } from "../lib/reservations";
 import { SESSION_MS } from "../lib/session";
@@ -54,11 +54,9 @@ const user = userEvent.setup();
 const card = () => screen.getByRole("region", { name: "Tent 1" });
 const pending = (type: string) => store.pending.filter((e) => e.type === type);
 
-/** The first check-out of a session asks for the event (FR-OUT-05); these tests skip it. */
+/** The first check-out of a session moves, then asks for the event (FR-OUT-05); these tests answer No event. */
 async function noEvent() {
-  await user.click(
-    within(await screen.findByRole("region", { name: "Which event" })).getByRole("button", { name: "No event" }),
-  );
+  await user.click(within(await eventStrip()).getByRole("button", { name: "No event" }));
 }
 
 test("scanning a missing item clears the mark before the card shows (FR-INV-19)", async () => {
@@ -75,11 +73,11 @@ test("scanning a missing item clears the mark before the card shows (FR-INV-19)"
   });
 });
 
-test("an assigned code shows the card; Check out asks the event, offering the last one, and syncs", async () => {
-  // Last used on an earlier evening: the session has ended, so the bar shows none (FR-OUT-38).
+test("an assigned code shows the card; Check out moves at once, then the bar asks the event, offering the last one", async () => {
+  // Last used on an earlier evening: the session has ended, so the bar shows none yet (FR-OUT-38).
   await store.setMeta({ session_event: "Spring camp", session_event_at: store.now() - SESSION_MS });
   renderInShell(<Scan store={store} native />);
-  expect(screen.getByText("No event")).toBeInTheDocument();
+  expect(screen.getByText("No event yet")).toBeInTheDocument();
 
   await camera.scan("AAAAAAAAAA");
   expect(location.pathname).toBe("/scan");
@@ -89,18 +87,31 @@ test("an assigned code shows the card; Check out asks the event, offering the la
   expect(within(card()).getByRole("button", { name: "Check out" })).toHaveClass("primary");
   expect(within(card()).queryByRole("button", { name: "Return" })).not.toBeInTheDocument();
 
+  expect(screen.queryByRole("region", { name: "Which event" })).not.toBeInTheDocument();
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
-  const ask = screen.getByRole("region", { name: "Which event" });
-  await user.click(within(ask).getByRole("button", { name: /Spring camp/ }));
-  expect(await screen.findByText("Checked out · Tent 1 · Spring camp")).toHaveAttribute("role", "status");
+  // The first confirmation names no event (FR-OUT-44).
+  expect(await screen.findByText("Checked out · Tent 1")).toHaveAttribute("role", "status");
   expect(screen.queryByRole("region", { name: "Tent 1" })).not.toBeInTheDocument();
   expect(pending("checked_out").map((e) => e.payload)).toEqual([
-    { holder_id: "alice", event: "Spring camp", reservation_id: expect.any(String) },
+    { holder_id: "alice", event: null, reservation_id: null },
   ]);
   expect(item(store.state, tent)).toMatchObject({
     status: "out",
     holder_id: "alice",
   });
+
+  // The bar above the viewfinder is the question until it is answered.
+  const ask = await eventStrip();
+  expect(ask.compareDocumentPosition(document.querySelector(".viewfinder")!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  expect(screen.queryByRole("button", { name: "Change" })).not.toBeInTheDocument();
+  await user.click(within(ask).getByRole("button", { name: /Spring camp/ }));
+  expect(await screen.findByText("Event: Spring camp")).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Which event" })).not.toBeInTheDocument();
+  const [made] = reservations(store.state);
+  expect(made).toMatchObject({ event: "Spring camp", items: [tent] });
+  expect(pending("event_corrected").map((e) => e.payload)).toEqual([
+    { movement_id: pending("checked_out")[0]!.id, event: "Spring camp", reservation_id: made!.id },
+  ]);
 });
 
 test("the confirmation goes when the next card opens and does not return after Skip (FR-OUT-53)", async () => {
@@ -176,8 +187,9 @@ test("someone else's gear offers Return and Take over with no default; Take over
   renderInShell(<Scan store={store} native />);
   await camera.scan("AAAAAAAAAA");
   await user.click(screen.getByRole("button", { name: "Check out" }));
-  await user.click(screen.getByRole("button", { name: /Spring camp/ }));
   await screen.findByText(/^Checked out · Tent 1/);
+  await user.click(within(await eventStrip()).getByRole("button", { name: /Spring camp/ }));
+  await screen.findByText("Event: Spring camp");
   const first = pending("checked_out")[0]!;
 
   await store.setMeta({ user: carol, session_event: "Cub camp" });
@@ -268,7 +280,8 @@ test("Skip dismisses the card; Edit opens the item's form", async () => {
 
 test("the session event is set once and persists on the device (FR-OUT-05)", async () => {
   renderInShell(<Scan store={store} native />);
-  expect(screen.getByText("No event")).toBeInTheDocument();
+  // Before a session starts, the first check-out will ask: no claim that none will be recorded.
+  expect(screen.getByText("No event yet")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Change" }));
   await user.type(screen.getByLabelText("Event"), "Spring camp");
   await user.click(screen.getByRole("button", { name: "Create" }));
@@ -327,10 +340,11 @@ async function twoUnderCubCamp() {
   renderInShell(<Scan store={store} native />);
   await camera.scan("AAAAAAAAAA");
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
-  const ask = screen.getByRole("region", { name: "Which event" });
+  await screen.findByText(/^Checked out · Tent 1/);
+  const ask = await eventStrip();
   await user.type(within(ask).getByLabelText("Event"), "Cub camp");
   await user.click(within(ask).getByRole("button", { name: "Create" }));
-  await screen.findByText(/^Checked out · Tent 1/);
+  await screen.findByText("Event: Cub camp");
   await camera.scan("CCCCCCCCCC");
   await user.click(within(screen.getByRole("region", { name: "Stove" })).getByRole("button", { name: "Check out" }));
   await screen.findByText(/^Checked out · Stove/);
@@ -345,15 +359,17 @@ async function changeTo(name: string) {
 }
 
 test("changing the event leaves the earlier moves under theirs", async () => {
-  await twoUnderCubCamp();
+  const stove = await twoUnderCubCamp();
+  const answered = pending("event_corrected").length;
   await changeTo("Scout camp");
   expect(await screen.findByText("Event: Scout camp")).toBeInTheDocument();
   expect(screen.queryByRole("group", { name: "Earlier moves" })).not.toBeInTheDocument();
-  expect(pending("event_corrected")).toHaveLength(0);
+  expect(pending("event_corrected")).toHaveLength(answered);
   expect(item(store.state, tent)?.movement?.event).toBe("Cub camp");
+  expect(item(store.state, stove)?.movement?.event).toBe("Cub camp");
 });
 
-test("the event is asked once a visit, offers today's calendar events, and Cancel moves nothing (FR-OUT-05, FR-RES-20)", async () => {
+test("the event is asked once a visit, after the first check-out, offering today's calendar events (FR-OUT-05, FR-RES-20)", async () => {
   const today = todayIso(Date.now());
   await store.setMeta({
     calendar_events: [
@@ -366,23 +382,82 @@ test("the event is asked once a visit, offers today's calendar events, and Cance
   renderInShell(<Scan store={store} native />);
   await camera.scan("AAAAAAAAAA");
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
-  const ask = screen.getByRole("region", { name: "Which event" });
-  expect(within(ask).queryByRole("button", { name: /Later camp/ })).not.toBeInTheDocument();
-  await user.click(within(ask).getByRole("button", { name: "Cancel" }));
-  expect(pending("checked_out")).toHaveLength(0);
-
-  await user.click(within(card()).getByRole("button", { name: "Check out" }));
-  await user.click(
-    within(screen.getByRole("region", { name: "Which event" })).getByRole("button", { name: /Cub camp/ }),
-  );
   await screen.findByText(/^Checked out · Tent 1/);
-  expect(screen.getByText("Event: Cub camp")).toBeInTheDocument();
+  const ask = await eventStrip();
+  expect(within(ask).queryByRole("button", { name: /Later camp/ })).not.toBeInTheDocument();
+  expect(within(ask).queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+  await user.click(within(ask).getByRole("button", { name: /Cub camp/ }));
+  expect(await screen.findByText("Event: Cub camp")).toBeInTheDocument();
 
   // The second check-out of the visit takes the same event without asking.
   await camera.scan("CCCCCCCCCC");
   await user.click(within(screen.getByRole("region", { name: "Stove" })).getByRole("button", { name: "Check out" }));
-  await screen.findByText(/^Checked out · Stove/);
-  expect(pending("checked_out").map((e) => e.payload.event)).toEqual(["Cub camp", "Cub camp"]);
+  expect(await screen.findByText("Checked out · Stove · Cub camp")).toBeInTheDocument();
+  expect(pending("checked_out").map((e) => e.payload.event)).toEqual([null, "Cub camp"]);
+  expect(item(store.state, tent)?.movement?.event).toBe("Cub camp");
+});
+
+test("check-outs made while the question waits all take the answer", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  await act.bindCode(store, "CCCCCCCCCC", stove);
+  renderInShell(<Scan store={store} native />);
+  await camera.scan("AAAAAAAAAA");
+  await user.click(within(card()).getByRole("button", { name: "Check out" }));
+  await screen.findByText("Checked out · Tent 1");
+  await camera.scan("CCCCCCCCCC");
+  await user.click(within(screen.getByRole("region", { name: "Stove" })).getByRole("button", { name: "Check out" }));
+  await screen.findByText("Checked out · Stove");
+  const ask = await eventStrip();
+  await user.type(within(ask).getByLabelText("Event"), "Cub camp");
+  await user.click(within(ask).getByRole("button", { name: "Create" }));
+  await screen.findByText("Event: Cub camp");
+  expect(pending("event_corrected").map((e) => e.entity_id)).toEqual([tent, stove]);
+  expect(reservations(store.state)[0]).toMatchObject({ event: "Cub camp", items: [tent, stove] });
+});
+
+test("a take-over before the answer keeps the gear's event and reservation, and asks nothing (FR-OUT-56)", async () => {
+  const first = await mv.checkOut(store, tent, { event: "Fall Camp", reservation_id: "r-fall" });
+  await store.setMeta({ user: carol });
+  renderInShell(<Scan store={store} native />);
+  await camera.scan("AAAAAAAAAA");
+  await user.click(within(card()).getByRole("button", { name: "Take over" }));
+  expect(await screen.findByText("Transferred · Tent 1")).toBeInTheDocument();
+  expect(pending("checked_out").at(-1)!.payload).toEqual({
+    holder_id: "carol",
+    event: "Fall Camp",
+    reservation_id: "r-fall",
+    supersedes: first.id,
+  });
+  expect(screen.queryByRole("region", { name: "Which event" })).not.toBeInTheDocument();
+});
+
+test("the bar's question ignores taps for a moment after it appears", async () => {
+  renderInShell(<Scan store={store} native />);
+  await camera.scan("AAAAAAAAAA");
+  await user.click(within(card()).getByRole("button", { name: "Check out" }));
+  await screen.findByText("Checked out · Tent 1");
+  await user.click(
+    within(screen.getByRole("region", { name: "Which event" })).getByRole("button", { name: "No event" }),
+  );
+  expect(mv.waitingMoves(store)).toHaveLength(1);
+  await noEvent();
+  await waitFor(() => expect(store.meta.session_waiting).toBeUndefined());
+  expect(mv.waitingMoves(store)).toEqual([]);
+});
+
+test("an edit left open on the scan bar is dropped when the question takes the bar", async () => {
+  renderInShell(<Scan store={store} native />);
+  await user.click(screen.getByRole("button", { name: "Change" }));
+  await user.type(screen.getByLabelText("Event"), "Draft");
+  await camera.scan("AAAAAAAAAA");
+  await user.click(within(card()).getByRole("button", { name: "Check out" }));
+  await screen.findByText("Checked out · Tent 1");
+  const ask = await eventStrip();
+  await user.type(within(ask).getByLabelText("Event"), "Cub camp");
+  await user.click(within(ask).getByRole("button", { name: "Create" }));
+  expect(await screen.findByText("Event: Cub camp")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Event")).not.toBeInTheDocument();
+  expect(unsaved.any).toBe(false);
 });
 
 test("No event is one tap and records none", async () => {
@@ -393,7 +468,7 @@ test("No event is one tap and records none", async () => {
   await noEvent();
   await screen.findByText(/^Checked out · Tent 1/);
   expect(pending("checked_out")[0]!.payload.event).toBeNull();
-  expect(store.meta.session_event).toBeUndefined();
+  await waitFor(() => expect(store.meta.session_event).toBeUndefined());
 });
 
 test("Transfer to… hands gear to another member; the history names both (FR-OUT-26)", async () => {
@@ -408,8 +483,8 @@ test("Transfer to… hands gear to another member; the history names both (FR-OU
   await user.type(within(picker).getByLabelText("Transfer to"), "bo");
   expect(within(picker).queryByRole("button", { name: "Carol" })).not.toBeInTheDocument();
   await user.click(within(picker).getByRole("button", { name: "Bob" }));
-  await noEvent();
   expect(await screen.findByText("Transferred to Bob · Tent 1")).toHaveAttribute("role", "status");
+  expect(screen.queryByRole("region", { name: "Which event" })).not.toBeInTheDocument();
   const handed = pending("checked_out").at(-1)!;
   expect(handed.actor_id).toBe("alice");
   expect(handed.payload).toMatchObject({ holder_id: "bob", supersedes: pending("checked_out")[0]!.id });
@@ -489,7 +564,7 @@ test("the answer holds across leaving the scan screen, and a session ends four h
   renderInShell(<Scan store={store} native />);
   await camera.scan("AAAAAAAAAA");
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
-  expect(screen.getByRole("region", { name: "Which event" })).toBeInTheDocument();
+  expect(await screen.findByRole("region", { name: "Which event" })).toBeInTheDocument();
 });
 
 test("plain scanning never packs a reservation, even one an older build left in the session", async () => {
@@ -501,13 +576,13 @@ test("plain scanning never packs a reservation, even one an older build left in 
   renderInShell(<Scan store={store} native />);
   await camera.scan("AAAAAAAAAA");
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
-  await user.click(
-    within(screen.getByRole("region", { name: "Which event" })).getByRole("button", { name: /Fall Camp/ }),
-  );
   await screen.findByText(/^Checked out · Tent 1/);
-  expect(pending("checked_out")[0]!.payload).toMatchObject({ event: "Fall Camp" });
-  expect(pending("checked_out")[0]!.payload.reservation_id).not.toBe("r-fall");
+  expect(pending("checked_out")[0]!.payload).toMatchObject({ event: null, reservation_id: null });
   expect(store.meta.session_reservation_id).toBeUndefined();
+  await user.click(within(await eventStrip()).getByRole("button", { name: /Fall Camp/ }));
+  await screen.findByText("Event: Fall Camp");
+  expect(pending("event_corrected")[0]!.payload).toMatchObject({ event: "Fall Camp" });
+  expect(pending("event_corrected")[0]!.payload.reservation_id).not.toBe("r-fall");
 });
 
 test("each move keeps the session going: it ends four hours after the last one, not the first (FR-OUT-38)", async () => {
@@ -531,15 +606,17 @@ test("each move keeps the session going: it ends four hours after the last one, 
   expect(pending("checked_out").map((e) => e.payload.event)).toEqual(["Spring camp", "Spring camp"]);
 });
 
-test("an event shown when the card opened but ended before the tap asks again, never recording nothing", async () => {
+test("an event shown when the card opened but ended before the tap waits for an answer, never recording nothing", async () => {
   await store.setMeta({ session_event: "Spring camp", session_event_at: store.now() });
   renderInShell(<Scan store={store} native />);
   expect(screen.getByText("Event: Spring camp")).toBeInTheDocument();
   await camera.scan("AAAAAAAAAA");
   ahead += SESSION_MS;
   await user.click(within(card()).getByRole("button", { name: "Check out" }));
-  const ask = screen.getByRole("region", { name: "Which event" });
+  await screen.findByText("Checked out · Tent 1");
+  expect(pending("checked_out")[0]!.payload.event).toBeNull();
+  const ask = await eventStrip();
   await user.click(within(ask).getByRole("button", { name: /Spring camp/ }));
-  await screen.findByText(/^Checked out · Tent 1/);
-  expect(pending("checked_out")[0]!.payload.event).toBe("Spring camp");
+  await screen.findByText("Event: Spring camp");
+  expect(item(store.state, tent)?.movement?.event).toBe("Spring camp");
 });

@@ -125,13 +125,13 @@ test("a scanned sticker checks its item out and back in", async ({ request }) =>
     await signIn(page);
     await page.goto("/scan");
 
-    // First decode: the wasm loads and the camera starts. Then take the tent; the first check-out asks the event.
+    // First decode: the wasm loads and the camera starts. Then take the tent; the first check-out then asks the event.
     const card = page.getByRole("heading", { name: ITEM });
     await expect(card).toBeVisible({ timeout: 10_000 });
     const region = page.getByRole("region", { name: ITEM });
     await region.getByRole("button", { name: "Check out" }).click();
-    await page.getByRole("region", { name: "Which event" }).getByRole("button", { name: "No event" }).click();
     await expect(page.getByRole("status").filter({ hasText: `Checked out · ${ITEM}` })).toBeVisible();
+    await page.getByRole("region", { name: "Which event" }).getByRole("button", { name: "No event" }).click();
 
     // The sticker is still in front of the camera; once the rescan pause is over, the card offers Return.
     const checkIn = region.getByRole("button", { name: "Return" });

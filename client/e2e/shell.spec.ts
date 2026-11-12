@@ -122,9 +122,9 @@ test("an item can be checked out and in from its page", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Tent 1" })).toBeVisible();
 
   await page.getByRole("button", { name: "Check out" }).click();
-  // No session is running, so the page asks the event first, as a scan does (FR-OUT-05).
-  await page.getByRole("region", { name: "Which event" }).getByRole("button", { name: "No event" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Checked out · Tent 1" })).toBeVisible();
+  // No session was running, so the page now asks the event, as a scan does (FR-OUT-05).
+  await page.getByRole("region", { name: "Which event" }).getByRole("button", { name: "No event" }).click();
   await expect(page.getByText(/^Out · Alice$/)).toBeVisible();
   await page.getByRole("button", { name: "Return" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Returned · Tent 1" })).toBeVisible();
@@ -143,9 +143,9 @@ test("Check out on a counted stack opens How many and checks nothing out", async
   await expect(page.getByRole("heading", { name: "Mess bowls" })).toBeVisible();
 
   await page.getByRole("button", { name: "Check out" }).click();
-  await page.getByRole("region", { name: "Which event" }).getByRole("button", { name: "No event" }).click();
   await page.getByRole("button", { name: "Check out" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Checked out 1 · Mess bowls" })).toBeVisible();
+  await page.getByRole("region", { name: "Which event" }).getByRole("button", { name: "No event" }).click();
   await page.getByRole("button", { name: "Return" }).click();
   await page.getByRole("button", { name: "Return" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Returned 1 · Mess bowls" })).toBeVisible();

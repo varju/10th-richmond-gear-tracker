@@ -13,18 +13,18 @@ import {
   putBack,
   resolveItem,
 } from "../lib/inventory";
-import { checkOut } from "../lib/movement";
+import { answerEvent, checkOut } from "../lib/movement";
 import { addExtra, isPacked, type Remaining, remaining, type Reservation, reservation } from "../lib/reservations";
 import { back, navigate, useRoute } from "../lib/router";
 import { confirmRead, READ_MS, type Scanner, startScanner, unlockSound } from "../lib/scanner";
 import type { Store } from "../lib/store";
 import { NATIVE } from "../lib/server";
-import { type Session, sessionEvent, setSessionEvent } from "../lib/session";
+import { awaitingAnswer, eventAsked, type Session, sessionEvent } from "../lib/session";
 import { guard, useUnsaved } from "../lib/unsaved";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { PoolActions } from "./ItemPage";
-import { EventSuggestions, typedEvents } from "./EventChoice";
+import { EventStrip, EventSuggestions, typedEvents } from "./EventChoice";
 import { holdingLabel, plural, statusLabel, userName } from "./labels";
 import { MOVED_MS, MoveActions, movedText, useFlash } from "./MoveActions";
 import { LightButton, useLight } from "./Light";
@@ -46,8 +46,8 @@ export const RESCAN_MS = 3000;
  * /g/<code>. With ?for=<itemId> the code is a replacement sticker for that item
  * and is bound here (FR-TAG-04). With ?reservation=<id> the session is seeded
  * with that reservation's gear (FR-RES-02). There is no mode: the card offers
- * the move that fits the item's state (FR-OUT-06). The first check-out or
- * transfer of a session asks for the event (FR-OUT-05). An item just moved is not
+ * the move that fits the item's state (FR-OUT-06). The first check-out of a
+ * session moves at once, and the bar then asks for the event (FR-OUT-05). An item just moved is not
  * shown again for three seconds, since the camera is still on the sticker when
  * the card closes. After that a rescan shows it again, so a wrong check-out is
  * undone by scanning it and tapping Return.
@@ -80,10 +80,9 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
   const bound = useRef(false);
   // For the diagnostics line: codes handled, dropped behind the card, as rescans or after binding, and unsettled.
   const counts = useRef({ handled: 0, behindCard: 0, rescans: 0, afterBind: 0, waiting: 0 });
-  // The first check-out of a session asks its event (FR-OUT-05); a reservation's session has the reservation's (FR-RES-03).
+  // A plain session asks its event after its first check-out (FR-OUT-05); a reservation's session has the reservation's (FR-RES-03).
   const packing: Session | undefined = booked ? { event: booked.event, reservation_id: booked.id } : undefined;
   const me = store.meta.user?.id;
-  // Read after the move, so an event answered on the way is the one named.
   const withEvent = (text: string) => {
     const event = (packing ?? sessionEvent(store.meta, store.now())).event;
     return event ? `${text} · ${event}` : text;
@@ -474,20 +473,25 @@ function Finish({ store, booked }: { store: Store; booked: Reservation }) {
 
 /**
  * The plain scanning session's event, until changed, cleared, or the session ends (FR-OUT-05,
- * FR-OUT-38). A setting on this device. A move re-checks it when made, so an event shown here that
- * has since ended asks again rather than recording nothing. A change leaves earlier moves as they
- * were; the item page corrects one (FR-OUT-41).
+ * FR-OUT-38). A setting on this device. While check-outs wait for it, the bar is the event question.
+ * A move re-checks it when made, so an event shown here that has since ended waits for an answer
+ * rather than recording nothing. A change leaves earlier answered moves as they were; the item page
+ * corrects one (FR-OUT-41).
  */
 function SessionEvent({ store }: { store: Store }) {
   const { event } = sessionEvent(store.meta, store.now());
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
-  useUnsaved(editing && draft.trim() !== (event ?? ""), { save: () => change(draft.trim() || undefined) });
+  const waiting = awaitingAnswer(store.meta, store.now());
+  useEffect(() => {
+    if (waiting) setEditing(false);
+  }, [waiting]);
+  useUnsaved(!waiting && editing && draft.trim() !== (event ?? ""), { save: () => change(draft.trim() || undefined) });
 
   async function change(next: string | undefined): Promise<boolean> {
     try {
-      await setSessionEvent(store, next);
+      await answerEvent(store, next);
       setEditing(false);
       setError(null);
       return true;
@@ -503,6 +507,7 @@ function SessionEvent({ store }: { store: Store }) {
   }
 
   const suggestions = editing ? typedEvents(store, draft) : [];
+  if (waiting) return <EventStrip store={store} />;
   const bar = editing ? (
     <form className="session" onSubmit={create}>
       <input
@@ -522,7 +527,7 @@ function SessionEvent({ store }: { store: Store }) {
     </form>
   ) : (
     <div className="session">
-      <span>{event ? `Event: ${event}` : "No event"}</span>
+      <span>{event ? `Event: ${event}` : eventAsked(store.meta, store.now()) ? "No event" : "No event yet"}</span>
       <button
         type="button"
         className="minor"

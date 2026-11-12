@@ -8,7 +8,6 @@ import type { Store } from "../lib/store";
 import { useUnsaved } from "../lib/unsaved";
 import { keepLabel, weighing } from "../lib/weighing";
 import { CleanerField } from "./CleanerField";
-import { useEventQuestion } from "./EventChoice";
 import { TransferPicker } from "./TransferPicker";
 import { WeighEntry, weighHint } from "./Weighing";
 
@@ -94,12 +93,10 @@ export function MoveActions({
   const [weighing_, setWeighing] = useState(false);
   // The name being typed for gear sent home with someone (FR-OUT-46); null when not asking.
   const [cleaner, setCleaner] = useState<string | null>(null);
-  // A move waiting on the event question (FR-OUT-05).
-  const { askThen, question } = useEventQuestion(store, session);
   // A typed problem goes with a move or Save without moving; leaving asks but cannot save it.
   useUnsaved((fault !== null && fault.trim() !== "") || (cleaner !== null && cleaner.trim() !== ""));
   const me = store.meta.user?.id;
-  const { event } = session ?? sessionEvent(store.meta, store.now());
+  const { event, waits } = session ?? sessionEvent(store.meta, store.now());
   const open = openRepairs(store.state, it.id);
 
   const out = it.status === "out";
@@ -108,18 +105,20 @@ export function MoveActions({
   // Someone else has it, as far as this phone knows: no default, since the record may be stale.
   const theirs = out && movable && it.holder_id !== me;
 
-  /** Moves that record an event ask for it first, once a session (FR-OUT-05). A return never does. */
+  /**
+   * Moves that record an event take the session's, read when the move is made (FR-OUT-05); before it
+   * is answered they move at once and wait for it. A return records none.
+   */
   function start(pending: Pending, recordsEvent: boolean) {
-    if (recordsEvent) askThen((recorded) => void run(pending, recorded));
-    else void run(pending, {});
+    void run(pending, recordsEvent ? session ?? sessionEvent(store.meta, store.now()) : {});
   }
 
-  /** `recorded` is what the event question checked when the move was made, so what was shown is what is stamped. */
   async function run({ kind, to, cleaner: cleanerName, act }: Pending, recorded: Session) {
     setBusy(true);
     setError(null);
     const options = {
       event: recorded.event,
+      waits: recorded.waits,
       // Handing gear to someone else is not packing it for the reservation (FR-RES-23).
       reservation_id: to ? undefined : recorded.reservation_id,
       // Packing has its own fixed session and leaves the plain one alone (FR-RES-25).
@@ -209,9 +208,6 @@ export function MoveActions({
     act: (o) => sendItemHome(store, it.id, { packing: o.packing, cleaner: name }),
   });
 
-  const asking = question(children);
-  if (asking) return asking;
-
   return (
     <div className="move-actions">
       {error && (
@@ -294,7 +290,9 @@ export function MoveActions({
               Check out
             </button>
           )}
-          {canTake && showEvent && <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>}
+          {canTake && showEvent && !waits && (
+            <p className="muted small event-hint">{event ? `Event: ${event}` : "No event"}</p>
+          )}
           {out && movable && it.movement?.cleaner && (
             <button type="button" className="primary" disabled={holding} onClick={() => start(backMove, false)}>
               Back from {it.movement.cleaner}

@@ -4,11 +4,11 @@ Check-out and check-in. This is the loop that has to be faster than walking off 
 
 ## S-MOVE-01 Take gear to camp
 
-A Scouter taps Scan and scans six items. Each scan shows the item; one tap checks it out. The first check-out asks which
-event, offering tonight's calendar entry; one tap picks it.
+A Scouter taps Scan and scans six items. Each scan shows the item; one tap checks it out. After the first check-out, the
+top of the screen asks which event, offering tonight's calendar entry; one tap picks it.
 
-- The event is asked once and applies to everything scanned after it
-- Skipping the event is one tap
+- The event is asked once and applies to everything scanned before and after the answer
+- Skipping the event is one tap, and ignoring it loses only the event
 - Each scan shows the item so it can be checked against what is in hand
 - The confirmation names the event, and **Events** shows and changes it
 - One tap confirms and the scanner is ready again

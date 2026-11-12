@@ -852,6 +852,14 @@ main:has(> .viewfinder) {
   overflow-y: auto;
 }
 
+/* On the scan screen the event question is the session row until it is answered. */
+main:has(> .viewfinder) > .event-choice {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rule);
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
 /* The card sits over the lower part of the viewfinder; the video keeps running behind it. */
 .move-card {
   position: absolute;
@@ -900,7 +908,7 @@ main:has(> .viewfinder) {
   grid-column: 1 / -1;
 }
 
-/* The event question and the transfer list take the card's place for a moment (FR-OUT-05, FR-OUT-26). */
+/* The event question and the transfer list (FR-OUT-05, FR-OUT-26). */
 .event-choice,
 .transfer-picker {
   display: grid;

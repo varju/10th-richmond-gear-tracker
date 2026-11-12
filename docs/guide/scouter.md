@@ -4,11 +4,12 @@
 
 ### Check gear out
 
-Tap **Scan** and point the camera at a code. The card shows the item; tap **Check out**. The first check-out asks for
-the event: tap one from the list, type a name and tap **Create**, or tap **No event**. Later check-outs use the same
-event until four hours pass with no move. To switch events, tap **Change** at the top. The confirmation names the event.
-Checking out from an item's page asks the same way. **Events** shows the event check-outs go to, with **Change** beside
-it.
+Tap **Scan** and point the camera at a code. The card shows the item; tap **Check out**. It is yours at once. The top of
+the screen then asks "Which event?": tap one from the list, type a name and tap **Create**, or tap **No event**. Gear
+you take before you answer gets the answer too. Skip the question and the gear is still out to you, just with no event.
+Later check-outs use the same event until four hours pass with no move. To switch events, tap **Change** at the top. The
+confirmation names the event. Checking out from an item's page asks the same way, above the buttons. **Events** shows
+the event check-outs go to, with **Change** beside it.
 
 ### Return gear
 
@@ -26,7 +27,7 @@ lb left (40%)".
 ### Take some of a stack
 
 Some gear is counted, not labelled one by one: bowls, mugs, tent pegs. Scan the stack's code if it has one, or find it
-by search, and tap **Check out**. It asks how many — starting at 1 — and the event, same as any check-out. To take them
+by search, and tap **Check out**. It asks how many — starting at 1 — then the event, same as any check-out. To take them
 all, like a whole bag of PFDs, tap **All**. **Return** offers the count you have out; confirm it, or change it if you
 are keeping some back.
 

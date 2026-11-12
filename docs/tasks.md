@@ -28,36 +28,6 @@ leaving the screen.
 **Considered:** re-run `aim()` on resume and when an interruption ends, and re-trigger focus when nothing is read for a
 few seconds. A guess until the diagnostics say which.
 
-## Check out first, ask the event after
-
-The first check-out of a plain session asks "Which event?" before it moves anything. Scouters miss that it must be
-answered, and walk off with nothing recorded.
-
-- The first check-out moves at once, with no event. A take-over or transfer moves at once and keeps the event and
-  reservation the gear was already out under (as the cleaner branch of `transfer()` does), so nothing drops off an
-  event's list.
-- A strip then asks "Which event?" with Last used, today's calendar events, a typed name, and **No event**. **Create**
-  and **No event** are equal answers, both styled as primary. No Cancel: the move is done, and Return undoes a
-  check-out.
-- An answer does what an answer given first does today (`planned()` in `client/src/lib/movement.ts`): find or make the
-  reservation, correct each waiting move to it by id with `correctEvent`, and join its gear list (FR-OUT-45, FR-RES-38).
-  `changeEvent` is not enough: it does not relink a move no reservation took. The session then uses the answer.
-- Waiting moves are held by movement id in `meta`, so the strip survives leaving the screen and a restart. They lapse
-  with the session, four hours after the last move (FR-OUT-38); a no-event move must now start or extend the session. A
-  waiting move since returned or taken over by someone else is dropped from the list.
-- On the scan screen the strip is the `SessionEvent` bar above the viewfinder while unanswered, not a second control. On
-  item pages it sits above the actions. **Change** there or on **Events** (FR-OUT-43) while moves wait counts as the
-  answer.
-- Pools follow the same rule: `PoolActions` in `ItemPage.tsx` has its own `useEventQuestion`.
-- Ignoring the strip loses only the event, never the move.
-- Files: `EventChoice.tsx`, `MoveActions.tsx`, `Scan.tsx`, `ItemPage.tsx`, `client/src/lib/session.ts`,
-  `client/src/lib/store.ts`, `client/src/lib/movement.ts`. Reservation sessions are unchanged: they know their event.
-- Requirements: reword FR-OUT-05, FR-OUT-37, FR-OUT-38, FR-OUT-44 (the first confirmation names no event), and FR-OUT-41
-  / FR-RES-40 for the relink. The assistant's `check_out` already takes the event up front.
-- Docs: "The first check-out asks for the event" and the pool line in `docs/guide/scouter.md`; the session paragraph in
-  `docs/architecture.md`.
-- Client change: add a line to `docs/pending-ios.md`.
-
 ## Tidy the desk inventory's filter bar
 
 The desk **Inventory** screen opens with six labelled boxes reading "Any", two checkboxes, two buttons and a row count
