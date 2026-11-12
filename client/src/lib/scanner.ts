@@ -82,6 +82,8 @@ export interface Scanner {
   resume(): void;
   /** The light on or off, where `onReady` said there is one. */
   torch?(on: boolean): void;
+  /** The app's scanner state, for the scan screen's hidden diagnostics line. */
+  diagnostics?(): Promise<Record<string, unknown>>;
 }
 
 /**
@@ -391,6 +393,9 @@ export function startScanner(
 /** What the page says when the app's camera stops and its own retry failed. Coming back to the app tries again. */
 export const NATIVE_STOPPED = "The camera stopped. Leave the app and come back to try again.";
 
+/** How long the diagnostics line waits on the plugin. */
+export const DIAG_WAIT_MS = 1000;
+
 /**
  * The app's scanner. The camera, its lifecycle and the decode are native; the page sends where the viewfinder and
  * target are. The plugin drops repeats of a code inside `REPEAT_MS`, so no `Debounce` here. Like the web scanner,
@@ -413,11 +418,16 @@ function startNativeScanner(
   let web: Scanner | null = null;
   let frame = 0;
   let sent = "";
+  let received = 0;
+  let dropped = 0;
+  let probe: Promise<unknown> | null = null;
 
   const listeners = [
     bridge.addListener!(PLUGIN, "code", (data) => {
       const text = (data as { text?: string } | null)?.text;
+      received += 1;
       if (live && !stopped && text) onCode(text);
+      else dropped += 1;
     }),
     // The camera is running: after start, and again after the app was left or an error.
     bridge.addListener!(PLUGIN, "ready", (data) => {
@@ -491,6 +501,21 @@ function startNativeScanner(
     },
     torch(on: boolean) {
       if (live && !stopped && torch) quiet("torch", { on });
+    },
+    async diagnostics() {
+      const page = { received, dropped, live, stopped, paused, web: web !== null };
+      if (web || stopped) return { page };
+      // A plugin that never answers gets one call, not one per poll.
+      probe ??= bridge
+        .nativePromise(PLUGIN, "diag", {})
+        .catch((e: unknown) => ({ diag: "failed", error: (e as { code?: string } | null)?.code ?? String(e) }))
+        .finally(() => (probe = null));
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const plugin = await Promise.race([
+        probe,
+        new Promise((r) => (timer = setTimeout(() => r({ diag: "timeout" }), DIAG_WAIT_MS))),
+      ]).finally(() => clearTimeout(timer));
+      return { ...(plugin as object), page };
     },
   };
 }

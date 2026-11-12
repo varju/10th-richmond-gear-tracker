@@ -26,6 +26,8 @@ What the app does differently.
 - An event page's **Link other gear that is out** list groups gear by the event it is out under.
 - Your devices names each device, such as "iPhone app" or "Chrome on Mac", with its app version and when it was last
   seen. The app sends its version to the server with every request.
+- A long press on the scan viewfinder shows a hidden line of scanner state, for a screenshot when the scanner stops
+  reading.
 
 ## Chores
 

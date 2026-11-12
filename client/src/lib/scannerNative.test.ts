@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { NATIVE_CLASS, NATIVE_STOPPED, startScanner } from "./scanner";
+import { DIAG_WAIT_MS, NATIVE_CLASS, NATIVE_STOPPED, startScanner } from "./scanner";
 
 vi.mock("zxing-wasm/reader", () => ({ prepareZXingModule: () => {}, readBarcodes: () => new Promise(() => {}) }));
 
@@ -7,7 +7,11 @@ vi.mock("zxing-wasm/reader", () => ({ prepareZXingModule: () => {}, readBarcodes
  * The app's ScannerPlugin as the page sees it: calls are recorded, and `start` settles as the test says. As the
  * plugin does, a start that lands is followed by `ready` once the camera runs.
  */
-function fakeBridge(start: () => Promise<unknown> = async () => undefined, torch = true) {
+function fakeBridge(
+  start: () => Promise<unknown> = async () => undefined,
+  torch = true,
+  diag: () => Promise<unknown> = async () => ({ running: true, zoom: 1.5 }),
+) {
   const calls: { method: string; args: object }[] = [];
   const listeners = new Map<string, (data: unknown) => void>();
   const removed: string[] = [];
@@ -17,6 +21,7 @@ function fakeBridge(start: () => Promise<unknown> = async () => undefined, torch
     nativePromise: vi.fn(async (plugin: string, method: string, args: object) => {
       expect(plugin).toBe("ScannerPlugin");
       calls.push({ method, args });
+      if (method === "diag") return diag();
       if (method !== "start") return undefined;
       const result = await start();
       setTimeout(() => send("ready", { torch }), 0);
@@ -218,6 +223,44 @@ test("the camera stopping says coming back to the app tries again, and its retur
   expect(NATIVE_STOPPED).toMatch(/come back/);
   fake.send("ready", { torch: false });
   expect(onReady).toHaveBeenCalledTimes(2);
+  scanner.stop();
+});
+
+test("diagnostics add the page's counts to the plugin's state, even before start lands, where a code counts as dropped", async () => {
+  let land = () => {};
+  const fake = fakeBridge(() => new Promise<void>((r) => (land = r)));
+  const onReady = vi.fn();
+  const scanner = startScanner(viewfinder(), () => {}, { onReady }, fake.bridge, true);
+  fake.send("code", { text: "A" });
+  expect(await scanner.diagnostics?.()).toEqual({
+    running: true,
+    zoom: 1.5,
+    page: { received: 1, dropped: 1, live: false, stopped: false, paused: false, web: false },
+  });
+  land();
+  await vi.waitFor(() => expect(onReady).toHaveBeenCalled());
+  fake.send("code", { text: "B" });
+  expect(await scanner.diagnostics?.()).toEqual({
+    running: true,
+    zoom: 1.5,
+    page: { received: 2, dropped: 1, live: true, stopped: false, paused: false, web: false },
+  });
+  scanner.stop();
+});
+
+test("a plugin that does not answer still leaves the page's counts", async () => {
+  const fake = fakeBridge(undefined, true, () => new Promise(() => {}));
+  const onReady = vi.fn();
+  const scanner = startScanner(viewfinder(), () => {}, { onReady }, fake.bridge, true);
+  await vi.waitFor(() => expect(onReady).toHaveBeenCalled());
+  vi.useFakeTimers();
+  try {
+    const answer = scanner.diagnostics?.();
+    await vi.advanceTimersByTimeAsync(DIAG_WAIT_MS);
+    expect(await answer).toMatchObject({ diag: "timeout", page: { live: true } });
+  } finally {
+    vi.useRealTimers();
+  }
   scanner.stop();
 });
 

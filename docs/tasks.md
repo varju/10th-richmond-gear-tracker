@@ -22,9 +22,8 @@ found no clear cause. Suspects, most likely first:
 4. An IndexedDB write that never settles: `seen()` in plain mode, or `bindCode` in Scan new code, where `bound.current`
    then drops every code.
 
-**Next:** a hidden diagnostics line on the scan screen (long-press the viewfinder) to screenshot next time: plugin state
-(scanning, paused, running, interrupted, `rectOfInterest`, zoom, lens position, focus adjusting, codes seen and dropped)
-and JS state (codes received and dropped, `cardOpen`, `cardItem`, `bound`, a `handle` still waiting).
+**Next:** when it happens again, long-press the viewfinder to show the diagnostics line, and screenshot it before
+leaving the screen.
 
 **Considered:** re-run `aim()` on resume and when an interruption ends, and re-trigger focus when nothing is read for a
 few seconds. A guess until the diagnostics say which.

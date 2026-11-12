@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type FormEvent, type PointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { bindCode, seen } from "../lib/actions";
 import { parseCode } from "../lib/codes";
 import {
@@ -32,6 +32,10 @@ import { Page } from "./Page";
 import { WeighActions } from "./Weighing";
 
 const FLASH_MS = 2000;
+/** The press that opens the diagnostics line. */
+export const DIAG_PRESS_MS = 800;
+const DIAG_EVERY_MS = 500;
+const DIAG_DRIFT_PX = 10;
 /** How long after a move the same sticker is ignored: long enough to lower the phone, short enough to undo a mistake. */
 export const RESCAN_MS = 3000;
 
@@ -74,6 +78,8 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
   const scanner = useRef<Scanner | null>(null);
   // A replacement sticker binds once; the camera can read again before the screen has gone.
   const bound = useRef(false);
+  // For the diagnostics line: codes handled, dropped behind the card, as rescans or after binding, and unsettled.
+  const counts = useRef({ handled: 0, behindCard: 0, rescans: 0, afterBind: 0, waiting: 0 });
   // The first check-out of a session asks its event (FR-OUT-05); a reservation's session has the reservation's (FR-RES-03).
   const packing: Session | undefined = booked ? { event: booked.event, reservation_id: booked.id } : undefined;
   const me = store.meta.user?.id;
@@ -108,13 +114,19 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
         const itemId = bound ? resolveItem(store.state, bound) : null;
         const movedAt = itemId ? moved.current.get(itemId) : undefined;
         // The camera is still on the sticker just moved: no buzz, and the target goes amber, not green.
-        if (movedAt !== undefined && Date.now() - movedAt < RESCAN_MS) return flashRead("ignored");
+        if (movedAt !== undefined && Date.now() - movedAt < RESCAN_MS) {
+          counts.current.rescans += 1;
+          return flashRead("ignored");
+        }
         confirmRead();
         flashRead("read");
         if (itemId) await seen(store, itemId);
         return showCard(itemId);
       }
-      if (bound.current) return;
+      if (bound.current) {
+        counts.current.afterBind += 1;
+        return;
+      }
       confirmRead();
       flashRead("read");
       if (status !== "unassigned") {
@@ -149,7 +161,16 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
     const started = startScanner(
       video,
       (text) => {
-        if (!cardOpen.current) void latest.current(text);
+        const c = counts.current;
+        if (cardOpen.current) {
+          c.behindCard += 1;
+          return;
+        }
+        c.handled += 1;
+        c.waiting += 1;
+        void latest.current(text).finally(() => {
+          c.waiting -= 1;
+        });
       },
       {
         target: () => target.current,
@@ -172,6 +193,12 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
   }, [video, native, ready, gone]);
 
   const card = cardItem ? item(store.state, cardItem) : undefined;
+  const diag = useDiagnostics(async () => {
+    const js = { ...counts.current, cardOpen: cardOpen.current, cardItem, bound: bound.current };
+    const s = scanner.current;
+    const own = !s ? "no scanner" : s.diagnostics ? diagText(await s.diagnostics()) : "web scanner";
+    return `${own} | ${diagText(js)}`;
+  });
 
   return (
     <Page
@@ -195,7 +222,7 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
         ) : (
           <SessionEvent store={store} />
         ))}
-      <div className={read ? `viewfinder ${read}` : "viewfinder"}>
+      <div className={read ? `viewfinder ${read}` : "viewfinder"} {...diag.press}>
         <video ref={setVideo} muted playsInline hidden={cameraError !== null} />
         {!cameraError && (!card || read) && <div ref={target} className="target" aria-hidden="true" />}
         {cameraError ? (
@@ -205,6 +232,7 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
         ) : (
           <p className="scan-hint">{forItem ? "Point at the new sticker" : "Point at a code"}</p>
         )}
+        {diag.text !== null && <p className="scan-diag">{diag.text}</p>}
         {flash && (
           <p className="scan-flash" role="status">
             {flash}
@@ -523,4 +551,73 @@ function SessionEvent({ store }: { store: Store }) {
       )}
     </>
   );
+}
+
+/** `key=value` pairs, numbers to two places, nested keys as `outer.inner`. */
+export function diagText(state: Record<string, unknown>, prefix = ""): string {
+  return Object.entries(state)
+    .map(([k, v]) => {
+      const key = prefix + k;
+      if (typeof v === "number" && !Number.isInteger(v)) return `${key}=${v.toFixed(2)}`;
+      if (v && typeof v === "object") return diagText(v as Record<string, unknown>, `${key}.`);
+      return `${key}=${String(v)}`;
+    })
+    .join(" ");
+}
+
+/**
+ * A hidden line of scanner state over the viewfinder, for a screenshot when the scanner stops reading. A long press
+ * on the viewfinder, not on the card, shows or hides it. `read` is polled while it shows.
+ */
+function useDiagnostics(read: () => Promise<string>) {
+  const [shown, setShown] = useState(false);
+  const [text, setText] = useState("");
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const start = useRef({ x: 0, y: 0 });
+  const latest = useRef(read);
+  latest.current = read;
+
+  useEffect(() => {
+    if (!shown) return;
+    setText("…");
+    let live = true;
+    let busy = false;
+    const tick = () => {
+      if (busy) return;
+      busy = true;
+      void latest
+        .current()
+        .catch((e: unknown) => String(e))
+        .then((t) => live && setText(t))
+        .finally(() => (busy = false));
+    };
+    tick();
+    const every = setInterval(tick, DIAG_EVERY_MS);
+    return () => {
+      live = false;
+      clearInterval(every);
+    };
+  }, [shown]);
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const cancel = () => clearTimeout(timer.current);
+  return {
+    text: shown ? text : null,
+    press: {
+      onPointerDown: (e: PointerEvent<HTMLElement>) => {
+        if ((e.target as Element).closest(".move-card")) return;
+        cancel();
+        start.current = { x: e.clientX, y: e.clientY };
+        timer.current = setTimeout(() => setShown((s) => !s), DIAG_PRESS_MS);
+      },
+      // A thumb that drifts while aiming is not a press.
+      onPointerMove: (e: PointerEvent<HTMLElement>) => {
+        if (Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > DIAG_DRIFT_PX) cancel();
+      },
+      onPointerUp: cancel,
+      onPointerCancel: cancel,
+      onPointerLeave: cancel,
+    },
+  };
 }

@@ -11,7 +11,7 @@ import UIKit
 class ScannerPlugin: CAPPlugin, CAPBridgedPlugin, AVCaptureMetadataOutputObjectsDelegate {
     let identifier = "ScannerPlugin"
     let jsName = "ScannerPlugin"
-    let pluginMethods: [CAPPluginMethod] = ["start", "layout", "pause", "resume", "torch", "stop"].map {
+    let pluginMethods: [CAPPluginMethod] = ["start", "layout", "pause", "resume", "torch", "stop", "diag"].map {
         CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise)
     }
 
@@ -42,6 +42,13 @@ class ScannerPlugin: CAPPlugin, CAPBridgedPlugin, AVCaptureMetadataOutputObjects
     /// A runtime error gets one retry; after that it is reported, until the app is next left and come back to.
     private var retried = false
     private var loading: NSKeyValueObservation?
+    /// For `diag`: codes the camera read, those held back as repeats, and those dropped while paused or stopped.
+    private var codesSeen = 0
+    private var codesRepeated = 0
+    private var codesDropped = 0
+    private var lastSent: Date?
+    /// A `diag` waiting on `queue`; a stuck queue gets one, not one per poll.
+    private var probing = false
 
     override func load() {
         // A reload (Capacitor reloads when the web content process dies) never calls stop; the new page starts clean.
@@ -66,6 +73,7 @@ class ScannerPlugin: CAPPlugin, CAPBridgedPlugin, AVCaptureMetadataOutputObjects
             self.room = CGFloat(call.getDouble("room") ?? 1.5)
             self.repeatWindow = (call.getDouble("repeatMs") ?? 1500) / 1000
             self.last = nil
+            (self.codesSeen, self.codesRepeated, self.codesDropped, self.lastSent) = (0, 0, 0, nil)
             switch AVCaptureDevice.authorizationStatus(for: .video) {
             case .authorized:
                 self.open(call, mine)
@@ -279,12 +287,64 @@ class ScannerPlugin: CAPPlugin, CAPBridgedPlugin, AVCaptureMetadataOutputObjects
     func metadataOutput(
         _ output: AVCaptureMetadataOutput, didOutput objects: [AVMetadataObject], from connection: AVCaptureConnection
     ) {
-        guard scanning, !paused, let code = objects.first as? AVMetadataMachineReadableCodeObject,
-              let text = code.stringValue else { return }
+        guard let code = objects.first as? AVMetadataMachineReadableCodeObject, let text = code.stringValue
+        else { return }
+        codesSeen += 1
+        if !scanning || paused {
+            codesDropped += 1
+            return
+        }
         let now = Date()
-        if let last, last.text == text, now.timeIntervalSince(last.at) < repeatWindow { return }
+        if let last, last.text == text, now.timeIntervalSince(last.at) < repeatWindow {
+            codesRepeated += 1
+            return
+        }
         last = (text, now)
+        lastSent = now
         notifyListeners("code", data: ["text": text])
+    }
+
+    /// The scanner's state, for the scan screen's hidden diagnostics line. A session queue still busy after half a
+    /// second answers `queue=stuck`, with the rest.
+    @objc func diag(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            var data: [String: Any] = [
+                "scanning": self.scanning, "paused": self.paused, "seen": self.codesSeen,
+                "repeated": self.codesRepeated, "dropped": self.codesDropped,
+                "sentAgo": self.lastSent.map { Date().timeIntervalSince($0) } ?? -1,
+                "frozen": self.preview?.previewLayer.connection?.isEnabled == false,
+            ]
+            if self.probing {
+                data["queue"] = "stuck"
+                return call.resolve(data)
+            }
+            self.probing = true
+            var answered = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                if answered { return }
+                answered = true
+                data["queue"] = "stuck"
+                call.resolve(data)
+            }
+            self.queue.async {
+                let r = self.output.rectOfInterest
+                var more: [String: Any] = [
+                    "running": self.session.isRunning, "interrupted": self.session.isInterrupted,
+                    "roi": String(format: "%.2f,%.2f %.2fx%.2f", r.minX, r.minY, r.width, r.height),
+                ]
+                if let device = self.device {
+                    more["zoom"] = Double(device.videoZoomFactor)
+                    more["lens"] = Double(device.lensPosition)
+                    more["focusing"] = device.isAdjustingFocus
+                }
+                DispatchQueue.main.async {
+                    self.probing = false
+                    if answered { return }
+                    answered = true
+                    call.resolve(data.merging(more) { a, _ in a })
+                }
+            }
+        }
     }
 
     @objc private func becameActive() {
