@@ -26,6 +26,25 @@ Know which client builds still sync, so an old API shape is dropped only once no
 - A requirement. Check whether `src/gear_tracker/privacy.py` needs a line.
 - Client change: add a line to `docs/pending-ios.md`.
 
+## Tell devices apart on Your devices
+
+**Your devices** lists each sign-in as "Device · signed in <date>". A lost phone can't be told from an old laptop
+browser. The `sessions` table keeps only `device_id` and `created_at`.
+
+- At sign-in, keep a short label on the session row, such as "iPhone app", "iPad app", "Safari on iPhone" or "Chrome on
+  Mac". Build it from the User-Agent, and from the app's version header (see Record each device's client version). Keep
+  the label only, not the raw User-Agent; check `src/gear_tracker/privacy.py`. Sessions from before this show "Device".
+- Show when each device was last seen beside when it signed in, and sort by last seen. The client-version task adds that
+  column.
+- The same in an Admin's view of a user's devices, and in `list_devices`.
+- Do it with Record each device's client version, or right after it: they touch the same row and can share
+  migration 0014.
+
+**Considered:**
+
+- Let a person name a device. Costs taps; the label covers most cases.
+- Sign out devices not seen for some months. The list in testing had 13 rows, most likely dead browsers.
+
 ## Scanner stops reading with the camera live
 
 Once in the iPhone app, the scan screen showed a live picture but read no codes. Home, then Scan again, fixed it. What
