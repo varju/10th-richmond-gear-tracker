@@ -28,6 +28,20 @@ leaving the screen.
 **Considered:** re-run `aim()` on resume and when an interruption ends, and re-trigger focus when nothing is read for a
 few seconds. A guess until the diagnostics say which.
 
+## Audit log: list only people who did something
+
+The **Person** filter on the Audit screen lists every known user, including people with no entries in the log. Picking
+one shows nothing.
+
+**Considered:**
+
+- The list comes from `store.state.user` in `client/src/ui/Audit.tsx`. The client lacks the full log (it reads from the
+  server, FR-USR-24), so only the server knows who has entries.
+- The server returns the distinct actors with the first page, or from a small endpoint of its own. That's additive, so
+  older app builds still work.
+- Deactivated people who did act stay listed (FR-USR-06).
+- FR-MCP-29: `read_audit_log` could return the same list. If not, add a Won't row saying why.
+
 ## Tidy the desk inventory's filter bar
 
 The desk **Inventory** screen opens with six labelled boxes reading "Any", two checkboxes, two buttons and a row count
