@@ -97,19 +97,6 @@ answered, and walk off with nothing recorded.
   `docs/architecture.md`.
 - Client change: add a line to `docs/pending-ios.md`.
 
-## Group "Link other gear that is out" by event
-
-The **Link other gear that is out** list on an event's page is one alphabetical list. Group it by the event each item is
-out under, so the gear that likely belongs to this event is easy to find.
-
-- `ReservationPage.tsx`: an `<optgroup>` per event, labelled with the event name. Gear out with no event comes first, in
-  a group "No event". Event groups follow, sorted by name. Items stay sorted by name within a group.
-- A pool with unlinked lots under more than one event goes in a group "Several events", after "No event".
-- `outElsewhere` in `client/src/lib/reservations.ts` stays as is; group in the page or in a helper beside it, with a
-  test.
-- Add a requirement, and an FR-MCP Won't row (layout only; `whats_out` already gives each item's event).
-- Client change: add a line to `docs/pending-ios.md`.
-
 ## Tidy the desk inventory's filter bar
 
 The desk **Inventory** screen opens with six labelled boxes reading "Any", two checkboxes, two buttons and a row count

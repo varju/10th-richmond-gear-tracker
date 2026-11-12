@@ -23,6 +23,7 @@ What the app does differently.
 - An event page keeps its Packing or Returning mode and its filter box when you come Back to it.
 - A counted line on an event's gear list opens its item.
 - New event opens with the Event field focused.
+- An event page's **Link other gear that is out** list groups gear by the event it is out under.
 
 ## Chores
 

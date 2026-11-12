@@ -791,6 +791,26 @@ test("It's with us takes only a pool's counts under the event's own name (FR-RES
   await expect(res.linkOut(store, id, bowls)).rejects.toThrow("it is not out");
 });
 
+test("Gear to link is grouped by event: no event first, events by name, items by name (FR-RES-47)", async () => {
+  const f = await fixture();
+  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  const lamp = await act.createItem(store, { name: "Lamp", home_location_id: f.warm });
+  const axe = await act.createItem(store, { name: "Axe", home_location_id: f.warm });
+  await checkOutUnplanned(store, f.tarp, "");
+  await checkOutUnplanned(store, axe, "Winter Hike");
+  await checkOutUnplanned(store, f.stove, "winter hike");
+  await checkOutUnplanned(store, lamp, "Meeting");
+  await checkOutUnplanned(store, bowls, "Fall Camp", 4);
+  const id = await res.createReservation(store, { ...fall, items: [], generics: [] });
+  const groups = res.groupOutElsewhere(store.state, res.reservation(store.state, id)!);
+  expect(groups.map((g) => [g.label, g.items.map(shown)])).toEqual([
+    ["", ["Tarp"]],
+    ["Fall Camp", ["Bowls"]],
+    ["Meeting", ["Lamp"]],
+    ["Winter Hike", ["Axe", "Stove"]],
+  ]);
+});
+
 test("Add links only its own row's counts, leaving last year's row as it was (FR-RES-33)", async () => {
   await fixture();
   const bowls = await act.createPool(store, { name: "Bowls" }, 10);

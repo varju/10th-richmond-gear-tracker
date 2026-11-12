@@ -17,7 +17,7 @@ import {
   linkOut,
   nearby,
   nearbyLabel,
-  outElsewhere,
+  groupOutElsewhere,
   outstanding,
   unlinkedLots,
   remaining,
@@ -163,7 +163,8 @@ export function ReservationPage({
 
   const clashes = r.cancelled ? [] : conflicts(state, r, r.id);
   const near = r.cancelled ? {} : nearby(state, r, r.id);
-  const others = r.cancelled ? [] : outElsewhere(state, r);
+  const otherGroups = r.cancelled ? [] : groupOutElsewhere(state, r);
+  const others = otherGroups.flatMap((g) => g.items);
   const rem = remaining(state, r);
   // Each line says whether it is packed, read off the lines remaining() counts, and the filter
   // hides those that are (FR-RES-29, FR-RES-30). A cancelled plan packs nothing, so says nothing.
@@ -353,10 +354,14 @@ export function ReservationPage({
               <span>Item</span>
               <select aria-label="Gear that is out" value={pick} onChange={(e) => setPick(e.target.value)}>
                 <option value="">Choose</option>
-                {others.map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {displayName(state, it)}
-                  </option>
+                {otherGroups.map((g) => (
+                  <optgroup key={g.label} label={g.label || "No event"}>
+                    {g.items.map((it) => (
+                      <option key={it.id} value={it.id}>
+                        {displayName(state, it)}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </label>

@@ -522,6 +522,31 @@ export function outElsewhere(state: State, r: Reservation): Item[] {
     .sort(byName(state));
 }
 
+/** A group of gear out under one event; an empty label is gear out with no event. */
+export interface OutGroup {
+  label: string;
+  items: Item[];
+}
+
+/** outElsewhere by the event each item is out under: no event first, then events by name. A pool is out under this one. */
+export function groupOutElsewhere(state: State, r: Reservation): OutGroup[] {
+  const none: Item[] = [];
+  const byEvent = new Map<string, OutGroup>();
+  for (const it of outElsewhere(state, r)) {
+    const name = isPool(it) ? r.event : (it.movement?.event as string | undefined) ?? "";
+    const key = eventNameKey(name);
+    if (!key) {
+      none.push(it);
+      continue;
+    }
+    const group = byEvent.get(key) ?? { label: tidyName(name), items: [] };
+    group.items.push(it);
+    byEvent.set(key, group);
+  }
+  const events = [...byEvent.values()].sort((a, b) => compareNames(a.label, b.label));
+  return [...(none.length ? [{ label: "", items: none }] : []), ...events];
+}
+
 /**
  * It went out before the plan did (FR-RES-17, S-RES-07). The movement's event is
  * corrected by an appended record, and the item joins the gear list. Nothing is
