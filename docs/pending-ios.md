@@ -22,6 +22,7 @@ What the app does differently.
   an unsaved draft.
 - An event page keeps its Packing or Returning mode and its filter box when you come Back to it.
 - A counted line on an event's gear list opens its item.
+- New event opens with the Event field focused.
 
 ## Chores
 

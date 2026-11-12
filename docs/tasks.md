@@ -72,22 +72,10 @@ answered, and walk off with nothing recorded.
 - Ignoring the strip loses only the event, never the move.
 - Files: `EventChoice.tsx`, `MoveActions.tsx`, `Scan.tsx`, `ItemPage.tsx`, `client/src/lib/session.ts`,
   `client/src/lib/store.ts`, `client/src/lib/movement.ts`. Reservation sessions are unchanged: they know their event.
-- Requirements: reword FR-OUT-05, FR-OUT-37, FR-OUT-38, FR-OUT-44 (the first
-  confirmation names no event), and FR-OUT-41 / FR-RES-40 for the relink. The assistant's `check_out` already takes the
-  event up front.
+- Requirements: reword FR-OUT-05, FR-OUT-37, FR-OUT-38, FR-OUT-44 (the first confirmation names no event), and FR-OUT-41
+  / FR-RES-40 for the relink. The assistant's `check_out` already takes the event up front.
 - Docs: "The first check-out asks for the event" and the pool line in `docs/guide/scouter.md`; the session paragraph in
   `docs/architecture.md`.
-- Client change: add a line to `docs/pending-ios.md`.
-
-## Focus the event name on New event
-
-Tapping **New event** on Events opens the form with nothing focused, so it takes another tap to start typing.
-
-- Focus the **Event** field in `ReservationForm.tsx` for a new event only, not on Edit. Focusing it also opens its
-  suggestions, so today's calendar events show at once.
-- iOS raises the keyboard only for a focus inside the tap, so `autoFocus` alone may not do it. Do as `searchHome` in
-  `Page.tsx` does: in the **New event** handler in `Reservations.tsx`, `flushSync(() => navigate("/events/new"))`, then
-  focus the field. Check on an iPhone, in Safari and in the app.
 - Client change: add a line to `docs/pending-ios.md`.
 
 ## Group "Link other gear that is out" by event

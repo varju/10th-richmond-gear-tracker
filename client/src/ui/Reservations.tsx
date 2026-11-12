@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { flushSync } from "react-dom";
 import {
   past,
   type Reservation,
@@ -150,6 +151,11 @@ function CurrentEvent({ event }: { event: string | undefined }) {
 
 /** The camps ahead, and the way to plan a new one (S-RES-01). */
 export function Reservations({ store }: { store: Store }) {
+  /** iOS raises the keyboard only for a focus inside the tap, so the form is rendered before the tap ends. */
+  const newEvent = () => {
+    flushSync(() => navigate("/events/new"));
+    document.querySelector<HTMLInputElement>("main input[name=event]")?.focus();
+  };
   useStore(store);
   const { now } = useShell();
   const today = todayIso(now());
@@ -171,7 +177,7 @@ export function Reservations({ store }: { store: Store }) {
       title="Events"
       back="/"
       actions={
-        <button className="primary" type="button" onClick={() => navigate("/events/new")}>
+        <button className="primary" type="button" onClick={newEvent}>
           New event
         </button>
       }

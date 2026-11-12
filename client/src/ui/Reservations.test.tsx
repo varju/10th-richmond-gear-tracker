@@ -337,6 +337,16 @@ test("two camps saved on two devices are named against each other on the page (F
   expect(screen.getByRole("note")).toHaveTextContent("Needed for Cub camp (4-person tent #1).");
 });
 
+test("New event focuses the Event field; Edit does not", async () => {
+  navigate("/events/new");
+  const made = renderInShell(<ReservationForm store={store} />);
+  expect(screen.getByLabelText("Event")).toHaveFocus();
+  made.unmount();
+  navigate(`/events/${fall}/edit`);
+  renderInShell(<ReservationForm store={store} id={fall} />);
+  expect(screen.getByLabelText("Event")).not.toHaveFocus();
+});
+
 test("Edit opens the form with the reservation in it and saves changed fields only", async () => {
   navigate(`/events/${fall}`);
   navigate(`/events/${fall}/edit`);

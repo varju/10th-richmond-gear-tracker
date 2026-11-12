@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { EventSuggestion } from "../lib/calendar";
 import { compareNames, homeLabel, nameOf, rows, type Row } from "../lib/inventory";
 import {
@@ -100,6 +100,10 @@ export function ReservationForm({ store, id, from }: Props) {
 
   const backTo = id ? `/events/${id}` : "/events";
   const near = nearby(state, values, id);
+  const eventInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!id) eventInput.current?.focus();
+  }, [id]);
   const eventSuggestions = eventOpen ? typedEvents(store, values.event) : [];
 
   /**
@@ -265,6 +269,8 @@ export function ReservationForm({ store, id, from }: Props) {
       <label>
         <span>Event</span>
         <input
+          ref={eventInput}
+          name="event"
           value={values.event}
           onChange={(e) => {
             set({ event: e.target.value });
