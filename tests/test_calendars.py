@@ -114,7 +114,21 @@ def test_adding_a_feed_fetches_it_right_away(db, ics_server):
 
     kept = calendars.upcoming_events(db)
     assert any(e["summary"] == "Troop Meeting" for e in kept)
-    assert any(e["summary"] == "Spring Camp" for e in kept)
+    assert any(e["summary"] == "Troop: Spring Camp" for e in kept)
+
+
+def test_a_labelled_feed_prefixes_its_event_names(db, ics_server):
+    calendars.add_feed(db, calendars.FeedInput(url=f"{ics_server}/feed.ics", label="Cubs"), now=NOW)
+    summaries = {e["summary"] for e in calendars.upcoming_events(db)}
+    assert "Cubs: Spring Camp" in summaries
+    assert "Spring Camp" not in summaries
+
+
+def test_an_unlabelled_feed_leaves_event_names_bare(db, ics_server):
+    calendars.add_feed(db, calendars.FeedInput(url=f"{ics_server}/feed.ics", label="  "), now=NOW)
+    summaries = {e["summary"] for e in calendars.upcoming_events(db)}
+    assert "Spring Camp" in summaries
+    assert not any(s.startswith(":") for s in summaries)
 
 
 def test_a_failed_fetch_records_the_error_and_keeps_the_old_events(db, ics_server):
@@ -167,7 +181,7 @@ def test_events_appear_in_bootstrap_and_pull(db, db_path, ics_server):
     assert any(e["summary"] == "Troop Meeting" for e in booted["calendar_events"])
 
     pulled = sync.pull(db, principal, 0, now=NOW)
-    assert any(e["summary"] == "Spring Camp" for e in pulled["calendar_events"])
+    assert any(e["summary"] == "Troop: Spring Camp" for e in pulled["calendar_events"])
 
 
 # --- routes: Admin only -----------------------------------------------------------------------
@@ -223,3 +237,10 @@ def test_an_admin_adds_lists_and_removes_a_feed(client, ics_server, db_path):
 
     with open_db(db_path) as conn:
         assert calendars.upcoming_events(conn) == []
+
+
+def test_a_label_is_not_repeated_on_a_name_that_already_starts_with_it():
+    assert calendars._prefixed("Cubs", "cubs: Fall camp") == "cubs: Fall camp"
+    assert calendars._prefixed("Cubs", "Cubs Fall camp") == "Cubs Fall camp"
+    assert calendars._prefixed("Cub", "Cubs Fall camp") == "Cub: Cubs Fall camp"
+    assert calendars._prefixed(None, "Fall camp") == "Fall camp"

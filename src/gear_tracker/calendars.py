@@ -146,13 +146,27 @@ def refresh_all(conn: sqlite3.Connection, now: int | None = None) -> list[dict[s
     return feeds
 
 
+def _prefixed(label: str | None, summary: str) -> str:
+    label = (label or "").strip()
+    head = summary[: len(label)]
+    if not label or (head.casefold() == label.casefold() and not summary[len(label) : len(label) + 1].isalnum()):
+        return summary
+    return f"{label}: {summary}"
+
+
 def upcoming_events(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-    """What a device gets at sync: every kept event, across every feed, oldest first."""
-    rows = conn.execute("SELECT uid, summary, starts, ends, all_day FROM calendar_events ORDER BY starts").fetchall()
+    """What a device gets at sync: every kept event, across every feed, oldest first.
+
+    A feed's label prefixes the summary ("Cubs: Fall camp"), unless the summary already starts with it.
+    """
+    rows = conn.execute(
+        "SELECT e.uid, e.summary, f.label, e.starts, e.ends, e.all_day "
+        "FROM calendar_events e JOIN calendar_feeds f ON f.id = e.feed_id ORDER BY e.starts"
+    ).fetchall()
     return [
         {
             "uid": row["uid"],
-            "summary": row["summary"],
+            "summary": _prefixed(row["label"], row["summary"]),
             "starts": row["starts"],
             "ends": row["ends"],
             "all_day": bool(row["all_day"]),
