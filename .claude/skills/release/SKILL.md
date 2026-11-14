@@ -1,8 +1,8 @@
 ---
 name: release
 description:
-  Ship what is on local main to production — make check, deploy the server, upload a TestFlight build, push main. Use
-  only when the user runs /release or asks to release, ship or put changes in production.
+  Ship what is on local main to production — make audit and check, deploy the server, upload a TestFlight build, push
+  main. Use only when the user runs /release or asks to release, ship or put changes in production.
 ---
 
 # Release
@@ -12,7 +12,8 @@ either is not true, stop and say so.
 
 1. **Work out what changed.** `git log --oneline origin/main..main` and `git diff --stat origin/main..main`. Also
    compare with the `deployed` tag: `git diff --stat deployed..main`. If nothing is new, say so and stop.
-2. **Test.** `nice -n 19 make check`. If it fails, stop and report. Never deploy on red.
+2. **Audit, then test.** `nice -n 19 make audit`, then `nice -n 19 make check`. If either fails, stop and report. Never
+   deploy on red.
 3. **Deploy** if anything the server runs or serves changed since `deployed`: `server/`, `client/`, `docs/guide/`,
    `Dockerfile`, dependencies. Run `nice -n 19 make deploy`. Skip it for docs-only or iOS-only changes, and say why.
 4. **TestFlight** if anything the iPhone app runs changed since the last `ios-*` tag: `client/` (not tests or dev-only
