@@ -243,7 +243,7 @@ an unknown location or category is created. A preview shows what will change; no
 
 Open **Settings** > **Audit log** to see everything that has happened, newest first: gear moved, records edited,
 accounts invited and changed. Narrow it by **What happened**, by **Person**, and with **From** and **To** dates.
-Deactivated people stay in the log and stay in the list you pick from.
+**Person** lists only people with something in the log, deactivated people included.
 
 The whole log lives on the server, so this one screen needs a connection. An item's own history is on its page, and
 works offline.

@@ -505,12 +505,16 @@ def create_app(
 
         `from` and `to` are calendar days where the group is, both inclusive.
         One page at a time: `more` says whether another follows this offset.
+        The first page also lists `actors`, everyone the Person filter offers (FR-USR-36).
         """
         accounts._require_admin(who)
         page, more = events.audit_page(
             conn, type=type, actor_id=actor, entity_type=entity_type, first=first, last=last, offset=offset
         )
-        return stamped({"events": [asdict(e) for e in page], "more": more})
+        body: dict[str, Any] = {"events": [asdict(e) for e in page], "more": more}
+        if offset == 0:
+            body["actors"] = events.actors(conn)
+        return stamped(body)
 
     # --- auth ----------------------------------------------------------------------
 

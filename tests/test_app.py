@@ -238,6 +238,21 @@ def test_audit_is_for_admins_only_and_says_what_it_will_filter_on(client):
     assert "entity_type must be one of" in r.json()["message"]
 
 
+def test_audit_actors_are_only_people_with_an_entry(client):
+    """Carol is invited but has done nothing, so the Person filter has no use for her (FR-USR-36)."""
+    made = incoming(actor_id="bob", device_id="phone-b", type="created", payload={"name": "Tent"})
+    bob = {"X-Test-User": "bob", "X-Test-Device": "phone-b"}
+    body = {"device_id": "phone-b", "client_time": T0, "events": [made]}
+    assert client.post("/sync/push", json=body, headers=bob).status_code == 200
+    invited = client.post("/users/invite", json={"name": "Carol", "email": "carol@example.org"}, headers=as_admin())
+    assert invited.status_code == 200
+
+    # Whatever the filter: the Person list does not shrink to match it.
+    r = client.get("/audit?type=checked_out", headers=as_admin())
+    assert sorted(r.json()["actors"]) == ["alice", "bob"]
+    assert "actors" not in client.get("/audit?offset=100", headers=as_admin()).json()
+
+
 def test_push_with_a_non_json_body_is_400(client):
     r = client.post("/sync/push", content=b"not json", headers=as_alice(**{"Content-Type": "application/json"}))
     assert r.status_code == 400
@@ -1088,6 +1103,11 @@ def test_a_found_report_lands_on_the_log_under_the_public_actor(public, db_path)
         [stored] = [e for e in events.in_replay_order(conn) if e.entity_type == "found_report"]
     assert stored.actor_id == "public"
     assert stored.device_id == "server"
+
+
+def test_a_found_reports_finder_is_not_a_person_to_filter_the_audit_by(public):
+    assert report(public).status_code == 200
+    assert "public" not in public.get("/audit", headers=as_admin()).json()["actors"]
 
 
 def test_a_report_on_a_sticker_not_yet_on_anything_has_no_item(public):

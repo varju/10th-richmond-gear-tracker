@@ -30,11 +30,9 @@ function unique(events: ServerEvent[]): ServerEvent[] {
   return events.filter((e) => !seen.has(e.id) && Boolean(seen.add(e.id)));
 }
 
-/** Everyone the log can name, deactivated included: they stay in the audit (FR-USR-06). */
-function people(store: Store): { id: string; name: string }[] {
-  return Object.keys(store.state.user ?? {})
-    .map((id) => ({ id, name: userName(store.state, id) || id }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+/** Those with an entry in the log, deactivated included (FR-USR-06, FR-USR-36). */
+function people(state: State, actors: string[]): { id: string; name: string }[] {
+  return actors.map((id) => ({ id, name: userName(state, id) || id })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function Row({ state, event, item, summary }: { state: State; event: ServerEvent; item?: string; summary: string }) {
@@ -82,6 +80,7 @@ export function Audit({ store, api }: Props) {
   const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actors, setActors] = useState<string[]>([]);
   // Changing two filters quickly starts two reads. Only the last one asked for may answer.
   const asked = useRef(0);
 
@@ -95,13 +94,15 @@ export function Audit({ store, api }: Props) {
         if (asked.current !== mine) return;
         setEvents((held) => (offset === 0 ? page.events : [...(held ?? []), ...page.events]));
         setMore(page.more);
+        // A server from before FR-USR-36 sends none: offer everyone known.
+        if (offset === 0) setActors(page.actors ?? Object.keys(store.state.user ?? {}));
       } catch (e) {
         if (asked.current === mine) setError(describe(e));
       } finally {
         if (asked.current === mine) setBusy(false);
       }
     },
-    [api],
+    [api, store],
   );
 
   const admin = store.admin;
@@ -139,7 +140,7 @@ export function Audit({ store, api }: Props) {
           <span>Person</span>
           <select value={filter.actor ?? ""} onChange={(e) => set({ actor: e.target.value || undefined })}>
             <option value="">Anyone</option>
-            {people(store).map((p) => (
+            {people(store.state, actors).map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>

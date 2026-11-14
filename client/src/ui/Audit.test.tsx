@@ -16,6 +16,8 @@ let tent: string;
 let asked: URLSearchParams[];
 /** What the server holds, newest first, as /audit answers. */
 let log: ServerEvent[];
+/** Who the first page says has an entry. */
+let actors: string[] | undefined;
 
 let n = 0;
 const serverEvent = (over: Partial<ServerEvent>): ServerEvent => ({
@@ -38,7 +40,8 @@ const serverEvent = (over: Partial<ServerEvent>): ServerEvent => ({
 const fetchFake = async (input: string | URL | Request): Promise<Response> => {
   const url = new URL(String(input), "http://x");
   asked.push(url.searchParams);
-  const body = { events: log, more: log.length > 1 && url.searchParams.get("offset") === null, server_time: T0 };
+  const first = url.searchParams.get("offset") === null;
+  const body = { events: log, more: log.length > 1 && first, ...(first && actors && { actors }), server_time: T0 };
   return new Response(JSON.stringify(body), { status: 200 });
 };
 
@@ -53,6 +56,7 @@ beforeEach(async () => {
   await seedUsers(store, [alice, carol]);
   tent = await act.createItem(store, { name: "Tent 1" });
   log = [];
+  actors = ["alice", "carol"];
 });
 
 test("every kind of event on one screen, said in words, newest first", async () => {
@@ -169,6 +173,33 @@ test("narrowing by event, person, and a range of days asks the server, not the d
     from: "2025-08-01",
     to: "2025-08-31",
   });
+});
+
+test("the person filter offers only people with an entry in the log (FR-USR-36)", async () => {
+  actors = ["carol"];
+  mount();
+  const person = screen.getByLabelText("Person");
+  await within(person).findByRole("option", { name: "Carol" });
+  await vi.waitFor(() =>
+    expect(
+      within(person)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Anyone", "Carol"]),
+  );
+});
+
+test("a server that sends no actors leaves everyone known in the person filter", async () => {
+  actors = undefined;
+  log = [serverEvent({})];
+  mount();
+  await screen.findByRole("list", { name: "Audit log" });
+  const person = screen.getByLabelText("Person");
+  expect(
+    within(person)
+      .getAllByRole("option")
+      .map((o) => o.textContent),
+  ).toEqual(["Anyone", "Alice", "Carol"]);
 });
 
 test("a long log comes a page at a time", async () => {

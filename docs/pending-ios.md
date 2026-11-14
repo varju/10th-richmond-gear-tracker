@@ -30,6 +30,7 @@ What the app does differently.
   reading.
 - The first check-out of a session moves at once, then asks "Which event?" above the viewfinder or the item's buttons.
   The answer applies to the gear taken while it waited. A take-over or transfer before then keeps the gear's event.
+- The audit log's **Person** filter lists only people with something in the log.
 
 ## Chores
 

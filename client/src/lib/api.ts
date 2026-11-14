@@ -171,6 +171,8 @@ export interface AuditPage {
   events: ServerEvent[];
   /** Another page follows this offset. */
   more: boolean;
+  /** On the first page: user ids with an entry in the log (FR-USR-36). */
+  actors?: string[];
 }
 export interface PushResult {
   accepted: string[];

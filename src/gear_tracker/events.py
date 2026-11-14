@@ -953,6 +953,12 @@ def audit(
     return [from_row(row) for row in rows]
 
 
+def actors(conn: sqlite3.Connection) -> list[str]:
+    """Every user with an entry in the log, deactivated included (FR-USR-06, FR-USR-36)."""
+    rows = conn.execute("SELECT DISTINCT actor_id FROM events WHERE actor_id != ?", (PUBLIC_ACTOR,))
+    return [row[0] for row in rows]
+
+
 def since(conn: sqlite3.Connection, cursor: int, limit: int = 1000) -> list[Event]:
     """Events after a sync cursor, in seq order. This is what pull returns."""
     rows = conn.execute("SELECT * FROM events WHERE seq > ? ORDER BY seq LIMIT ?", (cursor, limit))
