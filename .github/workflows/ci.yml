@@ -82,6 +82,10 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+      # npm audit reads the lock file, so no npm ci.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
       - run: uv sync --frozen --python 3.14
       - name: Scan dependencies for known vulnerabilities (NFR-SEC-09)
-        run: uv run pip-audit
+        run: make audit
