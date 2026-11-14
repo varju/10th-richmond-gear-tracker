@@ -1,37 +1,9 @@
 # Pending iOS release
 
-App changes since `ios-1.0.3-449` that reach iPhones only through the next release.
+App changes since `ios-1.0.4-482` that reach iPhones only through the next release.
 
 ## Functional
 
 What the app does differently.
 
-- An ended event's page marks and filters gear not returned.
-- An event's page switches between Packing and Returning from its first day.
-- Return always asks a weighed item's weight, with **Keep** for the last reading and **Unknown** to clear it.
-- A scan's card offers Weigh and Refilled for weighed gear.
-- Runs on iPad.
-- The inventory table's unit arrow sits in the margin left of the name.
-- The inventory table moves Category after Status, can group by category, and Option-click folds all.
-- The Print QR codes screen offers 12 cut-and-laminate cards per page.
-- A category in use can be deleted after a warning; its items lose it.
-- An item can carry more than one QR code: Replace QR code is now Add QR code, and Details counts them.
-- Shaking the phone no longer offers to undo typing.
-- Settings shows the app version and build.
-- The top bar has a search button off Home that opens Home with the search box focused. The house asks before dropping
-  an unsaved draft.
-- An event page keeps its Packing or Returning mode and its filter box when you come Back to it.
-- A counted line on an event's gear list opens its item.
-- New event opens with the Event field focused.
-- An event page's **Link other gear that is out** list groups gear by the event it is out under.
-- Your devices names each device, such as "iPhone app" or "Chrome on Mac", with its app version and when it was last
-  seen. The app sends its version to the server with every request.
-- A long press on the scan viewfinder shows a hidden line of scanner state, for a screenshot when the scanner stops
-  reading.
-- The first check-out of a session moves at once, then asks "Which event?" above the viewfinder or the item's buttons.
-  The answer applies to the gear taken while it waited. A take-over or transfer before then keeps the gear's event.
-- The audit log's **Person** filter lists only people with something in the log.
-
 ## Chores
-
-- The guide covers grouping the inventory table.
