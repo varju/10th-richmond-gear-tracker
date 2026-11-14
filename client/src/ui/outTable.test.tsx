@@ -84,13 +84,17 @@ async function mount() {
   if (dismiss) await user.click(dismiss);
 }
 
-const rows = () => within(screen.getByRole("table")).getAllByRole("row");
+/** The column headings, then the gear rows; an event's heading row is left out. */
+const rows = () =>
+  within(screen.getByRole("table"))
+    .getAllByRole("row")
+    .filter((r) => within(r).queryAllByRole("rowheader").length === 0);
 const cells = (row: HTMLElement) =>
   within(row)
     .getAllByRole("cell")
     .map((c) => c.textContent);
 
-test("the table's four columns, and the holder-ascending default", async () => {
+test("the table's four columns, and the event-ascending default under a heading per event (FR-RPT-17)", async () => {
   await fixture();
   await mount();
 
@@ -98,11 +102,11 @@ test("the table's four columns, and the holder-ascending default", async () => {
     within(rows()[0]!)
       .getAllByRole("columnheader")
       .map((h) => h.textContent),
-  ).toEqual(["Item", "Holder ▲", "Event", "Out"]);
+  ).toEqual(["Item", "Holder", "Event ▲", "Out"]);
+  expect(screen.getAllByRole("rowheader").map((h) => h.textContent)).toEqual(["Spring camp", "No event"]);
 
   const body = rows().slice(1);
-  // Holder ascending, longest out first within a holder, as the phone's grouped list already reads:
-  // Alice's Tent 1, Stove; then Carol's Axe, Bowls (a pool has no day count, so it lands last).
+  // Within an event: holder, then longest out first (a pool has no day count, so it lands last).
   expect(body.map((r) => cells(r)[0])).toEqual(["Tent 1", "Stove", "Axe", "Bowls"]);
   expect(cells(body[0]!)).toEqual(["Tent 1", "Alice", "Spring camp", "5 days"]);
   expect(cells(body[3]!)).toEqual(["Bowls", "Carol", "", "4 out"]);
@@ -191,14 +195,16 @@ test("clicking the default column twice returns to ascending, clearing dir from 
   await fixture();
   await mount();
 
-  await user.click(screen.getByRole("button", { name: /^Holder/ }));
+  await user.click(within(screen.getByRole("columnheader", { name: /Event/ })).getByRole("button"));
   expect(location.pathname + location.search).toBe("/out?dir=down");
-  expect(screen.getByRole("columnheader", { name: /Holder/ })).toHaveAttribute("aria-sort", "descending");
+  expect(screen.getByRole("columnheader", { name: /Event/ })).toHaveAttribute("aria-sort", "descending");
+  // Only the default arrangement has event headings.
+  expect(screen.queryByRole("rowheader")).not.toBeInTheDocument();
 
-  await user.click(screen.getByRole("button", { name: /^Holder/ }));
+  await user.click(within(screen.getByRole("columnheader", { name: /Event/ })).getByRole("button"));
   expect(location.pathname).toBe("/out");
   expect(location.search).toBe("");
-  expect(screen.getByRole("columnheader", { name: /Holder/ })).toHaveAttribute("aria-sort", "ascending");
+  expect(screen.getByRole("columnheader", { name: /Event/ })).toHaveAttribute("aria-sort", "ascending");
 });
 
 test("no duplicate React keys when one pool is out to two people", async () => {

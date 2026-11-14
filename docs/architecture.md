@@ -620,8 +620,8 @@ phone says so under the list.
 ## Reports
 
 The first report, what is out and who has it, is derived on the phone from local state. It needs no network and no
-server query. Items are grouped by holder. The overdue period is one group setting; there are no per-item due dates.
-Days out is the whole days since the check-out, rounded down.
+server query. Items are grouped by event, then by holder. The overdue period is one group setting; there are no per-item
+due dates. Days out is the whole days since the check-out, rounded down.
 
 Missing is a field on the item, not a status (FR-INV-19). An item can be out and missing: the check-out is still true,
 and nobody knows where the gear went. It drops off what-is-out, and the next scan or check-in clears it, because either

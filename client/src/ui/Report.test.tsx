@@ -59,7 +59,27 @@ test("nothing out says so", async () => {
   expect(screen.getByText("Nothing is out.")).toBeInTheDocument();
 });
 
-test("out gear is grouped by holder with the event and days out", async () => {
+test("out gear opens under a heading per event, case and spacing aside, no event last (FR-RPT-17)", async () => {
+  await setGroup({ name: "10th Richmond" });
+  await mv.checkOut(store, tent, { event: "Spring camp" });
+  await mv.checkOut(store, stove);
+  await store.setMeta({ user: carol });
+  await mv.checkOut(store, axe, { event: "spring  CAMP" });
+  await mv.checkOut(store, await act.createItem(store, { name: "Saw" }), { event: "Meeting" });
+
+  mount(<Report store={store} />, 3);
+  expect(screen.getByText("4 items out")).toBeInTheDocument();
+  expect(screen.getAllByRole("region").map((s) => s.getAttribute("aria-label"))).toEqual([
+    "Meeting",
+    "Spring camp",
+    "No event",
+  ]);
+  // The heading says the event, so the row says the holder instead.
+  expect(rows("Spring camp").map((b) => b.textContent)).toEqual(["Tent 1Alice · out 3 days", "AxeCarol · out 3 days"]);
+  expect(rows("No event").map((b) => b.textContent)).toEqual(["StoveAlice · out 3 days"]);
+});
+
+test("sorting by person groups out gear by holder with the event and days out", async () => {
   await setGroup({ name: "10th Richmond" });
   await mv.checkOut(store, tent, { event: "Spring camp" });
   await mv.checkOut(store, stove);
@@ -67,6 +87,8 @@ test("out gear is grouped by holder with the event and days out", async () => {
   await mv.checkOut(store, axe);
 
   mount(<Report store={store} />, 3);
+  await user.selectOptions(screen.getByLabelText("Sort by"), "Person");
+  expect(location.pathname + location.search).toBe("/out?sort=holder");
   // T0 + 3 days is UTC midnight of 2025-09-04, still 2025-09-03 evening in Vancouver (NFR-DATA-12).
   expect(screen.getByText("10th Richmond · 2025-09-03")).toBeInTheDocument();
   expect(screen.getByText("3 items out")).toBeInTheDocument();
@@ -82,7 +104,7 @@ test("out gear is grouped by holder with the event and days out", async () => {
 test("a check-out today reads as today", async () => {
   await mv.checkOut(store, axe);
   mount(<Report store={store} />);
-  expect(rows("Alice")[0]).toHaveTextContent("out today");
+  expect(rows("No event")[0]).toHaveTextContent("out today");
 });
 
 test("gear out longer than the group's period is flagged and counted", async () => {
@@ -101,7 +123,7 @@ test("the overdue flag appears once the period has passed", async () => {
 
   mount(<Report store={store} />, 40);
   expect(screen.getByText("1 item out · 1 overdue")).toBeInTheDocument();
-  const row = rows("Alice")[0]!;
+  const row = rows("No event")[0]!;
   expect(row).toHaveTextContent("Tent 1");
   expect(within(row).getByText("Overdue")).toHaveClass("badge", "overdue");
   expect(row).toHaveTextContent("out 40 days");
@@ -126,7 +148,7 @@ test("the event filter shows one event's gear, and sorting keeps it (FR-RPT-13)"
   expect(location.pathname + location.search).toBe("/out?event=spring+camp");
   expect(screen.getByText("2 items out · 2 overdue")).toBeInTheDocument();
   expect(screen.getByText(/10th Richmond · Spring camp ·/)).toBeInTheDocument();
-  expect(screen.getAllByRole("region").map((s) => s.getAttribute("aria-label"))).toEqual(["Alice"]);
+  expect(screen.getAllByRole("region").map((s) => s.getAttribute("aria-label"))).toEqual(["Spring camp"]);
 
   await user.selectOptions(screen.getByRole("combobox", { name: "Sort by" }), "Item");
   expect(location.pathname + location.search).toBe("/out?event=spring+camp&sort=item");
@@ -156,7 +178,7 @@ test("an event with nothing left out shows everything", async () => {
 test("a row opens the item", async () => {
   await mv.checkOut(store, tent);
   mount(<Report store={store} />);
-  await user.click(rows("Alice")[0]!);
+  await user.click(rows("No event")[0]!);
   expect(location.pathname).toBe(`/items/${tent}`);
 });
 
@@ -183,26 +205,15 @@ test("switching to time out reorders items across holders, no more grouping (FR-
   ]);
 });
 
-test("switching to reservation clusters by event name (FR-RPT-12)", async () => {
+test("switching back to event returns to the default, with its headings (FR-RPT-12, FR-RPT-17)", async () => {
   await mv.checkOut(store, tent, { event: "Spring camp" });
-  await mv.checkOut(store, stove);
-  await store.setMeta({ user: carol });
-  await mv.checkOut(store, axe);
+  navigate("/out?sort=item");
 
   mount(<Report store={store} />, 3);
-  await user.selectOptions(screen.getByLabelText("Sort by"), "Event");
-  expect(location.pathname + location.search).toBe("/out?sort=reservation");
   expect(screen.queryByRole("region")).not.toBeInTheDocument();
-
-  const items = within(screen.getByRole("list"))
-    .getAllByRole("button")
-    .map((b) => b.textContent);
-  // "Spring camp" sorts before the event-less rows, which tie-break on the holder's name.
-  expect(items).toEqual([
-    "Tent 1" + "Alice · Spring camp · out 3 days",
-    "Stove" + "Alice · out 3 days",
-    "Axe" + "Carol · out 3 days",
-  ]);
+  await user.selectOptions(screen.getByLabelText("Sort by"), "Event");
+  expect(location.pathname + location.search).toBe("/out");
+  expect(rows("Spring camp").map((b) => b.textContent)).toEqual(["Tent 1Alice · out 3 days"]);
 });
 
 test("the reports page links to what is out, and counts it", async () => {
@@ -223,7 +234,7 @@ test("a direction the desk's table put in the URL is honoured, not ignored (FR-R
   await mv.checkOut(store, stove);
   await store.setMeta({ user: carol });
   await mv.checkOut(store, axe);
-  navigate("/out?dir=down");
+  navigate("/out?sort=holder&dir=down");
 
   mount(<Report store={store} />, 3);
   // Holder descending: one flat list, Carol before Alice. Grouping is the default arrangement only.

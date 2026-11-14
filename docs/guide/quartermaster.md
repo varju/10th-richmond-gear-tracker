@@ -4,9 +4,10 @@
 
 ### What is out
 
-Open **Reports** > **What is out**. It groups every item that is out by who has it, and names the home, the event, and
-how many days it has been gone. On a computer, the home screen shows the same list. To see only one event's gear, open
-the report and pick it under **Event**. Print the page and pin it to the locker door.
+Open **Reports** > **What is out**. It groups every item that is out by event, with gear out under no event last, and
+names who has it and how many days it has been gone. Pick **Person** under **Sort by** to group it by who has it
+instead. On a computer, the home screen shows the same list. To see only one event's gear, open the report and pick it
+under **Event**. Print the page and pin it to the locker door.
 
 ### Gear that is gone too long
 

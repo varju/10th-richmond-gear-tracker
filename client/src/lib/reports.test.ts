@@ -1,7 +1,19 @@
 import { expect, test } from "vitest";
 import { DAY_MS } from "./clock";
 import type { State } from "./replay";
-import { daysOut, isOverdue, orderParams, outFor, outRows, readOrder, rowKey, sortRows, whatIsOut } from "./reports";
+import {
+  byEvent,
+  daysOut,
+  eventKey,
+  isOverdue,
+  orderParams,
+  outFor,
+  outRows,
+  readOrder,
+  rowKey,
+  sortRows,
+  whatIsOut,
+} from "./reports";
 
 const T0 = 1_756_684_800_000;
 const out = (holder: string, since: number, event?: string) => ({
@@ -167,12 +179,13 @@ test("turning a sort around reverses it, but ties still read the same way (FR-RP
 });
 
 test("the default arrangement is the one the URL leaves out", () => {
-  expect(readOrder(new URLSearchParams(""))).toEqual({ sort: "holder", up: true });
-  expect(orderParams({ sort: "holder", up: true }).toString()).toBe("");
+  expect(readOrder(new URLSearchParams(""))).toEqual({ sort: "reservation", up: true });
+  expect(orderParams({ sort: "reservation", up: true }).toString()).toBe("");
+  expect(orderParams({ sort: "holder", up: true }).toString()).toBe("sort=holder");
   expect(orderParams({ sort: "days", up: false }).toString()).toBe("sort=days&dir=down");
   expect(readOrder(new URLSearchParams("sort=days&dir=down"))).toEqual({ sort: "days", up: false });
   // An unknown sort is the default, not a crash.
-  expect(readOrder(new URLSearchParams("sort=nonsense"))).toEqual({ sort: "holder", up: true });
+  expect(readOrder(new URLSearchParams("sort=nonsense"))).toEqual({ sort: "reservation", up: true });
 });
 
 test("a pool lists once per holder and event, and a count no lot explains has no event (FR-RPT-11)", () => {
@@ -278,4 +291,28 @@ test("a line out for cleaning still names its event (FR-OUT-46)", () => {
   expect(outFor({ event: "Rainbucket", cleaner: "Smith" })).toBe("Rainbucket · At home with Smith");
   expect(outFor({ event: "Rainbucket" })).toBe("Rainbucket");
   expect(outFor({ event: null })).toBe("");
+});
+
+test("byEvent heads gear by event, case and spacing aside, numbers in order, no event last (FR-RPT-17)", () => {
+  const evented: State = {
+    ...state,
+    item: {
+      ...state.item,
+      tent: { ...out("bob", T0 - DAY_MS, "Camp 10"), name: "Tent" },
+      axe: { ...out("bob", T0 - DAY_MS, "camp  9"), name: "Axe" },
+      stove: { ...out("alice", T0 - DAY_MS, "Camp 9"), name: "Stove" },
+    },
+  };
+  // Within an event, rows keep whatIsOut's order: holder, then longest out, then item.
+  expect(byEvent(whatIsOut(evented, T0)).map((g) => [g.name, g.rows.map((r) => r.item.name)])).toEqual([
+    ["Camp 9", ["Stove", "Axe"]],
+    ["Camp 10", ["Tent"]],
+    ["No event", ["Lamp"]],
+  ]);
+});
+
+test("the event sort reads case and spacing aside, with no event last", () => {
+  expect(eventKey("Spring  CAMP")).toBe(eventKey("spring camp"));
+  expect(eventKey("  ")).toBe(eventKey(null));
+  expect(eventKey("Zoo") < eventKey(null)).toBe(true);
 });

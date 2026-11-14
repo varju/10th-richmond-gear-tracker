@@ -1,8 +1,11 @@
 import { displayName, group } from "../lib/inventory";
 import { withQuery } from "../lib/listUrl";
 import {
+  byEvent,
+  byEventOrder,
   firstDirection,
   orderParams,
+  type OutRow,
   type OutSort,
   outFor,
   outRows,
@@ -28,6 +31,22 @@ const COLUMNS: { key: OutSort; label: string }[] = [
   { key: "days", label: "Out" },
 ];
 
+function Row({ store, row }: { store: Store; row: OutRow }) {
+  return (
+    <tr>
+      <td>
+        <button className="link" type="button" onClick={() => navigate(`/items/${row.item.id}`)}>
+          {displayName(store.state, row.item)}
+        </button>
+        {row.overdue && <span className="badge overdue">Overdue</span>}
+      </td>
+      <td>{row.holderName}</td>
+      <td>{outFor(row)}</td>
+      <td>{row.count != null ? `${row.count} out` : daysLabel(row.days)}</td>
+    </tr>
+  );
+}
+
 /**
  * The desk's version of what is out (FR-RPT-01, NFR-USE-10): every row at
  * once, sortable by any column (FR-RPT-12). The phone shows the same rows as
@@ -42,7 +61,7 @@ export function OutTable({ store }: { store: Store }) {
   const { report, events, event, eventName } = readOutEvent(whatIsOut(state, now()), route.query);
   const groupName = group(state).name;
 
-  const list = sortRows(state, outRows(report), order);
+  const grouped = byEventOrder(order);
 
   // Clicking the column already sorted on turns it around; any other opens the way it reads best.
   function sortBy(sort: OutSort) {
@@ -86,21 +105,26 @@ export function OutTable({ store }: { store: Store }) {
                 ))}
               </tr>
             </thead>
-            <tbody>
-              {list.map((row) => (
-                <tr key={rowKey(row)}>
-                  <td>
-                    <button className="link" type="button" onClick={() => navigate(`/items/${row.item.id}`)}>
-                      {displayName(state, row.item)}
-                    </button>
-                    {row.overdue && <span className="badge overdue">Overdue</span>}
-                  </td>
-                  <td>{row.holderName}</td>
-                  <td>{outFor(row)}</td>
-                  <td>{row.count != null ? `${row.count} out` : daysLabel(row.days)}</td>
-                </tr>
-              ))}
-            </tbody>
+            {grouped ? (
+              byEvent(report).map((g) => (
+                <tbody key={g.key}>
+                  <tr>
+                    <th scope="rowgroup" colSpan={COLUMNS.length}>
+                      {g.name}
+                    </th>
+                  </tr>
+                  {g.rows.map((row) => (
+                    <Row key={rowKey(row)} store={store} row={row} />
+                  ))}
+                </tbody>
+              ))
+            ) : (
+              <tbody>
+                {sortRows(state, outRows(report), order).map((row) => (
+                  <Row key={rowKey(row)} store={store} row={row} />
+                ))}
+              </tbody>
+            )}
           </table>
         </>
       )}

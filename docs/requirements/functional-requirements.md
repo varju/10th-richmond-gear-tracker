@@ -331,6 +331,7 @@ Reachable by scanning a label or following a link, with no sign-in.
 | FR-RPT-11 | Should   | What is out (FR-RPT-01) lists a pool once per holder and event, with the count out.                          |
 | FR-RPT-12 | Should   | Sort what is out (FR-RPT-01) by holder, item, time checked out, or reservation.                              |
 | FR-RPT-13 | Should   | Filter what is out (FR-RPT-01) to one event, case and spacing aside.                                         |
+| FR-RPT-17 | Should   | What is out (FR-RPT-01) opens with its gear under a heading per event.                                       |
 | FR-RPT-03 | Could    | Export the full inventory to CSV. Not the backup of record; NFR-DATA-06 is.                                  |
 | FR-RPT-04 | Could    | Export any filtered list to CSV.                                                                             |
 | FR-RPT-05 | Could    | Overdue report: gear out longer than the group-wide period (FR-OUT-14).                                      |

@@ -5,7 +5,18 @@
  */
 import { eventNameKey, tidyName } from "./calendar";
 import { DAY_MS } from "./clock";
-import { displayName, group, isPool, type Item, items, movable, poolCounts, poolLots, userName } from "./inventory";
+import {
+  compareNames,
+  displayName,
+  group,
+  isPool,
+  type Item,
+  items,
+  movable,
+  poolCounts,
+  poolLots,
+  userName,
+} from "./inventory";
 import { cleanerKey, type State } from "./replay";
 
 export interface OutItem {
@@ -126,7 +137,7 @@ function outEvents(report: OutReport): OutEvent[] {
     const key = eventNameKey(entry.event ?? "");
     if (key && !found.has(key)) found.set(key, tidyName(entry.event ?? ""));
   }
-  return [...found].map(([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name));
+  return [...found].map(([key, name]) => ({ key, name })).sort((a, b) => compareNames(a.name, b.name));
 }
 
 /**
@@ -171,21 +182,24 @@ export function outRows(report: OutReport): OutRow[] {
 export const rowKey = (row: OutRow): string =>
   `${row.holderId}:${row.item.id}:${row.event ?? ""}:${row.cleaner ? cleanerKey(row.cleaner) : ""}`;
 
-/** Sorts a bare event name after any real one, so ungrouped gear falls to the end. */
-export const eventKey = (event: string | null): string => event ?? "￿";
+/** Sorts a bare event name after any real one, so ungrouped gear falls to the end. Case and spacing aside. */
+export const eventKey = (event: string | null): string => (event ? eventNameKey(event) : "") || "￿";
 
 /** Which way a column reads on the first click: longest out first for time, A to Z for the rest. */
 export const firstDirection = (sort: OutSort): boolean => sort !== "days";
 
-/** Holder ascending is the default, so it is the one arrangement the URL leaves out. */
+/** The default arrangement, the only one with a heading per event (FR-RPT-17). */
+export const byEventOrder = ({ sort, up }: OutOrder): boolean => sort === "reservation" && up;
+
+/** Event ascending is the default, so it is the one arrangement the URL leaves out (FR-RPT-17). */
 export function readOrder(query: URLSearchParams): OutOrder {
-  return { sort: SORTS.find((s) => s === query.get("sort")) ?? "holder", up: query.get("dir") !== "down" };
+  return { sort: SORTS.find((s) => s === query.get("sort")) ?? "reservation", up: query.get("dir") !== "down" };
 }
 
 export function orderParams({ sort, up }: OutOrder, event = ""): URLSearchParams {
   const params = new URLSearchParams();
   if (event) params.set("event", event);
-  if (sort !== "holder") params.set("sort", sort);
+  if (sort !== "reservation") params.set("sort", sort);
   if (!up) params.set("dir", "down");
   return params;
 }
@@ -211,7 +225,7 @@ export function sortRows(state: State, rows: OutRow[], { sort, up }: OutOrder): 
   };
   return [...rows].sort((a, b) => {
     const [ak, bk] = [key(a), key(b)];
-    const order = typeof ak === "number" && typeof bk === "number" ? ak - bk : String(ak).localeCompare(String(bk));
+    const order = typeof ak === "number" && typeof bk === "number" ? ak - bk : compareNames(String(ak), String(bk));
     return (
       (up ? order : -order) ||
       a.holderName.localeCompare(b.holderName) ||
@@ -219,4 +233,17 @@ export function sortRows(state: State, rows: OutRow[], { sort, up }: OutOrder): 
       name(a).localeCompare(name(b))
     );
   });
+}
+
+export interface EventGroup extends OutEvent {
+  rows: OutRow[];
+}
+
+/** Rows under a heading per event, in the Event filter's order; gear with no event last (FR-RPT-17). */
+export function byEvent(report: OutReport): EventGroup[] {
+  const rows = outRows(report);
+  const under = (key: string) => rows.filter((row) => eventNameKey(row.event ?? "") === key);
+  const groups = outEvents(report).map((e) => ({ ...e, rows: under(e.key) }));
+  const loose = under("");
+  return loose.length > 0 ? [...groups, { key: "", name: "No event", rows: loose }] : groups;
 }

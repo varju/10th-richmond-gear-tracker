@@ -1,5 +1,7 @@
 import { displayName, group } from "../lib/inventory";
 import {
+  byEvent,
+  byEventOrder,
   firstDirection,
   orderParams,
   type OutEvent,
@@ -28,17 +30,21 @@ export function daysLabel(days: number): string {
   return plural(days, "day");
 }
 
-/** The muted detail line under an item's name. `withHolder` carries the holder's name too, for the
- * flat (non-grouped) sorts, which have no per-holder heading to say whose it is. */
-function detail(row: OutRow, withHolder: boolean): string {
-  const rest =
-    row.count != null
-      ? [outFor(row), `${row.count} out`].filter(Boolean).join(" · ")
-      : [outFor(row), `out ${daysLabel(row.days)}`].filter(Boolean).join(" · ");
-  return withHolder ? [row.holderName, rest].join(" · ") : rest;
+/** What the detail line says beyond its heading: the holder unless grouped by holder, the event unless
+ * grouped by event. */
+interface Show {
+  holder: boolean;
+  event: boolean;
 }
 
-function OutRowItem({ store, row, withHolder }: { store: Store; row: OutRow; withHolder: boolean }) {
+/** The muted detail line under an item's name. */
+function detail(row: OutRow, show: Show): string {
+  const tally = row.count != null ? `${row.count} out` : `out ${daysLabel(row.days)}`;
+  const outBit = outFor(show.event ? row : { event: null, cleaner: row.cleaner });
+  return [show.holder && row.holderName, outBit, tally].filter(Boolean).join(" · ");
+}
+
+function OutRowItem({ store, row, show }: { store: Store; row: OutRow; show: Show }) {
   return (
     <li>
       <button className="item" type="button" onClick={() => navigate(`/items/${row.item.id}`)}>
@@ -46,7 +52,7 @@ function OutRowItem({ store, row, withHolder }: { store: Store; row: OutRow; wit
           <span className="item-name">{displayName(store.state, row.item)}</span>
           {row.overdue && <span className="badge overdue">Overdue</span>}
         </span>
-        <span className="muted small">{detail(row, withHolder)}</span>
+        <span className="muted small">{detail(row, show)}</span>
       </button>
     </li>
   );
@@ -78,7 +84,7 @@ export function EventFilter({
 }
 
 /** The first report: what is out, and who has it (FR-RPT-01). Overdue gear is flagged (FR-OUT-14).
- * Sortable by holder, item, time out, or reservation (FR-RPT-12). */
+ * Opens grouped by event (FR-RPT-17); sortable by holder, item, time out, or reservation (FR-RPT-12). */
 export function Report({ store }: { store: Store }) {
   useStore(store);
   const { now } = useShell();
@@ -110,13 +116,24 @@ export function Report({ store }: { store: Store }) {
           <label className="tight">
             <span>Sort by</span>
             <select value={sort} onChange={(e) => setSort(e.target.value as OutSort)}>
+              <option value="reservation">Event</option>
               <option value="holder">Person</option>
               <option value="item">Item</option>
               <option value="days">Time out</option>
-              <option value="reservation">Event</option>
             </select>
           </label>
-          {sort === "holder" && up ? (
+          {byEventOrder({ sort, up }) ? (
+            byEvent(report).map((g) => (
+              <section key={g.key} aria-label={g.name}>
+                <h2 className="section">{g.name}</h2>
+                <ul className="items">
+                  {g.rows.map((row) => (
+                    <OutRowItem key={rowKey(row)} store={store} row={row} show={{ holder: true, event: false }} />
+                  ))}
+                </ul>
+              </section>
+            ))
+          ) : sort === "holder" && up ? (
             report.holders.map((holder) => (
               <section key={holder.id} aria-label={holder.name}>
                 <h2 className="section">{holder.name}</h2>
@@ -126,7 +143,7 @@ export function Report({ store }: { store: Store }) {
                       key={rowKey({ ...entry, holderId: holder.id, holderName: holder.name })}
                       store={store}
                       row={{ ...entry, holderId: holder.id, holderName: holder.name }}
-                      withHolder={false}
+                      show={{ holder: false, event: true }}
                     />
                   ))}
                 </ul>
@@ -135,7 +152,7 @@ export function Report({ store }: { store: Store }) {
           ) : (
             <ul className="items">
               {sortRows(store.state, outRows(report), { sort, up }).map((row) => (
-                <OutRowItem key={rowKey(row)} store={store} row={row} withHolder />
+                <OutRowItem key={rowKey(row)} store={store} row={row} show={{ holder: true, event: true }} />
               ))}
             </ul>
           )}
