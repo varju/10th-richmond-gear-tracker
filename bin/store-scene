@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+"""Fill a database for App Store screenshots: a few members, gear out for two events, a camp booked, a repair.
+
+Run on a database that client/e2e/serve.sh has made, before the server starts: `store-scene --db PATH`.
+Writes go through the assistant's tools, the same path the app's sync uses.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime
+import sys
+
+from gear_tracker import accounts, assistant
+from gear_tracker.db import open_db
+from gear_tracker.sync import Principal
+from gear_tracker.ulid import new_ulid
+
+PEOPLE = ("Ben Okafor", "Carol Nguyen", "Priya Shah")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--db", required=True)
+    db = parser.parse_args().db
+
+    with open_db(db) as conn:
+        admin = accounts.first_admin(conn)
+    if admin is None:
+        sys.exit("no Admin: run client/e2e/serve.sh's setup first")
+
+    def as_(user_id: str, role: str = "user"):
+        return assistant.acting_as(Principal(user_id=user_id, device_id=f"mcp-{new_ulid()}", role=role), db)
+
+    with as_(admin, "admin"):
+        people = {
+            name: assistant.invite_user(name, name.split()[0].lower() + "@example.org")["user_id"] for name in PEOPLE
+        }
+
+    def find(query: str) -> dict:
+        found = assistant.search_items(query)
+        if found["count"] != 1:
+            sys.exit(f"{query!r} matched {found['count']} rows, not 1")
+        return found["rows"][0]
+
+    def unit(query: str, n: int) -> str:
+        return find(query)["unit_ids"][n]
+
+    with as_(admin, "admin"):
+        assistant.set_group(assistant.GroupFields(name="10th Richmond", overdue_days=30))
+
+    today = datetime.date.today()
+    camp = today + datetime.timedelta(days=12)
+    with as_(admin, "admin"):
+        booked = assistant.create_reservation(
+            "Winter camp",
+            camp.isoformat(),
+            (camp + datetime.timedelta(days=2)).isoformat(),
+            items=[find("Trailer")["item_id"], find("kitchen box")["item_id"]],
+            generics=[assistant.GenericLine(item_id=find("Tent, 4-person")["item_id"], quantity=3)],
+        )
+    if not booked["saved"]:
+        sys.exit(booked["message"])
+
+    with as_(people["Ben Okafor"]):
+        for n in (0, 1):
+            assistant.check_out(unit("Tent, 4-person", n), event="Fall camp")
+        assistant.check_out(unit("Dutch oven", 0), event="Fall camp")
+    with as_(people["Carol Nguyen"]):
+        assistant.check_out(unit("Stove, two-burner", 0), event="Fall camp")
+        assistant.check_out(find("First aid kit")["item_id"], event="Fall camp")
+    with as_(people["Priya Shah"]):
+        assistant.check_out(find("Lantern")["item_id"], event="Tuesday meeting")
+        assistant.check_out(unit("Tarp", 0), event="Tuesday meeting")
+    with as_(admin, "admin"):
+        assistant.check_out(find("Canoe")["item_id"])
+
+    with as_(people["Carol Nguyen"]):
+        ticket = assistant.raise_ticket(
+            unit("Stove, two-burner", 1), "Left burner won't light. Igniter clicks, no spark."
+        )
+    with as_(admin, "admin"):
+        assistant.comment_ticket(ticket["ticket_id"], "New igniter ordered.")
+
+
+if __name__ == "__main__":
+    main()

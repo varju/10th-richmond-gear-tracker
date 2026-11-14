@@ -456,6 +456,9 @@ The privacy policy URL the App Store asks for is `/privacy` on your site, for ex
 (FR-PUB-07). The server writes it with no sign-in, and fills in the group's name and the mail **Send from** address from
 Settings. With no mail set up, it tells people to contact the group's leaders.
 
+For the App Store's screenshots, `make store-shots` loads demo data with made-up members (`bin/store-scene`) and saves
+five screens for the 13-inch iPad and the 6.9-inch iPhone in `client/store-shots/`.
+
 ### Linking the app to your site
 
 Once the app and the site name each other:

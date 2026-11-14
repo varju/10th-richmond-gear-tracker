@@ -1,6 +1,6 @@
 DB ?= gear.db
 
-.PHONY: setup test lint fmt migrate audit check client-install client-test client-build e2e serve ios image scan deploy logs start-over coverage coverage-floors
+.PHONY: setup test lint fmt migrate audit check client-install client-test client-build e2e store-shots serve ios image scan deploy logs start-over coverage coverage-floors
 
 setup:
 	./bin/setup
@@ -36,6 +36,11 @@ client-build:
 # Browser tests: a real server, a real browser, the built client. Seconds, not milliseconds.
 e2e: client-build
 	cd client && npm run e2e
+
+# App Store screenshots from demo data (bin/store-scene), into client/store-shots/.
+store-shots: client-build
+	rm -rf client/store-shots
+	cd client && npx playwright test --config playwright.store.config.ts
 
 # The API with the built client in front of it, as deployed.
 serve: client-build

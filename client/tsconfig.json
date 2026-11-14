@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["vite/client", "vite-plugin-pwa/client", "node"]
   },
-  "include": ["src", "e2e", "vite.config.ts", "playwright.config.ts"]
+  "include": ["src", "e2e", "store", "vite.config.ts", "playwright.config.ts", "playwright.store.config.ts"]
 }
