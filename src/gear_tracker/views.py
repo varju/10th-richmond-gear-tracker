@@ -331,8 +331,10 @@ def search(
     needs: str | None = None,
     home_user_id: str | None = None,
 ) -> list[Fields]:
-    """Search as you type (FR-INV-07), over the things that move. Every word must appear somewhere."""
-    return _search_with(state, query, location_id, status, retired, needs, home_user_id, _bound_for(state, needs))
+    """Search as you type (FR-INV-07), over the things that move. Every word must appear somewhere.
+    Name matches come first (FR-INV-81)."""
+    bound = _bound_for(state, needs)
+    return [it for _, it in _search_with(state, query, location_id, status, retired, needs, home_user_id, bound)]
 
 
 def _bound_for(state: State, needs: str | None) -> set[str]:
@@ -348,12 +350,9 @@ def _search_with(
     needs: str | None,
     home_user_id: str | None,
     bound: set[str],
-) -> list[Fields]:
+) -> list[tuple[int, Fields]]:
+    """Matches with their rank, name matches first (FR-INV-81)."""
     words = [w for w in query.lower().split() if w]
-
-    def matches(it: Fields) -> bool:
-        hay = f"{display_name(state, it)} {home_label(state, it)}".lower()
-        return all(w in hay for w in words)
 
     def wanted(it: Fields) -> bool:
         if needs is not None and not lacks(state, it, needs, bound):
@@ -365,16 +364,28 @@ def _search_with(
         return it.get("status") == status
 
     found = [
-        it
+        (rank, it)
         for it in movable(state)
         if not it.get("merged_into")
         and bool(it.get("retired")) == retired
         and (location_id is None or it.get("home_location_id") == location_id)
         and (home_user_id is None or it.get("home_user_id") == home_user_id)
-        and matches(it)
         and wanted(it)
+        and (rank := _rank(state, it, words)) is not None
     ]
-    return sorted(found, key=lambda it: display_name(state, it))
+    return sorted(found, key=lambda pair: (pair[0], display_name(state, pair[1])))
+
+
+def _rank(state: State, it: Fields, words: list[str]) -> int | None:
+    """0 when every word is in the name (FR-INV-07), 1 when the rest are in the home, the description
+    (FR-INV-79) or a unit's generic's description (FR-INV-80), None when a word is in none of them."""
+    name = display_name(state, it).lower()
+    rest = [w for w in words if w not in name]
+    if not rest:
+        return 0
+    parent = item(state, it["parent_id"]) if it.get("parent_id") else None
+    text = f"{home_label(state, it)} {it.get('description') or ''} {(parent or {}).get('description') or ''}".lower()
+    return 1 if all(w in text for w in rest) else None
 
 
 def rows(
@@ -392,13 +403,17 @@ def rows(
     singles: list[Fields] = []
     pools: list[Fields] = []
     by_parent: dict[str, list[Fields]] = {}
+    # A generic's row ranks by its best unit.
+    best: dict[str, int] = {}
     bound = _bound_for(state, needs)
-    for it in _search_with(state, query, location_id, status, retired, needs, home_user_id, bound):
+    for rank, it in _search_with(state, query, location_id, status, retired, needs, home_user_id, bound):
         parent = it.get("parent_id") if it.get("parent_id") in (state.get("item") or {}) else None
         if parent:
             by_parent.setdefault(parent, []).append(it)
+            best[parent] = min(rank, best.get(parent, rank))
         else:
             singles.append({"kind": "single", "item": it, "name": display_name(state, it)})
+            best[it["id"]] = rank
 
     words = [w for w in query.lower().split() if w]
 
@@ -426,11 +441,12 @@ def rows(
             continue
         if bool(generic.get("retired")) != retired:
             continue
-        hay = f"{display_name(state, generic)} {home_label(state, generic)}".lower()
-        if not all(w in hay for w in words):
+        rank = _rank(state, generic, words)
+        if rank is None:
             continue
         if is_pool(generic):
             if pool_wanted(generic):
+                best[generic["id"]] = rank
                 pools.append(
                     {
                         "kind": "pool",
@@ -442,6 +458,7 @@ def rows(
         elif location_id is None and home_user_id is None and status is None and needs is None:
             # An empty generic is still a row when only the search text is set, so one can be found and given units.
             by_parent[generic["id"]] = []
+            best[generic["id"]] = rank
 
     children: dict[str, list[Fields]] = {}
     for it in items(state):
@@ -465,7 +482,8 @@ def rows(
                 },
             }
         )
-    return sorted([*grouped, *singles, *pools], key=lambda row: row["name"])
+
+    return sorted([*grouped, *singles, *pools], key=lambda row: (best.get(row["item"]["id"], 1), row["name"]))
 
 
 # --- what is out -------------------------------------------------------------------------

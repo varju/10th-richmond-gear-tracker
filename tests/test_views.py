@@ -40,6 +40,23 @@ def test_pool_counts_owned_includes_what_is_missing():
     assert pool_counts(it) == {"owned": 9, "in": 4, "missing": 2, "out": [{"holder_id": "bob", "count": 3}]}
 
 
+def test_rows_match_the_description_and_list_name_matches_first():
+    """FR-INV-79 to FR-INV-81. A unit matches its generic's description; a generic's row ranks by its best match."""
+    state = {
+        "item": {
+            "stove": {"id": "stove", "name": "Stove", "status": "in", "description": "Spare tent poles"},
+            "t1": {"id": "t1", "name": "Tent 1", "status": "in"},
+            "tents": {"id": "tents", "name": "4-person tent", "generic": True, "description": "Blue fly"},
+            "u1": {"id": "u1", "parent_id": "tents", "number": "1", "status": "in"},
+            "tarp": {"id": "tarp", "name": "Tarp", "status": "in"},
+        },
+    }
+    assert [r["name"] for r in rows(state, "tent")] == ["4-person tent", "Tent 1", "Stove"]
+    assert [r["name"] for r in rows(state, "blue")] == ["4-person tent"]
+    assert [r["name"] for r in rows(state, "poles tent")] == ["Stove"]
+    assert [views.display_name(state, it) for it in views.search(state, "blue 1")] == ["4-person tent #1"]
+
+
 def test_rows_matches_a_pool_to_a_location_filter():
     """FR-INV-25. A pool has no units for search() to filter on location; rows() checks its home."""
     state = {

@@ -170,6 +170,8 @@ export function ItemTable({ store }: { store: Store }) {
     const cmp = sortKey(store, a, effective.key).localeCompare(sortKey(store, b, effective.key), undefined, {
       numeric: effective.key === "status",
     });
+    // Sorted by name, name matches still come first (FR-INV-81).
+    if (effective.key === "name" && a.rank !== b.rank) return a.rank - b.rank;
     return (effective.up ? cmp : -cmp) || a.name.localeCompare(b.name);
   });
   const sections = grouped

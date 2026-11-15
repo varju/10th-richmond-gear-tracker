@@ -570,6 +570,18 @@ test("two of the same gear are grouped under one name, and both stay (FR-INV-30)
   expect(currentCode(store.state, tent)?.id).toBe("ABCDEFGH23");
 });
 
+test("the group picker lists name matches above description matches (FR-INV-81)", async () => {
+  await act.createGeneric(store, { name: "Stove kit", description: "tent pegs" });
+  await act.createItem(store, { name: "Tent 2" });
+  renderInShell(<ItemPage store={store} id={tent} />);
+
+  await user.click(screen.getByRole("button", { name: "Group with another item…" }));
+  await user.type(screen.getByLabelText("Search"), "tent");
+  const named = screen.getByRole("button", { name: /^Tent 2/ });
+  const described = screen.getByRole("button", { name: /^Stove kit/ });
+  expect(named.compareDocumentPosition(described) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
 test("grouping with a generic joins the one already there (FR-INV-30)", async () => {
   const tents = await act.createGeneric(store, { name: "4-person tent" });
   await act.addUnit(store, tents);

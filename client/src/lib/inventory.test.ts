@@ -72,6 +72,34 @@ test("search matches every word against the name, not the home (FR-INV-07)", asy
   expect(names({ sub_location: "shelf 4", status: "in" })).toEqual(["Tent 1", "Tent 2"]);
 });
 
+test("search also matches the description, a unit's generic's too, and lists name matches first (FR-INV-79, FR-INV-80, FR-INV-81)", async () => {
+  const f = await withUnits();
+  await act.updateItem(store, f.stove, { description: "Spare tent poles in the blue bag" });
+  await act.updateItem(store, f.tents, { description: "Blue fly" });
+  expect(names({ query: "tent" })).toEqual([
+    "4-person tent #1",
+    "4-person tent #2",
+    "4-person tent #7 (patched fly)",
+    "Tent 1",
+    "Tent 2",
+    "Stove",
+  ]);
+  expect(names({ query: "blue" })).toEqual([
+    "4-person tent #1",
+    "4-person tent #2",
+    "4-person tent #7 (patched fly)",
+    "Stove",
+  ]);
+  expect(names({ query: "patched blue" })).toEqual(["4-person tent #7 (patched fly)"]);
+  expect(names({ query: "poles tent" })).toEqual(["Stove"]);
+  expect(inv.rows(store.state, { query: "tent" }).map((r) => r.name)).toEqual([
+    "4-person tent",
+    "Tent 1",
+    "Tent 2",
+    "Stove",
+  ]);
+});
+
 test("a unit is named by its generic, its number and its nickname (FR-INV-22)", async () => {
   const f = await withUnits();
   const name = (id: string) => inv.displayName(store.state, inv.item(store.state, id)!);

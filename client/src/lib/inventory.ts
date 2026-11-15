@@ -474,28 +474,56 @@ function lacks(state: State, it: Item, needs: Needs, bound: Set<string>): boolea
 const terms = (query: string | undefined): string[] => (query ?? "").toLowerCase().split(/\s+/).filter(Boolean);
 
 /**
- * Every word must appear in the name, or a unit's number and nickname (FR-INV-07).
- * Not the home: "Home" or a locker's name would pull in everything that lives there.
+ * 0 when every word is in the name, or a unit's number and nickname (FR-INV-07); 1 when the rest are in
+ * the description (FR-INV-79) or a unit's generic's (FR-INV-80); null when a word is in neither. Not the
+ * home: "Home" or a locker's name would pull in everything that lives there. Name matches list first
+ * (FR-INV-81).
  */
-function matches(state: State, it: Item, words: string[]): boolean {
-  if (words.length === 0) return true;
-  const hay = displayName(state, it).toLowerCase();
-  return words.every((w) => hay.includes(w));
+function rank(state: State, it: Item, words: string[]): number | null {
+  const name = displayName(state, it).toLowerCase();
+  const rest = words.filter((w) => !name.includes(w));
+  if (rest.length === 0) return 0;
+  const parent = it.parent_id ? item(state, it.parent_id) : undefined;
+  const text = `${it.description ?? ""} ${parent?.description ?? ""}`.toLowerCase();
+  return rest.every((w) => text.includes(w)) ? 1 : null;
 }
+
+/** The items that match the search text, in search() order. */
+export const matching = (state: State, list: Item[], query: string): Item[] =>
+  ranked(state, list, terms(query)).map((r) => r.it);
+
+interface Ranked {
+  it: Item;
+  rank: number;
+}
+
+function ranked(state: State, list: Item[], words: string[]): Ranked[] {
+  const out: Ranked[] = [];
+  for (const it of list) {
+    const r = rank(state, it, words);
+    if (r !== null) out.push({ it, rank: r });
+  }
+  return out.sort(byRank(state));
+}
+
+const byRank = (state: State) => {
+  const names = byName(state);
+  return (a: Ranked, b: Ranked) => a.rank - b.rank || names(a.it, b.it);
+};
 
 /**
  * Search as you type (FR-INV-07), over the things that move: single items and
  * units. Generics are not here; the list groups units under them in rows().
  * Merged duplicates are never listed; their survivor is.
  */
-export const search = (state: State, filter: Filter): Item[] => searchWith(state, filter, neededCodes(state, filter));
+export const search = (state: State, filter: Filter): Item[] =>
+  searchWith(state, filter, neededCodes(state, filter)).map((r) => r.it);
 
 const neededCodes = (state: State, filter: Filter): Set<string> =>
   filter.needs === "code" ? boundItems(state) : new Set<string>();
 
-function searchWith(state: State, filter: Filter, bound: Set<string>): Item[] {
-  const words = terms(filter.query);
-  return movable(state)
+function searchWith(state: State, filter: Filter, bound: Set<string>): Ranked[] {
+  const list = movable(state)
     .filter((it) => !it.merged_into)
     .filter((it) => Boolean(it.retired) === Boolean(filter.retired))
     .filter((it) => !filter.location_id || it.home_location_id === filter.location_id)
@@ -503,9 +531,8 @@ function searchWith(state: State, filter: Filter, bound: Set<string>): Item[] {
     .filter((it) => !filter.sub_location || it.sub_location === filter.sub_location)
     .filter((it) => !filter.status || (filter.status === "missing" ? Boolean(it.missing) : it.status === filter.status))
     .filter((it) => !filter.category_id || categoriesOf(state, it).includes(filter.category_id))
-    .filter((it) => matches(state, it, words))
-    .filter((it) => !filter.needs || lacks(state, it, filter.needs, bound))
-    .sort(byName(state));
+    .filter((it) => !filter.needs || lacks(state, it, filter.needs, bound));
+  return ranked(state, list, terms(filter.query));
 }
 
 /**
@@ -515,29 +542,33 @@ function searchWith(state: State, filter: Filter, bound: Set<string>): Item[] {
  * drops a retired item.
  */
 export function bindTargets(state: State, filter: Filter): Item[] {
-  const words = terms(filter.query);
-  if (filter.status && filter.status !== "in") return search(state, filter).sort(byName(state));
+  if (filter.status && filter.status !== "in") return search(state, filter);
   const pools = generics(state)
     .filter(isPool)
     .filter((it) => Boolean(it.retired) === Boolean(filter.retired))
     .filter((it) => !filter.location_id || it.home_location_id === filter.location_id)
     .filter((it) => !filter.home_user_id || it.home_user_id === filter.home_user_id)
     .filter((it) => !filter.sub_location || it.sub_location === filter.sub_location)
-    .filter((it) => !filter.category_id || categoriesOf(state, it).includes(filter.category_id))
-    .filter((it) => matches(state, it, words));
-  return [...search(state, filter), ...pools].sort(byName(state));
+    .filter((it) => !filter.category_id || categoriesOf(state, it).includes(filter.category_id));
+  const words = terms(filter.query);
+  return [...searchWith(state, filter, neededCodes(state, filter)), ...ranked(state, pools, words)]
+    .sort(byRank(state))
+    .map((r) => r.it);
 }
 
 export interface SingleRow {
   kind: "single";
   item: Item;
   name: string;
+  /** 0 when the name matched the search, 1 when only the description did (FR-INV-81). */
+  rank: number;
 }
 
 export interface GenericRow {
   kind: "generic";
   item: Item;
   name: string;
+  rank: number;
   /** The units that matched, in number order. */
   units: Item[];
   counts: { in: number; out: number; missing: number };
@@ -547,6 +578,7 @@ export interface PoolRow {
   kind: "pool";
   item: Item;
   name: string;
+  rank: number;
   /** Owned, in, missing, and out by holder (FR-INV-36). */
   pool: PoolCounts;
 }
@@ -584,25 +616,30 @@ export function rows(state: State, filter: Filter): Row[] {
   const singles: Row[] = [];
   const pools: Row[] = [];
   const byParent = new Map<string, Item[]>();
+  // A generic's row ranks by its best unit; a unit never ranks below its generic.
+  const best = new Map<string, number>();
   const bound = neededCodes(state, filter);
-  for (const it of searchWith(state, filter, bound)) {
+  for (const { it, rank: r } of searchWith(state, filter, bound)) {
     const parent = it.parent_id && state.item?.[it.parent_id] ? it.parent_id : "";
     if (parent) {
       const list = byParent.get(parent);
       if (list) list.push(it);
       else byParent.set(parent, [it]);
-    } else singles.push({ kind: "single", item: it, name: displayName(state, it) });
+      best.set(parent, Math.min(r, best.get(parent) ?? r));
+    } else singles.push({ kind: "single", item: it, name: displayName(state, it), rank: r });
   }
   const words = terms(filter.query);
   const unfiltered = !isNarrowing(filter);
   for (const g of generics(state)) {
     if (g.merged_into || Boolean(g.retired) !== Boolean(filter.retired)) continue;
-    if (!matches(state, g, words)) continue;
+    const r = rank(state, g, words);
+    if (r === null) continue;
     if (isPool(g)) {
       if (poolWanted(state, g, filter, bound))
-        pools.push({ kind: "pool", item: g, name: displayName(state, g), pool: poolCounts(g) });
+        pools.push({ kind: "pool", item: g, name: displayName(state, g), pool: poolCounts(g), rank: r });
     } else if (unfiltered && !byParent.has(g.id)) {
       byParent.set(g.id, []);
+      best.set(g.id, r);
     }
   }
   const unitsByParent = byParent.size > 0 ? unitsByGeneric(state) : new Map<string, Item[]>();
@@ -613,6 +650,7 @@ export function rows(state: State, filter: Filter): Row[] {
       kind: "generic",
       item: parent,
       name: displayName(state, parent),
+      rank: best.get(id) ?? 1,
       units: units.sort(byNumber),
       counts: {
         in: all.filter((u) => u.status === "in" && !u.missing).length,
@@ -621,7 +659,7 @@ export function rows(state: State, filter: Filter): Row[] {
       },
     };
   });
-  return [...grouped, ...singles, ...pools].sort((a, b) => a.name.localeCompare(b.name));
+  return [...grouped, ...singles, ...pools].sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
 }
 
 /** How many things the rows stand for: units and single items, and a pool's owned quantity, not a generic itself. */

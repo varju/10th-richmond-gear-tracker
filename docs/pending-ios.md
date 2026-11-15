@@ -13,6 +13,7 @@ What the app does differently.
 - A tap on the status bar while a screen is returning to its scroll stops it there, and Back later returns to where the
   person was.
 - After the app reloads, Back and Forward return each screen to where it was scrolled, not an older place.
+- Search also finds gear by its description. Gear named for the words still lists first.
 
 ## Chores
 

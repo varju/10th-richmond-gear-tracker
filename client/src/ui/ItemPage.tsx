@@ -40,6 +40,7 @@ import {
   parentOf,
   poolCounts,
   poolLots,
+  matching,
   search,
   takesUnits,
   unitsOf,
@@ -1048,15 +1049,18 @@ function GroupPicker({ store, id, onDone }: { store: Store; id: string; onDone: 
   const other = chosen ? item(state, chosen) : undefined;
   const words = query.trim().toLowerCase();
   // Generics are not in search: they are a name, not a thing that moves. Both are offered here.
-  const shared = generics(state).filter((g) => takesUnits(g) && displayName(state, g).toLowerCase().includes(words));
   const candidates = words
-    ? [
-        ...shared,
-        ...search(state, { query }).filter((c) => {
-          const parent = parentOf(state, c);
-          return c.id !== id && (!parent || takesUnits(parent));
-        }),
-      ]
+    ? matching(
+        state,
+        [
+          ...generics(state).filter(takesUnits),
+          ...search(state, { query }).filter((c) => {
+            const parent = parentOf(state, c);
+            return c.id !== id && (!parent || takesUnits(parent));
+          }),
+        ],
+        query,
+      )
     : [];
 
   function choose(otherId: string) {

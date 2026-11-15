@@ -221,6 +221,22 @@ test("the inventory is a table, sortable, a generic's units folded under it", as
   expect(screen.getByRole("columnheader", { name: /Home/ })).toHaveAttribute("aria-sort", "ascending");
 });
 
+test("sorted by name, the table lists name matches above description matches (FR-INV-81)", async () => {
+  const f = await fixture();
+  await act.updateItem(store, f.stove, { description: "Spare tent pegs" });
+  navigate("/items?q=tent");
+  mount();
+  const user = userEvent.setup();
+  const names = () =>
+    within(screen.getByRole("table"))
+      .getAllByRole("row")
+      .slice(1)
+      .map((r) => within(r).getAllByRole("link")[0]!.textContent);
+  expect(names()).toEqual(["Tent 1", "Stove"]);
+  await user.click(screen.getByRole("button", { name: /^Name/ }));
+  expect(names()).toEqual(["Tent 1", "Stove"]);
+});
+
 test("an item name in the table is a link, and a modified click is left to the browser", async () => {
   const f = await fixture();
   navigate("/items");
