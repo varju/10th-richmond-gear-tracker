@@ -97,6 +97,43 @@ test("back and forward return each screen to where it was scrolled", async () =>
   await vi.waitFor(() => expect(window.scrollY).toBe(2000));
 });
 
+test("back returns to the scroll at the tap, before the browser reports it", async () => {
+  navigate("/items");
+  await scrollTo(900);
+  // The browser sends its scroll event on the next frame, after the tap has moved on.
+  window.scrollTo(0, 300);
+  navigate("/items/abc");
+
+  const pop = popped();
+  back("/");
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(300));
+});
+
+test("back and forward keep the scroll at the tap, before the browser reports it", async () => {
+  navigate("/items");
+  await scrollTo(900);
+  navigate("/items/abc");
+  await scrollTo(300);
+  window.scrollTo(0, 700);
+
+  let pop = popped();
+  back("/");
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(900));
+  window.scrollTo(0, 1500);
+
+  pop = popped();
+  history.forward();
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(700));
+
+  pop = popped();
+  history.back();
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(1500));
+});
+
 test("a link to a heading on the page is left where the browser put it", async () => {
   navigate("/help");
   await scrollTo(500);
@@ -104,4 +141,18 @@ test("a link to a heading on the page is left where the browser put it", async (
   window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
   await new Promise(requestAnimationFrame);
   expect(window.scrollY).toBe(500);
+});
+
+test("back from a heading returns to where the screen was before the link", async () => {
+  navigate("/help");
+  await scrollTo(200);
+  history.pushState(null, "", "/help#checking-out");
+  // The browser may scroll to the heading before it sends popstate.
+  window.scrollTo(0, 1800);
+  window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+
+  const pop = popped();
+  history.back();
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(200));
 });

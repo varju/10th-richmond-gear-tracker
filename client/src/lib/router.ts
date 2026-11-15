@@ -34,13 +34,16 @@ export function navigate(path: string, replace = false): void {
   const href = hrefOf(path);
   // A replace on the same screen (a search as it is typed) keeps its place; anything else starts at the top.
   const same = replace && parseRoute(location.pathname).path === parseRoute(path, "").path;
+  // Now, not on the scroll event: the browser sends that a frame late.
+  if (!replace) record();
   restoring?.();
   if (same) history.replaceState({ ...current(), depth: depth() }, "", href);
   else if (replace) history.replaceState({ depth: depth(), key: newKey() }, "", href);
   else {
-    history.replaceState({ ...current(), depth: depth(), key: key(), scroll: window.scrollY }, "");
+    history.replaceState({ ...current(), depth: depth(), key: key(), scroll: positions.get(key()) }, "");
     history.pushState({ depth: depth() + 1, key: newKey() }, "", href);
   }
+  shown = here();
   for (const listener of listeners) listener();
   if (!same) window.scrollTo(0, 0);
 }
@@ -70,6 +73,8 @@ const INPUT = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
 
 /** Stops a restore in progress; set only while one runs. */
 let restoring: (() => void) | null = null;
+/** Where the restore in progress is heading. */
+let target = 0;
 
 export const restoringScroll = (): boolean => restoring !== null;
 
@@ -91,20 +96,32 @@ function restore(y: number): void {
     if (Math.abs(window.scrollY - y) < 1) stop();
   };
   restoring = stop;
+  target = y;
   for (const type of INPUT) window.addEventListener(type, stop, { passive: true });
   observer.observe(document.body);
   requestAnimationFrame(attempt);
 }
 
-const record = () => {
-  if (!restoring) positions.set(key(), window.scrollY);
-};
-window.addEventListener("scroll", record, { passive: true });
+const here = () => ({ key: key(), path: location.pathname + location.search, hash: location.hash });
+/** The entry on screen. By popstate, `history.state` is already the next one. */
+let shown = here();
+
+/** Mid-restore, where it is heading, not part way there. */
+function record(entry = key()): void {
+  positions.set(entry, restoring ? target : window.scrollY);
+}
+window.addEventListener("scroll", () => record(), { passive: true });
 // A link to a heading on the page (the guide's contents) is the browser's to scroll.
 window.addEventListener("popstate", () => {
+  // A link to a heading stays on the screen, and the browser may already have scrolled to it.
+  const sameScreen = shown.path === location.pathname + location.search && shown.hash !== location.hash;
+  if (!sameScreen) record(shown.key);
+  shown = here();
   if (!location.hash) restore(positions.get(key()) ?? current()?.scroll ?? 0);
 });
-window.addEventListener("pagehide", () => history.replaceState({ ...current(), scroll: window.scrollY }, ""));
+window.addEventListener("pagehide", () =>
+  history.replaceState({ ...current(), scroll: restoring ? target : window.scrollY }, ""),
+);
 if (current()?.scroll) restore(current()!.scroll!);
 
 /** A screen's own state, kept with its history entry so back, forward and a reload bring it back. */
