@@ -157,3 +157,18 @@ expect 2-space indents; the code uses 4.
 real: line length, short names, one safe `as!` on the preview layer.
 
 **Deferred because:** 658 lines in 6 files; little to gain yet.
+
+## Scroll restore edge cases
+
+Left over from the late-scroll fix in `client/src/lib/router.ts`.
+
+- A heading link in the guide makes an entry with no state. `key()` stamps it `depth: 0`, so the in-app Back goes to the
+  fallback, not back one step.
+- Back or Forward saves the scroll only in memory, not in `history.state.scroll`. After a reload, that entry restores an
+  older position.
+- A restore stops only on wheel, touch, pointer or key. A status-bar tap, the scrollbar or find-in-page scroll without
+  one, and leaving then saves the restore's target, not where the person is.
+- Coming back to a heading entry from another screen never restores: `if (!location.hash)` skips it.
+- `restoring` and `target` are kept in step by hand; one `{ stop, y }` object would do.
+- `test-setup.ts` resets history between tests but not the router's `shown` and `positions`, so a test that starts with
+  a popstate depends on the one before.
