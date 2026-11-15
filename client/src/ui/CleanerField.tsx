@@ -22,6 +22,7 @@ export function CleanerField({
   autoFocus?: boolean;
 }) {
   // The log scan once per change to the store, not once per keystroke.
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
   const known = useMemo(() => knownCleanerNames(store), [store, store.version]);
   const q = cleanerKey(value);
   const matches = known.filter((name) => cleanerKey(name) !== q && cleanerKey(name).includes(q)).slice(0, 6);

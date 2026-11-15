@@ -252,6 +252,7 @@ function JoinLinkRow({
   onView: (() => void) | null;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
+  // oxlint-disable-next-line react/purity
   const made = `Made by ${link.created_by_name ?? "someone gone"} ${ago(Date.now() - link.created_at)} · ${
     link.expires_at === null ? "never expires" : `expires ${localDate(link.expires_at)}`
   }`;

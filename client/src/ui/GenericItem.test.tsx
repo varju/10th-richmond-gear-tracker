@@ -75,6 +75,7 @@ test("editing a single item into several can give the total: the rest are new un
   const generic = inv.generics(store.state)[0]!;
   await waitFor(() => expect(inv.unitsOf(store.state, generic.id)).toHaveLength(3));
   const units = inv.unitsOf(store.state, generic.id);
+  // oxlint-disable-next-line typescript/require-array-sort-compare
   expect(units.map((u) => u.number).sort()).toEqual(["1", "2", "A"]);
   expect(inv.item(store.state, tent)).toMatchObject({ status: "out", number: "A" });
   expect(units.filter((u) => u.id !== tent).every((u) => u.status === "in")).toBe(true);

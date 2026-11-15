@@ -741,9 +741,6 @@ const USED_NAMES = "used event names";
 export const knownEventNames = (store: Store) =>
   store.memo(USED_NAMES, () => usedEventNames(store.state, store.known, knownCorrections(store)));
 
-/** Names compared as the same event, case and spacing aside; blank is No event. */
-const sameKey = (name: string | null | undefined) => eventNameKey(name ?? "");
-
 export interface HistoryEntry {
   id: string;
   type:

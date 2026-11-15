@@ -95,9 +95,11 @@ function blocks(text: string): ReactNode {
 
 export function RichText({ text }: { text: string }) {
   if (text.length > MAX_LENGTH) return <>{text}</>;
+  let shown: ReactNode = text;
   try {
-    return <>{blocks(text)}</>;
+    shown = blocks(text);
   } catch {
-    return <>{text}</>;
+    // Shown as typed.
   }
+  return <>{shown}</>;
 }

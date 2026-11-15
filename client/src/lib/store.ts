@@ -570,7 +570,7 @@ export class Store {
     let state = this.state;
     let last = first;
     for (const event of sorted) {
-      const entities = { ...(state[event.entity_type] ?? {}) };
+      const entities = { ...state[event.entity_type] };
       const entity = structuredClone(entities[event.entity_id] ?? {});
       apply(entity, event);
       entities[event.entity_id] = entity;

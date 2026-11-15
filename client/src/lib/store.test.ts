@@ -138,7 +138,7 @@ test("a push answer settles each event; the unmentioned stay pending", async () 
 
   expect(store.pending.map((e) => e.id)).toEqual([c.id]);
   expect(store.items["tent-1"]?.name).toBe("Tent");
-  expect((store.items["tent-1"]?.notes as unknown[]).length).toBe(1);
+  expect((store.items["tent-1"]!.notes as unknown[]).length).toBe(1);
 });
 
 test("a device_seq collision is re-stamped, not rejected, and asks for a retry", async () => {

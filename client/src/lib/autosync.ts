@@ -46,7 +46,7 @@ export function autoSync(
 
   function schedule(ms: number): void {
     if (timer !== undefined) return;
-    timer = setTimeout(fire, ms);
+    timer = setTimeout(() => void fire(), ms);
   }
 
   async function fire(): Promise<void> {

@@ -49,6 +49,7 @@ export function Inventory({ store }: Props) {
     >
       <p className="muted small">
         {plural(countItems(list), "item")}
+        {/* oxlint-disable-next-line react/purity */}
         {store.meta.last_sync_at !== undefined && ` · ${syncLabel(store.meta.last_sync_at, Date.now(), false, null)}`}
       </p>
       {empty ? (

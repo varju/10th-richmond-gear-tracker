@@ -35,6 +35,7 @@ export function Photos({ store, on }: { store: Store; on: EntityRef }) {
     return () => {
       cancelled = true;
     };
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [store, on.entity_type, on.entity_id, store.version]);
 
   useEffect(() => {
@@ -58,7 +59,7 @@ export function Photos({ store, on }: { store: Store; on: EntityRef }) {
       }
       if (!cancelled) {
         setOffline(false);
-        setUrls(Object.fromEntries([...seen]));
+        setUrls(Object.fromEntries(seen));
       }
     })().catch((e: unknown) => !cancelled && setError(e instanceof Error ? e.message : "Could not load photos"));
     return () => {

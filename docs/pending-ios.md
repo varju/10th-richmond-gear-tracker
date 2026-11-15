@@ -7,3 +7,5 @@ App changes since `ios-1.0.4-487` that reach iPhones only through the next relea
 What the app does differently.
 
 ## Chores
+
+- Lint cleanups from Oxlint; no change in behaviour.

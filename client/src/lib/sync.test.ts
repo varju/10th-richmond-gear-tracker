@@ -147,7 +147,7 @@ test("first run bootstraps, later runs pull in pages until empty", async () => {
     "GET /sync/pull?since=3&log=log-one",
   ]);
   expect(store.meta.cursor).toBe(3);
-  expect((store.items["tent-1"]?.notes as unknown[]).length).toBe(3);
+  expect((store.items["tent-1"]!.notes as unknown[]).length).toBe(3);
 });
 
 test("pending work is pushed first, then comes back with a seq", async () => {
@@ -318,7 +318,7 @@ test("sync trims history past the retention window", async () => {
     payload: { text: "old" },
   });
   await sync(store, api(), () => clock);
-  expect((store.items["tent-1"]?.notes as unknown[]).length).toBe(1);
+  expect((store.items["tent-1"]!.notes as unknown[]).length).toBe(1);
   expect(await store.trim()).toBe(0);
 });
 

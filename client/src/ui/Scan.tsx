@@ -25,7 +25,7 @@ import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { PoolActions } from "./ItemPage";
 import { EventStrip, EventSuggestions, typedEvents } from "./EventChoice";
-import { holdingLabel, plural, statusLabel, userName } from "./labels";
+import { holdingLabel, statusLabel, userName } from "./labels";
 import { MOVED_MS, MoveActions, movedText, useFlash } from "./MoveActions";
 import { LightButton, useLight } from "./Light";
 import { Page } from "./Page";
@@ -141,11 +141,14 @@ export function Scan({ store, native = NATIVE }: { store: Store; native?: boolea
       }
       back(`/items/${forItem}`);
     },
+    // showCard touches only refs and stable setters.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
     [store, forItem, say, flashRead],
   );
 
   // The scanner closes over the latest handler without restarting the camera on every render.
   const latest = useRef(handle);
+  // oxlint-disable-next-line react/refs
   latest.current = handle;
 
   // Sound needs a tap on iOS: the one that opened this screen, or any tap while it is open.
@@ -580,6 +583,7 @@ function useDiagnostics(read: () => Promise<string>) {
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const start = useRef({ x: 0, y: 0 });
   const latest = useRef(read);
+  // oxlint-disable-next-line react/refs
   latest.current = read;
 
   useEffect(() => {

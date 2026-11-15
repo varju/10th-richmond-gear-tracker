@@ -1,0 +1,47 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "react", "vitest"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": [
+      "error",
+      {
+        "checksVoidReturn": {
+          "attributes": false
+        }
+      }
+    ],
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    "react/set-state-in-effect": "off",
+    "vitest/require-mock-type-parameters": "off",
+    "eslint/no-unused-vars": [
+      "error",
+      {
+        "ignoreRestSiblings": true
+      }
+    ],
+    "vitest/require-to-throw-message": "off",
+    "vitest/no-conditional-expect": "off"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "typescript/no-misused-spread": "off",
+        "typescript/no-this-alias": "off",
+        "typescript/unbound-method": "off",
+        "typescript/no-base-to-string": "off"
+      }
+    },
+    {
+      "files": ["src/lib/audit.ts"],
+      "rules": {
+        "typescript/no-base-to-string": "off"
+      }
+    }
+  ]
+}

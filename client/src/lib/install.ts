@@ -23,6 +23,7 @@ export function isIphone(): boolean {
  * The server's rule for the iPhone app link, the same pattern as events.HTTPS_LINK: https://, in any case, a host,
  * and no spaces or control characters. Not a URL parser: the server's would disagree at the edges.
  */
+// oxlint-disable-next-line no-control-regex
 const HTTPS_LINK = /^https:\/\/[^\x00-\x20/?#]+(?:[/?#][^\x00-\x20]*)?$/i;
 
 export const isHttpsLink = (value: string): boolean => HTTPS_LINK.test(value);

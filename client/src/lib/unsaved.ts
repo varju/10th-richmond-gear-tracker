@@ -105,6 +105,7 @@ export function leaveBack(fallback: string): void {
 export function useUnsaved(dirty: boolean, draft: Draft = {}): void {
   const id = useId();
   const latest = useRef(draft);
+  // oxlint-disable-next-line react/refs
   latest.current = draft;
   const hasSave = Boolean(draft.save);
   const canSave = draft.canSave !== false;

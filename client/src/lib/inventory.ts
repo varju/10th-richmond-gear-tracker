@@ -516,13 +516,13 @@ function searchWith(state: State, filter: Filter, bound: Set<string>): Item[] {
  */
 export function bindTargets(state: State, filter: Filter): Item[] {
   const words = terms(filter.query);
+  if (filter.status && filter.status !== "in") return search(state, filter).sort(byName(state));
   const pools = generics(state)
     .filter(isPool)
     .filter((it) => Boolean(it.retired) === Boolean(filter.retired))
     .filter((it) => !filter.location_id || it.home_location_id === filter.location_id)
     .filter((it) => !filter.home_user_id || it.home_user_id === filter.home_user_id)
     .filter((it) => !filter.sub_location || it.sub_location === filter.sub_location)
-    .filter((it) => !filter.status || filter.status === "in")
     .filter((it) => !filter.category_id || categoriesOf(state, it).includes(filter.category_id))
     .filter((it) => matches(state, it, words));
   return [...search(state, filter), ...pools].sort(byName(state));

@@ -29,6 +29,7 @@ export function TransferPicker({
   // The log scan and sort once per change to the store (store.version), not once per keystroke.
   const choices = useMemo(
     () => transferChoices(store.state, me ? store.eventsBy(me) : [], me, it.holder_id, now()),
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
     [store, store.version, me, it.holder_id, now],
   );
   const people = choices.filter((u) => !q || u.name.toLowerCase().includes(q));

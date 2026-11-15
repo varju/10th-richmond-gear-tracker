@@ -213,6 +213,7 @@ test("Add another keeps the form up; the template checkbox carries the values ov
   await user.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() =>
     expect(
+      // oxlint-disable-next-line typescript/require-array-sort-compare
       inv
         .items(store.state)
         .map((i) => i.name)

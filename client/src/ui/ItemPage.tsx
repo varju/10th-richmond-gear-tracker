@@ -62,7 +62,7 @@ import {
 } from "../lib/movement";
 import { openRepairs, raiseTicket, type Repair, repairsFor, stateLabel } from "../lib/repairs";
 import { type Log, useRecord } from "../lib/record";
-import { cleanerKey, type Movement, type Note, type State } from "../lib/replay";
+import { cleanerKey, type Movement, type State } from "../lib/replay";
 import { tidyName } from "../lib/calendar";
 import { isOverdue } from "../lib/reports";
 import { reservation, todayIso } from "../lib/reservations";
@@ -564,9 +564,10 @@ function OutEvent({ store, it }: { store: Store; it: Item }) {
   const linked = typeof m.reservation_id === "string" ? reservation(store.state, m.reservation_id) : undefined;
 
   if (typeof m.reservation_id === "string") {
+    const id = m.reservation_id;
     return (
       <>
-        <button className="link" type="button" onClick={() => guard(() => navigate(`/events/${m.reservation_id}`))}>
+        <button className="link" type="button" onClick={() => guard(() => navigate(`/events/${id}`))}>
           {event ?? linked?.event ?? "Event"}
         </button>{" "}
         <button type="button" className="minor" onClick={() => guard(() => navigate(`/items/${it.id}?change=1`))}>

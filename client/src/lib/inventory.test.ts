@@ -831,8 +831,8 @@ test("deleting a category in use takes it off the items and keeps their others (
 
 test("the Needs filter finds single items, units and pools that lack a code, a location or a shelf (FR-INV-51)", async () => {
   const f = await withUnits();
-  const bare = await act.createItem(store, { name: "Lantern" });
-  const bowls = await act.createPool(store, { name: "Bowls" }, 10);
+  await act.createItem(store, { name: "Lantern" });
+  await act.createPool(store, { name: "Bowls" }, 10);
   const shelved = await act.createPool(store, { name: "Mugs", home_location_id: f.cold, sub_location: "shelf 2" }, 4);
   const empty = await act.createGeneric(store, { name: "Pegs", home_location_id: f.cold });
   await act.bindCode(store, "ABCDEFGH23", f.t1);

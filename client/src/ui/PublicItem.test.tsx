@@ -30,7 +30,7 @@ const user = userEvent.setup();
 
 test("a stranger sees the group and how to reach us, not the item (FR-PUB-01)", async () => {
   const calls: string[] = [];
-  await mount(async (input) => {
+  mount(async (input) => {
     calls.push(String(input));
     return answer(tent);
   });
@@ -42,7 +42,7 @@ test("a stranger sees the group and how to reach us, not the item (FR-PUB-01)", 
 });
 
 test("nothing on the page invites them further in", async () => {
-  await mount(async () => answer({ group: { name: "10th Richmond", contact: "https://example.org/gear" } }));
+  mount(async () => answer({ group: { name: "10th Richmond", contact: "https://example.org/gear" } }));
 
   await screen.findByText("Found this? Please tell us where it is.");
   expect(screen.getByRole("link", { name: "https://example.org/gear" })).toHaveAttribute(
@@ -55,7 +55,7 @@ test("nothing on the page invites them further in", async () => {
 
 test("a member who lands here can sign in instead", async () => {
   const onSignIn = vi.fn();
-  await mount(async () => answer(tent), onSignIn);
+  mount(async () => answer(tent), onSignIn);
 
   await screen.findByRole("heading", { name: "10th Richmond" });
   await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
@@ -63,12 +63,12 @@ test("a member who lands here can sign in instead", async () => {
 });
 
 test("a code that is not ours says so", async () => {
-  await mount(async () => answer({ error: "not_found", message: "not one of our codes" }, 404));
+  mount(async () => answer({ error: "not_found", message: "not one of our codes" }, 404));
   expect(await screen.findByRole("alert")).toHaveTextContent("not one of our codes");
 });
 
 test("no signal says so, because this page cannot work without one", async () => {
-  await mount(async () => {
+  mount(async () => {
     throw new TypeError("Failed to fetch");
   });
   expect(await screen.findByRole("alert")).toHaveTextContent("No connection");
@@ -126,7 +126,7 @@ test("too many reports, or no signal, is said in words", async () => {
 });
 
 test("a stranger can read the privacy policy, in a new window (FR-PUB-07)", async () => {
-  await mount(async () => answer(tent));
+  mount(async () => answer(tent));
 
   const link = await screen.findByRole("link", { name: "Privacy" });
   expect(link).toHaveAttribute("href", `${location.origin}${BASE}/privacy`);
