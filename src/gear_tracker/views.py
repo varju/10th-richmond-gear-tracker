@@ -45,7 +45,7 @@ def today(ms: int) -> str:
     A device asks its own browser; the server has only its own zone, which is
     set to the group's when it is deployed.
     """
-    return datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d")
+    return datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d")  # noqa: DTZ006 - the server's zone
 
 
 # --- items -------------------------------------------------------------------------------

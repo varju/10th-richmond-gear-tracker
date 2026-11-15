@@ -155,15 +155,19 @@ def link_message(kind: Literal["invite", "reset"], group: str, link: str) -> tup
     if kind == "invite":
         return (
             f"You have been added to {_named(group)}",
-            f"You can now use the {group or 'group'} gear inventory.\n\n"
-            f"Open this link to set a password and sign in:\n{link}\n\n"
-            "It works once, and stops working in a week.\n",
+            (
+                f"You can now use the {group or 'group'} gear inventory.\n\n"
+                f"Open this link to set a password and sign in:\n{link}\n\n"
+                "It works once, and stops working in a week.\n"
+            ),
         )
     return (
         f"Password reset for {_named(group)}",
-        f"Someone asked for a new password on your {_named(group)} account.\n\n"
-        f"Open this link to set one:\n{link}\n\n"
-        "It works once, and stops working in a week. If you did not ask for it, ignore it.\n",
+        (
+            f"Someone asked for a new password on your {_named(group)} account.\n\n"
+            f"Open this link to set one:\n{link}\n\n"
+            "It works once, and stops working in a week. If you did not ask for it, ignore it.\n"
+        ),
     )
 
 

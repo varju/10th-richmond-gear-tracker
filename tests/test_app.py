@@ -1534,7 +1534,7 @@ def test_the_file_turns_over_at_midnight(db_path, failures):
         accounts.create_admin(conn, "Alex", "alex@example.org", "correct horse")
     failures.parent.mkdir(parents=True, exist_ok=True)
     failures.write_text("yesterday's line\n")
-    yesterday = datetime.combine(date.today() - timedelta(days=1), datetime.min.time().replace(hour=12)).timestamp()
+    yesterday = datetime.combine(date.today() - timedelta(days=1), datetime.min.time().replace(hour=12)).timestamp()  # noqa: DTZ011
     os.utime(failures, (yesterday, yesterday))
 
     TestClient(create_app(db_path)).post(
@@ -1542,7 +1542,7 @@ def test_the_file_turns_over_at_midnight(db_path, failures):
     )
 
     [rolled] = [p for p in failures.parent.iterdir() if p != failures]
-    assert rolled.name == f"{failures.name}.{datetime.fromtimestamp(yesterday):%Y-%m-%d}"
+    assert rolled.name == f"{failures.name}.{datetime.fromtimestamp(yesterday):%Y-%m-%d}"  # noqa: DTZ006
     assert lines_in(rolled) == ["yesterday's line"]
     assert len(lines_in(failures)) == 1
     log = FailedSignIns(failures)

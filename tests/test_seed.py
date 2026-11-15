@@ -276,7 +276,7 @@ def test_a_missing_section(tmp_path):
 
 
 def test_a_short_password(tmp_path):
-    with pytest.raises(BadRequest, match="admin.password"):
+    with pytest.raises(BadRequest, match=r"admin\.password"):
         seed.read(written(tmp_path, FILE.replace('password = "correct horse"', 'password = "short"')))
 
 
@@ -287,7 +287,7 @@ def test_a_mistyped_key(tmp_path):
 
 
 def test_overdue_days_is_a_count_of_days(tmp_path):
-    with pytest.raises(BadRequest, match="group.overdue_days"):
+    with pytest.raises(BadRequest, match=r"group\.overdue_days"):
         seed.read(written(tmp_path, FILE.replace("overdue_days = 30", 'overdue_days = "thirty"')))
 
 

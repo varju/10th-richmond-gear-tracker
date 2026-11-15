@@ -877,7 +877,7 @@ def in_replay_order(
     clauses = [(c, v) for c, v in (("entity_type = ?", entity_type), ("entity_id = ?", entity_id)) if v is not None]
     where = " WHERE " + " AND ".join(c for c, _ in clauses) if clauses else ""
     args = tuple(v for _, v in clauses)
-    rows = conn.execute(f"SELECT * FROM events{where} ORDER BY effective_at, device_id, device_seq", args)
+    rows = conn.execute(f"SELECT * FROM events{where} ORDER BY effective_at, device_id, device_seq", args)  # noqa: S608 - fixed clauses only
     for row in rows:
         yield from_row(row)
 
@@ -947,7 +947,7 @@ def audit(
     where = " WHERE " + " AND ".join(c for c, _ in clauses) if clauses else ""
     args = (*(v for _, v in clauses), limit, offset)
     rows = conn.execute(
-        f"SELECT * FROM events{where} ORDER BY effective_at DESC, device_id DESC, device_seq DESC LIMIT ? OFFSET ?",
+        f"SELECT * FROM events{where} ORDER BY effective_at DESC, device_id DESC, device_seq DESC LIMIT ? OFFSET ?",  # noqa: S608
         args,
     )
     return [from_row(row) for row in rows]

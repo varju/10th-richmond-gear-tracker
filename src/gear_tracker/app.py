@@ -164,13 +164,13 @@ class DailyLog(TimedRotatingFileHandler):
         self.setFormatter(logging.Formatter("%(message)s"))
 
     # The stdlib's midnight rollover misnames and mistimes files across a clock change.
-    def computeRollover(self, currentTime: int) -> int:
-        tomorrow = date.fromtimestamp(currentTime) + timedelta(days=1)
+    def computeRollover(self, currentTime: int) -> int:  # noqa: N802, N803 - the stdlib's names
+        tomorrow = date.fromtimestamp(currentTime) + timedelta(days=1)  # noqa: DTZ012 - local midnight
         return int(datetime.combine(tomorrow, datetime.min.time()).timestamp())
 
     def rotation_filename(self, default_name: str) -> str:
         """Named for the last day the file covers; rolloverAt is still that day's end."""
-        covered = date.fromtimestamp(self.rolloverAt) - timedelta(days=1)
+        covered = date.fromtimestamp(self.rolloverAt) - timedelta(days=1)  # noqa: DTZ012
         return f"{self.baseFilename}.{covered:%Y-%m-%d}"
 
 
@@ -361,7 +361,7 @@ def create_app(
         finally:
             conn.close()
 
-    Db = Annotated[sqlite3.Connection, Depends(db)]
+    Db = Annotated[sqlite3.Connection, Depends(db)]  # noqa: N806 - a type alias
 
     def principal(request: Request, conn: Db) -> Principal:
         p = authenticate(request, conn)
@@ -370,7 +370,7 @@ def create_app(
         request.state.user_email = accounts.email_or_none(conn, p.user_id)
         return p
 
-    Who = Annotated[Principal, Depends(principal)]
+    Who = Annotated[Principal, Depends(principal)]  # noqa: N806
 
     @app.middleware("http")
     async def log_access(request: Request, call_next: RequestResponseEndpoint) -> Response:
@@ -944,7 +944,7 @@ def serve_client(app: FastAPI, root: Path, db: Callable[[], Iterator[sqlite3.Con
     """Files from the build, and index.html for anything else so the client owns its own routes."""
     root = root.resolve()
     index = root / "index.html"
-    Conn = Annotated[sqlite3.Connection, Depends(db)]
+    Conn = Annotated[sqlite3.Connection, Depends(db)]  # noqa: N806
 
     @app.get("/{path:path}", include_in_schema=False)
     def client(path: str, conn: Conn) -> Response:

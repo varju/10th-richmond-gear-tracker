@@ -238,7 +238,7 @@ def test_a_long_address_on_cards_shrinks_and_stays_inside_the_border():
     chars = read(labels.sheet(CODES[:1], long, "cards"))[0][1]
     assert "".join(c["text"] for c in chars) == labels.site_text(long)
     assert font_size_upright(chars) >= labels.MIN_FONT_SIZE - 0.01
-    x0, top, x1, bottom = card_rects()[0]
+    x0, _top, x1, bottom = card_rects()[0]
     assert min(c["x0"] for c in chars) / INCH >= x0 + 0.25 - TOLERANCE
     assert max(c["x1"] for c in chars) / INCH <= x1 - 0.25 + TOLERANCE
     assert max(c["bottom"] for c in chars) / INCH <= bottom - 0.25 + TOLERANCE

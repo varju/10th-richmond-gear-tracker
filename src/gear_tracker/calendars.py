@@ -101,8 +101,8 @@ def remove_feed(conn: sqlite3.Connection, feed_id: str) -> None:
 
 
 def _fetch(url: str) -> str:
-    request = Request(url, headers={"User-Agent": "gear-tracker-calendar/1"})
-    with urlopen(request, timeout=TIMEOUT_S) as response:
+    request = Request(url, headers={"User-Agent": "gear-tracker-calendar/1"})  # noqa: S310 - FeedUrl is http(s); redirects may also reach ftp
+    with urlopen(request, timeout=TIMEOUT_S) as response:  # noqa: S310
         return response.read().decode("utf-8", errors="replace")
 
 
@@ -258,7 +258,7 @@ def _uid_of(component: Any, summary: str, dtstart: Any) -> str:
         return str(raw)
     # Some feeds omit UID. A stable stand-in, so a re-fetch replaces the same row rather than
     # piling up duplicates.
-    return hashlib.sha1(f"{summary}|{dtstart}".encode()).hexdigest()
+    return hashlib.sha1(f"{summary}|{dtstart}".encode(), usedforsecurity=False).hexdigest()
 
 
 def parse_ics(text: str, now: int) -> list[dict[str, Any]]:

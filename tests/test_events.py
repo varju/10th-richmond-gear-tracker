@@ -239,7 +239,7 @@ def test_a_reservation_has_an_event_and_days_in_order():
         validate(created("reservation", {**base, "ends": "2026-10-01"}))
     with pytest.raises(Rejected, match="starts: String should match pattern"):
         validate(created("reservation", {**base, "starts": "Oct 2"}))
-    with pytest.raises(Rejected, match="generics.0.quantity"):
+    with pytest.raises(Rejected, match=r"generics\.0\.quantity"):
         validate(created("reservation", {**base, "generics": [{"item_id": "t", "quantity": 0}]}))
 
 

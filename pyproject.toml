@@ -47,7 +47,13 @@ src = ["src", "tests"]
 target-version = "py314"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "S", "DTZ", "N", "BLE", "ASYNC", "LOG", "T10", "PIE", "C4", "PGH", "ISC", "PT"]
+ignore = ["RUF001", "RUF002", "RUF003", "N818", "PT018"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S"]
+"client/e2e/**" = ["S"]
+"src/gear_tracker/inventory.py" = ["RUF012"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

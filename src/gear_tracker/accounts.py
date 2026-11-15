@@ -960,7 +960,7 @@ def client_versions(conn: sqlite3.Connection, who: Principal) -> list[dict[str, 
         SELECT client_version, count(*) AS devices, max(seen) AS last_seen_at
         FROM ({_LATEST_PER_DEVICE.format(where="AND substr(device_id, 1, ?) != ?")})
         GROUP BY client_version ORDER BY last_seen_at DESC
-        """,
+        """,  # noqa: S608 - fixed clauses only
         (len(ASSISTANT_PREFIX), ASSISTANT_PREFIX),
     )
     return [dict(r) for r in rows]

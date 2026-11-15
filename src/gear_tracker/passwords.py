@@ -45,7 +45,7 @@ def _slot() -> Generator[None]:
         _slots.release()
 
 
-def hash(password: str) -> str:  # noqa: A001 - the module is the namespace
+def hash(password: str) -> str:
     with _slot():
         return _hasher.hash(password)
 

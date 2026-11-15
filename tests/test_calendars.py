@@ -76,7 +76,7 @@ def test_a_feed_url_must_be_http_or_https():
 
 
 class _Handler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:  # noqa: N802 - http.server's naming
+    def do_GET(self) -> None:
         if self.path == "/feed.ics":
             body = FIXTURE.encode()
             self.send_response(200)

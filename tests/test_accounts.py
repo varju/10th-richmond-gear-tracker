@@ -867,7 +867,7 @@ def test_a_join_links_expiry_is_one_of_three_choices_or_never(db, admin):
     made = make_join_link(db, admin, expiry_days=None, now=T0)
     assert made["expires_at"] is None
     with pytest.raises(pydantic.ValidationError):
-        accounts.CreateJoinLink(expiry_days=14)  # type: ignore
+        accounts.CreateJoinLink(expiry_days=14)  # ty: ignore[invalid-argument-type]
 
 
 def test_a_join_link_with_no_expiry_stays_good_and_listed_far_into_the_future(db, admin):

@@ -416,7 +416,7 @@ def _history(conn: sqlite3.Connection, state: dict[str, Any], item_id: str) -> l
             'cleaning_ended', 'cleaning_started'
         )
         ORDER BY effective_at DESC, device_id DESC, device_seq DESC LIMIT ?
-        """,
+        """,  # noqa: S608 - placeholders only
         (*ids, HISTORY_SHOWN),
     ).fetchall()
     corrected = {}
@@ -426,7 +426,7 @@ def _history(conn: sqlite3.Connection, state: dict[str, Any], item_id: str) -> l
         SELECT type, payload FROM events WHERE entity_type = 'item' AND entity_id IN ({marks})
         AND type IN ('event_corrected', 'cleaner_corrected')
         ORDER BY effective_at, device_id, device_seq
-        """,
+        """,  # noqa: S608
         ids,
     ):
         fixed = json.loads(fix["payload"])
