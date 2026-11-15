@@ -1,5 +1,5 @@
-import { expect, test, vi } from "vitest";
-import { back, depth, navigate, parseRoute } from "./router";
+import { expect, onTestFinished, test, vi } from "vitest";
+import { back, depth, navigate, parseRoute, resetRouter, restoringScroll } from "./router";
 
 test("a route is its segments and query", () => {
   expect(parseRoute("/items/abc?code=X")).toMatchObject({ path: "/items/abc", segments: ["items", "abc"] });
@@ -155,4 +155,138 @@ test("back from a heading returns to where the screen was before the link", asyn
   history.back();
   await pop;
   await vi.waitFor(() => expect(window.scrollY).toBe(200));
+});
+
+test("in-app back from a heading goes back one step", () => {
+  navigate("/help");
+  history.pushState(null, "", "/help#checking-out");
+  window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+  expect(depth()).toBe(2);
+});
+
+test("back to a heading from another screen returns to where it was scrolled", async () => {
+  navigate("/help");
+  history.pushState(null, "", "/help#checking-out");
+  window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+  await scrollTo(1800);
+  navigate("/items");
+  await scrollTo(50);
+
+  const pop = popped();
+  back("/");
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(1800));
+});
+
+test("a scroll without a touch stops a restore, and leaving keeps where the person is", async () => {
+  navigate("/items");
+  await scrollTo(900);
+  navigate("/items/abc");
+
+  // The screen behind is still too short to reach 900.
+  const scroll = window.scrollTo.bind(window);
+  const short = vi.spyOn(window, "scrollTo").mockImplementation((_x, y) => scroll(0, Math.min(Number(y), 400)));
+  onTestFinished(() => short.mockRestore());
+  let pop = popped();
+  back("/");
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(400));
+  expect(restoringScroll()).toBe(true);
+
+  // A tap on the status bar: no touch event reaches the page.
+  await scrollTo(0);
+  expect(restoringScroll()).toBe(false);
+  short.mockRestore();
+
+  navigate("/items/abc");
+  pop = popped();
+  back("/");
+  await pop;
+  await new Promise(requestAnimationFrame);
+  expect(window.scrollY).toBe(0);
+});
+
+test("after a reload, forward returns to where the screen was scrolled", async () => {
+  navigate("/items");
+  await scrollTo(900);
+  navigate("/items/abc");
+  await scrollTo(300);
+  let pop = popped();
+  back("/");
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(900));
+
+  window.dispatchEvent(new Event("pagehide"));
+  resetRouter();
+
+  pop = popped();
+  history.forward();
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(300));
+});
+
+test("a link to the heading already shown is left to the browser and adds no step", async () => {
+  navigate("/help");
+  history.pushState(null, "", "/help#checking-out");
+  window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+  await scrollTo(1800);
+  history.replaceState(null, "", "/help#checking-out");
+  window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+  await new Promise(requestAnimationFrame);
+  expect(window.scrollY).toBe(1800);
+  expect(depth()).toBe(2);
+});
+
+test("forward to a heading returns to where it was scrolled", async () => {
+  navigate("/help");
+  await scrollTo(200);
+  history.pushState(null, "", "/help#checking-out");
+  window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+  await scrollTo(2400);
+
+  let pop = popped();
+  history.back();
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(200));
+  pop = popped();
+  history.forward();
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(2400));
+});
+
+test("a page that gets shorter mid-restore does not stop it", async () => {
+  navigate("/items");
+  await scrollTo(900);
+  navigate("/items/abc");
+  const scroll = window.scrollTo.bind(window);
+  const short = vi.spyOn(window, "scrollTo").mockImplementation((_x, y) => scroll(0, Math.min(Number(y), 400)));
+  onTestFinished(() => short.mockRestore());
+  const pop = popped();
+  back("/");
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(400));
+
+  const height = document.documentElement.scrollHeight;
+  Object.defineProperty(document.documentElement, "scrollHeight", { value: height - 100, configurable: true });
+  // @ts-expect-error removes the stub, uncovering the test DOM's own getter
+  onTestFinished(() => delete document.documentElement.scrollHeight);
+  await scrollTo(300);
+  expect(restoringScroll()).toBe(true);
+});
+
+test("a link followed mid-restore ends the restore", async () => {
+  navigate("/help");
+  await scrollTo(900);
+  navigate("/items");
+  const scroll = window.scrollTo.bind(window);
+  const short = vi.spyOn(window, "scrollTo").mockImplementation((_x, y) => scroll(0, Math.min(Number(y), 400)));
+  onTestFinished(() => short.mockRestore());
+  const pop = popped();
+  back("/");
+  await pop;
+  await vi.waitFor(() => expect(window.scrollY).toBe(400));
+
+  history.pushState(null, "", "/help#checking-out");
+  window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+  expect(restoringScroll()).toBe(false);
 });

@@ -3,6 +3,7 @@ import "fake-indexeddb/auto";
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach } from "vitest";
+import { resetRouter } from "./lib/router";
 import { resetVisibility } from "./lib/visibilityTestKit";
 import { PHONE, setWidth } from "./ui/widthTestKit";
 
@@ -11,7 +12,11 @@ beforeEach(() => setWidth(PHONE));
 
 // Tests share one tab. Each starts as a fresh load, with no in-app history behind
 // it, so back() falls back the way it does on a sticker URL (lib/router.ts).
-beforeEach(() => history.replaceState({ depth: 0 }, "", "/"));
+beforeEach(() => {
+  history.replaceState({ depth: 0 }, "", "/");
+  sessionStorage.clear();
+  resetRouter();
+});
 beforeEach(() => window.scrollTo(0, 0));
 afterEach(cleanup);
 afterEach(resetVisibility);
