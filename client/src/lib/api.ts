@@ -164,6 +164,8 @@ export interface AuditFilter {
   entity_type?: string;
   from?: string;
   to?: string;
+  /** One item and what hangs off it (FR-USR-37). */
+  item?: string;
   offset?: number;
 }
 

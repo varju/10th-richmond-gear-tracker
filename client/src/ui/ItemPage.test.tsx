@@ -45,7 +45,7 @@ const withDialog = () =>
   );
 
 const actions = () => screen.getByRole("button", { name: "Add QR code" }).closest(".actions")!;
-// History and Changes fold their heading into a <summary>; its count makes the name inexact.
+// History folds its heading into a <summary>; its count makes the name inexact.
 const section = (name: string) => {
   const heading = screen.getByRole("heading", { name: new RegExp(`^${name}(?: ·|$)`) });
   return (heading.closest("summary") ?? heading).nextElementSibling!;
@@ -209,8 +209,8 @@ test("history lists movements and notes together, newest first (FR-INV-09)", asy
     "Returned by Alice · 2025-08-31 17:00muddyAlice · 2025-08-31 17:00EditDelete",
     "Checked out by Alice for Spring camp · 2025-08-31 17:00to a patrolAlice · 2025-08-31 17:00EditDelete",
   ]);
-  // No shell api here, so this is what the device knows: said once under History, once under Changes.
-  expect(screen.getAllByText("Offline: what this device knows, the last 90 days.")).toHaveLength(2);
+  // No shell api here, so this is what the device knows.
+  expect(screen.getByText("Offline: what this device knows, the last 90 days.")).toBeInTheDocument();
 });
 
 test("a single item sent home reads Sent home, with the corrected name (FR-OUT-46, FR-OUT-50)", async () => {
@@ -471,14 +471,16 @@ test("the purchase date shows under Details (FR-INV-12)", async () => {
   expect(screen.getByText("2024-03-01")).toBeInTheDocument();
 });
 
-test("the record's changes are listed with old and new values (FR-USR-09)", async () => {
-  await act.updateItem(store, tent, { name: "Tent 1 (green)" });
+test("an Admin opens the item's audit log; a User has no link (FR-USR-09)", async () => {
   renderInShell(<ItemPage store={store} id={tent} />);
-  const rows = [...(section("Changes") as HTMLElement).querySelectorAll("li")].map((li) => li.textContent);
-  expect(rows).toEqual([
-    "Name: Tent 1 → Tent 1 (green) · Alice · 2025-08-31 17:00",
-    "Created · Alice · 2025-08-31 17:00",
-  ]);
+  expect(screen.queryByRole("heading", { name: /^Changes/ })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Open in audit log" }));
+  expect(location.pathname + location.search).toBe(`/settings/audit?item=${tent}`);
+
+  cleanup();
+  await store.setMeta({ user: { id: "carol", name: "Carol", role: "user", active: true } });
+  renderInShell(<ItemPage store={store} id={tent} />);
+  expect(screen.queryByRole("button", { name: "Open in audit log" })).not.toBeInTheDocument();
 });
 
 test("an Admin merges a duplicate into the item it doubles, and lands on the survivor (FR-INV-13)", async () => {

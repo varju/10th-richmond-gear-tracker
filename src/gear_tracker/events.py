@@ -886,6 +886,18 @@ AUDIT_PAGE = 100
 """Audit rows per request (FR-USR-24). Enough to read a Friday evening; small enough to draw on a phone."""
 
 
+@dataclass(frozen=True, slots=True)
+class ItemScope:
+    """What the audit log counts as one item's (FR-USR-37)."""
+
+    items: list[str]
+    """The item and every duplicate merged into it."""
+    tickets: list[str]
+    """Its repair tickets and found reports."""
+    code_events: list[str]
+    """Code binds to it, and releases from it."""
+
+
 def audit_page(
     conn: sqlite3.Connection,
     *,
@@ -894,6 +906,7 @@ def audit_page(
     entity_type: str | None = None,
     first: date | None = None,
     last: date | None = None,
+    item: ItemScope | None = None,
     offset: int = 0,
 ) -> tuple[list[Event], bool]:
     """One page of the audit log, and whether another follows (FR-USR-24). `first` and `last` are
@@ -910,6 +923,7 @@ def audit_page(
         entity_type=entity_type,
         start=start,
         end=end,
+        item=item,
         limit=AUDIT_PAGE + 1,
         offset=offset,
     )
@@ -924,6 +938,7 @@ def audit(
     entity_type: str | None = None,
     start: int | None = None,
     end: int | None = None,
+    item: ItemScope | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> list[Event]:
@@ -944,13 +959,66 @@ def audit(
         )
         if v is not None
     ]
-    where = " WHERE " + " AND ".join(c for c, _ in clauses) if clauses else ""
-    args = (*(v for _, v in clauses), limit, offset)
+    conditions = [c for c, _ in clauses]
+    args: list[Any] = [v for _, v in clauses]
+    if item is not None:
+        conditions.append(_item_clause(item))
+        args += _item_args(item)
+    where = " WHERE " + " AND ".join(conditions) if conditions else ""
+    args += [limit, offset]
     rows = conn.execute(
         f"SELECT * FROM events{where} ORDER BY effective_at DESC, device_id DESC, device_seq DESC LIMIT ? OFFSET ?",  # noqa: S608
         args,
     )
     return [from_row(row) for row in rows]
+
+
+def _marks(values: list[str]) -> str:
+    return ", ".join("?" * len(values)) or "NULL"
+
+
+def _item_clause(item: ItemScope) -> str:
+    """Placeholders only; the values go in as arguments."""
+    items, tickets, codes = _marks(item.items), _marks(item.tickets), _marks(item.code_events)
+    line = f"(CASE WHEN type = 'object' THEN json_extract(value, '$.item_id') ELSE value END) IN ({items})"
+    on_a_list = " OR ".join(
+        f"EXISTS (SELECT 1 FROM json_each(events.payload, '{path}') WHERE {line})"  # noqa: S608
+        for path in ("$.items", "$.generics")
+    )
+    return (
+        f"((entity_type = 'item' AND entity_id IN ({items}))"
+        f" OR (entity_type IN ('repair', 'found_report') AND entity_id IN ({tickets}))"
+        f" OR (entity_type = 'code' AND id IN ({codes}))"
+        f" OR (entity_type = 'reservation' AND (json_extract(payload, '$.item_id') IN ({items}) OR {on_a_list})))"
+    )
+
+
+def _item_args(item: ItemScope) -> list[str]:
+    return [*item.items, *item.tickets, *item.code_events, *item.items * 3]
+
+
+def code_events_for(conn: sqlite3.Connection, items: list[str]) -> list[str]:
+    """Binds of a code to one of `items`, and releases from one (FR-USR-37). A release carries no item,
+    so the code's own log says which item it left."""
+    codes = [
+        row[0]
+        for row in conn.execute(
+            "SELECT DISTINCT entity_id FROM events WHERE entity_type = 'code' AND type = 'code_bound'"  # noqa: S608
+            f" AND json_extract(payload, '$.item_id') IN ({_marks(items)})",
+            items,
+        )
+    ]
+    found: list[str] = []
+    for code in codes:
+        bound: object = None
+        for e in in_replay_order(conn, "code", code):
+            if e.type == "code_bound":
+                bound = e.payload.get("item_id")
+            if e.type in ("code_bound", "code_released") and bound in items:
+                found.append(e.id)
+            if e.type == "code_released":
+                bound = None
+    return found
 
 
 def actors(conn: sqlite3.Connection) -> list[str]:

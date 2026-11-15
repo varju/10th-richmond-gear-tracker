@@ -2915,16 +2915,21 @@ def read_audit_log(
     entity_type: str | None = None,
     from_day: datetime.date | None = None,
     to_day: datetime.date | None = None,
+    item_id: str | None = None,
     offset: Annotated[StrictInt, Field(ge=0)] = 0,
 ) -> dict[str, Any]:
     """The whole log, newest first, as the app's audit screen shows it (FR-USR-24). Admins only.
 
     Narrow by event `type`, by the person who did it (`person_id`, from list_users), by `entity_type`,
-    and by days where the group is, both inclusive. One page at a time; `more` says whether to call
+    by days where the group is, both inclusive, and by `item_id`: that item, duplicates merged into it,
+    its tickets, found reports, codes and event lines (FR-USR-37). One page at a time; `more` says whether to call
     again with `offset` moved on by the page's length.
     """
     with _open() as (conn, who):
         accounts._require_admin(who)
+        state = _state(conn)
+        if item_id:
+            _raw_item(state, item_id)
         page, more = events.audit_page(
             conn,
             type=type,
@@ -2932,9 +2937,9 @@ def read_audit_log(
             entity_type=entity_type,
             first=from_day,
             last=to_day,
+            item=derived.item_scope(conn, state, item_id) if item_id else None,
             offset=offset,
         )
-        state = _state(conn)
         return {
             "events": [
                 {

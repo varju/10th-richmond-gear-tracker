@@ -244,6 +244,15 @@ test("with no signal it says so, because the whole log is on the server", async 
   expect(await screen.findByRole("alert")).toHaveTextContent("Needs a connection");
 });
 
+test("opened from an item, it asks for that item, and can let go of it (FR-USR-37)", async () => {
+  render(<Audit store={store} api={api()} item={tent} />);
+  expect(await screen.findByText("Item: Tent 1")).toBeInTheDocument();
+  expect(asked.at(-1)?.get("item")).toBe(tent);
+
+  await user.click(screen.getByRole("button", { name: "Show every item" }));
+  expect(location.pathname + location.search).toBe("/settings/audit");
+});
+
 test("a User cannot read it", async () => {
   await store.setMeta({ user: { id: "carol", name: "Carol", role: "user", active: true } });
   mount();

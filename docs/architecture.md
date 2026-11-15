@@ -220,7 +220,7 @@ is nothing missing.
 The audit log is the same log again, narrowed rather than sliced (FR-USR-24).
 
 ```
-GET  /audit?type=&actor=&entity_type=&from=&to=&offset=   -> { events: [...], more, server_time }
+GET  /audit?type=&actor=&entity_type=&from=&to=&item=&offset=   -> { events: [...], more, server_time }
 ```
 
 Admins only, and there is no fallback: a device holds 90 days, so an offline answer would be a partial one presented as
@@ -230,6 +230,10 @@ whole. The screen says it needs a connection instead.
 the millisecond bounds the log is stored in, and is the one place that knows the zone. Rows come newest first, which is
 replay order reversed, so the `events_replay` index serves them without a sort. A page is 100 rows; `more` says whether
 another follows, and the screen asks again with `offset`.
+
+`item` narrows to one item and what hangs off it (FR-USR-37). `derived.item_scope` finds its merged duplicates and
+tickets in the cache, matches gear lists in SQL, and walks the item's codes' logs. A code release names no item, so the
+code's earlier bind says which.
 
 ## Client
 

@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import sqlite3
 
-from gear_tracker.events import in_replay_order
+from gear_tracker import views
+from gear_tracker.events import ItemScope, code_events_for, in_replay_order
 from gear_tracker.replay import State, replay
 
 
@@ -64,3 +65,15 @@ def get_entity(conn: sqlite3.Connection, entity_type: str, entity_id: str) -> di
 def cursor(conn: sqlite3.Connection) -> int:
     """The event seq the cache is true at."""
     return int(conn.execute("SELECT value FROM meta WHERE key = 'derived_seq'").fetchone()[0])
+
+
+def item_scope(conn: sqlite3.Connection, state: State, item_id: str) -> ItemScope:
+    """The audit log's item filter (FR-USR-37): the item, its merged duplicates, and what hangs off them."""
+    items = views.aliases(state, item_id)
+    tickets = [
+        ticket_id
+        for kind in ("repair", "found_report")
+        for ticket_id, fields in (state.get(kind) or {}).items()
+        if fields.get("item_id") in items
+    ]
+    return ItemScope(items=items, tickets=tickets, code_events=code_events_for(conn, items))

@@ -246,8 +246,10 @@ Open **Settings** > **Audit log** to see everything that has happened, newest fi
 accounts invited and changed. Narrow it by **What happened**, by **Person**, and with **From** and **To** dates.
 **Person** lists only people with something in the log, deactivated people included.
 
-The whole log lives on the server, so this one screen needs a connection. An item's own history is on its page, and
-works offline.
+On an item's page, **Open in audit log** shows only that item: its edits, moves, tickets, codes and events.
+
+The whole log lives on the server, so this one screen needs a connection. An item's History is on its page, and works
+offline.
 
 ### Backups
 

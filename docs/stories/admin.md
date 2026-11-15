@@ -46,7 +46,7 @@ The Quartermaster wants to know why a tent's home moved last month.
 
 - Item edits, movements, and user changes are all recorded
 - Edits record the field, its old value, and its new value
-- An item's history is readable from its page
+- An Admin opens an item's audit log from its page
 
 Covers: FR-USR-05, FR-USR-09
 

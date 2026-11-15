@@ -209,6 +209,47 @@ def test_audit_dates_are_calendar_days_where_the_group_is(client):
     assert client.get("/audit?from=2025-09-02", headers=as_admin()).json()["events"] == []
 
 
+def test_audit_narrows_to_one_item_and_what_hangs_off_it(client, db_path):
+    """FR-USR-37: the item, a duplicate merged into it, its ticket, its code, and event gear lists."""
+    with open_db(db_path) as conn:
+        events.append_server(conn, "alice", "code", "ABCDEFGH23", "created", {})
+    trip = {"event": "Camp", "starts": "2025-09-05", "ends": "2025-09-07"}
+    ticket = {"item_id": "tent-2", "description": "torn fly"}
+    resolved = {"field": "state", "value": "resolved"}
+
+    def code(seq, type, payload):
+        return event(entity_type="code", entity_id="ABCDEFGH23", type=type, payload=payload, device_seq=seq)
+
+    def booking(seq, id, type, payload):
+        return event(entity_type="reservation", entity_id=id, type=type, payload=payload, device_seq=seq)
+
+    pushed = [
+        event(type="created", payload={"name": "Tent"}, device_seq=1),
+        event(entity_id="tent-2", type="created", payload={"name": "Tent (dup)"}, device_seq=2),
+        event(entity_id="tarp-1", type="created", payload={"name": "Tarp"}, device_seq=3),
+        event(entity_id="tent-2", payload={"field": "merged_into", "value": "tent-1", "old": None}, device_seq=4),
+        event(entity_type="repair", entity_id="t-1", type="created", payload=ticket, device_seq=5),
+        event(entity_type="repair", entity_id="t-1", payload={**resolved, "old": "open"}, device_seq=6),
+        code(7, "code_bound", {"item_id": "tent-1"}),
+        code(8, "code_released", {}),
+        code(9, "code_bound", {"item_id": "tarp-1"}),
+        booking(10, "r-1", "created", {**trip, "items": ["tent-1"]}),
+        booking(11, "r-2", "created", trip),
+        booking(12, "r-2", "item_added", {"item_id": "tent-2"}),
+        booking(13, "r-2", "item_added", {"item_id": "tarp-1"}),
+        booking(14, "r-3", "created", {**trip, "generics": [{"item_id": "tent-1", "quantity": 2}]}),
+    ]
+    assert client.post("/sync/push", json=push_body(*pushed), headers=as_admin()).json()["rejected"] == []
+
+    r = client.get("/audit?item=tent-1", headers=as_admin())
+    assert r.status_code == 200
+    assert {e["id"] for e in r.json()["events"]} == {pushed[i]["id"] for i in (0, 1, 3, 4, 5, 6, 7, 9, 11, 13)}
+
+    narrowed = client.get("/audit?item=tent-1&type=code_bound", headers=as_admin()).json()["events"]
+    assert [e["id"] for e in narrowed] == [pushed[6]["id"]]
+    assert client.get("/audit?item=no-such-item", headers=as_admin()).status_code == 404
+
+
 def test_audit_comes_a_page_at_a_time(client):
     made = [
         event(type="created", payload={"name": f"Tent {i}"}, entity_id=f"tent-{i}", device_seq=i) for i in range(1, 103)

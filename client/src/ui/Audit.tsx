@@ -13,6 +13,8 @@ import { Page } from "./Page";
 interface Props {
   store: Store;
   api: Api;
+  /** Opened from an item's page (FR-USR-09). */
+  item?: string | null;
 }
 
 function describe(e: unknown): string {
@@ -73,9 +75,9 @@ function Row({ state, event, item, summary }: { state: State; event: ServerEvent
  * A device keeps 90 days (NFR-DATA-03), so this is always the server's answer
  * and needs a connection. It comes a page at a time, newest first.
  */
-export function Audit({ store, api }: Props) {
+export function Audit({ store, api, item }: Props) {
   useStore(store);
-  const [filter, setFilter] = useState<AuditFilter>({});
+  const [filter, setFilter] = useState<AuditFilter>(item ? { item } : {});
   const [events, setEvents] = useState<ServerEvent[] | null>(null);
   const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -106,13 +108,14 @@ export function Audit({ store, api }: Props) {
   );
 
   const admin = store.admin;
+  const back = item ? `/items/${encodeURIComponent(item)}` : "/settings";
   useEffect(() => {
     if (admin) void load(filter, 0);
   }, [admin, filter, load]);
 
   if (!admin) {
     return (
-      <Page title="Not found" back="/settings">
+      <Page title="Not found" back={back}>
         <p>Admins only.</p>
       </Page>
     );
@@ -123,7 +126,15 @@ export function Audit({ store, api }: Props) {
   const rows = entries(store.state, shown);
 
   return (
-    <Page title="Audit log" back="/settings">
+    <Page title="Audit log" back={back}>
+      {filter.item && (
+        <p className="row">
+          <span>Item: {nameOf(store.state, filter.item)}</span>
+          <button className="link" type="button" onClick={() => navigate("/settings/audit")}>
+            Show every item
+          </button>
+        </p>
+      )}
       <div className="row">
         <label className="tight">
           <span>What happened</span>
@@ -166,7 +177,6 @@ export function Audit({ store, api }: Props) {
       )}
       {!error && events !== null && rows.length === 0 && <p className="muted">Nothing matches.</p>}
       {rows.length > 0 && (
-        // One line each, the same shape an item page's Changes list uses.
         <ol className="history" aria-label="Audit log">
           {rows.map((r) => (
             <Row

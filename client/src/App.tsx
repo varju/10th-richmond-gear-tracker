@@ -322,7 +322,10 @@ function Screen({
       return <Reservations store={store} />;
     case "settings":
       if (second === "users") return <Users store={store} api={api} />;
-      if (second === "audit") return <Audit store={store} api={api} />;
+      if (second === "audit") {
+        const item = route.query.get("item");
+        return <Audit key={item ?? ""} store={store} api={api} item={item} />;
+      }
       if (second === "mail") return <Mail store={store} api={api} />;
       if (second === "calendars") return <SettingsCalendars store={store} api={api} />;
       if (second === "group") return <SettingsGroup store={store} />;

@@ -1066,7 +1066,7 @@ h3.section {
   color: var(--muted);
 }
 
-/* History and Changes fold behind their counts, so the facts sit above the log. Reads like the filters fold. */
+/* History folds behind its count, so the facts sit above the log. Reads like the filters fold. */
 .fold summary {
   min-height: 44px;
   display: flex;

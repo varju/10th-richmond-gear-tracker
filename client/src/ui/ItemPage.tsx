@@ -19,7 +19,6 @@ import {
   updateItem,
   updateUnit,
 } from "../lib/actions";
-import { changes, type Change } from "../lib/audit";
 import { hasOpenConflict } from "../lib/conflicts";
 import { foundFor, resolveFound } from "../lib/found";
 import {
@@ -231,7 +230,7 @@ export function ItemPage({ store, id }: Props) {
           </button>
         </p>
         <HistorySection store={store} id={id} record={record} />
-        <ChangesSection store={store} id={id} record={record} />
+        <AuditLink store={store} id={id} />
       </Page>
     );
   }
@@ -247,7 +246,6 @@ export function ItemPage({ store, id }: Props) {
         onEdit={() => setEditing(true)}
         photos={<Photos store={store} on={onItem} />}
         record={record}
-        changes={<ChangesSection store={store} id={id} record={record} />}
       />
     );
   }
@@ -260,7 +258,6 @@ export function ItemPage({ store, id }: Props) {
         it={it}
         onEdit={() => setEditing(true)}
         photos={<Photos store={store} on={onItem} />}
-        changes={<ChangesSection store={store} id={id} record={record} />}
       />
     );
   }
@@ -469,8 +466,7 @@ export function ItemPage({ store, id }: Props) {
           <Repairs store={store} id={id} />
 
           <HistorySection store={store} id={id} record={record} />
-
-          <ChangesSection store={store} id={id} record={record} />
+          <AuditLink store={store} id={id} />
         </div>
       </div>
     </Page>
@@ -917,35 +913,15 @@ function HistorySection({ store, id, record }: Props & { record: Log | null }) {
   );
 }
 
-/** What changed on the record, from what to what, by whom (FR-USR-09). */
-function Changes({ store, entries }: { store: Store; entries: Change[] }) {
-  const state = store.state;
-  return entries.length === 0 ? (
-    <p className="muted">No changes.</p>
-  ) : (
-    <ol className="history">
-      {entries.map((c) => (
-        <li key={c.id}>
-          {c.kind === "created"
-            ? `Created · ${userName(state, c.actor_id)} · ${localMinute(c.at)}`
-            : `${c.label}: ${c.old} → ${c.new} · ${userName(state, c.actor_id)} · ${localMinute(c.at)}`}
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-/** Changes, folded behind its count, for the same reason History is (NFR-USE-10). */
-function ChangesSection({ store, id, record }: Props & { record: Log | null }) {
-  const entries = changes(record ?? store, id);
+/** The item's whole record, edits included (FR-USR-09). Admins only, like the log itself. */
+function AuditLink({ store, id }: { store: Store; id: string }) {
+  if (!store.admin) return null;
   return (
-    <details className="fold">
-      <summary>
-        <h3 className="section">Changes · {entries.length}</h3>
-      </summary>
-      <Changes store={store} entries={entries} />
-      <Reach record={record} />
-    </details>
+    <p>
+      <button className="link" type="button" onClick={() => navigate(`/settings/audit?item=${encodeURIComponent(id)}`)}>
+        Open in audit log
+      </button>
+    </p>
   );
 }
 
@@ -1458,14 +1434,12 @@ function PoolPage({
   codes,
   onEdit,
   photos,
-  changes,
   record,
 }: Props & {
   it: Item;
   codes: Code[];
   onEdit: () => void;
   photos: React.ReactNode;
-  changes: React.ReactNode;
   record: Log | null;
 }) {
   const state = store.state;
@@ -1575,8 +1549,7 @@ function PoolPage({
       {photos}
 
       <HistorySection store={store} id={id} record={record} />
-
-      {changes}
+      <AuditLink store={store} id={id} />
     </Page>
   );
 }
@@ -2040,13 +2013,11 @@ function GenericPage({
   it,
   onEdit,
   photos,
-  changes,
 }: {
   store: Store;
   it: Item;
   onEdit: () => void;
   photos: React.ReactNode;
-  changes: React.ReactNode;
 }) {
   const state = store.state;
   const [error, setError] = useState<string | null>(null);
@@ -2159,7 +2130,7 @@ function GenericPage({
       <h3 className="section">Photos</h3>
       {photos}
 
-      {changes}
+      <AuditLink store={store} id={it.id} />
     </Page>
   );
 }

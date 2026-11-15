@@ -75,7 +75,7 @@ const historyList = () =>
     .closest("details")!
     .querySelector("ol.history") as HTMLElement;
 
-test("an item's history and changes come from the server, with what this device has not sent", async () => {
+test("an item's history comes from the server, with what this device has not sent", async () => {
   // Recorded here and not yet pushed: it must not vanish when the signal returns.
   await mv.checkOut(store, tent, { event: "Fall Camp" });
   const { api, asked } = serving([
@@ -95,7 +95,8 @@ test("an item's history and changes come from the server, with what this device 
   fireEvent.click(screen.getByText(/^History/));
   expect(within(historyList()).getAllByRole("listitem")).toHaveLength(3);
   expect(screen.getByText(/for Fall Camp/)).toBeInTheDocument();
-  expect(screen.getByText(/Name: Old tent → Tent 1/)).toBeInTheDocument();
+  // Edits are on the audit log, not here (FR-USR-09).
+  expect(screen.queryByText(/Old tent/)).not.toBeInTheDocument();
   // The full record, so there is nothing to warn about.
   expect(screen.queryByText(/last 90 days/)).not.toBeInTheDocument();
   // One ask for the page, not one per block.
@@ -109,7 +110,7 @@ test("with no answer from the server the same rows are drawn from this device, a
   await waitFor(() => expect(screen.getByText(/for Fall Camp/)).toBeInTheDocument());
   fireEvent.click(screen.getByText(/^History/));
   expect(within(historyList()).getAllByRole("listitem")).toHaveLength(1);
-  expect(screen.getAllByText("Offline: what this device knows, the last 90 days.")).toHaveLength(2);
+  expect(screen.getByText("Offline: what this device knows, the last 90 days.")).toBeInTheDocument();
 });
 
 test("a device that knows it is offline does not ask", async () => {

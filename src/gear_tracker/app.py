@@ -499,17 +499,32 @@ def create_app(
         entity_type: Annotated[str | None, Query()] = None,
         first: Annotated[date | None, Query(alias="from")] = None,
         last: Annotated[date | None, Query(alias="to")] = None,
+        item: Annotated[str | None, Query()] = None,
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> dict[str, Any]:
         """The whole log for an Admin, newest first, filtered (FR-USR-24).
 
         `from` and `to` are calendar days where the group is, both inclusive.
+        `item` narrows to one item and what hangs off it (FR-USR-37).
         One page at a time: `more` says whether another follows this offset.
         The first page also lists `actors`, everyone the Person filter offers (FR-USR-36).
         """
         accounts._require_admin(who)
+        scope = None
+        if item:
+            state = derived.snapshot(conn)
+            if item not in (state.get("item") or {}):
+                raise NotFound("no such item")
+            scope = derived.item_scope(conn, state, item)
         page, more = events.audit_page(
-            conn, type=type, actor_id=actor, entity_type=entity_type, first=first, last=last, offset=offset
+            conn,
+            type=type,
+            actor_id=actor,
+            entity_type=entity_type,
+            first=first,
+            last=last,
+            item=scope,
+            offset=offset,
         )
         body: dict[str, Any] = {"events": [asdict(e) for e in page], "more": more}
         if offset == 0:

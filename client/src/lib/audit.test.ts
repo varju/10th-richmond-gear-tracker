@@ -1,7 +1,7 @@
 import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, expect, test } from "vitest";
 import * as act from "./actions";
-import { changes, describeValue, details, entries, EVENT_TYPES } from "./audit";
+import { describeValue, details, entries, EVENT_TYPES } from "./audit";
 import type { ServerEvent } from "./api";
 import * as res from "./reservations";
 import { raiseTicket } from "./repairs";
@@ -19,26 +19,26 @@ beforeEach(async () => {
   await store.setMeta({ user: { id: "alice", name: "Alice", role: "admin", active: true } });
 });
 
-test("changes list the record's edits newest first, with names for ids (FR-USR-09)", async () => {
+/** One item's rows, newest first, as the server sends them. */
+const rowsFor = (id: string) => entries(store.state, [...store.eventsFor("item", id)].reverse()).map((r) => r.what);
+
+test("an item's edits read with names for ids", async () => {
   const cold = await act.createLocation(store, "Cold locker");
   const warm = await act.createLocation(store, "Warm locker");
   const tent = await act.createItem(store, { name: "Tent", home_location_id: cold });
   await act.updateItem(store, tent, { home_location_id: warm });
   await act.retireItem(store, tent);
 
-  const rows = changes(store, tent).map((c) => (c.kind === "created" ? c.label : `${c.label}: ${c.old} → ${c.new}`));
-  expect(rows).toEqual(["Retired: — → Yes", "Home location: Cold locker → Warm locker", "Created"]);
-  expect(changes(store, tent).every((c) => c.actor_id === "alice")).toBe(true);
+  expect(rowsFor(tent)).toEqual(["Retired: — → Yes", "Home location: Cold locker → Warm locker", "Created"]);
 });
 
-test("a category change names the categories (FR-USR-09, FR-SET-07)", async () => {
+test("a category change names the categories (FR-SET-07)", async () => {
   const tents = await act.createCategory(store, "Tents");
   const shelter = await act.createCategory(store, "Shelter");
   const tent = await act.createItem(store, { name: "Tent" });
   await act.updateItem(store, tent, { category_ids: [tents, shelter] });
 
-  const rows = changes(store, tent).map((c) => (c.kind === "created" ? c.label : `${c.label}: ${c.old} → ${c.new}`));
-  expect(rows).toEqual(["Categories: — → Shelter, Tents", "Created"]);
+  expect(rowsFor(tent)).toEqual(["Categories: — → Shelter, Tents", "Created"]);
 });
 
 test("values read as a person would", async () => {

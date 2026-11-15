@@ -2188,6 +2188,11 @@ def test_an_admin_reads_the_audit_log_and_a_user_cannot(tools, db_path, admin):
         page = assistant.read_audit_log(type="created", entity_type="item")
     assert page["more"] is False
     assert {e["item"] for e in page["events"]} >= {"Camp stove", "4-person tent"}
+    with assistant.acting_as(admin, db_path):
+        stove = assistant.read_audit_log(item_id=tools["stove"])
+    assert stove["events"] and {e["item"] for e in stove["events"]} == {"Camp stove"}
+    with assistant.acting_as(admin, db_path), pytest.raises(NotFound):
+        assistant.read_audit_log(item_id="no-such-item")
     with assistant.acting_as(admin, db_path), pytest.raises(BadRequest):
         assistant.read_audit_log(type="nonsense")
 

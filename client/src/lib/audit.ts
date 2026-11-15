@@ -1,31 +1,13 @@
 /**
- * The audit log (FR-USR-05): what changed, from what to what, by whom.
- *
- * `changes` is one item's slice, on its detail page (FR-USR-09), read from a
- * `Log` — the server's whole record when there is signal and this device's 90
- * days when there is not (FR-INV-31, NFR-DATA-03). `entries` is the group-wide
- * screen (FR-USR-24). That one is always the server's answer, so it takes
- * events rather than a `Log`.
+ * The audit log (FR-USR-05): what changed, from what to what, by whom, as the
+ * group-wide screen draws it (FR-USR-24). Always the server's answer, so it
+ * takes events rather than a `Log`.
  */
 import { categoryName, locationName, nameOf, userName } from "./inventory";
 import type { ServerEvent } from "./api";
-import type { Log } from "./record";
 import { isWeight, weightLabel } from "./weighing";
 import type { ReplayEvent, State } from "./replay";
 import { localMinute } from "./time";
-
-export interface Change {
-  id: string;
-  kind: "created" | "changed";
-  /** Absent on created. */
-  field?: string;
-  /** "Home location", "Retired": the field as a person reads it. */
-  label: string;
-  old?: string;
-  new?: string;
-  actor_id: string;
-  at: number;
-}
 
 const LABELS: Record<string, string> = {
   name: "Name",
@@ -101,30 +83,6 @@ export function describeValue(state: State, field: string, value: unknown): stri
 function fileSize(bytes: number): string {
   if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
   return `${Math.max(1, Math.round(bytes / 1000))} KB`;
-}
-
-/** The item's own record changes, newest first. */
-export function changes(log: Log, itemId: string): Change[] {
-  const state = log.state;
-  return log
-    .eventsFor("item", itemId)
-    .filter((e) => e.type === "created" || e.type === "field_changed")
-    .map((e): Change => {
-      if (e.type === "created")
-        return { id: e.id, kind: "created", label: "Created", actor_id: e.actor_id, at: e.effective_at };
-      const field = String(e.payload.field);
-      return {
-        id: e.id,
-        kind: "changed",
-        field,
-        label: fieldLabel(field),
-        old: describeValue(state, field, e.payload.old),
-        new: describeValue(state, field, e.payload.value),
-        actor_id: e.actor_id,
-        at: e.effective_at,
-      };
-    })
-    .reverse();
 }
 
 /** One line of the group-wide log: what happened, and what it happened to. */
