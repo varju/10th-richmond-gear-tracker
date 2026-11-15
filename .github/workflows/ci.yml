@@ -25,6 +25,7 @@ jobs:
       - run: uv sync --frozen --python 3.14
       - run: uv run ruff check .
       - run: uv run ruff format --check .
+      - run: uv run ty check
       - id: pytest
         run: uv run pytest --cov --cov-report=
       - name: Coverage summary

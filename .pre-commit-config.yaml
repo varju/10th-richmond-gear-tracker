@@ -12,7 +12,19 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  - repo: https://github.com/astral-sh/ty-pre-commit
-    rev: v0.0.91
+  - repo: local
     hooks:
       - id: ty
+        name: ty
+        entry: uv run --frozen ty check
+        language: system
+        files: ^(.*\.py|bin/(make-icons|store-scene)|pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+      - id: client-lint
+        name: client lint
+        entry:
+          bash -c 'cd client && if [ -d node_modules ]; then npm run lint --silent; else echo "client/node_modules
+          missing; skipped"; fi'
+        language: system
+        files: ^client/.*\.(ts|tsx|json)$
+        pass_filenames: false

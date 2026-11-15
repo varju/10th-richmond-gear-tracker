@@ -32,6 +32,7 @@ dev = [
     "aiosmtpd>=1.4.6",
     "pdfplumber>=0.11.10",
     "pytest-cov>=7.1.0",
+    "ty==0.0.91",
 ]
 
 [build-system]
@@ -44,6 +45,7 @@ packages = ["src/gear_tracker"]
 [tool.ruff]
 line-length = 120
 src = ["src", "tests"]
+extend-include = ["bin/make-icons", "bin/store-scene"]
 target-version = "py314"
 
 [tool.ruff.lint]
@@ -54,6 +56,9 @@ ignore = ["RUF001", "RUF002", "RUF003", "N818", "PT018"]
 "tests/**" = ["S"]
 "client/e2e/**" = ["S"]
 "src/gear_tracker/inventory.py" = ["RUF012"]
+
+[tool.ty.src]
+include = ["src", "tests", "client/e2e", "bin/make-icons", "bin/store-scene"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

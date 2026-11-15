@@ -49,7 +49,7 @@ def main() -> None:
     with as_(admin, "admin"):
         assistant.set_group(assistant.GroupFields(name="10th Richmond", overdue_days=30))
 
-    today = datetime.date.today()
+    today = datetime.date.today()  # noqa: DTZ011 - the laptop's date
     camp = today + datetime.timedelta(days=12)
     with as_(admin, "admin"):
         booked = assistant.create_reservation(
