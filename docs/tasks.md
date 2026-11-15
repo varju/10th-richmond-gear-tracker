@@ -147,3 +147,13 @@ on glob 14 or later.
 
 **Considered:** an opener whose redirect handler refuses any scheme but `http` and `https`. Then drop the S310 `noqa`
 reason that mentions ftp.
+
+## Lint the Swift code
+
+Nothing checks `ios/App/App` except CodeQL. swift-format comes with Xcode, so a successor needs no install. Its defaults
+expect 2-space indents; the code uses 4.
+
+**Considered:** swift-format with a config matching the current style, run on commit. SwiftLint's defaults found nothing
+real: line length, short names, one safe `as!` on the preview layer.
+
+**Deferred because:** 658 lines in 6 files; little to gain yet.
