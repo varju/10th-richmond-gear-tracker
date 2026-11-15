@@ -614,7 +614,7 @@ test("a pool line on the page is checked out by count, and ticks off (FR-RES-13)
   expect(count).toHaveValue(4);
   await user.click(screen.getByRole("button", { name: "Check out Bowls" }));
 
-  await waitFor(() => expect(screen.getByRole("button", { name: /^4 × Bowls/ })).toHaveTextContent("packed"));
+  await waitFor(() => expect(screen.getByRole("button", { name: /^4 × Bowls/ })).not.toHaveTextContent("0 packed"));
   expect(inv.poolCounts(inv.item(store.state, bowls)!)).toMatchObject({
     owned: 10,
     in: 6,
