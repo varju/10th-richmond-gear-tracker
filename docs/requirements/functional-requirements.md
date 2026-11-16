@@ -329,25 +329,27 @@ Reachable by scanning a label or following a link, with no sign-in.
 
 ## 9. Reports and data (RPT)
 
-| ID        | Priority | Requirement                                                                                                  |
-| --------- | -------- | ------------------------------------------------------------------------------------------------------------ |
-| FR-RPT-01 | Must     | One report: what is out, and who has it.                                                                     |
-| FR-RPT-02 | Should   | Repair report: open tickets, and repair history over a date range.                                           |
-| FR-RPT-11 | Should   | What is out (FR-RPT-01) lists a pool once per holder and event, with the count out.                          |
-| FR-RPT-12 | Should   | Sort what is out (FR-RPT-01) by holder, item, time checked out, or reservation.                              |
-| FR-RPT-13 | Should   | Filter what is out (FR-RPT-01) to one event, case and spacing aside.                                         |
-| FR-RPT-17 | Should   | What is out (FR-RPT-01) opens with its gear under a heading per event.                                       |
-| FR-RPT-03 | Could    | Export the full inventory to CSV. Not the backup of record; NFR-DATA-06 is.                                  |
-| FR-RPT-04 | Could    | Export any filtered list to CSV.                                                                             |
-| FR-RPT-05 | Could    | Overdue report: gear out longer than the group-wide period (FR-OUT-14).                                      |
-| FR-RPT-07 | Could    | Usage: which gear moves, and which has not left the locker in a year.                                        |
-| FR-RPT-08 | Could    | Printable pick list for a reservation, grouped by home.                                                      |
-| FR-RPT-09 | Could    | Misplaced gear: items in, but not at their home.                                                             |
-| FR-RPT-10 | Could    | Printable contents sheet per shelf, listing what belongs there.                                              |
-| FR-RPT-14 | Could    | A stock check can start on a new shelf, typed in (FR-SET-03).                                                |
-| FR-RPT-15 | Could    | A stock check makes a misplaced item's home the shelf being checked, one tap per item.                       |
-| FR-RPT-16 | Could    | A stock check makes every misplaced item's home the shelf being checked at once, after asking.               |
-| FR-RPT-06 | Won't    | Withdrawn: valuation, total purchase value by category and location. Price (FR-INV-38) is no longer tracked. |
+| ID        | Priority | Requirement                                                                                                   |
+| --------- | -------- | ------------------------------------------------------------------------------------------------------------- |
+| FR-RPT-01 | Must     | One report: what is out, and who has it.                                                                      |
+| FR-RPT-02 | Should   | Repair report: open tickets, and repair history over a date range.                                            |
+| FR-RPT-11 | Should   | What is out (FR-RPT-01) lists a pool once per holder and event, with the count out.                           |
+| FR-RPT-12 | Should   | Sort what is out (FR-RPT-01) by holder, item, time checked out, or reservation.                               |
+| FR-RPT-13 | Should   | Filter what is out (FR-RPT-01) to one event, case and spacing aside.                                          |
+| FR-RPT-17 | Should   | What is out (FR-RPT-01) opens with its gear under a heading per event.                                        |
+| FR-RPT-18 | Should   | What is out (FR-RPT-01) orders events by the end date of the reservation its gear is linked to, latest first. |
+| FR-RPT-19 | Should   | What is out (FR-RPT-01) lists events with no linked reservation after the dated ones (FR-RPT-18), by name.    |
+| FR-RPT-03 | Could    | Export the full inventory to CSV. Not the backup of record; NFR-DATA-06 is.                                   |
+| FR-RPT-04 | Could    | Export any filtered list to CSV.                                                                              |
+| FR-RPT-05 | Could    | Overdue report: gear out longer than the group-wide period (FR-OUT-14).                                       |
+| FR-RPT-07 | Could    | Usage: which gear moves, and which has not left the locker in a year.                                         |
+| FR-RPT-08 | Could    | Printable pick list for a reservation, grouped by home.                                                       |
+| FR-RPT-09 | Could    | Misplaced gear: items in, but not at their home.                                                              |
+| FR-RPT-10 | Could    | Printable contents sheet per shelf, listing what belongs there.                                               |
+| FR-RPT-14 | Could    | A stock check can start on a new shelf, typed in (FR-SET-03).                                                 |
+| FR-RPT-15 | Could    | A stock check makes a misplaced item's home the shelf being checked, one tap per item.                        |
+| FR-RPT-16 | Could    | A stock check makes every misplaced item's home the shelf being checked at once, after asking.                |
+| FR-RPT-06 | Won't    | Withdrawn: valuation, total purchase value by category and location. Price (FR-INV-38) is no longer tracked.  |
 
 ## 10. Offline and sync (OFF)
 

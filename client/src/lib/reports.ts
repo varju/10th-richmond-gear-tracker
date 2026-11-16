@@ -18,6 +18,7 @@ import {
   userName,
 } from "./inventory";
 import { cleanerKey, type State } from "./replay";
+import { reservation } from "./reservations";
 
 export interface OutItem {
   item: Item;
@@ -25,6 +26,8 @@ export interface OutItem {
    * check-outs at different times, so there is no one day to show (FR-RPT-11). */
   days: number;
   event: string | null;
+  /** The last day of the reservation it went out under, "YYYY-MM-DD"; absent when it has none. */
+  ends?: string;
   overdue: boolean;
   /** Set only for a pool's line (FR-RPT-11): how many this holder has under this event. */
   count?: number;
@@ -68,6 +71,8 @@ export function isOverdue(state: State, it: Item, now: number): boolean {
   return it.status === "out" && typeof days === "number" && days > 0 && daysOut(it, now) >= days;
 }
 
+const later = (a?: string, b?: string): string | undefined => (a && b ? (a > b ? a : b) : a || b);
+
 /**
  * Everyone who has something, by name; each person's gear longest out first.
  * Missing gear is not out (FR-INV-19). A pool has no single "out": it lists
@@ -75,21 +80,27 @@ export function isOverdue(state: State, it: Item, now: number): boolean {
  */
 export function whatIsOut(state: State, now: number): OutReport {
   const byHolder = new Map<string, OutItem[]>();
+  // A cancelled reservation keeps its dates: they are still when its gear went out.
+  const endsOf = (id: unknown) => (typeof id === "string" ? reservation(state, id)?.ends : undefined);
   for (const it of items(state)) {
     if (isPool(it)) {
       for (const out of poolLots(it)) {
         const lines = new Map<string, OutItem>();
-        const add = (event: string | null, count: number, cleaner?: string) => {
+        const add = (event: string | null, count: number, cleaner?: string, ends?: string) => {
           const key = `${event ? eventNameKey(event) : ""}\0${cleaner ? cleanerKey(cleaner) : ""}`;
           const line = lines.get(key);
-          if (line) line.count = (line.count ?? 0) + count;
-          else {
+          if (line) {
+            line.count = (line.count ?? 0) + count;
+            const latest = later(line.ends, ends);
+            if (latest) line.ends = latest;
+          } else {
             const made: OutItem = { item: it, days: 0, event: event ? tidyName(event) : null, overdue: false, count };
             if (cleaner) made.cleaner = tidyName(cleaner);
+            if (ends) made.ends = ends;
             lines.set(key, made);
           }
         };
-        for (const lot of out.lots) add(lot.event, lot.count, lot.cleaner);
+        for (const lot of out.lots) add(lot.event, lot.count, lot.cleaner, endsOf(lot.reservation_id));
         if (out.unknown) add(null, out.unknown);
         byHolder.set(out.holder_id, [...(byHolder.get(out.holder_id) ?? []), ...lines.values()]);
       }
@@ -103,6 +114,8 @@ export function whatIsOut(state: State, now: number): OutReport {
       overdue: isOverdue(state, it, now),
     };
     if (it.movement?.cleaner) entry.cleaner = tidyName(it.movement.cleaner);
+    const ends = endsOf(it.movement?.reservation_id);
+    if (ends) entry.ends = ends;
     const key = it.holder_id ?? "";
     byHolder.set(key, [...(byHolder.get(key) ?? []), entry]);
   }
@@ -128,16 +141,26 @@ function tallied(holders: Holder[]): OutReport {
 export interface OutEvent {
   key: string;
   name: string;
+  /** The latest end date among the reservations its gear went out under. */
+  ends?: string;
 }
 
-/** The events gear is out under, by name. */
-function outEvents(report: OutReport): OutEvent[] {
-  const found = new Map<string, string>();
-  for (const entry of report.holders.flatMap((h) => h.items)) {
+/** Latest end date first, then events with no dates, by name (FR-RPT-18, FR-RPT-19). */
+const compareEvents = (a: OutEvent, b: OutEvent): number =>
+  (b.ends ?? "").localeCompare(a.ends ?? "") || compareNames(a.name, b.name);
+
+/** The events gear is out under, in the order of FR-RPT-18 and FR-RPT-19. */
+function outEvents(entries: OutItem[]): OutEvent[] {
+  const found = new Map<string, OutEvent>();
+  for (const entry of entries) {
     const key = eventNameKey(entry.event ?? "");
-    if (key && !found.has(key)) found.set(key, tidyName(entry.event ?? ""));
+    if (!key) continue;
+    const e = found.get(key) ?? { key, name: tidyName(entry.event ?? "") };
+    const latest = later(e.ends, entry.ends);
+    if (latest) e.ends = latest;
+    found.set(key, e);
   }
-  return [...found].map(([key, name]) => ({ key, name })).sort((a, b) => compareNames(a.name, b.name));
+  return [...found.values()].sort(compareEvents);
 }
 
 /**
@@ -148,7 +171,7 @@ export function readOutEvent(
   all: OutReport,
   query: URLSearchParams,
 ): { report: OutReport; events: OutEvent[]; event: string; eventName: string } {
-  const events = outEvents(all);
+  const events = outEvents(outRows(all));
   const wanted = eventNameKey(query.get("event") ?? "");
   const chosen = events.find((e) => e.key === wanted);
   if (!chosen) return { report: all, events, event: "", eventName: "" };
@@ -182,9 +205,6 @@ export function outRows(report: OutReport): OutRow[] {
 export const rowKey = (row: OutRow): string =>
   `${row.holderId}:${row.item.id}:${row.event ?? ""}:${row.cleaner ? cleanerKey(row.cleaner) : ""}`;
 
-/** Sorts a bare event name after any real one, so ungrouped gear falls to the end. Case and spacing aside. */
-export const eventKey = (event: string | null): string => (event ? eventNameKey(event) : "") || "￿";
-
 /** Which way a column reads on the first click: longest out first for time, A to Z for the rest. */
 export const firstDirection = (sort: OutSort): boolean => sort !== "days";
 
@@ -211,6 +231,9 @@ export function orderParams({ sort, up }: OutOrder, event = ""): URLSearchParams
  */
 export function sortRows(state: State, rows: OutRow[], { sort, up }: OutOrder): OutRow[] {
   const name = (row: OutRow) => displayName(state, row.item);
+  // Gear with no event sorts after every event, either way round.
+  const rank = new Map(sort === "reservation" ? outEvents(rows).map((e, i) => [e.key, i]) : []);
+  const eventRank = (row: OutRow) => rank.get(eventNameKey(row.event ?? "")) ?? (up ? rank.size : -1);
   const key = (row: OutRow): string | number => {
     switch (sort) {
       case "holder":
@@ -220,7 +243,7 @@ export function sortRows(state: State, rows: OutRow[], { sort, up }: OutOrder): 
       case "days":
         return row.days;
       case "reservation":
-        return eventKey(row.event);
+        return eventRank(row);
     }
   };
   return [...rows].sort((a, b) => {
@@ -239,11 +262,11 @@ export interface EventGroup extends OutEvent {
   rows: OutRow[];
 }
 
-/** Rows under a heading per event, in the Event filter's order; gear with no event last (FR-RPT-17). */
+/** Rows under a heading per event, in the Event filter's order; gear with no event last (FR-RPT-17, FR-RPT-18). */
 export function byEvent(report: OutReport): EventGroup[] {
   const rows = outRows(report);
   const under = (key: string) => rows.filter((row) => eventNameKey(row.event ?? "") === key);
-  const groups = outEvents(report).map((e) => ({ ...e, rows: under(e.key) }));
+  const groups = outEvents(rows).map((e) => ({ ...e, rows: under(e.key) }));
   const loose = under("");
   return loose.length > 0 ? [...groups, { key: "", name: "No event", rows: loose }] : groups;
 }

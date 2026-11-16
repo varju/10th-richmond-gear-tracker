@@ -16,6 +16,7 @@ What the app does differently.
 - Search also finds gear by its description. Gear named for the words still lists first.
 - A unit with no description of its own shows its generic's, marked as from it. Marking an item generic moves its
   description to the generic; making a unit single again keeps its own description.
+- What is out lists events by end date, latest first, instead of by name.
 
 ## Chores
 

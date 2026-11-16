@@ -4,19 +4,19 @@ import type { State } from "./replay";
 import {
   byEvent,
   daysOut,
-  eventKey,
   isOverdue,
   orderParams,
   outFor,
   outRows,
   readOrder,
+  readOutEvent,
   rowKey,
   sortRows,
   whatIsOut,
 } from "./reports";
 
 const T0 = 1_756_684_800_000;
-const out = (holder: string, since: number, event?: string) => ({
+const out = (holder: string, since: number, event?: string, reservation?: string) => ({
   name: "x",
   status: "out" as const,
   holder_id: holder,
@@ -26,7 +26,7 @@ const out = (holder: string, since: number, event?: string) => ({
     type: "checked_out",
     holder_id: holder,
     event: event ?? null,
-    reservation_id: null,
+    reservation_id: reservation ?? null,
     actor_id: holder,
     device_id: "d",
     at: since,
@@ -311,8 +311,54 @@ test("byEvent heads gear by event, case and spacing aside, numbers in order, no 
   ]);
 });
 
-test("the event sort reads case and spacing aside, with no event last", () => {
-  expect(eventKey("Spring  CAMP")).toBe(eventKey("spring camp"));
-  expect(eventKey("  ")).toBe(eventKey(null));
-  expect(eventKey("Zoo") < eventKey(null)).toBe(true);
+test("events run by latest end date first, then undated ones by name, then no event (FR-RPT-18)", () => {
+  const dated: State = {
+    ...state,
+    reservation: {
+      old: { event: "Camp 9", starts: "2026-09-01", ends: "2026-09-03" },
+      late: { event: "Camp 9", starts: "2026-11-01", ends: "2026-11-02" },
+      mid: { event: "Camp 10", starts: "2026-10-01", ends: "2026-10-05" },
+    },
+    item: {
+      ...state.item,
+      tent: { ...out("bob", T0 - DAY_MS, "Camp 10", "mid"), name: "Tent" },
+      axe: { ...out("bob", T0 - DAY_MS, "camp 9", "old"), name: "Axe" },
+      stove: { ...out("alice", T0 - DAY_MS, "Camp 9", "late"), name: "Stove" },
+      rope: { ...out("alice", T0 - DAY_MS, "Hike"), name: "Rope" },
+      bowls: {
+        name: "Bowls",
+        generic: true,
+        pool: true,
+        pool_in: 0,
+        pool_out: { alice: 2 },
+        pool_lots: { alice: [{ id: "l", count: 2, event: "Apple day", reservation_id: "gone", at: T0 }] },
+      },
+    },
+  };
+  const report = whatIsOut(dated, T0);
+  expect(byEvent(report).map((g) => [g.name, g.ends])).toEqual([
+    ["Camp 9", "2026-11-02"],
+    ["Camp 10", "2026-10-05"],
+    ["Apple day", undefined],
+    ["Hike", undefined],
+    ["No event", undefined],
+  ]);
+  expect(readOutEvent(report, new URLSearchParams()).events.map((e) => e.name)).toEqual([
+    "Camp 9",
+    "Camp 10",
+    "Apple day",
+    "Hike",
+  ]);
+  const flat = (up: boolean) => sortRows(dated, outRows(report), { sort: "reservation", up }).map((r) => r.item.name);
+  expect(flat(true)).toEqual(["Stove", "Axe", "Tent", "Bowls", "Rope", "Lamp"]);
+  expect(flat(false)).toEqual(["Rope", "Bowls", "Tent", "Stove", "Axe", "Lamp"]);
+});
+
+test("a cancelled reservation still dates its event (FR-RPT-18)", () => {
+  const cancelled: State = {
+    ...state,
+    reservation: { r: { event: "Camp", starts: "2026-12-01", ends: "2026-12-02", cancelled: true } },
+    item: { ...state.item, tent: { ...out("bob", T0 - DAY_MS, "Camp", "r"), name: "Tent" } },
+  };
+  expect(byEvent(whatIsOut(cancelled, T0))[0]).toMatchObject({ name: "Camp", ends: "2026-12-02" });
 });
