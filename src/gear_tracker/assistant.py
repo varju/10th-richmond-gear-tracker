@@ -472,10 +472,10 @@ def search_items(
     needs: Needs | None = None,
     home_user_id: str | None = None,
 ) -> dict[str, Any]:
-    """Find gear by name, home or description (FR-INV-07, FR-INV-79). `home_user_id` keeps only gear kept by that
-    person (FR-INV-61).
+    """Find gear by name or description (FR-INV-07, FR-INV-79). `home_user_id` keeps only gear kept by that
+    person (FR-INV-61); `location_id` finds gear by its home.
 
-    Every word must appear somewhere in the name, the home, the description, or a unit's generic's description.
+    Every word must appear somewhere in the name, the description, or a unit's generic's description.
     Rows whose name holds every word come first (FR-INV-81). One row per thing
     the group owns several of, and single items as rows of their own. A generic's `in`, `out` and `missing`
     cover all its live units; `units` and `unit_ids` are the ones matching the filters.

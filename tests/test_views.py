@@ -517,7 +517,7 @@ def test_a_person_home_reads_as_kept_by_and_goes_inactive_with_the_person():
     assert views.home_label(state, state["item"]["pole"]) == "Kept by Sam (inactive)"
 
 
-def test_search_filters_by_the_person_who_keeps_gear_and_a_person_is_a_home():
+def test_search_filters_by_the_person_who_keeps_gear_and_not_by_home_text():
     state = {
         "user": {"sam": {"name": "Sam"}, "kim": {"name": "Kim"}},
         "location": {"cold": {"name": "Cold locker"}},
@@ -528,7 +528,9 @@ def test_search_filters_by_the_person_who_keeps_gear_and_a_person_is_a_home():
         },
     }
     assert [it["id"] for it in views.search(state, home_user_id="sam")] == ["pole"]
-    assert [it["id"] for it in views.search(state, "kept by kim")] == ["box"]
+    # The home is a filter, not search text, the same as the app.
+    assert views.search(state, "kept by kim") == []
+    assert views.search(state, "cold") == []
     assert [it["id"] for it in views.search(state, needs="location")] == []
     assert [r["item"]["id"] for r in views.rows(state, home_user_id="kim")] == ["box"]
 

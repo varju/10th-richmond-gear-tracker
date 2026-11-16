@@ -377,14 +377,15 @@ def _search_with(
 
 
 def _rank(state: State, it: Fields, words: list[str]) -> int | None:
-    """0 when every word is in the name (FR-INV-07), 1 when the rest are in the home, the description
-    (FR-INV-79) or a unit's generic's description (FR-INV-80), None when a word is in none of them."""
+    """0 when every word is in the name (FR-INV-07), 1 when the rest are in the description (FR-INV-79)
+    or a unit's generic's (FR-INV-80), None when a word is in neither. Not the home, the same as the app:
+    a locker's name would pull in everything that lives there. Twin of rank in inventory.ts."""
     name = display_name(state, it).lower()
     rest = [w for w in words if w not in name]
     if not rest:
         return 0
     parent = item(state, it["parent_id"]) if it.get("parent_id") else None
-    text = f"{home_label(state, it)} {it.get('description') or ''} {(parent or {}).get('description') or ''}".lower()
+    text = f"{it.get('description') or ''} {(parent or {}).get('description') or ''}".lower()
     return 1 if all(w in text for w in rest) else None
 
 
