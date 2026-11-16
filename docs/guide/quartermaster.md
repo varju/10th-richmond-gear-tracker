@@ -127,9 +127,9 @@ returned, with **Keep** for the last reading and **Unknown** for what is left no
 For several of the same thing, set the capacity on the name; each unit sets its own empty weight and uses the name's
 capacity unless it has one.
 
-### Bought on
+### What a unit takes from its name
 
-A unit can have its own **Bought on** date. Without one, it shows its name's date.
+A unit can have its own **Bought on** date and **Description**. Without one, it shows its name's.
 
 ### Back to a single item
 
@@ -139,8 +139,8 @@ A name with labelled units can go back to being one item when it has one unit le
 - With one unit left, that unit becomes the item. It keeps its own home.
 - With none left, a new item is made.
 
-Either way the item takes the name, description and categories. It keeps its own "Bought on" date, or takes the name's
-if it has none. The old page still opens and shows where it went.
+Either way the item takes the name and categories. It keeps its own description and "Bought on" date, or takes the
+name's if it has none. The old page still opens and shows where it went.
 
 With no units left, **Make this a counted stack…** is also there. Pick a quantity and tap it twice, and a new stack
 takes the same details. A stack cannot go back, so the second tap asks.

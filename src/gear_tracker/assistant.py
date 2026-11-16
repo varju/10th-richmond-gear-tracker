@@ -507,7 +507,8 @@ def _weight_facts(state: dict[str, Any], it: dict[str, Any], out: dict[str, Any]
 
 
 def get_item(item_id: str) -> dict[str, Any]:
-    """One item in full: where it lives, who has it, its units or its generic, open tickets, recent movements."""
+    """One item in full: where it lives, who has it, its units or its generic, open tickets, recent movements.
+    A unit with no description of its own gets `generic_description`, which the app shows in its place."""
     with _open() as (conn, _who):
         state = _state(conn)
         it = _item(state, item_id)
@@ -546,6 +547,9 @@ def get_item(item_id: str) -> dict[str, Any]:
             if it.get("parent_id"):
                 out["generic_id"] = it["parent_id"]
                 out["number"] = it.get("number")
+                described, described_from = views.description_of(state, it)
+                if described_from == "generic":
+                    out["generic_description"] = described
         if not views.is_pool(it):
             _weight_facts(state, it, out)
         code_id = views.current_code(state, it["id"])
@@ -1329,7 +1333,9 @@ def _make_generic_drafts(state: dict[str, Any], it: dict[str, Any], number: str)
     generic_id = new_ulid()
     payload = _carried(state, it)
     drafts = [_draft("item", generic_id, "created", {**payload, "generic": True})]
-    drafts += _field_drafts(it, {"parent_id": generic_id, "number": number, "name": None, "purchase_date": None})
+    drafts += _field_drafts(
+        it, {"parent_id": generic_id, "number": number, "name": None, "description": None, "purchase_date": None}
+    )
     return generic_id, drafts
 
 
@@ -1424,9 +1430,9 @@ def move_unit(unit_id: str, generic_id: str) -> dict[str, Any]:
 def make_single(generic_id: str) -> dict[str, Any]:
     """A generic becomes a single item again (FR-INV-33, FR-INV-39). Only with one unit left, or none.
 
-    With one, that unit becomes the item: it takes the generic's name, description and categories,
-    keeps its own purchase date, else takes the generic's, and keeps its own home if it has one. It must be
-    in. With none, a new item takes them all. Either way the generic folds into the result,
+    With one, that unit becomes the item: it takes the generic's name and categories,
+    keeps its own description and purchase date, else takes the generic's, and keeps its own home if it has one.
+    It must be in. With none, a new item takes them all. Either way the generic folds into the result,
     and its page still points there.
     """
     with _open() as (conn, who):
@@ -1451,7 +1457,7 @@ def make_single(generic_id: str) -> dict[str, Any]:
                 raise BadRequest("return it first")
             item_id = unit["id"]
             nickname = (unit.get("nickname") or "").strip()
-            description = generic.get("description") or ""
+            description = unit.get("description") or generic.get("description") or ""
             if nickname:
                 description = " · ".join(part for part in (description, nickname) if part)
             own_home = bool(unit.get("home_location_id") or unit.get("home_user_id"))

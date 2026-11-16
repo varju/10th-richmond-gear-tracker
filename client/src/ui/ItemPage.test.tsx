@@ -998,6 +998,22 @@ test("a URL in a description is a link; no description shows a dash", async () =
   expect(container.querySelector("dd.prose")?.textContent).toBe("—");
 });
 
+test("a unit with no description shows its generic's, marked as from it (FR-INV-82)", async () => {
+  const bags = await act.createGeneric(store, { name: "Bag of dodgeballs", description: "Six balls" });
+  const unit = await act.createUnit(store, { parent_id: bags, number: "1" });
+  navigate(`/items/${unit}`);
+  const first = renderInShell(<ItemPage store={store} id={unit} />);
+  expect(await screen.findByText("Six balls")).toBeInTheDocument();
+  expect(screen.getByText("From Bag of dodgeballs")).toBeInTheDocument();
+  first.unmount();
+
+  await act.updateItem(store, unit, { description: "Two flat" });
+  renderInShell(<ItemPage store={store} id={unit} />);
+  expect(await screen.findByText("Two flat")).toBeInTheDocument();
+  expect(screen.queryByText("Six balls")).toBeNull();
+  expect(screen.queryByText("From Bag of dodgeballs")).toBeNull();
+});
+
 test("a unit's own purchase date is set on its Edit page, and empty falls back to the generic's (FR-INV-56)", async () => {
   const tents = await act.createGeneric(store, { name: "4-person tent", purchase_date: "2021-05-01" });
   const unit = await act.createUnit(store, { parent_id: tents, number: "1" });

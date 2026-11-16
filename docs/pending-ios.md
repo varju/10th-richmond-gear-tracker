@@ -14,6 +14,8 @@ What the app does differently.
   person was.
 - After the app reloads, Back and Forward return each screen to where it was scrolled, not an older place.
 - Search also finds gear by its description. Gear named for the words still lists first.
+- A unit with no description of its own shows its generic's, marked as from it. Marking an item generic moves its
+  description to the generic; making a unit single again keeps its own description.
 
 ## Chores
 

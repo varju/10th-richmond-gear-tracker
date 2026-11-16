@@ -919,6 +919,37 @@ test("a unit with no date of its own uses its generic's, and says so (FR-INV-56)
   expect(inv.purchaseOf(store.state, inv.item(store.state, u2)!)?.generic?.id).toBe(tents);
 });
 
+test("a unit with no description of its own uses its generic's, and says so (FR-INV-82)", async () => {
+  const tents = await act.createGeneric(store, { name: "Tent", description: "Four poles" });
+  const u1 = await act.createUnit(store, { parent_id: tents, number: "1" });
+  const u2 = await act.createUnit(store, { parent_id: tents, number: "2" });
+  await act.updateItem(store, u2, { description: "Torn fly" });
+
+  expect(inv.descriptionOf(store.state, inv.item(store.state, u1)!)).toMatchObject({
+    text: "Four poles",
+    generic: { id: tents },
+  });
+  expect(inv.descriptionOf(store.state, inv.item(store.state, u2)!)).toEqual({ text: "Torn fly" });
+  expect(inv.descriptionOf(store.state, inv.item(store.state, tents)!)).toEqual({ text: "Four poles" });
+
+  const bare = await act.createGeneric(store, { name: "Tarp" });
+  const u3 = await act.createUnit(store, { parent_id: bare, number: "1" });
+  expect(inv.descriptionOf(store.state, inv.item(store.state, u3)!)).toBeNull();
+});
+
+test("making an item generic moves its description to the generic; makeSingle keeps the unit's own (FR-INV-82)", async () => {
+  const { stove } = await fixture();
+  await act.updateItem(store, stove, { description: "Propane" });
+  const genericId = await act.makeGeneric(store, stove);
+  expect(inv.item(store.state, genericId)?.description).toBe("Propane");
+  expect(inv.item(store.state, stove)?.description ?? null).toBeNull();
+  expect(inv.descriptionOf(store.state, inv.item(store.state, stove)!)?.generic?.id).toBe(genericId);
+
+  await act.updateItem(store, stove, { description: "Dented" });
+  await act.makeSingle(store, genericId);
+  expect(inv.item(store.state, stove)?.description).toBe("Dented");
+});
+
 test("making an item generic moves its date to the generic and leaves the unit with none (FR-INV-56)", async () => {
   const { stove } = await fixture();
   await act.updateItem(store, stove, { purchase_date: "2020-01-02" });

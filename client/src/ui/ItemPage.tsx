@@ -27,6 +27,7 @@ import {
   categoryNames,
   type Code,
   codesFor,
+  descriptionOf,
   displayName,
   generics,
   homeLabel,
@@ -421,7 +422,9 @@ export function ItemPage({ store, id }: Props) {
               </>
             )}
             <dt>Description</dt>
-            <dd className="prose">{it.description ? <RichText text={it.description} /> : "—"}</dd>
+            <dd className="prose">
+              <Description state={state} it={it} />
+            </dd>
             {mergedFrom.length > 0 && (
               <>
                 <dt>Merged from</dt>
@@ -820,6 +823,18 @@ function Repairs({ store, id }: Props) {
   );
 }
 
+/** A unit with none of its own shows its generic's, marked as such (FR-INV-82). */
+function Description({ state, it }: { state: State; it: Item }) {
+  const desc = descriptionOf(state, it);
+  if (!desc) return "—";
+  return (
+    <>
+      <RichText text={desc.text} />
+      {desc.generic && <p className="muted">From {displayName(state, desc.generic)}</p>}
+    </>
+  );
+}
+
 /** "Open · zipper broken · 2026-09-01". */
 export function describeRepair(r: Repair): string {
   return [stateLabel(r.state), r.description, r.added_at ? localDate(r.added_at) : ""].filter(Boolean).join(" · ");
@@ -1190,6 +1205,7 @@ function EditItem({
   onDone: () => void;
 }) {
   const unit = Boolean(it.parent_id);
+  const parent = parentOf(store.state, it);
   const [values, setValues] = useState(initial);
   const [number, setNumber] = useState(numberOf(it));
   const [nickname, setNickname] = useState(it.nickname ?? "");
@@ -1312,12 +1328,18 @@ function EditItem({
               value={values.description ?? ""}
               onChange={(e) => setValues({ ...values, description: e.target.value })}
               rows={3}
+              aria-describedby={parent?.description ? "description-hint" : undefined}
             />
           </label>
+          {parent?.description && (
+            <p id="description-hint" className="muted">
+              Leave it empty to use the generic’s description.
+            </p>
+          )}
           <BoughtOn
             value={values.purchase_date}
             onChange={(purchase_date) => setValues({ ...values, purchase_date })}
-            hint={parentOf(store.state, it)?.purchase_date ? "Leave it empty to use the generic’s date." : undefined}
+            hint={parent?.purchase_date ? "Leave it empty to use the generic’s date." : undefined}
           />
         </>
       ) : (

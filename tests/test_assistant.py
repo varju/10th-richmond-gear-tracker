@@ -2401,6 +2401,34 @@ def test_a_unit_shows_its_generics_purchase_date_until_it_has_its_own(db_path, t
     assert assistant.get_item(tools["t1"])["generic_purchase_date"] == "2021-05-01"
 
 
+def test_a_unit_shows_its_generics_description_until_it_has_its_own(db_path, tools):
+    assistant.update_item(tools["tents"], assistant.ItemFields(description="Four poles"))
+    unit = assistant.get_item(tools["t1"])
+    assert unit["generic_description"] == "Four poles"
+    assert unit["description"] == ""
+
+    assistant.update_item(tools["t1"], assistant.ItemFields(description="Torn fly"))
+    unit = assistant.get_item(tools["t1"])
+    assert unit["description"] == "Torn fly"
+    assert "generic_description" not in unit
+
+
+def test_making_an_item_generic_moves_its_description_to_the_generic(db_path, tools):
+    assistant.update_item(tools["stove"], assistant.ItemFields(description="Propane"))
+    made = assistant.make_generic(tools["stove"])
+    assert entity(db_path, "item", made["generic_id"])["description"] == "Propane"
+    assert not entity(db_path, "item", tools["stove"]).get("description")
+    assert assistant.get_item(tools["stove"])["generic_description"] == "Propane"
+
+
+def test_make_single_keeps_the_units_own_description(db_path, tools):
+    assistant.update_item(tools["stove"], assistant.ItemFields(description="Propane"))
+    made = assistant.make_generic(tools["stove"])
+    assistant.update_item(tools["stove"], assistant.ItemFields(description="Dented"))
+    assistant.make_single(made["generic_id"])
+    assert entity(db_path, "item", tools["stove"])["description"] == "Dented"
+
+
 def test_making_an_item_generic_moves_its_purchase_date_to_the_generic(db_path, tools):
     assistant.update_item(tools["stove"], assistant.ItemFields(purchase_date="2020-01-02"))
     made = assistant.make_generic(tools["stove"], total=2)

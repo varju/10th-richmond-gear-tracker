@@ -277,6 +277,13 @@ export function purchaseOf(state: State, it: Item): { date: string; generic?: It
   return generic?.purchase_date ? { date: generic.purchase_date, generic } : null;
 }
 
+/** The description in use and where it comes from: the unit's own, else its generic's (FR-INV-82). */
+export function descriptionOf(state: State, it: Item): { text: string; generic?: Item } | null {
+  if (it.description) return { text: it.description };
+  const generic = parentOf(state, it);
+  return generic?.description ? { text: generic.description, generic } : null;
+}
+
 /** The generic a unit belongs to, if this device has it. */
 export const parentOf = (state: State, it: Item): Item | undefined =>
   it.parent_id ? item(state, it.parent_id) : undefined;

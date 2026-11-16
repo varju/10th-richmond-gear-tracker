@@ -208,7 +208,8 @@ export async function addUnits(store: Store, genericId: string, count: number): 
  * Mark a single item as generic (FR-INV-26). A new generic takes its name,
  * description, home, categories and purchase date, since a unit reads its generic's
  * categories (FR-SET-07); the item becomes a unit under it, with the number the
- * person confirmed, and loses the name it no longer needs. Nothing in its
+ * person confirmed, and loses the name, description and date it now reads from
+ * the generic (FR-INV-82). Nothing in its
  * history is rewritten, so its code, movements and tickets stay where they
  * are. Photos stay on the unit: only the server may say a photo exists, so a
  * device cannot copy one across.
@@ -228,7 +229,13 @@ export async function makeGeneric(store: Store, id: string, number = "1"): Promi
     purchase_date: it.purchase_date ?? null,
     category_ids: categoriesOf(store.state, it),
   });
-  await changed(store, "item", id, { parent_id: genericId, number: first, name: null, purchase_date: null });
+  await changed(store, "item", id, {
+    parent_id: genericId,
+    number: first,
+    name: null,
+    description: null,
+    purchase_date: null,
+  });
   return genericId;
 }
 
@@ -436,8 +443,8 @@ export const unmergeItem = (store: Store, id: string) => changed(store, "item", 
 /**
  * A generic becomes a single item again, the reverse of makeGeneric
  * (FR-INV-26). With one unit (FR-INV-33), that unit keeps its id, code and
- * history; takes the generic's name, description and categories, and keeps
- * its own purchase date, else takes the generic's. Its own home wins when it has one, so a unit already moved off
+ * history; takes the generic's name and categories, and keeps its own
+ * description and purchase date, else takes the generic's. Its own home wins when it has one, so a unit already moved off
  * the generic's default is not moved back; otherwise it takes the generic's
  * default home (FR-INV-29). Its number and nickname go, the nickname landing
  * on the end of the description since a single item has no number to carry
@@ -476,9 +483,8 @@ export async function makeSingle(store: Store, genericId: string): Promise<strin
 
   const ownHome = Boolean(unit.home_location_id || unit.home_user_id);
   const nickname = unit.nickname?.trim();
-  const description = nickname
-    ? [generic.description, nickname].filter(Boolean).join(" · ")
-    : generic.description ?? "";
+  const own = unit.description || generic.description || "";
+  const description = nickname ? [own, nickname].filter(Boolean).join(" · ") : own;
 
   await changed(
     store,
