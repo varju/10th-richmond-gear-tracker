@@ -8,7 +8,7 @@ import sqlite3
 import pytest
 
 from gear_tracker.db import open_db
-from gear_tracker.migrate import MigrationError, discover, migrate, pending
+from gear_tracker.migrate import MIGRATIONS_DIR, MigrationError, discover, migrate, pending
 from tests.conftest import write
 
 
@@ -132,3 +132,21 @@ def test_a_fresh_database_gets_its_own_log_id(tmp_path):
 
     assert all(re.fullmatch(r"[0-9a-f]{32}", value) for value in ids), ids
     assert ids[0] != ids[1]
+
+
+def test_http_calendar_feeds_become_https(tmp_path):
+    before = tmp_path / "before"
+    before.mkdir()
+    for f in MIGRATIONS_DIR.glob("*.sql"):
+        if f.name < "0015":
+            (before / f.name).write_text(f.read_text())
+    db = tmp_path / "feeds.db"
+    migrate(db, before)
+    with open_db(db) as conn:
+        conn.execute("INSERT INTO calendar_feeds (id, url, label, added_at) VALUES ('a', 'http://x.org/a.ics', '', 0)")
+        conn.execute("INSERT INTO calendar_feeds (id, url, label, added_at) VALUES ('b', 'https://x.org/b.ics', '', 0)")
+
+    migrate(db)
+    with open_db(db) as conn:
+        urls = [r[0] for r in conn.execute("SELECT url FROM calendar_feeds ORDER BY id")]
+    assert urls == ["https://x.org/a.ics", "https://x.org/b.ics"]

@@ -140,14 +140,6 @@ falls back to its generic's), shown on the scan card, the item page and the list
 `client/package.json` forces glob 14 on workbox-build to patch a minimatch ReDoS. Remove it once workbox-build depends
 on glob 14 or later.
 
-## Calendar feeds follow redirects to ftp
-
-`FeedUrl` allows only `http` and `https`, but `_fetch` in `calendars.py` uses `urlopen`, which follows a redirect to
-`ftp://` too.
-
-**Considered:** an opener whose redirect handler refuses any scheme but `http` and `https`. Then drop the S310 `noqa`
-reason that mentions ftp.
-
 ## Lint the Swift code
 
 Nothing checks `ios/App/App` except CodeQL. swift-format comes with Xcode, so a successor needs no install. Its defaults

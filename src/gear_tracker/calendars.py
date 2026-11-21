@@ -24,21 +24,22 @@ from __future__ import annotations
 import hashlib
 import logging
 import sqlite3
+import ssl
 import threading
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any, cast
 from urllib.error import URLError
 from urllib.parse import urlsplit, urlunsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
 from dateutil.rrule import rrulestr
 from icalendar import Calendar
-from pydantic import StringConstraints
+from pydantic import BeforeValidator, StringConstraints
 
 from gear_tracker.db import connect
 from gear_tracker.errors import NotFound
-from gear_tracker.events import Strict, now_ms
+from gear_tracker.events import HttpsUrl, Strict, now_ms
 from gear_tracker.localtime import ZONE
 from gear_tracker.ulid import new_ulid
 
@@ -52,7 +53,12 @@ LOOKAHEAD_DAYS = 180
 
 REFRESH_INTERVAL_S = 3600.0
 
-FeedUrl = Annotated[str, StringConstraints(min_length=1, max_length=2000, pattern=r"^https?://")]
+
+def _trimmed(value: Any) -> Any:
+    return value.strip() if isinstance(value, str) else value
+
+
+FeedUrl = Annotated[HttpsUrl, StringConstraints(max_length=2000), BeforeValidator(_trimmed)]
 FeedLabel = Annotated[str, StringConstraints(max_length=200)]
 
 
@@ -100,9 +106,23 @@ def remove_feed(conn: sqlite3.Connection, feed_id: str) -> None:
         raise NotFound("no such calendar feed")
 
 
+TLS = ssl.create_default_context()
+
+
+class _HttpsRedirectsOnly(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if urlsplit(newurl).scheme != "https":
+            fp.close()
+            raise ValueError("feed redirected away from https")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def _fetch(url: str) -> str:
-    request = Request(url, headers={"User-Agent": "gear-tracker-calendar/1"})  # noqa: S310 - FeedUrl is http(s); redirects may also reach ftp
-    with urlopen(request, timeout=TIMEOUT_S) as response:  # noqa: S310
+    if urlsplit(url).scheme != "https":
+        raise ValueError("feed URL is not https")
+    opener = build_opener(HTTPSHandler(context=TLS), _HttpsRedirectsOnly)
+    request = Request(url, headers={"User-Agent": "gear-tracker-calendar/1"})  # noqa: S310 - https checked above
+    with opener.open(request, timeout=TIMEOUT_S) as response:
         return response.read().decode("utf-8", errors="replace")
 
 

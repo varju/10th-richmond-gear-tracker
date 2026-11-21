@@ -1,13 +1,15 @@
-"""Calendar feeds: parsing a real ICS file, fetching from a real HTTP server, and reaching sync."""
+"""Calendar feeds: parsing a real ICS file, fetching from a real HTTPS server, and reaching sync."""
 
 from __future__ import annotations
 
+import ssl
 import threading
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
+import trustme
 from fastapi import Request
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -67,17 +69,27 @@ def test_redact_hides_the_query_string_where_a_private_token_lives():
     )
 
 
-def test_a_feed_url_must_be_http_or_https():
+def test_a_feed_url_is_trimmed():
+    assert calendars.FeedInput(url=" https://example.org/feed.ics\n").url == "https://example.org/feed.ics"
+
+
+@pytest.mark.parametrize("url", ["javascript:alert(1)", "http://example.org/feed.ics", "ftp://example.org/feed.ics"])
+def test_a_feed_url_must_be_https(url):
     with pytest.raises(ValidationError):
-        calendars.FeedInput(url="javascript:alert(1)")
+        calendars.FeedInput(url=url)
 
 
-# --- fetching, over real HTTP ---------------------------------------------------------------
+# --- fetching, over real HTTPS --------------------------------------------------------------
 
 
 class _Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        if self.path == "/feed.ics":
+        if self.path in ("/to-http", "/to-https"):
+            scheme = self.path.removeprefix("/to-")
+            self.send_response(302)
+            self.send_header("Location", f"{scheme}://{self.headers['Host']}/feed.ics")
+            self.end_headers()
+        elif self.path == "/feed.ics":
             body = FIXTURE.encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/calendar")
@@ -93,16 +105,25 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 @pytest.fixture
-def ics_server():
-    """A real HTTP server on localhost, serving the fixture at /feed.ics and 404 elsewhere."""
+def ics_server(monkeypatch):
+    """A real HTTPS server on localhost, trusted via a test CA, serving the fixture at /feed.ics and 404 elsewhere."""
+    ca = trustme.CA()
+    server_tls = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    ca.issue_cert("127.0.0.1").configure_cert(server_tls)
+    client_tls = ssl.create_default_context()
+    ca.configure_trust(client_tls)
+    monkeypatch.setattr(calendars, "TLS", client_tls)
+
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+    server.socket = server_tls.wrap_socket(server.socket, server_side=True)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        yield f"http://127.0.0.1:{server.server_port}"
+        yield f"https://127.0.0.1:{server.server_port}"
     finally:
         server.shutdown()
         thread.join()
+        server.server_close()
 
 
 def test_adding_a_feed_fetches_it_right_away(db, ics_server):
@@ -144,6 +165,28 @@ def test_a_failed_fetch_records_the_error_and_keeps_the_old_events(db, ics_serve
     db.execute("UPDATE calendar_feeds SET url = ? WHERE id = ?", (f"{ics_server}/missing.ics", feed["id"]))
     failed = calendars.refresh_feed(db, feed["id"], now=NOW + 2000)
     assert failed["last_error"] is not None
+    assert calendars.upcoming_events(db) == before
+
+
+def test_a_redirect_to_https_is_followed(db, ics_server):
+    feed = calendars.add_feed(db, calendars.FeedInput(url=f"{ics_server}/to-https"), now=NOW)
+    assert feed["last_error"] is None
+    assert calendars.upcoming_events(db) != []
+
+
+def test_a_redirect_away_from_https_is_refused(db, ics_server):
+    feed = calendars.add_feed(db, calendars.FeedInput(url=f"{ics_server}/to-http"), now=NOW)
+    assert feed["last_error"] == "feed redirected away from https"
+    assert calendars.upcoming_events(db) == []
+
+
+def test_a_stored_http_feed_is_not_fetched(db, ics_server):
+    feed = calendars.add_feed(db, calendars.FeedInput(url=f"{ics_server}/feed.ics"), now=NOW)
+    before = calendars.upcoming_events(db)
+    http_url = ics_server.replace("https://", "http://") + "/feed.ics"
+    db.execute("UPDATE calendar_feeds SET url = ? WHERE id = ?", (http_url, feed["id"]))
+    failed = calendars.refresh_feed(db, feed["id"], now=NOW + 1000)
+    assert failed["last_error"] == "feed URL is not https"
     assert calendars.upcoming_events(db) == before
 
 

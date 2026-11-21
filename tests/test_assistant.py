@@ -336,9 +336,9 @@ def test_update_user_refuses_a_bad_email():
         _arg_model("update_user").model_validate({"user_id": "x", "fields": {"email": "not-an-email"}})
 
 
-def test_add_calendar_feed_refuses_a_url_that_is_not_http():
+def test_add_calendar_feed_refuses_a_url_that_is_not_https():
     with pytest.raises(pydantic.ValidationError):
-        _arg_model("add_calendar_feed").model_validate({"url": "ftp://example.org/feed.ics"})
+        _arg_model("add_calendar_feed").model_validate({"url": "http://example.org/feed.ics"})
 
 
 def test_recount_refuses_a_float_count():
@@ -1409,10 +1409,10 @@ def test_an_admin_manages_calendar_feeds(admin_tools):
 
     # Port 1 refuses the connection right away, so the feed's own fetch failure is exercised
     # without a real ICS server (calendars.py already covers a successful fetch).
-    added = assistant.add_calendar_feed("http://127.0.0.1:1/feed.ics", label="Troop")
+    added = assistant.add_calendar_feed("https://127.0.0.1:1/feed.ics", label="Troop")
     feed = added["feed"]
     assert feed["label"] == "Troop"
-    assert feed["url_redacted"] == "http://127.0.0.1:1/feed.ics"
+    assert feed["url_redacted"] == "https://127.0.0.1:1/feed.ics"
     assert feed["last_error"]
 
     assert assistant.list_calendar_feeds() == {"feeds": [feed]}
@@ -1886,7 +1886,7 @@ def test_clear_mail_forgets_the_account(admin_tools):
 
 
 def test_refresh_calendar_feeds_reports_each_feed(admin_tools):
-    assistant.add_calendar_feed("http://127.0.0.1:1/feed.ics", label="Troop")
+    assistant.add_calendar_feed("https://127.0.0.1:1/feed.ics", label="Troop")
     feeds = assistant.refresh_calendar_feeds()["feeds"]
     assert len(feeds) == 1
     assert feeds[0]["label"] == "Troop"
