@@ -700,6 +700,63 @@ def outstanding(state: State, r: Fields) -> dict[str, Any]:
     return {"items": [_packing_row(state, it) for it in named], "generics": generics}
 
 
+def out_under(state: State, reservations: list[Fields]) -> dict[str, dict[str, int]]:
+    """How much of each reservation's gear is out under it, and how much of that is at someone's home.
+
+    What its page counts as not returned (FR-RES-41). Mirrors outUnder in reservations.ts.
+    """
+    lines = {
+        r["id"]: (set(named_items(state, r)), {line["item_id"] for line in r.get("generics") or []})
+        for r in reservations
+    }
+    found: dict[str, dict[str, int]] = {}
+
+    def add(reservation_id: str, count: int, home: bool) -> None:
+        n = found.setdefault(reservation_id, {"all": 0, "home": 0})
+        n["all"] += count
+        if home:
+            n["home"] += count
+
+    for r in reservations:
+        for line in r.get("generics") or []:
+            pool = item(state, line["item_id"])
+            if pool is None or not is_pool(pool):
+                continue
+            for out in pool_lots(pool):
+                for lot in out["lots"]:
+                    if lot.get("reservation_id") == r["id"]:
+                        add(r["id"], lot["count"], bool(lot.get("cleaner")))
+    for it in items(state):
+        if it.get("merged_into") or is_pool(it):
+            continue
+        movement = it.get("movement") or {}
+        rid = movement.get("reservation_id")
+        if it.get("generic") or it.get("status") != "out" or not isinstance(rid, str) or rid not in lines:
+            continue
+        named, generics = lines[rid]
+        unit = it.get("parent_id") in generics and not it.get("retired")
+        if it["id"] in named or unit:
+            add(rid, 1, bool(movement.get("cleaner")))
+    return found
+
+
+def at_home_count(state: State, r: Fields, home_under: int) -> int:
+    """Gear the reservation needs that is at someone's home now (FR-RES-52).
+
+    Its named items under another event (FR-RES-53), and its gear at someone's home under it.
+    `home_under` is out_under's home count. Mirrors atHomeCount in reservations.ts.
+    """
+    n = home_under
+    for it in (item(state, i) for i in named_items(state, r)):
+        if it is None or it.get("status") != "out":
+            continue
+        movement = it.get("movement") or {}
+        # Out under this reservation, it is already in home_under.
+        if movement.get("cleaner") and movement.get("reservation_id") != r["id"]:
+            n += 1
+    return n
+
+
 def _packing_row(state: State, it: Fields) -> Fields:
     row = {"item_id": it["id"], "name": display_name(state, it), "home": home_label(state, it)}
     if it.get("status") == "out" and (it.get("movement") or {}).get("cleaner"):

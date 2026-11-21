@@ -313,6 +313,67 @@ export function outstanding(state: State, r: Reservation): Outstanding {
   return { items, generics: generics.sort((a, b) => byName(state)(a.generic, b.generic)) };
 }
 
+export interface GearOut {
+  /** Gear out under the reservation, at someone's home or not. */
+  all: number;
+  /** The part of it at someone's home. */
+  home: number;
+}
+
+/**
+ * How much of each reservation's gear is out under it: what its page counts as not returned
+ * (FR-RES-41). Mirrored by out_under in views.py.
+ */
+export function outUnder(state: State, list: Reservation[]): Map<string, GearOut> {
+  const lines = new Map(
+    list.map((r) => [
+      r.id,
+      { named: new Set(namedItems(state, r)), generics: new Set(r.generics.map((g) => g.item_id)) },
+    ]),
+  );
+  const found = new Map<string, GearOut>();
+  const add = (id: string, count: number, home: boolean) => {
+    const n = found.get(id) ?? { all: 0, home: 0 };
+    n.all += count;
+    if (home) n.home += count;
+    found.set(id, n);
+  };
+  for (const r of list) {
+    for (const g of r.generics) {
+      const pool = item(state, g.item_id);
+      if (!pool || !isPool(pool)) continue;
+      for (const o of poolLots(pool))
+        for (const l of o.lots) if (l.reservation_id === r.id) add(r.id, l.count, !!l.cleaner);
+    }
+  }
+  for (const it of items(state)) {
+    if (it.merged_into || isPool(it)) continue;
+    const id = it.movement?.reservation_id;
+    if (it.generic || it.status !== "out" || typeof id !== "string") continue;
+    const line = lines.get(id);
+    if (!line) continue;
+    const unit = !!it.parent_id && line.generics.has(it.parent_id) && !it.retired;
+    if (line.named.has(it.id) || unit) add(id, 1, !!it.movement?.cleaner);
+  }
+  return found;
+}
+
+/**
+ * Gear the reservation needs that is at someone's home now (FR-RES-52): its named items under any
+ * event (FR-RES-53), and its gear at someone's home under it. `homeUnder` is outUnder's home count.
+ * Mirrored by at_home_count in views.py.
+ */
+export function atHomeCount(state: State, r: Reservation, homeUnder: number): number {
+  let n = homeUnder;
+  for (const id of namedItems(state, r)) {
+    const it = item(state, id);
+    if (it?.status !== "out" || !it.movement?.cleaner) continue;
+    // Out under this reservation, it is already in homeUnder.
+    if (it.movement.reservation_id !== r.id) n++;
+  }
+  return n;
+}
+
 export const isPacked = (rem: Remaining): boolean =>
   rem.items.length === 0 && rem.generics.every((g) => g.done >= g.quantity);
 

@@ -587,12 +587,27 @@ def whats_out(event: str | None = None) -> dict[str, Any]:
 
 
 def list_reservations(upcoming_only: StrictBool = True) -> dict[str, Any]:
-    """Reservations, first day first. Upcoming means it has not ended yet."""
+    """Reservations, first day first. Upcoming means it has not ended yet.
+
+    `out` counts the gear out under each. Until it ends, that leaves out gear at someone's home,
+    and `at_home` counts it, with the named items at someone's home under any event.
+    """
     with _open() as (conn, _who):
         state = _state(conn)
         today = views.today(now_ms())
         found = [r for r in views.reservations(state) if not upcoming_only or (r.get("ends") or "") >= today]
-        return {"today": today, "reservations": [_reservation_brief(state, r) for r in found]}
+        under = views.out_under(state, found)
+        listed = []
+        for r in found:
+            brief = _reservation_brief(state, r)
+            ended = (r.get("ends") or "") < today
+            n = under.get(r["id"], {"all": 0, "home": 0})
+            # Before it ends, gear at someone's home is not with the camp (FR-RES-36).
+            brief["out"] = n["all"] if ended else n["all"] - n["home"]
+            if not ended:
+                brief["at_home"] = views.at_home_count(state, r, n["home"])
+            listed.append(brief)
+        return {"today": today, "reservations": listed}
 
 
 def get_reservation(reservation_id: str) -> dict[str, Any]:

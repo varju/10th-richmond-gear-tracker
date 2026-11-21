@@ -19,6 +19,8 @@ What the app does differently.
 - What is out lists events by end date, latest first, instead of by name.
 - Group headings in the desk tables are larger, with a heavier rule.
 - Links lose their underline. Links inside running text keep it.
+- Events lists past events with gear still out in their own fold, above Past. Each event says how much is out under it,
+  and an upcoming one how much of its gear is at someone's home.
 
 ## Chores
 

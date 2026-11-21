@@ -1062,6 +1062,61 @@ def test_reservations_are_listed_upcoming_or_all(tools):
         assistant.get_reservation("nope")
 
 
+def test_reservations_list_how_much_is_out_under_each(tools):
+    old = assistant.create_reservation(
+        event="Last spring",
+        starts="2020-04-01",
+        ends="2020-04-03",
+        items=[tools["stove"]],
+        generics=[assistant.GenericLine(item_id=tools["tents"], quantity=2)],
+    )["reservation_id"]
+    soon = assistant.create_reservation(event="Fall Camp", starts="2099-10-02", ends="2099-10-04", items=[tools["t1"]])[
+        "reservation_id"
+    ]
+    assistant.check_out(tools["t1"], reservation_id=soon)
+    assistant.check_out(tools["stove"], reservation_id=old)
+    assistant.check_out(tools["t2"], reservation_id=old)
+    assistant.send_home_with(tools["t2"], "Smith")
+
+    listed = assistant.list_reservations(upcoming_only=False)["reservations"]
+    assert [(r["out"], r.get("at_home")) for r in listed] == [(2, None), (1, 0)]
+    assistant.check_in(tools["stove"])
+    assert assistant.list_reservations(upcoming_only=False)["reservations"][0]["out"] == 1
+    assistant.send_home_with(tools["t1"], "Jones")
+    soon_row = assistant.list_reservations()["reservations"][0]
+    assert (soon_row["out"], soon_row["at_home"]) == (0, 1)
+
+
+def test_the_out_count_is_what_the_reservation_counts_as_not_returned(tools, pool_id):
+    made = assistant.create_reservation(
+        event="Last spring",
+        starts="2020-04-01",
+        ends="2020-04-03",
+        items=[tools["t1"]],
+        generics=[assistant.GenericLine(item_id=pool_id, quantity=6)],
+    )["reservation_id"]
+    assistant.check_out(tools["stove"], reservation_id=made)
+    assistant.check_out(tools["t1"], reservation_id=made)
+    assistant.check_out(pool_id, count=5, reservation_id=made)
+    assistant.send_home_with(pool_id, "Smith", 2)
+    assistant.mark_missing(tools["t1"])
+
+    out = assistant.get_reservation(made)
+    listed = assistant.list_reservations(upcoming_only=False)["reservations"][0]["out"]
+    assert listed == len(out["not_returned"]) + sum(g["out"] for g in out["generic_out"]) == 6
+
+
+def test_an_upcoming_reservation_counts_named_gear_at_home_under_another_event(tools):
+    made = assistant.create_reservation(
+        event="Fall Camp", starts="2099-10-02", ends="2099-10-04", items=[tools["stove"]]
+    )
+    soon = made["reservation_id"]
+    assistant.check_out(tools["stove"], event="Summer camp")
+    assistant.send_home_with(tools["stove"], "Smith")
+    row = next(r for r in assistant.list_reservations()["reservations"] if r["reservation_id"] == soon)
+    assert (row["out"], row["at_home"]) == (0, 1)
+
+
 def test_a_reservation_that_ends_before_it_starts_is_refused(tools):
     with pytest.raises(BadRequest):
         assistant.create_reservation(event="Backwards", starts="2099-10-04", ends="2099-10-02")

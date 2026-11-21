@@ -216,6 +216,80 @@ test("the list shows what is ahead, with past camps folded away", async () => {
   expect(location.pathname).toBe(`/events/${fall}`);
 });
 
+test("past events with gear not back have their own fold, open, with how much is out (FR-RES-48, FR-RES-49)", async () => {
+  const spring = await res.createReservation(store, {
+    event: "Spring camp",
+    starts: "2025-04-10",
+    ends: "2025-04-12",
+    items: [t1],
+    generics: [{ item_id: tents, quantity: 1 }],
+  });
+  await res.createReservation(store, {
+    event: "Summer camp",
+    starts: "2025-07-10",
+    ends: "2025-07-12",
+    items: [],
+    generics: [],
+  });
+  await mv.checkOut(store, t1, { event: "Spring camp", reservation_id: spring });
+  await mv.checkOut(store, t2, { event: "Spring camp", reservation_id: spring });
+  await mv.sendItemHome(store, t2, { cleaner: "Smith" });
+  navigate("/events");
+  renderInShell(<Reservations store={store} />, () => T0);
+
+  expect(screen.getByText("Past, items out (1)").closest("details")).toHaveAttribute("open");
+  expect(screen.getByRole("button", { name: /Spring camp/ })).toHaveTextContent(
+    "2025-04-10 – 2025-04-12 · 2 items · 2 out",
+  );
+  expect(screen.getByText("Past (1)")).toBeInTheDocument();
+
+  await mv.checkIn(store, t1);
+  await mv.checkIn(store, t2);
+  await waitFor(() => expect(screen.queryByText(/Past, items out/)).not.toBeInTheDocument());
+  expect(screen.getByText("Past (2)")).toBeInTheDocument();
+});
+
+test("an event counts what its page counts as not returned (FR-RES-50)", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  navigate("/events");
+  renderInShell(<Reservations store={store} />, () => T0);
+  const row = () => screen.getByRole("button", { name: /Fall Camp/ });
+
+  // Not on its list: its page does not show it, so the row does not count it.
+  await mv.checkOut(store, stove, { event: "Fall Camp", reservation_id: fall });
+  await mv.checkOut(store, t1, { event: "Fall Camp", reservation_id: fall });
+  await mv.checkOut(store, t2, { event: "Fall Camp", reservation_id: fall });
+  await waitFor(() => expect(row()).toHaveTextContent(/· 2 items · 2 out$/));
+  // Missing is still not returned.
+  await act.markMissing(store, t1);
+  await waitFor(() => expect(row()).toHaveTextContent(/· 2 items · 2 out$/));
+
+  // Sent home before the camp: no longer out with it, but still its gear.
+  await mv.sendItemHome(store, t2, { cleaner: "Smith" });
+  await waitFor(() => expect(row()).toHaveTextContent(/· 2 items · 1 out · 1 at someone's home$/));
+});
+
+test("an upcoming event counts what is out and what is at someone's home (FR-RES-50, FR-RES-51, FR-RES-52)", async () => {
+  const stove = await act.createItem(store, { name: "Stove" });
+  await res.addItem(store, fall, stove);
+  navigate("/events");
+  renderInShell(<Reservations store={store} />, () => T0);
+  const row = () => screen.getByRole("button", { name: /Fall Camp/ });
+  expect(row()).toHaveTextContent(/^Fall Camp2026-10-02 – 2026-10-04 · 3 items$/);
+
+  await mv.checkOut(store, t1, { event: "Fall Camp", reservation_id: fall });
+  await waitFor(() => expect(row()).toHaveTextContent(/· 3 items · 1 out$/));
+
+  // Sent home after another camp: not out under this one, and at risk of being forgotten.
+  await checkOutUnplanned(store, stove, "Summer camp");
+  await mv.sendItemHome(store, stove, { cleaner: "Smith" });
+  await waitFor(() => expect(row()).toHaveTextContent(/· 3 items · 1 out · 1 at someone's home$/));
+
+  // Sent home from this camp before it starts: no longer out with it.
+  await mv.sendItemHome(store, t1, { cleaner: "Jones" });
+  await waitFor(() => expect(row()).toHaveTextContent(/· 3 items · 2 at someone's home$/));
+});
+
 test("a new reservation is built from one search; an item already booked blocks it (FR-RES-01, FR-RES-05)", async () => {
   const stove = await act.createItem(store, { name: "Stove" });
   const tarp = await act.createItem(store, { name: "Tarp" });

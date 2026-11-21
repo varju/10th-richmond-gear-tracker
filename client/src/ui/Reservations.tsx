@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { flushSync } from "react-dom";
 import {
+  atHomeCount,
+  outUnder,
   past,
   type Reservation,
   reserveFromEvent,
@@ -30,7 +32,7 @@ export function countLabel(r: Reservation): string {
   return plural(n, "item");
 }
 
-function Rows({ list }: { list: Reservation[] }) {
+function Rows({ list, counts }: { list: Reservation[]; counts: Map<string, string[]> }) {
   return (
     <ul className="items">
       {list.map((r) => (
@@ -38,7 +40,7 @@ function Rows({ list }: { list: Reservation[] }) {
           <button className="item" type="button" onClick={() => navigate(`/events/${r.id}`)}>
             <span className="item-name">{r.event}</span>
             <span className="muted small">
-              {datesLabel(r)} · {countLabel(r)}
+              {[datesLabel(r), countLabel(r), ...(counts.get(r.id) ?? [])].join(" · ")}
             </span>
           </button>
         </li>
@@ -158,7 +160,10 @@ function CurrentEvent({ event, waiting }: { event: string | undefined; waiting: 
   );
 }
 
-/** The camps ahead, and the way to plan a new one (S-RES-01). */
+/**
+ * The camps ahead, past camps with gear not back (FR-RES-48), how much is out (FR-RES-50) and
+ * at someone's home (FR-RES-52), and the way to plan a new one (S-RES-01).
+ */
 export function Reservations({ store }: { store: Store }) {
   /** iOS raises the keyboard only for a focus inside the tap, so the form is rendered before the tap ends. */
   const newEvent = () => {
@@ -169,7 +174,25 @@ export function Reservations({ store }: { store: Store }) {
   const { now } = useShell();
   const today = todayIso(now());
   const ahead = upcoming(store.state, today);
-  const gone = past(store.state, today);
+  const ended = past(store.state, today);
+  const under = outUnder(store.state, [...ahead, ...ended]);
+  const counts = new Map<string, string[]>();
+  for (const r of ahead) {
+    // Before it ends, gear at someone's home is not with the camp (FR-RES-36).
+    const out = (under.get(r.id)?.all ?? 0) - (under.get(r.id)?.home ?? 0);
+    const home = atHomeCount(store.state, r, under.get(r.id)?.home ?? 0);
+    counts.set(
+      r.id,
+      [out > 0 && `${out} out`, home > 0 && `${home} at someone's home`].filter((s) => s !== false),
+    );
+  }
+  const notBack: Reservation[] = [];
+  const gone: Reservation[] = [];
+  for (const r of ended) {
+    const out = under.get(r.id)?.all ?? 0;
+    if (out > 0) counts.set(r.id, [`${out} out`]);
+    (out > 0 ? notBack : gone).push(r);
+  }
   const loose = unplanned(store, now());
   const changing = useRoute().query.has("change");
   const { event } = sessionEvent(store.meta, now());
@@ -192,13 +215,19 @@ export function Reservations({ store }: { store: Store }) {
       }
     >
       <CurrentEvent event={event} waiting={awaitingAnswer(store.meta, now())} />
-      {ahead.length === 0 && gone.length === 0 && loose.length === 0 && <p>No events.</p>}
-      {ahead.length > 0 && <Rows list={ahead} />}
+      {ended.length === 0 && ahead.length === 0 && loose.length === 0 && <p>No events.</p>}
+      {ahead.length > 0 && <Rows list={ahead} counts={counts} />}
       {loose.length > 0 && <UnplannedRows store={store} list={loose} now={now} />}
+      {notBack.length > 0 && (
+        <details className="filters" open>
+          <summary>Past, items out ({notBack.length})</summary>
+          <Rows list={notBack} counts={counts} />
+        </details>
+      )}
       {gone.length > 0 && (
         <details className="filters">
           <summary>Past ({gone.length})</summary>
-          <Rows list={gone} />
+          <Rows list={gone} counts={counts} />
         </details>
       )}
     </Page>
