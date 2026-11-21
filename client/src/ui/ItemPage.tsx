@@ -933,11 +933,11 @@ function HistorySection({ store, id, record }: Props & { record: Log | null }) {
 function AuditLink({ store, id }: { store: Store; id: string }) {
   if (!store.admin) return null;
   return (
-    <p>
+    <div>
       <button className="link" type="button" onClick={() => navigate(`/settings/audit?item=${encodeURIComponent(id)}`)}>
         Open in audit log
       </button>
-    </p>
+    </div>
   );
 }
 

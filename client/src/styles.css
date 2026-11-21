@@ -567,7 +567,7 @@ button.item {
   margin-bottom: 12px;
 }
 
-/* A fold opens like a link, so it reads like one: muted text was tapped by nobody. */
+/* A fold opens like a link, so it reads like one: muted text was tapped by nobody. The arrow marks it. */
 .filters summary {
   min-height: 44px;
   display: flex;
@@ -576,7 +576,6 @@ button.item {
   color: var(--ink);
   font-size: 16px;
   font-weight: 500;
-  text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
   list-style: none;
@@ -586,7 +585,7 @@ button.item {
   display: none;
 }
 
-/* Which way the fold goes. A flex item, so the underline stops at the text. */
+/* Which way the fold goes. */
 .filters summary::before {
   content: "▸";
 }
@@ -647,7 +646,7 @@ label.check span {
   color: var(--navy);
 }
 
-/* A link, or a button that looks like one: no border, underlined, still a 44 px target. */
+/* A link, or a button that looks like one: no border, still a 44 px target. */
 button.link,
 a.link {
   min-height: 44px;
@@ -657,8 +656,25 @@ a.link {
   color: var(--ink);
   font-size: 16px;
   font-weight: 500;
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 3px;
+}
+
+/* In a line of text, nothing else marks the link. */
+p button.link,
+.banner button.link,
+.update-banner button.link,
+.facts .one-of button.link,
+.history .facts dd > button.link {
+  text-decoration: underline;
+}
+
+@media (hover: hover) {
+  button.link:hover,
+  a.link:hover,
+  .filters summary:hover {
+    text-decoration: underline;
+  }
 }
 
 a.link {
@@ -1518,12 +1534,15 @@ h3.section.small {
 }
 
 .grid th[scope="rowgroup"] {
+  padding-top: 16px;
+  border-bottom: 2px solid var(--ink);
   color: var(--ink);
+  font-size: 20px;
   font-weight: 700;
 }
 
 .grid tbody + tbody th[scope="rowgroup"] {
-  padding-top: 20px;
+  padding-top: 36px;
 }
 
 /* A cell is not a row: a link in one takes the width of its words. */
@@ -1539,7 +1558,6 @@ h3.section.small {
 
 .grid th button.link {
   color: var(--muted);
-  text-decoration: none;
 }
 
 /* A generic's arrow sits in main's left padding; its tap area overlaps the name. */
@@ -1780,6 +1798,8 @@ button.unit-fold:focus-visible > span {
 
   button.link,
   a.link,
+  p button.link,
+  .facts button.link,
   .grid th button.link {
     color: #000;
     text-decoration: none;

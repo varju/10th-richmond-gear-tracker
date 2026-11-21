@@ -128,12 +128,12 @@ export function Audit({ store, api, item }: Props) {
   return (
     <Page title="Audit log" back={back}>
       {filter.item && (
-        <p className="row">
+        <div className="row">
           <span>Item: {nameOf(store.state, filter.item)}</span>
           <button className="link" type="button" onClick={() => navigate("/settings/audit")}>
             Show every item
           </button>
-        </p>
+        </div>
       )}
       <div className="row">
         <label className="tight">

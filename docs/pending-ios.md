@@ -17,6 +17,8 @@ What the app does differently.
 - A unit with no description of its own shows its generic's, marked as from it. Marking an item generic moves its
   description to the generic; making a unit single again keeps its own description.
 - What is out lists events by end date, latest first, instead of by name.
+- Group headings in the desk tables are larger, with a heavier rule.
+- Links lose their underline. Links inside running text keep it.
 
 ## Chores
 
