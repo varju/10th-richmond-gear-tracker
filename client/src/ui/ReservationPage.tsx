@@ -136,6 +136,7 @@ export function ReservationPage({
   const [error, setError] = useState<string | null>(null);
   const [pick, setPick] = useState("");
   const [notPacked, setNotPackedNow] = useState(() => entryState("notPacked") === true);
+  const [notReturned, setNotReturnedNow] = useState(() => entryState("notReturned") !== false);
   const [mode, setModeNow] = useState<"packing" | "returning" | null>(() => {
     const kept = entryState("mode");
     return kept === "packing" || kept === "returning" ? kept : null;
@@ -143,6 +144,10 @@ export function ReservationPage({
   const setNotPacked = (value: boolean) => {
     setEntryState("notPacked", value);
     setNotPackedNow(value);
+  };
+  const setNotReturned = (value: boolean) => {
+    setEntryState("notReturned", value);
+    setNotReturnedNow(value);
   };
   const setMode = (value: "packing" | "returning") => {
     setEntryState("mode", value);
@@ -191,11 +196,18 @@ export function ReservationPage({
     return cleaner ? `Not packed · at home with ${cleaner}` : "Not packed";
   };
   const anyPacked = packed.size > 0 || rem.generics.some((g) => g.done >= g.quantity);
-  const anyOut = owed.items.length > 0 || owed.generics.some((g) => g.out > 0);
-  const filtering = notPacked && !r.cancelled;
-  // A line with no record on this device is not packed either, so it stays.
+  const filter = returning ? notReturned : notPacked;
+  const filtering = filter && !r.cancelled;
+  const outElsewhere = (itemId: string) => {
+    const it = item(state, itemId);
+    return it?.status === "out" && it.movement?.reservation_id !== r.id;
+  };
+  // A line with no record on this device is not packed either, so it stays. Gear out under
+  // another event stays while returning, to offer It's with us.
   const keep = (itemId: string) =>
-    (returning ? stillOut : unpacked).has(resolveItem(state, itemId)) || !state.item?.[itemId];
+    (returning ? stillOut : unpacked).has(resolveItem(state, itemId)) ||
+    !state.item?.[itemId] ||
+    (returning && outElsewhere(itemId));
   const items = [...(filtering ? r.items.filter(keep) : r.items)].sort((a, b) =>
     compareNames(nameOf(state, a), nameOf(state, b)),
   );
@@ -218,6 +230,7 @@ export function ReservationPage({
     );
   // One column when the second would be empty.
   const twoCol = wide && others.length > 0;
+  const listed = r.items.length > 0 || r.generics.length > 0;
 
   /** Packing takes the event and the reservation from the reservation itself; nobody types it again (FR-RES-03). */
   function checkOut() {
@@ -256,16 +269,20 @@ export function ReservationPage({
         </p>
       )}
       {r.items.length === 0 && r.generics.length === 0 && <p className="muted">No gear listed.</p>}
-      {!r.cancelled && started && (r.items.length > 0 || r.generics.length > 0) && (
+      {!r.cancelled && started && listed && (
         <Switch label="Mode" options={MODES} value={returning ? "returning" : "packing"} onChange={setMode} />
       )}
-      {!r.cancelled && ((returning ? anyOut : anyPacked) || notPacked) && (
+      {!r.cancelled && listed && (returning || anyPacked || filter) && (
         <label className="check">
-          <input type="checkbox" checked={notPacked} onChange={(e) => setNotPacked(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={filter}
+            onChange={(e) => (returning ? setNotReturned : setNotPacked)(e.target.checked)}
+          />
           <span>{returning ? "Not returned" : "Not packed"}</span>
         </label>
       )}
-      {filtering && items.length === 0 && generics.length === 0 && (
+      {filtering && listed && items.length === 0 && generics.length === 0 && (
         <p className="muted">{returning ? "Everything is back." : "Everything is packed."}</p>
       )}
       {items.length > 0 && (
@@ -273,7 +290,7 @@ export function ReservationPage({
           {items.map((itemId) => {
             const it = item(state, itemId);
             // Out, but not packing this camp: it may have left before the plan did.
-            const elsewhere = it?.status === "out" && it.movement?.reservation_id !== r.id;
+            const elsewhere = outElsewhere(itemId);
             const note = near[itemId];
             const claim = !r.cancelled && elsewhere;
             return (

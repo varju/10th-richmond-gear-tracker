@@ -21,6 +21,9 @@ What the app does differently.
 - Links lose their underline. Links inside running text keep it.
 - Events lists past events with gear still out in their own fold, above Past. Each event says how much is out under it,
   and an upcoming one how much of its gear is at someone's home.
+- On an event's page, Not returned starts ticked and Not packed starts unticked. Each keeps its own setting when
+  switching between Packing and Returning. Returning always offers Not returned, which keeps items out under another
+  event, with It's with us. An event with no gear listed offers no filter.
 
 ## Chores
 

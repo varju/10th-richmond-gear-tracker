@@ -520,7 +520,9 @@ test("once the event has ended the page says Not returned, and filters by it (FR
   navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />, later);
   const row = (name: RegExp) => screen.getByRole("button", { name });
-  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  // The filter starts on (FR-RES-55); nothing went out, so nothing is owed.
+  expect(screen.getByRole("checkbox", { name: "Not returned" })).toBeChecked();
+  expect(screen.getByText("Everything is back.")).toBeInTheDocument();
 
   const under = { event: "Fall Camp", reservation_id: fall };
   await mv.checkOut(store, t1, under);
@@ -534,10 +536,11 @@ test("once the event has ended the page says Not returned, and filters by it (FR
   expect(screen.queryByRole("checkbox", { name: "Not packed" })).not.toBeInTheDocument();
 
   await mv.checkIn(store, t1);
-  await waitFor(() => expect(row(/4-person tent #1/)).not.toHaveTextContent("Not returned"));
-  await user.click(screen.getByRole("checkbox", { name: "Not returned" }));
-  expect(screen.queryByRole("button", { name: /4-person tent #1/ })).not.toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByRole("button", { name: /4-person tent #1/ })).not.toBeInTheDocument());
   expect(row(/Stove/)).toBeInTheDocument();
+  await user.click(screen.getByRole("checkbox", { name: "Not returned" }));
+  expect(row(/4-person tent #1/)).not.toHaveTextContent("Not returned");
+  await user.click(screen.getByRole("checkbox", { name: "Not returned" }));
 
   await mv.backFromCleaning(store, stove);
   await mv.checkIn(store, stove);
@@ -546,25 +549,88 @@ test("once the event has ended the page says Not returned, and filters by it (FR
   expect(screen.queryByText(/× 4-person tent/)).not.toBeInTheDocument();
 });
 
-test("an event page keeps its filter and mode through Back, and starts clear when opened afresh", async () => {
+test("Not returned starts on and Not packed off, and each keeps its own setting (FR-RES-54, FR-RES-55, FR-RES-56, FR-RES-57)", async () => {
+  const later = () => Date.parse("2026-10-10T19:00:00Z");
+  await mv.checkOut(store, t1, { event: "Fall Camp", reservation_id: fall });
+  navigate(`/events/${fall}`);
+  renderInShell(<ReservationPage store={store} id={fall} />, later);
+  const returned = () => screen.getByRole("checkbox", { name: "Not returned" });
+  const packed = () => screen.getByRole("checkbox", { name: "Not packed" });
+  expect(returned()).toBeChecked();
+
+  await user.click(screen.getByRole("button", { name: "Packing" }));
+  expect(packed()).not.toBeChecked();
+  await user.click(packed());
+  await user.click(screen.getByRole("button", { name: "Returning" }));
+  expect(returned()).toBeChecked();
+  await user.click(returned());
+  await user.click(screen.getByRole("button", { name: "Packing" }));
+  expect(packed()).toBeChecked();
+  await user.click(screen.getByRole("button", { name: "Returning" }));
+  expect(returned()).not.toBeChecked();
+});
+
+test("a running event switched to Returning starts with Not returned on (FR-RES-55)", async () => {
+  await mv.checkOut(store, t1, { event: "Fall Camp", reservation_id: fall });
+  navigate(`/events/${fall}`);
+  renderInShell(<ReservationPage store={store} id={fall} />, () => Date.parse("2026-10-04T19:00:00Z"));
+  await user.click(screen.getByRole("button", { name: "Returning" }));
+  expect(screen.getByRole("checkbox", { name: "Not returned" })).toBeChecked();
+});
+
+test("on an ended event, Not returned keeps gear out under another event, to offer It's with us (FR-RES-58)", async () => {
+  await checkOutUnplanned(store, t1, "Somebody else's trip");
+  navigate(`/events/${fall}`);
+  renderInShell(<ReservationPage store={store} id={fall} />, () => Date.parse("2026-10-10T19:00:00Z"));
+  expect(screen.getByRole("checkbox", { name: "Not returned" })).toBeChecked();
+  expect(screen.getByLabelText("It's with us: 4-person tent #1")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^1 × 4-person tent/ })).not.toBeInTheDocument();
+  // Nothing is out under this event, yet the filter stays to tick again.
+  await user.click(screen.getByRole("checkbox", { name: "Not returned" }));
+  expect(screen.getByRole("checkbox", { name: "Not returned" })).not.toBeChecked();
+  expect(screen.getByRole("button", { name: /^1 × 4-person tent/ })).toBeInTheDocument();
+  await user.click(screen.getByRole("checkbox", { name: "Not returned" }));
+  expect(screen.getByRole("checkbox", { name: "Not returned" })).toBeChecked();
+  expect(screen.getByLabelText("It's with us: 4-person tent #1")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^1 × 4-person tent/ })).not.toBeInTheDocument();
+});
+
+test("an ended event with no gear listed offers no filter", async () => {
+  const camp = await res.createReservation(store, {
+    event: "Empty Camp",
+    starts: "2026-09-01",
+    ends: "2026-09-02",
+    items: [],
+    generics: [],
+  });
+  navigate(`/events/${camp}`);
+  renderInShell(<ReservationPage store={store} id={camp} />, () => Date.parse("2026-10-10T19:00:00Z"));
+  expect(screen.getByText("No gear listed.")).toBeInTheDocument();
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  expect(screen.queryByText("Everything is back.")).not.toBeInTheDocument();
+});
+
+test("an event page keeps its filters and mode through Back, and starts afresh when opened again", async () => {
   const later = () => Date.parse("2026-10-10T19:00:00Z");
   await mv.checkOut(store, t1, { event: "Fall Camp", reservation_id: fall });
   navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />, later);
   await user.click(await screen.findByRole("checkbox", { name: "Not returned" }));
   await user.click(screen.getByRole("button", { name: "Packing" }));
-  expect(screen.getByRole("checkbox", { name: "Not packed" })).toBeChecked();
+  await user.click(screen.getByRole("checkbox", { name: "Not packed" }));
   cleanup();
 
   renderInShell(<ReservationPage store={store} id={fall} />, later);
   expect(await screen.findByRole("checkbox", { name: "Not packed" })).toBeChecked();
   expect(screen.getByRole("button", { name: "Packing" })).toHaveAttribute("aria-pressed", "true");
+  await user.click(screen.getByRole("button", { name: "Returning" }));
+  expect(screen.getByRole("checkbox", { name: "Not returned" })).not.toBeChecked();
   cleanup();
 
   navigate("/events");
   navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />, later);
-  expect(await screen.findByRole("checkbox", { name: "Not returned" })).not.toBeChecked();
+  expect(await screen.findByRole("checkbox", { name: "Not returned" })).toBeChecked();
 });
 
 test("a counted line on an event opens its item, while packing and returning", async () => {
@@ -920,7 +986,7 @@ test("on an ended event, a line whose item this device has no record of stays un
   navigate(`/events/${fall}`);
   renderInShell(<ReservationPage store={store} id={fall} />, () => Date.parse("2026-10-10T19:00:00Z"));
 
-  await user.click(screen.getByRole("checkbox", { name: "Not returned" }));
+  expect(screen.getByRole("checkbox", { name: "Not returned" })).toBeChecked();
   expect(screen.getByText("(unknown item)")).toBeInTheDocument();
   expect(screen.queryByText("Everything is back.")).not.toBeInTheDocument();
 });
