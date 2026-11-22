@@ -148,18 +148,6 @@ Swipe from the left edge to go back, as in other iPhone apps. Today the swipe do
 - Check the swipe on the scan screen, where the native camera sits behind the web view.
 - Needs an App Store release.
 
-## All items search is out of sight on the phone
-
-On the phone's **All items**, the Search box looks missing. It is there, in the actions bar with Scan and New item, but
-that bar is not sticky, so it sits below the whole list.
-
-**Considered:**
-
-- Move Search to the top of `main` with the sticky `label.tight.search` style Home uses, above or in `Filters`.
-- Or drop it: the header's search button already searches all gear on Home. The filters would then need a way there.
-- Files: `Inventory.tsx`, `Filters.tsx`.
-- Needs an App Store release.
-
 ## Delete an unsent record
 
 On **Unsent records** (FR-OFF-15), delete a record made by mistake before it is sent, e.g. a code put on the wrong item.

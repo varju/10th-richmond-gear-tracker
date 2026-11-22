@@ -31,22 +31,20 @@ export function Inventory({ store }: Props) {
       title="Inventory"
       back="/"
       actions={
-        <>
-          <label className="tight">
-            <span>Search</span>
-            <input type="search" value={query} onChange={(e) => show(e.target.value, filter)} autoComplete="off" />
-          </label>
-          <div className="row">
-            <button className="primary" type="button" onClick={() => navigate("/scan")}>
-              Scan
-            </button>
-            <button type="button" onClick={() => navigate("/items/new")}>
-              New item
-            </button>
-          </div>
-        </>
+        <div className="row">
+          <button className="primary" type="button" onClick={() => navigate("/scan")}>
+            Scan
+          </button>
+          <button type="button" onClick={() => navigate("/items/new")}>
+            New item
+          </button>
+        </div>
       }
     >
+      <label className="tight search">
+        <span>Search</span>
+        <input type="search" value={query} onChange={(e) => show(e.target.value, filter)} autoComplete="off" />
+      </label>
       <p className="muted small">
         {plural(countItems(list), "item")}
         {/* oxlint-disable-next-line react/purity */}

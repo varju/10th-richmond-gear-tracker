@@ -84,6 +84,7 @@ test("the list narrows by query and by location", async () => {
   const user = userEvent.setup();
   expect(screen.getByText("2 items")).toBeInTheDocument();
   expect(rows()).toEqual(["StoveWarm locker", "Tent 1Cold locker / shelf 4"]);
+  expect(screen.getByRole("main")).toContainElement(screen.getByLabelText("Search"));
 
   await user.type(screen.getByLabelText("Search"), "tent");
   expect(rows()).toEqual(["Tent 1Cold locker / shelf 4"]);
