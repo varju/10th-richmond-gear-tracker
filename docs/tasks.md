@@ -135,6 +135,85 @@ falls back to its generic's), shown on the scan card, the item page and the list
 
 **Deferred because:** photos are online only (FR-INV-11), so a photo at check-out in a locker would mostly fail to load.
 
+## Drag a photo onto an item page
+
+On the desktop, drop an image file anywhere on an item page to add it as a photo.
+
+**Considered:**
+
+- `Photos.tsx` adds photos only through its file input. A drop hands the same `File` to the same upload path, so queuing
+  with no signal (FR-INV-11) still holds.
+- Show a drop target while a file is dragged over the page; ignore drops that are not images.
+- Repair pages use `Photos.tsx` too, so they could take drops as well.
+- Web only: gate it behind `!NATIVE`, so no iPhone release.
+- No new MCP tool: `add_photo` exists.
+
+## Swipe back in the iPhone app
+
+Swipe from the left edge to go back, as in other iPhone apps. Today the swipe does nothing.
+
+**Considered:**
+
+- Capacitor leaves `allowsBackForwardNavigationGestures` off. Setting it on the web view in
+  `MainViewController.capacitorDidLoad()` should be enough: the router keeps in-app history with `pushState`, so the
+  swipe fires `popstate` like the browser Back button.
+- It also turns on swipe forward from the right edge.
+- Check the swipe on the scan screen, where the native camera sits behind the web view.
+- Needs an App Store release.
+
+## All items keeps its folds on Back
+
+On the phone's **All items**, fold some categories, open an item, then go Back: every category is open again.
+
+**Considered:**
+
+- `ItemList.tsx` renders each category as `<details open>` with no state, so it resets when the screen remounts.
+- The desk table already keeps its folds per history entry with `entryState` and `setEntryState` (`ItemTable.tsx`,
+  `router.ts`). Do the same in `ItemList`; Home's search results use it too, and get the same fix.
+- Needs an App Store release.
+
+## All items search is out of sight on the phone
+
+On the phone's **All items**, the Search box looks missing. It is there, in the actions bar with Scan and New item, but
+that bar is not sticky, so it sits below the whole list.
+
+**Considered:**
+
+- Move Search to the top of `main` with the sticky `label.tight.search` style Home uses, above or in `Filters`.
+- Or drop it: the header's search button already searches all gear on Home. The filters would then need a way there.
+- Files: `Inventory.tsx`, `Filters.tsx`.
+- Needs an App Store release.
+
+## Warn before a second QR code
+
+An item can carry several codes (FR-TAG-20), but a second one is usually a mistake. Warn before binding it.
+
+**Considered:**
+
+- Two ways put a code on an item that already has one: **Add QR code** on the item page (`Scan.tsx` with `?for=`), and
+  an unassigned code put on an existing item (`Bind.tsx`). Both call `bindCode`.
+- Ask on the screen, not with a browser dialog: "This item already has a QR code. Add another?" Before the scanner
+  opens, or after the scan and before the bind.
+- `assign_code` in `assistant.py` says so in its reply, or refuses without an explicit flag.
+- In the assistant, `get_item` shows only the newest code, and `unassign_code` takes an item, not a code, so it cannot
+  release an older one.
+- Needs a requirement in FR-TAG, and an App Store release.
+
+## Delete an unsent record
+
+On **Unsent records** (FR-OFF-15), delete a record made by mistake before it is sent, e.g. a code put on the wrong item.
+Swipe to delete on the phone; a button at the desk. Faster than a correction, and it leaves nothing in the log.
+
+**Considered:**
+
+- Safe for the event log (NFR-DATA-02): the record never left the device, so no one else has it.
+- Later unsent records may depend on it: a check-out of an item created offline, or two binds of one code. Allow only
+  records nothing later depends on, or delete those with it and say so.
+- The device's state includes unsent records, so it must be rebuilt without the deleted one. Files:
+  `SettingsUnsent.tsx`, `store.ts`.
+- It helps only while the record is still unsent, so how long records wait decides how often it is any use.
+- Needs a requirement in FR-OFF, and an App Store release. No MCP tool: the assistant has no queue (FR-MCP-50).
+
 ## Drop the workbox-build glob override
 
 `client/package.json` forces glob 14 on workbox-build to patch a minimatch ReDoS. Remove it once workbox-build depends
