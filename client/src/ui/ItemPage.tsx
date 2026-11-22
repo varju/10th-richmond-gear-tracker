@@ -293,9 +293,7 @@ export function ItemPage({ store, id }: Props) {
           <button type="button" onClick={() => setEditing(true)}>
             Edit
           </button>
-          <button type="button" onClick={() => navigate(`/scan?for=${id}`)}>
-            Add QR code
-          </button>
+          <AddQrCode id={id} has={codes.length > 0} />
           {it.parent_id && !it.retired && (
             <button type="button" onClick={() => setMoving(true)}>
               Move to another generic…
@@ -619,6 +617,19 @@ function ChangeOutEvent({ store, it }: { store: Store; it: Item }) {
       onCancel={() => back(`/items/${it.id}`)}
     />
   );
+}
+
+/** A second code is usually a mistake (FR-TAG-21), so an item that has one asks first. */
+function AddQrCode({ id, has }: { id: string; has: boolean }) {
+  const go = () => navigate(`/scan?for=${id}`);
+  if (!has) {
+    return (
+      <button type="button" onClick={go}>
+        Add QR code
+      </button>
+    );
+  }
+  return <ConfirmButton label="Add QR code" confirmLabel="Already has a QR code. Add another?" onConfirm={go} />;
 }
 
 /** Opens New item filled from this one; nothing is saved until Save (FR-INV-55). */
@@ -1485,9 +1496,7 @@ function PoolPage({
           <button type="button" onClick={onEdit}>
             Edit
           </button>
-          <button type="button" onClick={() => navigate(`/scan?for=${id}`)}>
-            Add QR code
-          </button>
+          <AddQrCode id={id} has={codes.length > 0} />
           <DuplicateButton id={id} />
         </>
       }

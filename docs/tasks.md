@@ -160,21 +160,6 @@ that bar is not sticky, so it sits below the whole list.
 - Files: `Inventory.tsx`, `Filters.tsx`.
 - Needs an App Store release.
 
-## Warn before a second QR code
-
-An item can carry several codes (FR-TAG-20), but a second one is usually a mistake. Warn before binding it.
-
-**Considered:**
-
-- Two ways put a code on an item that already has one: **Add QR code** on the item page (`Scan.tsx` with `?for=`), and
-  an unassigned code put on an existing item (`Bind.tsx`). Both call `bindCode`.
-- Ask on the screen, not with a browser dialog: "This item already has a QR code. Add another?" Before the scanner
-  opens, or after the scan and before the bind.
-- `assign_code` in `assistant.py` says so in its reply, or refuses without an explicit flag.
-- In the assistant, `get_item` shows only the newest code, and `unassign_code` takes an item, not a code, so it cannot
-  release an older one.
-- Needs a requirement in FR-TAG, and an App Store release.
-
 ## Delete an unsent record
 
 On **Unsent records** (FR-OFF-15), delete a record made by mistake before it is sent, e.g. a code put on the wrong item.

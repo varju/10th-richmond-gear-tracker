@@ -335,6 +335,19 @@ test("Details counts the item's QR codes (FR-TAG-20)", async () => {
   expect(screen.getByRole("button", { name: "Add QR code" })).toBeInTheDocument();
 });
 
+test("Add QR code goes straight to the scanner while the item has none, and asks once it has one (FR-TAG-21)", async () => {
+  renderInShell(<ItemPage store={store} id={tent} />);
+  await user.click(screen.getByRole("button", { name: "Add QR code" }));
+  expect(location.pathname + location.search).toBe(`/scan?for=${tent}`);
+
+  navigate(`/items/${tent}`);
+  await act.bindCode(store, "AAAAAAAAAA", tent);
+  await user.click(await screen.findByRole("button", { name: "Add QR code" }));
+  expect(location.pathname).toBe(`/items/${tent}`);
+  await user.click(screen.getByRole("button", { name: /Already has a QR code/ }));
+  expect(location.pathname + location.search).toBe(`/scan?for=${tent}`);
+});
+
 test("?edit=1 opens the form straight away, and saving drops it from the URL", async () => {
   navigate(`/items/${tent}?edit=1`);
   renderInShell(<ItemPage store={store} id={tent} />);

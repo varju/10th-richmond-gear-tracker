@@ -1727,6 +1727,40 @@ def test_assign_code_binds_a_printed_code_to_a_unit(db_path, tools):
         assistant.assign_code("ABCDEFGH23", tools["stove"])
 
 
+def test_assign_code_refuses_a_second_code_unless_asked(db_path, tools):
+    """A second code is usually a mistake (FR-TAG-21); `another` is the deliberate case (FR-TAG-20)."""
+    with open_db(db_path) as conn:
+        for code in ("ABCDEFGH23", "BCDEFGHJ34"):
+            events.append_server(conn, ALICE, "code", code, "created", {}, now=long_ago())
+    assistant.assign_code("ABCDEFGH23", tools["stove"])
+
+    with pytest.raises(Conflict, match="another=true"):
+        assistant.assign_code("BCDEFGHJ34", tools["stove"])
+    assert entity(db_path, "code", "BCDEFGHJ34").get("item_id") is None
+
+    assistant.assign_code("BCDEFGHJ34", tools["stove"], another=True)
+    got = assistant.get_item(tools["stove"])
+    assert got["codes"] == ["BCDEFGHJ34", "ABCDEFGH23"]
+    assert got["code"] == "BCDEFGHJ34"
+
+
+def test_unassign_code_can_release_an_older_code(db_path, tools):
+    with open_db(db_path) as conn:
+        for code in ("ABCDEFGH23", "BCDEFGHJ34"):
+            events.append_server(conn, ALICE, "code", code, "created", {}, now=long_ago())
+    assistant.assign_code("ABCDEFGH23", tools["stove"])
+    assistant.assign_code("BCDEFGHJ34", tools["stove"], another=True)
+
+    with pytest.raises(BadRequest, match="not on this item"):
+        assistant.unassign_code(tools["stove"], code="CDEFGHJK45")
+    assert assistant.unassign_code(tools["stove"], code="ABCDEFGH23") == {
+        "item_id": tools["stove"],
+        "code": "ABCDEFGH23",
+    }
+    assert entity(db_path, "code", "ABCDEFGH23")["item_id"] is None
+    assert entity(db_path, "code", "BCDEFGHJ34")["item_id"] == tools["stove"]
+
+
 def test_assign_code_can_bind_to_a_pools_container(db_path, tools, pool_id):
     """A pool takes a code on the container, not a labelled unit (FR-TAG-15)."""
     with open_db(db_path) as conn:

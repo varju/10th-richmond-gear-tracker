@@ -552,9 +552,10 @@ def get_item(item_id: str) -> dict[str, Any]:
                     out["generic_description"] = described
         if not views.is_pool(it):
             _weight_facts(state, it, out)
-        code_id = views.current_code(state, it["id"])
-        if code_id:
-            out["code"] = code_id
+        held_codes = views.codes_for(state, it["id"])
+        if held_codes:
+            out["code"] = held_codes[0]
+            out["codes"] = held_codes
         purchased, purchase_from = views.purchase_of(state, it)
         if purchased:
             out["purchase_date" if purchase_from == "item" else "generic_purchase_date"] = purchased
@@ -1172,9 +1173,10 @@ def mark_missing(item_id: str) -> dict[str, Any]:
         return {"item_id": it["id"], "missing": True}
 
 
-def assign_code(code: str, item_id: str) -> dict[str, Any]:
+def assign_code(code: str, item_id: str, another: StrictBool = False) -> dict[str, Any]:
     """Put a printed code on an item (FR-TAG-04). The code must be one we printed and not on anything;
-    an item may carry several, and every one resolves to it (FR-TAG-05, FR-TAG-20)."""
+    an item may carry several, and every one resolves to it (FR-TAG-05, FR-TAG-20). A second one is
+    usually a mistake, so an item that has a code refuses another unless `another` is true (FR-TAG-21)."""
     with _open() as (conn, who):
         if not codes.is_code(code):
             raise BadRequest("not a code")
@@ -1188,6 +1190,8 @@ def assign_code(code: str, item_id: str) -> dict[str, Any]:
         # A pool takes a code on its container (FR-TAG-15); a generic with units still does not (FR-INV-21).
         if it.get("generic") and not views.is_pool(it):
             raise BadRequest("a generic has no code; its units do")
+        if views.current_code(state, it["id"]) and not another:
+            raise Conflict(f"{views.name_of(state, it['id'])} already has a code; pass another=true to add a second")
         _push(conn, who, [_draft("code", code, "code_bound", {"item_id": it["id"]})])
         return {"item_id": it["id"], "code": code}
 
@@ -1207,15 +1211,19 @@ def retire_item(item_id: str, retired: StrictBool = True) -> dict[str, Any]:
         return {"item_id": it["id"], "retired": retired}
 
 
-def unassign_code(item_id: str) -> dict[str, Any]:
-    """Take an item's code off it, on purpose (FR-TAG-14). Only for a sticker already off the gear:
-    the code goes back to unassigned, so scanning it again offers a new item or a bind (FR-TAG-07)."""
+def unassign_code(item_id: str, code: str | None = None) -> dict[str, Any]:
+    """Take a code off an item, on purpose (FR-TAG-14). Only for a sticker already off the gear:
+    the code goes back to unassigned, so scanning it again offers a new item or a bind (FR-TAG-07).
+    Without `code` it is the newest; `get_item` lists them all (FR-TAG-20)."""
     with _open() as (conn, who):
         state = _state(conn)
         it = _item(state, item_id)
-        code_id = views.current_code(state, it["id"])
-        if code_id is None:
+        held = views.codes_for(state, it["id"])
+        if not held:
             raise BadRequest("this item has no code to unassign")
+        code_id = held[0] if code is None else code
+        if code_id not in held:
+            raise BadRequest("that code is not on this item")
         _push(conn, who, [_draft("code", code_id, "code_released", {})])
         return {"item_id": it["id"], "code": code_id}
 

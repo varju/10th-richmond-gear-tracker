@@ -68,13 +68,14 @@ adds a photo or moves it; after that, ask an Admin.
 
 ### A sticker fell off
 
-Open the item, tap **Add QR code**, and scan a fresh sticker. Its history, tickets and events stay with it. The old
-sticker still opens the same item if it turns up.
+Open the item, tap **Add QR code**, tap it again to confirm, and scan a fresh sticker. Its history, tickets and events
+stay with it. The old sticker still opens the same item if it turns up.
 
 ### Gear in several bags
 
 A tent with its poles and fly in separate bags can carry a sticker on each. Open the item, tap **Add QR code**, and scan
-a fresh sticker. Any of them opens the item. If the parts go out separately, make each one its own item instead.
+a fresh sticker. Once it has a code, the app asks first. Any of them opens the item. If the parts go out separately,
+make each one its own item instead.
 
 ### Gear that has gone missing
 
