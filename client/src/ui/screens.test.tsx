@@ -870,6 +870,59 @@ test("a category heading folds its rows away (FR-SET-07)", async () => {
   expect(fold.open).toBe(false);
 });
 
+test("a category folded on the phone's list stays folded on Back, and a search opens it", async () => {
+  const f = await fixture();
+  const camp = await act.createCategory(store, "Camp kitchen");
+  await act.updateItem(store, f.stove, { category_ids: [camp] });
+  navigate("/items");
+  mount();
+  const user = userEvent.setup();
+  const fold = async (name: string) =>
+    (await screen.findByRole("heading", { name })).closest("details") as HTMLDetailsElement;
+
+  await user.click(await screen.findByRole("heading", { name: "Camp kitchen" }));
+  await waitFor(async () => expect((await fold("Camp kitchen")).open).toBe(false));
+  await user.click(screen.getByRole("button", { name: /Tent 1/ }));
+  expect(location.pathname).toBe(`/items/${f.t1}`);
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(location.pathname).toBe("/items");
+  expect((await fold("Camp kitchen")).open).toBe(false);
+  expect((await fold("No category")).open).toBe(true);
+
+  await user.type(screen.getByLabelText("Search"), "s");
+  await waitFor(async () => expect((await fold("Camp kitchen")).open).toBe(true));
+});
+
+test("a category folded in Home's search results stays folded on Back", async () => {
+  const f = await fixture();
+  const camp = await act.createCategory(store, "Camp kitchen");
+  await act.updateItem(store, f.stove, { category_ids: [camp] });
+  mount();
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Search"), "s");
+  await user.click(await screen.findByRole("heading", { name: "Camp kitchen" }));
+  const fold = () => screen.getByRole("heading", { name: "Camp kitchen" }).closest("details") as HTMLDetailsElement;
+  await waitFor(() => expect(fold().open).toBe(false));
+  await user.click(screen.getByRole("button", { name: /Stove/ }));
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(fold().open).toBe(false);
+});
+
+test("a filter opens the folded categories on the phone's list", async () => {
+  const f = await fixture();
+  const camp = await act.createCategory(store, "Camp kitchen");
+  await act.updateItem(store, f.stove, { category_ids: [camp] });
+  navigate("/items");
+  mount();
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("heading", { name: "Camp kitchen" }));
+  const fold = () => screen.getByRole("heading", { name: "Camp kitchen" }).closest("details") as HTMLDetailsElement;
+  await waitFor(() => expect(fold().open).toBe(false));
+  navigate(`/items?category=${camp}`, true);
+  await waitFor(() => expect(fold().open).toBe(true));
+});
+
 test("the Category filter and field appear only once a category exists, and the filter narrows the list (FR-SET-07)", async () => {
   const f = await fixture();
   navigate("/items");

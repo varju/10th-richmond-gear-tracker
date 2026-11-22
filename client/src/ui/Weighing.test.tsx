@@ -322,7 +322,7 @@ test("the scanner's card asks the weight on Return, and Unknown is allowed", asy
 test("the list shows what is left beside the home, and nothing for gear never weighed", async () => {
   await act.createItem(store, { name: "Tent" });
   await mv.weigh(store, tank, { value: 26, unit: "lb" });
-  renderInShell(<ItemList store={store} list={rows(store.state, {})} />);
+  renderInShell(<ItemList store={store} list={rows(store.state, {})} narrowed={false} />);
   expect(screen.getByRole("button", { name: /Propane/ })).toHaveTextContent("About 8 lb left (40%)");
   expect(screen.getByRole("button", { name: /Tent/ })).not.toHaveTextContent("left");
 });

@@ -6,18 +6,19 @@ import {
   displayName,
   type Filter,
   homeLabel,
-  isNarrowing,
+  isLooking,
   type Item,
   type Row,
   rows,
 } from "../lib/inventory";
 import { filterParams, readFilter, withQuery } from "../lib/listUrl";
 import { openRepairs } from "../lib/repairs";
-import { entryState, hrefOf, navigate, restoringScroll, setEntryState, useRoute } from "../lib/router";
+import { hrefOf, navigate, restoringScroll, useRoute } from "../lib/router";
 import { NATIVE } from "../lib/server";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { FilterFields } from "./Filters";
+import { useFolds } from "./folds";
 import { countsLabel, leftNote, plural, statusLabel } from "./labels";
 import { Page } from "./Page";
 
@@ -139,22 +140,13 @@ export function ItemTable({ store }: { store: Store }) {
   const showCategory = columns.some((c) => c.key === "category");
   // No Category column to sort by while it is hidden; the URL keeps the choice for when it comes back.
   const effective: Sort = !showCategory && sort.key === "category" ? { key: "name", up: true } : sort;
-  const [, refold] = useState(0);
   // A search or filter is looking for units, so it opens every generic it shows. Retired swaps the list; it does not narrow it.
-  const narrowed = Boolean(query) || isNarrowing(filter);
-  // Generics opened or shut by hand, by id: one set while browsing, another while narrowed.
-  const looking = narrowed ? "narrowed" : "all";
-  const folds = (key: string) =>
-    ((entryState(key) as Record<string, Record<string, boolean>> | undefined) ?? {})[looking] ?? {};
-  // Option-click sets every fold of its kind (FR-INV-75).
-  const setFolds = (key: string, ids: string[], value: boolean) => {
-    const all = (entryState(key) ?? {}) as Record<string, Record<string, boolean>>;
-    setEntryState(key, { ...all, [looking]: { ...all[looking], ...Object.fromEntries(ids.map((id) => [id, value])) } });
-    refold((n) => n + 1);
-  };
+  const narrowed = isLooking(query, filter);
+  const { folds, setFolds } = useFolds(narrowed);
   const unitFolds = folds("folds");
   // By category id ("" for none); categories start open.
   const categoryFolds = folds("categoryFolds");
+  // Option-click sets every fold of its kind (FR-INV-75).
   const toggle = (id: string, open: boolean, all: boolean) =>
     setFolds(
       "folds",

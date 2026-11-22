@@ -437,6 +437,9 @@ export interface Filter {
 export const NEEDS = ["code", "location", "shelf"] as const;
 export type Needs = (typeof NEEDS)[number];
 
+/** A search or filter is looking for something, so lists open what they fold. */
+export const isLooking = (query: string, filter: Filter): boolean => Boolean(query) || isNarrowing(filter);
+
 /** Whether a filter narrows by location, shelf, status, category or needs. Not the search text or retired. */
 export const isNarrowing = (filter: Filter): boolean =>
   Boolean(

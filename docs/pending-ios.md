@@ -24,6 +24,7 @@ What the app does differently.
 - On an event's page, Not returned starts ticked and Not packed starts unticked. Each keeps its own setting when
   switching between Packing and Returning. Returning always offers Not returned, which keeps items out under another
   event, with It's with us. An event with no gear listed offers no filter.
+- All items and Home's search results keep their folded categories on Back.
 
 ## Chores
 

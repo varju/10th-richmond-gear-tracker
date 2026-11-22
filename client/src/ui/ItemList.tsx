@@ -2,6 +2,7 @@ import { byCategory, categories, displayName, homeLabel, type Row } from "../lib
 import { openRepairs } from "../lib/repairs";
 import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
+import { useFolds } from "./folds";
 import { countsLabel, leftNote, statusLabel } from "./labels";
 
 /**
@@ -9,10 +10,22 @@ import { countsLabel, leftNote, statusLabel } from "./labels";
  * screen shows it for a search, `/items` shows all of it. Grouped under a
  * category heading once the group has any (FR-SET-07); a flat list otherwise.
  * Each heading is a fold, so a locker looking for one category can collapse
- * the rest.
+ * the rest. Folds come back on Back; a search or filter opens them all again.
  */
-export function ItemList({ store, list, showUnits }: { store: Store; list: Row[]; showUnits?: boolean }) {
+export function ItemList({
+  store,
+  list,
+  showUnits,
+  narrowed,
+}: {
+  store: Store;
+  list: Row[];
+  showUnits?: boolean;
+  narrowed: boolean;
+}) {
   const state = store.state;
+  const { folds, setFolds } = useFolds(narrowed);
+  const categoryFolds = folds("categoryFolds");
   if (categories(state).length === 0) {
     return (
       <ul className="items">
@@ -24,20 +37,30 @@ export function ItemList({ store, list, showUnits }: { store: Store; list: Row[]
   }
   return (
     <>
-      {byCategory(state, list).map((g) => (
-        <section key={g.category?.id ?? ""} aria-label={g.category?.name ?? "No category"}>
-          <details className="cat" open>
-            <summary>
-              <h2 className="section">{g.category?.name ?? "No category"}</h2>
-            </summary>
-            <ul className="items">
-              {g.rows.map((row) => (
-                <ItemRow key={row.item.id} store={store} row={row} showUnits={showUnits} />
-              ))}
-            </ul>
-          </details>
-        </section>
-      ))}
+      {byCategory(state, list).map((g) => {
+        const id = g.category?.id ?? "";
+        const open = categoryFolds[id] ?? true;
+        return (
+          <section key={id} aria-label={g.category?.name ?? "No category"}>
+            <details
+              className="cat"
+              open={open}
+              onToggle={(e) => {
+                if (e.currentTarget.open !== open) setFolds("categoryFolds", [id], e.currentTarget.open);
+              }}
+            >
+              <summary>
+                <h2 className="section">{g.category?.name ?? "No category"}</h2>
+              </summary>
+              <ul className="items">
+                {g.rows.map((row) => (
+                  <ItemRow key={row.item.id} store={store} row={row} showUnits={showUnits} />
+                ))}
+              </ul>
+            </details>
+          </section>
+        );
+      })}
     </>
   );
 }

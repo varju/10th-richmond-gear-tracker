@@ -67,7 +67,7 @@ export function Home({ store }: { store: Store }) {
         list.length === 0 ? (
           <p>Nothing matches.</p>
         ) : (
-          <ItemList store={store} list={list} />
+          <ItemList store={store} list={list} narrowed />
         )
       ) : (
         <p className="muted">

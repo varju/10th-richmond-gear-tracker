@@ -1,4 +1,4 @@
-import { countItems, type Filter, items, rows } from "../lib/inventory";
+import { countItems, type Filter, isLooking, items, rows } from "../lib/inventory";
 import { filterParams, readFilter, withQuery } from "../lib/listUrl";
 import { navigate, useRoute } from "../lib/router";
 import type { Store } from "../lib/store";
@@ -57,7 +57,7 @@ export function Inventory({ store }: Props) {
       ) : (
         <>
           <Filters store={store} filter={filter} onChange={(f) => show(query, f)} />
-          <ItemList store={store} list={list} showUnits={Boolean(filter.needs)} />
+          <ItemList store={store} list={list} showUnits={Boolean(filter.needs)} narrowed={isLooking(query, filter)} />
         </>
       )}
     </Page>

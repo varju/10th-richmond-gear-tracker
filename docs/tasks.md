@@ -161,17 +161,6 @@ Swipe from the left edge to go back, as in other iPhone apps. Today the swipe do
 - Check the swipe on the scan screen, where the native camera sits behind the web view.
 - Needs an App Store release.
 
-## All items keeps its folds on Back
-
-On the phone's **All items**, fold some categories, open an item, then go Back: every category is open again.
-
-**Considered:**
-
-- `ItemList.tsx` renders each category as `<details open>` with no state, so it resets when the screen remounts.
-- The desk table already keeps its folds per history entry with `entryState` and `setEntryState` (`ItemTable.tsx`,
-  `router.ts`). Do the same in `ItemList`; Home's search results use it too, and get the same fix.
-- Needs an App Store release.
-
 ## All items search is out of sight on the phone
 
 On the phone's **All items**, the Search box looks missing. It is there, in the actions bar with Scan and New item, but
