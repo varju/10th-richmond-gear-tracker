@@ -1342,6 +1342,21 @@ h3.section.small {
   margin-bottom: 16px;
 }
 
+/* Shown while an image file is dragged over the page. */
+.photo-drop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 1.5rem;
+  border: 4px dashed #fff;
+}
+
 /* --- M14: the home screen's list of sections --------------------------------------- */
 
 /* One tap from home to anywhere, so nothing is reachable only by knowing it is there. */

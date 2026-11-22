@@ -87,7 +87,7 @@ import { useKeyboardForm } from "./keyboardForm";
 import { RichText } from "./RichText";
 import { NoteLine, NoteList } from "./Notes";
 import { Page } from "./Page";
-import { Photos } from "./Photos";
+import { Photos, useBlockFileDrop } from "./Photos";
 import { datesLabel } from "./Reservations";
 
 interface Props {
@@ -108,6 +108,7 @@ export function ItemPage({ store, id }: Props) {
   const openInEdit = route.query.get("edit") === "1";
   const changingEvent = route.query.has("change");
   const [editing, setEditing] = useState(openInEdit);
+  useBlockFileDrop(editing);
   const [merging, setMerging] = useState(false);
   const [grouping, setGrouping] = useState(false);
   const [moving, setMoving] = useState(false);

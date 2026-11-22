@@ -7,7 +7,7 @@ import { pendingPhotos } from "../lib/photos";
 import type { Store } from "../lib/store";
 import { openStore } from "./codeTestKit";
 import { renderInShell } from "./moveTestKit";
-import { Photos } from "./Photos";
+import { Photos, useBlockFileDrop } from "./Photos";
 
 // Photos on an item: fetched when online, counted when not, queued when taken (FR-INV-11).
 const T0 = 1_756_684_800_000;
@@ -92,4 +92,81 @@ test("a new photo waits on the device and asks for a sync", async () => {
   expect(await screen.findByText("1 photo waiting to upload")).toBeInTheDocument();
   expect((await pendingPhotos(store, on())).length).toBe(1);
   expect(sync).toHaveBeenCalled();
+});
+
+function drag(type: string, types: string[], files: File[] = []) {
+  fireEvent(
+    document,
+    Object.assign(new Event(type, { bubbles: true, cancelable: true }), { dataTransfer: { types, files } }),
+  );
+}
+const jpeg = () => new File(["not really a jpeg"], "tent.jpg", { type: "image/jpeg" });
+
+test("an image file dropped on the page waits on the device and asks for a sync", async () => {
+  const { sync } = renderInShell(<Photos store={store} on={on()} />, Date.now, offline);
+  drag("dragenter", ["Files"]);
+  expect(screen.getByText("Drop to add a photo")).toBeInTheDocument();
+  drag("drop", ["Files"], [jpeg()]);
+
+  expect(await screen.findByText("1 photo waiting to upload")).toBeInTheDocument();
+  expect(screen.queryByText("Drop to add a photo")).not.toBeInTheDocument();
+  expect(sync).toHaveBeenCalled();
+});
+
+test("the drop target goes away when the drag leaves", () => {
+  renderInShell(<Photos store={store} on={on()} />, Date.now, offline);
+  drag("dragenter", ["Files"]);
+  drag("dragleave", ["Files"]);
+  expect(screen.queryByText("Drop to add a photo")).not.toBeInTheDocument();
+});
+
+test("a dropped file that is not an image is refused", async () => {
+  renderInShell(<Photos store={store} on={on()} />, Date.now, offline);
+  drag("drop", ["Files"], [new File(["x"], "list.pdf", { type: "application/pdf" })]);
+  expect(await screen.findByText("Only photos can be dropped here")).toBeInTheDocument();
+  expect(await pendingPhotos(store, on())).toHaveLength(0);
+});
+
+test("a photo the app cannot keep does not stop the others", async () => {
+  const { sync } = renderInShell(<Photos store={store} on={on()} />, Date.now, offline);
+  drag("drop", ["Files"], [new File(["x"], "a.gif", { type: "image/gif" }), jpeg()]);
+  expect(await screen.findByText("1 photo waiting to upload")).toBeInTheDocument();
+  expect(screen.getByRole("alert")).toBeInTheDocument();
+  expect(sync).toHaveBeenCalled();
+});
+
+test("a drop that mixes in a non-image keeps the photos and says what was skipped", async () => {
+  renderInShell(<Photos store={store} on={on()} />, Date.now, offline);
+  drag("drop", ["Files"], [jpeg(), new File(["x"], "list.pdf", { type: "application/pdf" })]);
+  expect(await screen.findByText("1 file skipped: not a photo")).toBeInTheDocument();
+  await waitFor(async () => expect(await pendingPhotos(store, on())).toHaveLength(1));
+});
+
+test("a drop while a photo is open adds nothing", async () => {
+  await serverHas("01000000000000000000000AAA");
+  renderInShell(<Photos store={store} on={on()} />, Date.now, online);
+  await user.click(await screen.findByRole("button", { name: "View photo" }));
+  drag("dragenter", ["Files"]);
+  expect(screen.queryByText("Drop to add a photo")).not.toBeInTheDocument();
+  drag("drop", ["Files"], [jpeg()]);
+  expect(await pendingPhotos(store, on())).toHaveLength(0);
+});
+
+test("a file dropped where there are no photos is not opened by the browser", () => {
+  function Form() {
+    useBlockFileDrop(true);
+    return null;
+  }
+  renderInShell(<Form />, Date.now, offline);
+  const e = Object.assign(new Event("drop", { bubbles: true, cancelable: true }), {
+    dataTransfer: { types: ["Files"], files: [] },
+  });
+  document.dispatchEvent(e);
+  expect(e.defaultPrevented).toBe(true);
+});
+
+test("dragging text shows no drop target", () => {
+  renderInShell(<Photos store={store} on={on()} />, Date.now, offline);
+  drag("dragenter", ["text/plain"]);
+  expect(screen.queryByText("Drop to add a photo")).not.toBeInTheDocument();
 });

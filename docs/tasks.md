@@ -135,19 +135,6 @@ falls back to its generic's), shown on the scan card, the item page and the list
 
 **Deferred because:** photos are online only (FR-INV-11), so a photo at check-out in a locker would mostly fail to load.
 
-## Drag a photo onto an item page
-
-On the desktop, drop an image file anywhere on an item page to add it as a photo.
-
-**Considered:**
-
-- `Photos.tsx` adds photos only through its file input. A drop hands the same `File` to the same upload path, so queuing
-  with no signal (FR-INV-11) still holds.
-- Show a drop target while a file is dragged over the page; ignore drops that are not images.
-- Repair pages use `Photos.tsx` too, so they could take drops as well.
-- Web only: gate it behind `!NATIVE`, so no iPhone release.
-- No new MCP tool: `add_photo` exists.
-
 ## Swipe back in the iPhone app
 
 Swipe from the left edge to go back, as in other iPhone apps. Today the swipe does nothing.
