@@ -399,6 +399,78 @@ export class Store {
     this.recompute();
   }
 
+  private readonly sending = new Set<string>();
+
+  /** Mark the records of a push in flight, so none is deleted while the server may be taking it. */
+  async whileSending<T>(events: StoredEvent[], run: () => Promise<T>): Promise<T> {
+    for (const e of events) this.sending.add(e.id);
+    try {
+      return await run();
+    } finally {
+      for (const e of events) this.sending.delete(e.id);
+    }
+  }
+
+  /** Unsent records no later unsent record refers to, and no push is carrying (FR-OFF-16). */
+  deletableIds(): Set<string> {
+    const pending = this.pending;
+    const refs = pending.map((e) => JSON.stringify(e.payload));
+    const free = new Set<string>();
+    pending.forEach((e, i) => {
+      if (this.sending.has(e.id)) return;
+      const later = pending.slice(i + 1);
+      const held = later.some(
+        (l, k) =>
+          l.entity_id === e.entity_id || refs[i + 1 + k]!.includes(e.id) || refs[i + 1 + k]!.includes(e.entity_id),
+      );
+      if (!held) free.add(e.id);
+    });
+    return free;
+  }
+
+  deletable(id: string): boolean {
+    return this.deletableIds().has(id);
+  }
+
+  /**
+   * Delete a record made here that has not been sent. It never left the device, so nobody else has it.
+   * It leaves memory first, so a sync starting now cannot pick it up; the stored row is then checked
+   * again, in case another tab sent it.
+   */
+  async deleteUnsent(id: string): Promise<void> {
+    const target = this.events.get(id);
+    if (!target || !this.deletable(id)) throw new Error("That record cannot be deleted.");
+    this.events.delete(id);
+    let left: string[] | undefined;
+    try {
+      const tx = this.db.transaction(["meta", "events"], "readwrite");
+      const events = tx.objectStore("events");
+      const row = (await req(events.get(id))) as StoredEvent | undefined;
+      if (row?.sent !== "no") throw new Error("That record cannot be deleted.");
+      const metaStore = tx.objectStore("meta");
+      const waiting = (await req(metaStore.get("session_waiting"))) as string[] | undefined;
+      if (waiting?.includes(id)) {
+        left = waiting.filter((w) => w !== id);
+        if (left.length > 0) metaStore.put(left, "session_waiting");
+        else {
+          metaStore.delete("session_waiting");
+          metaStore.delete("session_waiting_user");
+        }
+      }
+      events.delete(id);
+      await done(tx);
+      if (left?.length) this.meta.session_waiting = left;
+      else if (left) {
+        delete this.meta.session_waiting;
+        delete this.meta.session_waiting_user;
+      }
+    } catch (error) {
+      this.events.set(id, target);
+      throw error;
+    }
+    this.recompute();
+  }
+
   /** Remove a record the server refused (Settings, "records the server refused"). */
   async discard(id: string): Promise<void> {
     const tx = this.db.transaction("events", "readwrite");

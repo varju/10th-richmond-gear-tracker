@@ -148,21 +148,6 @@ Swipe from the left edge to go back, as in other iPhone apps. Today the swipe do
 - Check the swipe on the scan screen, where the native camera sits behind the web view.
 - Needs an App Store release.
 
-## Delete an unsent record
-
-On **Unsent records** (FR-OFF-15), delete a record made by mistake before it is sent, e.g. a code put on the wrong item.
-Swipe to delete on the phone; a button at the desk. Faster than a correction, and it leaves nothing in the log.
-
-**Considered:**
-
-- Safe for the event log (NFR-DATA-02): the record never left the device, so no one else has it.
-- Later unsent records may depend on it: a check-out of an item created offline, or two binds of one code. Allow only
-  records nothing later depends on, or delete those with it and say so.
-- The device's state includes unsent records, so it must be rebuilt without the deleted one. Files:
-  `SettingsUnsent.tsx`, `store.ts`.
-- It helps only while the record is still unsent, so how long records wait decides how often it is any use.
-- Needs a requirement in FR-OFF, and an App Store release. No MCP tool: the assistant has no queue (FR-MCP-50).
-
 ## Drop the workbox-build glob override
 
 `client/package.json` forces glob 14 on workbox-build to patch a minimatch ReDoS. Remove it once workbox-build depends

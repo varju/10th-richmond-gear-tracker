@@ -194,6 +194,20 @@ test("a device_seq collision (stale data sharing a device id) is re-stamped and 
   expect(notes.map((n) => n.text)).toContain("left behind");
 });
 
+test("a record is held from deletion during its push, and free again if the push fails", async () => {
+  const mine = await record();
+  let during: boolean | undefined;
+  const real = server.handle;
+  server.handle = async (input, init) => {
+    if (String(input).includes("/sync/push")) during = store.deletable(mine.id);
+    return real(input, init);
+  };
+  server.down = true;
+  expect(await sync(store, api(), () => clock)).toMatchObject({ ok: false, reason: "offline" });
+  expect(during).toBe(false);
+  expect(store.deletable(mine.id)).toBe(true);
+});
+
 test("offline leaves everything pending and says so", async () => {
   await record();
   server.down = true;

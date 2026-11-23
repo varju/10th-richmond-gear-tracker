@@ -24,32 +24,38 @@ export async function sync(store: Store, api: Api, now: () => number = Date.now)
     const stampRoundTrip = (offset: number | undefined, round_trip: number) =>
       store.setMeta({ round_trip_ms: round_trip, ...(offset !== undefined ? { clock_offset: offset } : {}) });
     if (pending.length > 0) {
-      const { data, offset, round_trip } = await api.push(
-        store.meta.device_id,
-        now(),
-        pending.map((e) => Store.outgoing(e)),
-        store.meta.round_trip_ms,
-      );
+      const { data, offset, round_trip, pushed } = await store.whileSending(pending, async () => {
+        const reply = await api.push(
+          store.meta.device_id,
+          now(),
+          pending.map((e) => Store.outgoing(e)),
+          store.meta.round_trip_ms,
+        );
+        return { ...reply, pushed: await store.pushed(reply.data.accepted, reply.data.rejected) };
+      });
       await stampRoundTrip(offset, round_trip);
       if (store.meta.log_id !== undefined && data.log_id !== store.meta.log_id) replaced = true;
-      const pushed = await store.pushed(data.accepted, data.rejected);
       unidentified += pushed.unidentified;
       // A sequence collision (two tabs, or old data from before it was fixed) is not a real
       // rejection: the affected events were re-stamped and are ready to go up again, once.
       if (pushed.retry && store.pending.length > 0) {
+        const again = store.pending;
         const {
           data: retried,
           offset: retriedOffset,
           round_trip: retriedRoundTrip,
-        } = await api.push(
-          store.meta.device_id,
-          now(),
-          store.pending.map((e) => Store.outgoing(e)),
-          store.meta.round_trip_ms,
-        );
+          pushed: retriedPushed,
+        } = await store.whileSending(again, async () => {
+          const reply = await api.push(
+            store.meta.device_id,
+            now(),
+            again.map((e) => Store.outgoing(e)),
+            store.meta.round_trip_ms,
+          );
+          return { ...reply, pushed: await store.pushed(reply.data.accepted, reply.data.rejected) };
+        });
         await stampRoundTrip(retriedOffset, retriedRoundTrip);
         if (!replaced && store.meta.log_id !== undefined && retried.log_id !== store.meta.log_id) replaced = true;
-        const retriedPushed = await store.pushed(retried.accepted, retried.rejected);
         unidentified += retriedPushed.unidentified;
       }
     }

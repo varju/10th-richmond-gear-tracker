@@ -513,3 +513,105 @@ test("a role change on the server reaches this device on the next sync", async (
   );
   expect(store.admin).toBe(false);
 });
+
+test("an unsent record nothing later refers to can be deleted, and state is rebuilt without it", async () => {
+  const store = await open();
+  const first = await tent(store, "item_created", { name: "Tent" });
+  await store.record({
+    entity_type: "code",
+    entity_id: "CODE1",
+    type: "code_bound",
+    actor_id: "alice",
+    payload: { item_id: "tent-1" },
+  });
+  const bind = store.pending[1]!;
+  expect(store.deletable(bind.id)).toBe(true);
+  await store.deleteUnsent(bind.id);
+  expect(store.pending.map((e) => e.id)).toEqual([first.id]);
+  expect((await open()).pending.map((e) => e.id)).toEqual([first.id]);
+});
+
+test("an unsent record a later one refers to cannot be deleted", async () => {
+  const store = await open();
+  const created = await tent(store, "item_created", { name: "Tent" });
+  await tent(store, "item_renamed", { name: "Big tent" });
+  expect(store.deletable(created.id)).toBe(false);
+  await expect(store.deleteUnsent(created.id)).rejects.toThrow("cannot be deleted");
+
+  const bare = await store.record({
+    entity_type: "location",
+    entity_id: "yard",
+    type: "location_created",
+    actor_id: "alice",
+    payload: {},
+  });
+  await store.record({
+    entity_type: "item",
+    entity_id: "tent-2",
+    type: "item_moved",
+    actor_id: "alice",
+    payload: { to: "yard" },
+  });
+  expect(store.deletable(bare.id)).toBe(false);
+});
+
+test("a sent or refused record cannot be deleted", async () => {
+  const store = await open();
+  const sent = await tent(store, "item_created", { name: "Tent" });
+  const refused = await store.record({
+    entity_type: "item",
+    entity_id: "tent-9",
+    type: "item_created",
+    actor_id: "alice",
+    payload: {},
+  });
+  await store.pushed([sent.id], [{ id: refused.id, reason: "no" }]);
+  expect(store.deletable(sent.id)).toBe(false);
+  expect(store.deletable(refused.id)).toBe(false);
+});
+
+test("a record in a push in flight cannot be deleted until the push ends", async () => {
+  const store = await open();
+  const event = await tent(store, "item_created", { name: "Tent" });
+  await store.whileSending([event], async () => {
+    expect(store.deletable(event.id)).toBe(false);
+  });
+  expect(store.deletable(event.id)).toBe(true);
+  await expect(
+    store.whileSending([event], async () => {
+      throw new Error("offline");
+    }),
+  ).rejects.toThrow("offline");
+  expect(store.deletable(event.id)).toBe(true);
+});
+
+test("deleting a waiting check-out takes it off the session's waiting list", async () => {
+  const store = await open();
+  const a = await tent(store, "checked_out", {});
+  const b = await store.record({
+    entity_type: "item",
+    entity_id: "tent-2",
+    type: "checked_out",
+    actor_id: "alice",
+    payload: {},
+  });
+  await store.updateMeta(["session_waiting", "session_waiting_user"], () => ({
+    session_waiting: [a.id, b.id],
+    session_waiting_user: "alice",
+  }));
+  await store.deleteUnsent(b.id);
+  expect(store.meta.session_waiting).toEqual([a.id]);
+  await store.deleteUnsent(a.id);
+  expect(store.meta.session_waiting).toBeUndefined();
+  expect(store.meta.session_waiting_user).toBeUndefined();
+});
+
+test("a record another tab already sent is not deleted, and stays listed", async () => {
+  const store = await open();
+  const event = await tent(store, "item_created", { name: "Tent" });
+  const other = await open();
+  await other.pushed([event.id], []);
+  await expect(store.deleteUnsent(event.id)).rejects.toThrow("cannot be deleted");
+  expect(store.pending.map((e) => e.id)).toEqual([event.id]);
+  expect((await open()).pending).toEqual([]);
+});

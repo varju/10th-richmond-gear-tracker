@@ -76,3 +76,23 @@ test("Send now asks for a sync, and waits while one the person started runs", as
   mount({ syncNow, manualBusy: true });
   expect(screen.getByRole("button", { name: "Send now" })).toBeDisabled();
 });
+
+test("a record nothing later refers to is deleted with two taps", async () => {
+  await act.createItem(store, { name: "Tent 1" });
+  mount();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: /^Delete / }));
+  await user.click(screen.getByRole("button", { name: /Delete for good/ }));
+  expect(store.pending).toHaveLength(0);
+  expect(screen.getByText(/Nothing waiting/)).toBeInTheDocument();
+});
+
+test("a record a newer one refers to has no Delete button, and the page says why", async () => {
+  const tent = await act.createItem(store, { name: "Tent 1" });
+  await act.bindCode(store, "CODE1", tent);
+  mount();
+  const rows = within(screen.getByRole("list", { name: "Unsent records" })).getAllByRole("listitem");
+  expect(within(rows[0]!).queryByRole("button")).not.toBeInTheDocument();
+  expect(within(rows[1]!).getByRole("button", { name: /^Delete / })).toBeInTheDocument();
+  expect(screen.getByText(/while a newer one depends on it/)).toBeInTheDocument();
+});

@@ -387,6 +387,7 @@ the home screen to escape eviction (NFR-DEP-06), and pending work is visible eno
 | FR-OFF-10 | Should   | Conflicts a machine cannot resolve queue for the Quartermaster, showing both versions. The trigger is defined, not guessed: two check-outs of one item from different devices with no check-in between them.               |
 | FR-OFF-11 | Should   | Sync on a slow connection without re-downloading the whole inventory.                                                                                                                                                      |
 | FR-OFF-15 | Should   | An Unsent records page lists each record not yet sent, with when it was made, and the last sync's error.                                                                                                                   |
+| FR-OFF-16 | Should   | On the Unsent records page, a person can delete an unsent record that no later unsent record depends on.                                                                                                                   |
 | FR-OFF-12 | Could    | The server pushes a reminder when a device has movements it has not seen, using web push. Needs the server to infer a device is behind.                                                                                    |
 | FR-OFF-13 | Won't    | Withdrawn: warn at the end of a session. Ad-hoc scanning has no end; people just stop. FR-OFF-04 carries the warning continuously instead.                                                                                 |
 
