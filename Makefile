@@ -13,10 +13,12 @@ lint:
 	uv run ruff format --check .
 	uv run ty check
 	cd client && npm run lint
+	@if xcrun --find swift-format >/dev/null 2>&1; then xcrun swift-format lint --strict --recursive ios/App/App; else echo "swift-format missing; Swift lint skipped"; fi
 
 fmt:
 	uv run ruff check --fix .
 	uv run ruff format .
+	@if xcrun --find swift-format >/dev/null 2>&1; then xcrun swift-format format --in-place --recursive ios/App/App; fi
 
 migrate:
 	uv run gear-migrate --db $(DB)

@@ -28,3 +28,10 @@ repos:
         language: system
         files: ^client/.*\.(ts|tsx|json)$
         pass_filenames: false
+      - id: swift-format
+        name: swift-format
+        entry:
+          bash -c 'if xcrun --find swift-format >/dev/null 2>&1; then xcrun swift-format format --in-place "$@" && xcrun
+          swift-format lint --strict "$@"; else echo "swift-format missing; skipped"; fi' --
+        language: system
+        files: ^ios/App/App/.*\.swift$

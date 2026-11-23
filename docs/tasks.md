@@ -152,12 +152,13 @@ falls back to its generic's), shown on the scan card, the item page and the list
 `client/package.json` forces glob 14 on workbox-build to patch a minimatch ReDoS. Remove it once workbox-build depends
 on glob 14 or later.
 
-## Lint the Swift code
+## Deleting an unsent check-out leaves its session open
 
-Nothing checks `ios/App/App` except CodeQL. swift-format comes with Xcode, so a successor needs no install. Its defaults
-expect 2-space indents; the code uses 4.
+Deleting the only unsent check-out that is waiting for its event (`deleteUnsent` in `client/src/lib/store.ts`) clears
+`session_waiting` but keeps `session_event_at`. The next check-out inside the session window then records with no event
+question.
 
-**Considered:** swift-format with a config matching the current style, run on commit. SwiftLint's defaults found nothing
-real: line length, short names, one safe `as!` on the preview layer.
+**Next:** end the session as `afterMove` does: keep `session_event`, delete `session_event_at`. Add a client test.
 
-**Deferred because:** 658 lines in 6 files; little to gain yet.
+Not yet reproduced. Lesser risks from the same review: a second tab can still push a record this tab deleted; a queued
+photo for a deleted unsent item is dropped on a 404; `deletableIds` matches dependents by substring.

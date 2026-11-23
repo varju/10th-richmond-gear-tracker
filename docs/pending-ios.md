@@ -35,3 +35,4 @@ What the app does differently.
 
 - Lint cleanups from Oxlint; no change in behaviour.
 - Scroll restore keeps its target and its stop together; no change in behaviour.
+- Swift code reformatted by swift-format; no change in behaviour.

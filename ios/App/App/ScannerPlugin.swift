@@ -60,7 +60,8 @@ class ScannerPlugin: CAPPlugin, CAPBridgedPlugin, AVCaptureMetadataOutputObjects
         // iOS interrupts the session when the app is left. It usually resumes on its own; these make sure.
         centre.addObserver(
             self, selector: #selector(becameActive), name: UIApplication.didBecomeActiveNotification, object: nil)
-        centre.addObserver(self, selector: #selector(restart), name: .AVCaptureSessionInterruptionEnded, object: session)
+        centre.addObserver(
+            self, selector: #selector(restart), name: .AVCaptureSessionInterruptionEnded, object: session)
         centre.addObserver(self, selector: #selector(failed(_:)), name: .AVCaptureSessionRuntimeError, object: session)
         centre.addObserver(self, selector: #selector(started), name: .AVCaptureSessionDidStartRunning, object: session)
     }
@@ -80,7 +81,11 @@ class ScannerPlugin: CAPPlugin, CAPBridgedPlugin, AVCaptureMetadataOutputObjects
             case .notDetermined:
                 AVCaptureDevice.requestAccess(for: .video) { granted in
                     DispatchQueue.main.async {
-                        if granted { self.open(call, mine) } else { call.reject("Camera access was refused.", "denied") }
+                        if granted {
+                            self.open(call, mine)
+                        } else {
+                            call.reject("Camera access was refused.", "denied")
+                        }
                     }
                 }
             default:
@@ -110,7 +115,8 @@ class ScannerPlugin: CAPPlugin, CAPBridgedPlugin, AVCaptureMetadataOutputObjects
         if device != nil { return nil }
         guard let camera = Self.backCamera() else { return "nocamera" }
         guard let input = try? AVCaptureDeviceInput(device: camera), session.canAddInput(input),
-              session.canAddOutput(output) else { return "failed" }
+            session.canAddOutput(output)
+        else { return "failed" }
         session.beginConfiguration()
         session.addInput(input)
         session.addOutput(output)
@@ -164,7 +170,7 @@ class ScannerPlugin: CAPPlugin, CAPBridgedPlugin, AVCaptureMetadataOutputObjects
         if let next = switches.first(where: { $0 > base + 0.1 }) { top = min(top, next - 0.1) }
         top = max(top, base)
         let wide = camera.constituentDevices.first { $0.deviceType == .builtInWideAngleCamera } ?? camera
-        let closest = CGFloat(wide.minimumFocusDistance) // mm; -1 when unknown
+        let closest = CGFloat(wide.minimumFocusDistance)  // mm; -1 when unknown
         guard closest > 0, fill > 0 else { return base }
         // At zoom z the frame's long side spans 2·tan(fov/2)/z per unit of distance; the code fills `fill` of it.
         let halfAngle = CGFloat(camera.activeFormat.videoFieldOfView) * .pi / 360
@@ -192,7 +198,7 @@ class ScannerPlugin: CAPPlugin, CAPBridgedPlugin, AVCaptureMetadataOutputObjects
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
         view.backgroundColor = .black
-        view.isHidden = true // until the page says where
+        view.isHidden = true  // until the page says where
         back.addSubview(view)
         backdrop = back
         preview = view
@@ -217,7 +223,7 @@ class ScannerPlugin: CAPPlugin, CAPBridgedPlugin, AVCaptureMetadataOutputObjects
             preview.frame = webView.convert(frame, to: backdrop)
             preview.isHidden = false
             #if DEBUG
-            CAPLog.print("ScannerPlugin preview \(preview.frame) hidden \(preview.isHidden)")
+                CAPLog.print("ScannerPlugin preview \(preview.frame) hidden \(preview.isHidden)")
             #endif
             // No target while the card is up; the last one still holds.
             if let box = Self.rect(call.getObject("target")) {
@@ -420,13 +426,17 @@ class ScannerPlugin: CAPPlugin, CAPBridgedPlugin, AVCaptureMetadataOutputObjects
     /// Turn the picture with the screen. Interface and capture orientations share raw values.
     private func orient() {
         guard let connection = preview?.previewLayer.connection,
-              let orientation = preview?.window?.windowScene?.interfaceOrientation else { return }
+            let orientation = preview?.window?.windowScene?.interfaceOrientation
+        else { return }
         if #available(iOS 17.0, *) {
-            let angles: [UIInterfaceOrientation: CGFloat] = [.landscapeRight: 0, .landscapeLeft: 180, .portraitUpsideDown: 270]
+            let angles: [UIInterfaceOrientation: CGFloat] = [
+                .landscapeRight: 0, .landscapeLeft: 180, .portraitUpsideDown: 270,
+            ]
             let angle = angles[orientation] ?? 90
             if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
         } else if let video = AVCaptureVideoOrientation(rawValue: orientation.rawValue),
-                  connection.isVideoOrientationSupported {
+            connection.isVideoOrientationSupported
+        {
             connection.videoOrientation = video
         }
     }
@@ -442,9 +452,10 @@ class ScannerPlugin: CAPPlugin, CAPBridgedPlugin, AVCaptureMetadataOutputObjects
 
     private static func rect(_ object: JSObject?) -> CGRect? {
         guard let object,
-              let x = (object["x"] as? NSNumber)?.doubleValue, let y = (object["y"] as? NSNumber)?.doubleValue,
-              let w = (object["w"] as? NSNumber)?.doubleValue, let h = (object["h"] as? NSNumber)?.doubleValue,
-              w > 0, h > 0 else { return nil }
+            let x = (object["x"] as? NSNumber)?.doubleValue, let y = (object["y"] as? NSNumber)?.doubleValue,
+            let w = (object["w"] as? NSNumber)?.doubleValue, let h = (object["h"] as? NSNumber)?.doubleValue,
+            w > 0, h > 0
+        else { return nil }
         return CGRect(x: x, y: y, width: w, height: h)
     }
 }

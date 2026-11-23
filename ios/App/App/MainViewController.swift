@@ -90,10 +90,10 @@ class LinkPlugin: CAPPlugin, CAPBridgedPlugin {
         NotificationCenter.default.addObserver(
             self, selector: #selector(opened(_:)), name: .capacitorOpenUniversalLink, object: nil)
         #if DEBUG
-        // The simulator opens https links in Safari, so Debug builds also take
-        // geartracker-debug:<link> to try this path (docs/deploy.md).
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(opened(_:)), name: .capacitorOpenURL, object: nil)
+            // The simulator opens https links in Safari, so Debug builds also take
+            // geartracker-debug:<link> to try this path (docs/deploy.md).
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(opened(_:)), name: .capacitorOpenURL, object: nil)
         #endif
     }
 
@@ -108,10 +108,12 @@ class LinkPlugin: CAPPlugin, CAPBridgedPlugin {
     /// In a Debug build, geartracker-debug:<link> stands for <link>.
     private static func unwrap(_ url: URL) -> URL {
         #if DEBUG
-        let prefix = "geartracker-debug:"
-        if url.absoluteString.hasPrefix(prefix), let inner = URL(string: String(url.absoluteString.dropFirst(prefix.count))) {
-            return inner
-        }
+            let prefix = "geartracker-debug:"
+            if url.absoluteString.hasPrefix(prefix),
+                let inner = URL(string: String(url.absoluteString.dropFirst(prefix.count)))
+            {
+                return inner
+            }
         #endif
         return url
     }
