@@ -1443,7 +1443,7 @@ function EditItem({
       </label>
       <p className="muted small">
         {it.generic
-          ? "A generic can be retired once every unit is (FR-INV-27)."
+          ? "A generic can be retired once every unit is."
           : "A retired item keeps its record and its history, but drops off the list and cannot be checked out."}
       </p>
       {/* Everyday actions live in the footer; these two are rare, so they sit here instead. */}

@@ -224,6 +224,10 @@ export function entries<E extends ReplayEvent>(state: State, events: E[]): (Entr
   return rows.reverse();
 }
 
+/** An event type in words, for a screen that has no event to describe. */
+export const typeLabel = (type: string): string =>
+  type === "field_changed" ? "Edited" : HAPPENED[type] ?? type.replaceAll("_", " ");
+
 /** Every kind of event the log holds, for the filter an Admin picks from. */
 export const EVENT_TYPES: { value: string; label: string }[] = [
   ...Object.entries(HAPPENED).map(([value, label]) => ({ value, label })),

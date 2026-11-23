@@ -519,12 +519,10 @@ def _plan_add(
         quantity: int | None = None
         if quantity_cell:
             if kind == "single":
-                p.errors.append(
-                    {"row": row_num, "message": "quantity is only for a generic (a pool must be generic, FR-INV-34)"}
-                )
+                p.errors.append({"row": row_num, "message": "quantity is only for a generic (a pool must be generic)"})
                 return
             if _cell(vals, idx, "code"):
-                p.errors.append({"row": row_num, "message": "a pool takes no code (FR-INV-34)"})
+                p.errors.append({"row": row_num, "message": "a pool takes no code"})
                 return
             try:
                 quantity = int(quantity_cell)
@@ -548,7 +546,7 @@ def _plan_add(
         return
 
     if _cell(vals, idx, "quantity"):
-        p.errors.append({"row": row_num, "message": "a pool has no units (FR-INV-34)"})
+        p.errors.append({"row": row_num, "message": "a pool has no units"})
         return
 
     generic_name = _cell(vals, idx, "generic")
@@ -556,7 +554,7 @@ def _plan_add(
         p.errors.append({"row": row_num, "message": "generic is required"})
         return
     if generic_name in pools:
-        p.errors.append({"row": row_num, "message": "a pool has no units (FR-INV-34)"})
+        p.errors.append({"row": row_num, "message": "a pool has no units"})
         return
     candidates = (1 if generic_name in existing_generics else 0) + len(file_generics.get(generic_name, []))
     if candidates == 0:

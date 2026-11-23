@@ -37,7 +37,7 @@ test("a refused record names its type, entity, when, and reason, with a way to d
 
   const list = screen.getByRole("list", { name: "Refused records" });
   const row = within(list).getByRole("listitem");
-  expect(row).toHaveTextContent("field_changed");
+  expect(row).toHaveTextContent("Edited");
   expect(row).toHaveTextContent("Tent 1");
   expect(row).toHaveTextContent("not today");
 

@@ -1090,7 +1090,7 @@ def add_unit(generic_id: str, number: str | None = None, nickname: str | None = 
         if not parent.get("generic"):
             raise BadRequest("that item is not one the group owns several of")
         if views.is_pool(parent):
-            raise BadRequest("a pool has no units (FR-INV-34)")
+            raise BadRequest("a pool has no units")
         if parent.get("retired"):
             raise BadRequest("that generic is retired; bring it back first")
         taken = _numbers(state, parent["id"])
@@ -1402,7 +1402,7 @@ def group_items(item_id: str, other_id: str, number: str, other_number: str = "1
         if it.get("parent_id"):
             raise BadRequest("this is already one of several")
         if views.is_pool(other):
-            raise BadRequest("a pool has no units (FR-INV-34)")
+            raise BadRequest("a pool has no units")
         if it.get("retired"):
             raise BadRequest("it is retired; bring it back first")
         if other.get("retired"):
@@ -1437,7 +1437,7 @@ def move_unit(unit_id: str, generic_id: str) -> dict[str, Any]:
         if not parent.get("generic"):
             raise BadRequest("not a generic item")
         if views.is_pool(parent):
-            raise BadRequest("a pool has no units (FR-INV-34)")
+            raise BadRequest("a pool has no units")
         if parent["id"] == it["parent_id"]:
             return {"item_id": it["id"], "generic_id": parent["id"], "number": it.get("number"), "already": True}
         if it.get("retired"):
@@ -1885,7 +1885,7 @@ def check_out(
         if pool and count is None:
             raise BadRequest("a pool moves by count; say how many")
         if not pool and count is not None:
-            raise BadRequest("count is only for a pool (FR-OUT-22)")
+            raise BadRequest("count is only for a pool")
         if it.get("retired"):
             raise BadRequest("retired items cannot be checked out")
         if pool and count > (have := views.pool_counts(it)["in"]):
@@ -1965,7 +1965,7 @@ def check_in(
                 raise BadRequest(f"{whose} only {have} out")
         else:
             if count is not None:
-                raise BadRequest("count is only for a pool (FR-OUT-22)")
+                raise BadRequest("count is only for a pool")
             if holder_id is not None:
                 raise BadRequest("holder_id is only for a pool; anyone can check anything else in")
             if it.get("status") != "out":
@@ -2001,7 +2001,7 @@ def check_in(
 
 def _weighable(state: dict[str, Any], it: dict[str, Any]) -> None:
     if not views.weighing(state, it):
-        raise BadRequest("it has no empty weight and capacity; set them with update_item first (FR-INV-62)")
+        raise BadRequest("it has no empty weight and capacity; set them with update_item first")
 
 
 def weigh(

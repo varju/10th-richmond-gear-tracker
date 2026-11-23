@@ -401,7 +401,7 @@ def test_settings_take_an_admin(db):
 
 def test_locations_take_an_admin(db):
     made = own(USER, entity_type="location", entity_id="loc-1", type="created", payload={"name": "Shed"})
-    assert reasons(db, USER, made) == ["locations are an Admin's job (FR-SET-05)"]
+    assert reasons(db, USER, made) == ["locations are an Admin's job"]
     assert reasons(db, ADMIN, {**made, "id": new_ulid()}) == []
 
 
@@ -416,7 +416,7 @@ def test_anyone_may_create_a_category_but_only_an_admin_changes_one(db):
         payload={"field": "name", "value": "Tarps", "old": "Tents"},
         device_seq=2,
     )
-    assert reasons(db, USER, renamed) == ["categories are renamed and deleted by an Admin (FR-SET-12)"]
+    assert reasons(db, USER, renamed) == ["categories are renamed and deleted by an Admin"]
     assert reasons(db, ADMIN, {**renamed, "id": new_ulid()}) == []
 
 
@@ -432,7 +432,7 @@ def test_items_are_merged_by_an_admin(db):
         now=T0,
     )
     merge = own(USER, payload={"field": "merged_into", "value": "tent-2", "old": None}, device_seq=3)
-    assert reasons(db, USER, merge) == ["items are merged by an Admin (FR-INV-13)"]
+    assert reasons(db, USER, merge) == ["items are merged by an Admin"]
     assert reasons(db, ADMIN, {**merge, "id": new_ulid()}) == []
 
 
@@ -476,9 +476,9 @@ def test_anyone_folds_one_thing_into_a_new_shape(db):
     # A generic with nothing under it becomes a single item (FR-INV-39).
     assert reasons(db, USER, fold("tents", "tent-2", 8)) == []
     # A generic that still has a unit is not folded: that would be two records of one thing.
-    assert reasons(db, USER, fold("tarps", "tent-2", 9)) == ["items are merged by an Admin (FR-INV-13)"]
+    assert reasons(db, USER, fold("tarps", "tent-2", 9)) == ["items are merged by an Admin"]
     # Nor is one single item into another.
-    assert reasons(db, USER, fold("tent-2", "tarp-1", 10)) == ["items are merged by an Admin (FR-INV-13)"]
+    assert reasons(db, USER, fold("tent-2", "tarp-1", 10)) == ["items are merged by an Admin"]
     # A deleted unit is not under it any more, as on every list (FR-INV-32).
     events.append_server(
         db, "alice", "item", "tarp-1", "field_changed", {"field": "deleted", "value": True, "old": None}, now=T0
@@ -537,7 +537,7 @@ def test_retired_items_cannot_be_checked_out(db):
         now=T0,
     )
     out = own(USER, type="checked_out", payload={"holder_id": "alice"}, device_seq=3)
-    assert reasons(db, USER, out) == ["retired items cannot be checked out (FR-INV-04)"]
+    assert reasons(db, USER, out) == ["retired items cannot be checked out"]
 
 
 def test_a_ticket_is_deleted_by_its_raiser_until_someone_else_touches_it(db):
@@ -633,7 +633,7 @@ def test_merged_items_cannot_be_checked_out(db):
         now=T0,
     )
     out = own(USER, type="checked_out", payload={"holder_id": "alice"}, device_seq=3)
-    assert reasons(db, USER, out) == ["this item was merged into another (FR-INV-13)"]
+    assert reasons(db, USER, out) == ["this item was merged into another"]
 
 
 def test_a_generic_item_does_not_move(db):
@@ -646,8 +646,8 @@ def test_a_generic_item_does_not_move(db):
     )
     out = own(USER, type="checked_out", payload={"holder_id": "alice"}, device_seq=2)
     back = own(USER, type="checked_in", payload={}, device_seq=3)
-    assert reasons(db, USER, out) == ["a generic item does not move; its units do (FR-INV-21)"]
-    assert reasons(db, USER, back) == ["a generic item does not move; its units do (FR-INV-21)"]
+    assert reasons(db, USER, out) == ["a generic item does not move; its units do"]
+    assert reasons(db, USER, back) == ["a generic item does not move; its units do"]
 
 
 def test_a_generic_item_takes_no_code(db):
@@ -659,7 +659,7 @@ def test_a_generic_item_takes_no_code(db):
     )
     events.append_server(db, "alice", "code", "ABCDEFGH23", "created", {}, now=T0)
     bind = own(USER, entity_type="code", entity_id="ABCDEFGH23", type="code_bound", payload={"item_id": "tent-1"})
-    refused = ["a generic item takes no code; put it on a unit (FR-INV-21)"]
+    refused = ["a generic item takes no code; put it on a unit"]
     assert reasons(db, USER, {**bind, "device_seq": 2}) == refused
 
     # Its unit does take one.
@@ -700,7 +700,7 @@ def test_a_pool_must_be_generic(db):
     ok = own(USER, type="created", payload={"name": "Bowls", "generic": True, "pool": True, "quantity": 20})
     assert reasons(db, USER, ok) == []
     bad = own(USER, entity_id="tent-2", type="created", payload={"name": "Cups", "pool": True, "quantity": 20})
-    assert reasons(db, USER, bad) == ["a pool must be generic (FR-INV-34)"]
+    assert reasons(db, USER, bad) == ["a pool must be generic"]
 
 
 def test_pool_and_quantity_are_set_only_at_creation(db):
@@ -708,7 +708,7 @@ def test_pool_and_quantity_are_set_only_at_creation(db):
     push(db, USER, batch(USER, own(USER, type="created", payload={"name": "Tent"})), now=T0)
     for field, value in (("pool", True), ("quantity", 5)):
         change = own(USER, payload={"field": field, "value": value, "old": None}, device_seq=2)
-        assert reasons(db, USER, change) == ["pool and quantity are set when the item is created (FR-INV-34)"]
+        assert reasons(db, USER, change) == ["pool and quantity are set when the item is created"]
 
 
 def test_a_pool_has_no_units(db):
@@ -721,7 +721,7 @@ def test_a_pool_has_no_units(db):
         now=T0,
     )
     unit = own(USER, entity_id="bowl-1", type="created", payload={"parent_id": "tent-1", "number": "1"}, device_seq=2)
-    assert reasons(db, USER, unit) == ["a pool has no units (FR-INV-34)"]
+    assert reasons(db, USER, unit) == ["a pool has no units"]
 
     push(
         db,
@@ -730,7 +730,7 @@ def test_a_pool_has_no_units(db):
         now=T0,
     )
     move = own(USER, entity_id="tent-2", payload={"field": "parent_id", "value": "tent-1", "old": None}, device_seq=3)
-    assert reasons(db, USER, move) == ["a pool has no units (FR-INV-34)"]
+    assert reasons(db, USER, move) == ["a pool has no units"]
 
 
 def test_a_pool_moves_by_count(db):
@@ -764,7 +764,7 @@ def test_pool_overdraw_is_accepted_not_blocked(db):
 def test_count_is_refused_off_a_pool(db):
     push(db, USER, batch(USER, own(USER, type="created", payload={"name": "Tent"})), now=T0)
     out = own(USER, type="checked_out", payload={"holder_id": "alice", "count": 1}, device_seq=2)
-    assert reasons(db, USER, out) == ["count is only for a pool (FR-OUT-22)"]
+    assert reasons(db, USER, out) == ["count is only for a pool"]
 
 
 def test_a_pool_may_take_a_code(db):
@@ -787,7 +787,7 @@ def test_a_pool_may_take_a_code(db):
 def test_recount_is_only_for_a_pool(db):
     push(db, USER, batch(USER, own(USER, type="created", payload={"name": "Tent"})), now=T0)
     bad = own(USER, type="recounted", payload={"count": 5, "reason": "shelf check"}, device_seq=2)
-    assert reasons(db, USER, bad) == ["recount is only for a pool (FR-INV-35)"]
+    assert reasons(db, USER, bad) == ["recount is only for a pool"]
 
     push(
         db,
@@ -811,12 +811,12 @@ def test_recount_is_only_for_a_pool(db):
 def test_missing_and_found_counts_are_only_for_a_pool(db):
     push(db, USER, batch(USER, own(USER, type="created", payload={"name": "Tent"})), now=T0)
     missing = own(USER, type="pool_missing", payload={"count": 1}, device_seq=2)
-    assert reasons(db, USER, missing) == ["a stack marks a count missing, a unit uses Missing (FR-INV-46)"]
+    assert reasons(db, USER, missing) == ["a stack marks a count missing, a unit uses Missing"]
     found = own(USER, type="pool_found", payload={"count": 1}, device_seq=2)
-    assert reasons(db, USER, found) == ["only a stack marks a count found (FR-INV-47)"]
+    assert reasons(db, USER, found) == ["only a stack marks a count found"]
 
     off = own(USER, type="pool_written_off", payload={"count": 1}, device_seq=2)
-    assert reasons(db, USER, off) == ["only a stack writes off a count (FR-INV-49)"]
+    assert reasons(db, USER, off) == ["only a stack writes off a count"]
 
     push(
         db,
@@ -844,14 +844,14 @@ def test_a_single_item_goes_home_without_a_count_and_a_pool_with_one(db):
     single = own(USER, type="cleaning_started", payload={"cleaner": "Smith", "movement_id": out}, device_seq=2)
     assert reasons(db, USER, single) == []
     unnamed = own(USER, type="cleaning_started", payload={"cleaner": "Smith"}, device_seq=2)
-    assert reasons(db, USER, unnamed) == ["a single item says which check-out it goes home from (FR-OUT-46)"]
+    assert reasons(db, USER, unnamed) == ["a single item says which check-out it goes home from"]
     counted = own(USER, type="cleaning_started", payload={"cleaner": "Smith", "count": 1}, device_seq=2)
-    assert reasons(db, USER, counted) == ["a pool goes home by count, a single item without one (FR-OUT-46)"]
+    assert reasons(db, USER, counted) == ["a pool goes home by count, a single item without one"]
 
     created = {"name": "Bowls", "generic": True, "pool": True, "quantity": 20}
     push(db, USER, batch(USER, own(USER, entity_id="bowls", type="created", payload=created, device_seq=3)), now=T0)
     bare = own(USER, entity_id="bowls", type="cleaning_started", payload={"cleaner": "Smith"}, device_seq=4)
-    assert reasons(db, USER, bare) == ["a pool goes home by count, a single item without one (FR-OUT-46)"]
+    assert reasons(db, USER, bare) == ["a pool goes home by count, a single item without one"]
 
 
 def test_weighing_is_not_for_a_generic(db):
@@ -875,7 +875,7 @@ def test_weighing_is_not_for_a_generic(db):
     )
     for kind, payload in (("weighed", {"value": None}), ("refilled", {})):
         bad = own(USER, entity_id="tanks", type=kind, payload=payload, device_seq=4)
-        assert reasons(db, USER, bad) == ["only a unit or a single item is weighed (FR-INV-64)"]
+        assert reasons(db, USER, bad) == ["only a unit or a single item is weighed"]
 
 
 def test_a_device_cannot_write_a_user(db):
@@ -890,7 +890,7 @@ def test_a_merge_into_something_that_is_not_an_id_is_not_a_fold(db):
     generic = {"name": "Tents", "generic": True}
     push(db, USER, batch(USER, own(USER, entity_id="tents", type="created", payload=generic)), now=T0)
     merge = own(USER, entity_id="tents", payload={"field": "merged_into", "value": 5, "old": None}, device_seq=2)
-    assert reasons(db, USER, merge) == ["items are merged by an Admin (FR-INV-13)"]
+    assert reasons(db, USER, merge) == ["items are merged by an Admin"]
     assert events.get(db, merge["id"]) is None
 
 
@@ -903,7 +903,7 @@ def test_an_item_created_with_a_payload_that_is_not_an_object_is_rejected(db):
 def test_a_single_item_return_does_not_name_a_cleaner(db):
     push(db, USER, batch(USER, own(USER, type="created", payload={"name": "Tent"})), now=T0)
     back = own(USER, type="checked_in", payload={"cleaner": "Smith"}, device_seq=2)
-    assert reasons(db, USER, back) == ["a cleaner names whose lot a pool return comes from (FR-OUT-47)"]
+    assert reasons(db, USER, back) == ["a cleaner names whose lot a pool return comes from"]
     assert events.get(db, back["id"]) is None
 
     created = {"name": "Bowls", "generic": True, "pool": True, "quantity": 20}
@@ -916,14 +916,14 @@ def test_cleaning_ends_by_count_for_a_pool_and_without_one_for_a_single_item(db)
     push(db, USER, batch(USER, own(USER, type="created", payload={"name": "Tent"})), now=T0)
     created = {"name": "Bowls", "generic": True, "pool": True, "quantity": 20}
     push(db, USER, batch(USER, own(USER, entity_id="bowls", type="created", payload=created, device_seq=2)), now=T0)
-    mismatch = "a pool ends cleaning by count, a single item without one (FR-OUT-51)"
+    mismatch = "a pool ends cleaning by count, a single item without one"
 
     bare_pool = own(USER, entity_id="bowls", type="cleaning_ended", payload={"cleaner": "Smith"}, device_seq=3)
     assert reasons(db, USER, bare_pool) == [mismatch]
     counted = own(USER, type="cleaning_ended", payload={"cleaner": "Smith", "count": 1}, device_seq=3)
     assert reasons(db, USER, counted) == [mismatch]
     unnamed = own(USER, entity_id="bowls", type="cleaning_ended", payload={"count": 1}, device_seq=3)
-    assert reasons(db, USER, unnamed) == ["a pool says whose lots are back (FR-OUT-51)"]
+    assert reasons(db, USER, unnamed) == ["a pool says whose lots are back"]
     for rejected in (bare_pool, counted, unnamed):
         assert events.get(db, rejected["id"]) is None
 

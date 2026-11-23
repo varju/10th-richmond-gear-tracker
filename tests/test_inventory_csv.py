@@ -389,7 +389,7 @@ def test_a_quantity_and_a_code_together_is_refused(db):
 
     plan = inventory_csv.plan(state, text)
 
-    assert plan.errors == [{"row": 2, "message": "a pool takes no code (FR-INV-34)"}]
+    assert plan.errors == [{"row": 2, "message": "a pool takes no code"}]
 
 
 def test_a_quantity_on_a_unit_row_is_refused(db):
@@ -401,7 +401,7 @@ def test_a_quantity_on_a_unit_row_is_refused(db):
 
     plan = inventory_csv.plan(state, text)
 
-    assert plan.errors == [{"row": 3, "message": "a pool has no units (FR-INV-34)"}]
+    assert plan.errors == [{"row": 3, "message": "a pool has no units"}]
 
 
 def test_a_quantity_on_a_single_is_refused(db):
@@ -423,7 +423,7 @@ def test_a_pool_row_in_the_file_is_not_a_valid_parent_for_a_unit_row(db):
 
     plan = inventory_csv.plan(state, text)
 
-    assert plan.errors == [{"row": 3, "message": "a pool has no units (FR-INV-34)"}]
+    assert plan.errors == [{"row": 3, "message": "a pool has no units"}]
 
 
 def test_a_unit_row_naming_an_existing_pool_is_refused(db):
@@ -433,7 +433,7 @@ def test_a_unit_row_naming_an_existing_pool_is_refused(db):
 
     plan = inventory_csv.plan(state, text)
 
-    assert plan.errors == [{"row": 2, "message": "a pool has no units (FR-INV-34)"}]
+    assert plan.errors == [{"row": 2, "message": "a pool has no units"}]
 
 
 def test_a_pool_kind_add_requires_a_quantity(db):

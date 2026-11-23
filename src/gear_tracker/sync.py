@@ -199,10 +199,10 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
     if entity_type == "setting" and principal.role != "admin":
         raise Rejected("settings are changed by an Admin")
     if entity_type == "location" and principal.role != "admin":
-        raise Rejected("locations are an Admin's job (FR-SET-05)")
+        raise Rejected("locations are an Admin's job")
     if entity_type == "category" and principal.role != "admin" and kind != "created":
         # Anyone signed in may add a category, same as the item editor (see assistant.add_category).
-        raise Rejected("categories are renamed and deleted by an Admin (FR-SET-12)")
+        raise Rejected("categories are renamed and deleted by an Admin")
     if entity_type == "item" and kind == "field_changed":
         payload = incoming.get("payload")
         field = payload.get("field") if isinstance(payload, dict) else None
@@ -212,76 +212,76 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
         # A pool has no units (FR-INV-34): moving one under a pool is refused, whether at creation or later.
         value = payload.get("value") if isinstance(payload, dict) else None
         if field == "parent_id" and _is_pool(conn, value):
-            raise Rejected("a pool has no units (FR-INV-34)")
+            raise Rejected("a pool has no units")
         if (
             field == "merged_into"
             and principal.role != "admin"
             and not _is_fold(conn, incoming.get("entity_id"), value)
         ):
-            raise Rejected("items are merged by an Admin (FR-INV-13)")
+            raise Rejected("items are merged by an Admin")
     if entity_type == "item" and kind == "created":
         payload = incoming.get("payload")
         if isinstance(payload, dict):
             if payload.get("pool") and not payload.get("generic"):
-                raise Rejected("a pool must be generic (FR-INV-34)")
+                raise Rejected("a pool must be generic")
             if _is_pool(conn, payload.get("parent_id")):
-                raise Rejected("a pool has no units (FR-INV-34)")
+                raise Rejected("a pool has no units")
     if entity_type == "item" and kind in ("checked_out", "checked_in"):
         item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
         if item.get("deleted"):
             raise Rejected("this item was deleted")
         is_pool = bool(item.get("pool"))
         if item.get("generic") and not is_pool:
-            raise Rejected("a generic item does not move; its units do (FR-INV-21)")
+            raise Rejected("a generic item does not move; its units do")
         payload = incoming.get("payload")
         has_count = isinstance(payload, dict) and payload.get("count") is not None
         if is_pool and not has_count:
             raise Rejected("a pool moves by count")
         if not is_pool and has_count:
-            raise Rejected("count is only for a pool (FR-OUT-22)")
+            raise Rejected("count is only for a pool")
         if kind == "checked_in" and not is_pool and isinstance(payload, dict) and payload.get("cleaner"):
-            raise Rejected("a cleaner names whose lot a pool return comes from (FR-OUT-47)")
+            raise Rejected("a cleaner names whose lot a pool return comes from")
         if kind == "checked_out":
             if item.get("retired"):
-                raise Rejected("retired items cannot be checked out (FR-INV-04)")
+                raise Rejected("retired items cannot be checked out")
             if item.get("merged_into"):
-                raise Rejected("this item was merged into another (FR-INV-13)")
+                raise Rejected("this item was merged into another")
     if entity_type == "item" and kind == "cleaning_ended":
         item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
         payload = incoming.get("payload")
         payload = payload if isinstance(payload, dict) else {}
         if bool(item.get("pool")) != (payload.get("count") is not None):
-            raise Rejected("a pool ends cleaning by count, a single item without one (FR-OUT-51)")
+            raise Rejected("a pool ends cleaning by count, a single item without one")
         if payload.get("count") is not None and not payload.get("cleaner"):
-            raise Rejected("a pool says whose lots are back (FR-OUT-51)")
+            raise Rejected("a pool says whose lots are back")
     if entity_type == "item" and kind == "cleaning_started":
         item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
         payload = incoming.get("payload")
         payload = payload if isinstance(payload, dict) else {}
         if bool(item.get("pool")) != (payload.get("count") is not None):
-            raise Rejected("a pool goes home by count, a single item without one (FR-OUT-46)")
+            raise Rejected("a pool goes home by count, a single item without one")
         if not item.get("pool") and not payload.get("movement_id"):
-            raise Rejected("a single item says which check-out it goes home from (FR-OUT-46)")
+            raise Rejected("a single item says which check-out it goes home from")
     if entity_type == "item" and kind == "recounted":
         item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
         if not item.get("pool"):
-            raise Rejected("recount is only for a pool (FR-INV-35)")
+            raise Rejected("recount is only for a pool")
     if entity_type == "item" and kind in ("pool_missing", "pool_found", "pool_written_off"):
         item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
         if item.get("deleted"):
             raise Rejected("this item was deleted")
         if not item.get("pool"):
             if kind == "pool_missing":
-                raise Rejected("a stack marks a count missing, a unit uses Missing (FR-INV-46)")
+                raise Rejected("a stack marks a count missing, a unit uses Missing")
             if kind == "pool_written_off":
-                raise Rejected("only a stack writes off a count (FR-INV-49)")
-            raise Rejected("only a stack marks a count found (FR-INV-47)")
+                raise Rejected("only a stack writes off a count")
+            raise Rejected("only a stack marks a count found")
     if entity_type == "item" and kind in ("weighed", "refilled"):
         item = derived.get_entity(conn, "item", str(incoming.get("entity_id"))) or {}
         if item.get("deleted"):
             raise Rejected("this item was deleted")
         if item.get("generic"):
-            raise Rejected("only a unit or a single item is weighed (FR-INV-64)")
+            raise Rejected("only a unit or a single item is weighed")
     if entity_type == "repair" and kind != "created":
         ticket_id = str(incoming.get("entity_id"))
         ticket = derived.get_entity(conn, "repair", ticket_id) or {}
@@ -309,7 +309,7 @@ def _check_entity_rules(conn: sqlite3.Connection, principal: Principal, incoming
             target = derived.get_entity(conn, "item", str(named)) or {}
             # A pool takes a code on its container (FR-TAG-15); a generic with units still does not (FR-INV-21).
             if target.get("generic") and not target.get("pool"):
-                raise Rejected("a generic item takes no code; put it on a unit (FR-INV-21)")
+                raise Rejected("a generic item takes no code; put it on a unit")
             # Deleting released its codes (FR-INV-32); a stale device does not put one back.
             if target.get("deleted"):
                 raise Rejected("this item was deleted")

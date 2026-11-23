@@ -449,7 +449,7 @@ class FieldChanged(_Incoming):
         field, value = self.payload.field, self.payload.value
         if self.entity_type == "item" and field in ("pool", "quantity"):
             # Both are set once, at creation, and shape everything that follows (FR-INV-34).
-            raise ValueError("pool and quantity are set when the item is created (FR-INV-34)")
+            raise ValueError("pool and quantity are set when the item is created")
         if self.entity_type == "item" and field in ("empty_weight", "capacity") and value is not None:
             try:
                 (Capacity if field == "capacity" else Weight).model_validate(value)
