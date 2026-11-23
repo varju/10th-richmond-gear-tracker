@@ -377,6 +377,8 @@ the browser. The page's origin is `capacitor://localhost`, so:
 - No service worker, no manifest, no install prompt.
 - WKWebView cannot download, open a window, or print. A file goes to the share sheet instead (`lib/share.ts`), and print
   goes through a small plugin in `MainViewController.swift`.
+- A swipe from the left edge goes back (NFR-USE-13). It fires `popstate` after the screen has changed, so it cannot ask
+  about a draft; `lib/swipe.ts` turns it off while `unsaved.any`.
 
 Join links and sticker URLs open in the app once the site names it (universal links; see
 [deploy.md](deploy.md#linking-the-app-to-your-site)). iOS hands the link to `MainViewController.swift`, which holds it

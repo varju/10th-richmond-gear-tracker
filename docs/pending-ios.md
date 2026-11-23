@@ -28,6 +28,7 @@ What the app does differently.
 - **Add QR code** on an item that already has one asks before opening the scanner.
 - All items has its Search box at the top, and it stays there while the list scrolls.
 - **Unsent records** can delete a record made by mistake before it is sent, if no newer record depends on it.
+- Swipe from the left edge to go back. It is off while a form has unsaved changes.
 
 ## Chores
 

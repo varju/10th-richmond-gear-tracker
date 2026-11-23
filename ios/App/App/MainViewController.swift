@@ -1,14 +1,33 @@
 import Capacitor
 import UIKit
 
-/// The web view, plus what WKWebView will not do on its own: `window.print()`, links that open the app, and a
-/// camera that survives leaving the app (ScannerPlugin.swift).
+/// The web view, plus what WKWebView will not do on its own: `window.print()`, links that open the app, a
+/// camera that survives leaving the app (ScannerPlugin.swift), and a swipe from the edge to go back.
 class MainViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
+        webView?.allowsBackForwardNavigationGestures = true
         bridge?.registerPluginInstance(PrintPlugin())
         bridge?.registerPluginInstance(LinkPlugin())
         bridge?.registerPluginInstance(ScannerPlugin())
         bridge?.registerPluginInstance(VersionPlugin())
+        bridge?.registerPluginInstance(SwipePlugin())
+    }
+}
+
+/// Turns the edge swipe on or off. The page turns it off while a form holds unsaved changes, as a swipe
+/// would skip the question Back asks (client/src/lib/swipe.ts).
+@objc(SwipePlugin)
+class SwipePlugin: CAPPlugin, CAPBridgedPlugin {
+    let identifier = "SwipePlugin"
+    let jsName = "SwipePlugin"
+    let pluginMethods: [CAPPluginMethod] = [CAPPluginMethod(name: "set", returnType: CAPPluginReturnPromise)]
+
+    @objc func set(_ call: CAPPluginCall) {
+        let on = call.getBool("on") ?? true
+        DispatchQueue.main.async {
+            self.bridge?.webView?.allowsBackForwardNavigationGestures = on
+            call.resolve()
+        }
     }
 }
 

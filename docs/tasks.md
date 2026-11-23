@@ -135,19 +135,6 @@ falls back to its generic's), shown on the scan card, the item page and the list
 
 **Deferred because:** photos are online only (FR-INV-11), so a photo at check-out in a locker would mostly fail to load.
 
-## Swipe back in the iPhone app
-
-Swipe from the left edge to go back, as in other iPhone apps. Today the swipe does nothing.
-
-**Considered:**
-
-- Capacitor leaves `allowsBackForwardNavigationGestures` off. Setting it on the web view in
-  `MainViewController.capacitorDidLoad()` should be enough: the router keeps in-app history with `pushState`, so the
-  swipe fires `popstate` like the browser Back button.
-- It also turns on swipe forward from the right edge.
-- Check the swipe on the scan screen, where the native camera sits behind the web view.
-- Needs an App Store release.
-
 ## Drop the workbox-build glob override
 
 `client/package.json` forces glob 14 on workbox-build to patch a minimatch ReDoS. Remove it once workbox-build depends
