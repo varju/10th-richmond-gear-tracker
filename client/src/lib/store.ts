@@ -45,6 +45,8 @@ export interface StoredEvent extends ReplayEvent {
   seq?: number;
   received_at?: number;
   reason?: string;
+  /** Waiting check-outs this move took off the session's list; deleting the move puts them back. Never sent. */
+  unwaited?: string[];
 }
 
 export interface Meta {
@@ -305,6 +307,16 @@ export class Store {
     metaStore.put(device_seq, "device_seq");
     const read = Object.fromEntries(SESSION_KEYS.map((key, i) => [key, values[i]])) as SessionMeta;
     const next = session ? afterMove(read, session, event.id, occurred_at, this.meta.user) : undefined;
+    if (session && next) {
+      const before = read.session_waiting ?? [];
+      const unwaited = [session.supersedes, ...(session.ends ?? [])].filter(
+        (w): w is string => w !== undefined && before.includes(w) && !(next.session_waiting ?? []).includes(w),
+      );
+      if (unwaited.length > 0) {
+        event.unwaited = unwaited;
+        tx.objectStore("events").put(event);
+      }
+    }
     if (next) {
       for (const key of SESSION_KEYS) {
         if (next[key] === undefined) metaStore.delete(key);
@@ -414,16 +426,19 @@ export class Store {
   /** Unsent records no later unsent record refers to, and no push is carrying (FR-OFF-16). */
   deletableIds(): Set<string> {
     const pending = this.pending;
-    const refs = pending.map((e) => JSON.stringify(e.payload));
+    const sent = [...this.events.values()].filter((e) => e.sent === "yes" && e.device_id === this.meta.device_id);
+    const sentRefs: (string | undefined)[] = [];
+    const pendingRefs = pending.map((e) => JSON.stringify(e.payload));
+    const refers = (l: StoredEvent, ref: string, e: StoredEvent) =>
+      l.entity_id === e.entity_id || ref.includes(e.id) || ref.includes(e.entity_id);
     const free = new Set<string>();
     pending.forEach((e, i) => {
       if (this.sending.has(e.id)) return;
-      const later = pending.slice(i + 1);
-      const held = later.some(
-        (l, k) =>
-          l.entity_id === e.entity_id || refs[i + 1 + k]!.includes(e.id) || refs[i + 1 + k]!.includes(e.entity_id),
+      const heldByPending = pending.slice(i + 1).some((l, k) => refers(l, pendingRefs[i + 1 + k]!, e));
+      const heldBySent = sent.some(
+        (l, k) => l.occurred_at > e.occurred_at && refers(l, (sentRefs[k] ??= JSON.stringify(l.payload)), e),
       );
-      if (!held) free.add(e.id);
+      if (!heldByPending && !heldBySent) free.add(e.id);
     });
     return free;
   }
@@ -442,6 +457,7 @@ export class Store {
     if (!target || !this.deletable(id)) throw new Error("That record cannot be deleted.");
     this.events.delete(id);
     let left: string[] | undefined;
+    let restarted: number | undefined;
     try {
       const tx = this.db.transaction(["meta", "events"], "readwrite");
       const events = tx.objectStore("events");
@@ -449,10 +465,17 @@ export class Store {
       if (row?.sent !== "no") throw new Error("That record cannot be deleted.");
       const metaStore = tx.objectStore("meta");
       const waiting = (await req(metaStore.get("session_waiting"))) as string[] | undefined;
-      if (waiting?.includes(id)) {
-        left = waiting.filter((w) => w !== id);
-        if (left.length > 0) metaStore.put(left, "session_waiting");
-        else {
+      const restored = target.unwaited ?? [];
+      if (waiting?.includes(id) || restored.length > 0) {
+        left = [...(waiting ?? []).filter((w) => w !== id), ...restored.filter((w) => !waiting?.includes(w))];
+        if (left.length > 0) {
+          metaStore.put(left, "session_waiting");
+          if (!waiting?.length) {
+            restarted = this.now();
+            metaStore.put(this.meta.user?.id, "session_waiting_user");
+            metaStore.put(restarted, "session_event_at");
+          }
+        } else {
           metaStore.delete("session_waiting");
           metaStore.delete("session_waiting_user");
           metaStore.delete("session_event_at");
@@ -460,8 +483,13 @@ export class Store {
       }
       events.delete(id);
       await done(tx);
-      if (left?.length) this.meta.session_waiting = left;
-      else if (left) {
+      if (left?.length) {
+        this.meta.session_waiting = left;
+        if (restarted !== undefined) {
+          this.meta.session_waiting_user = this.meta.user?.id;
+          this.meta.session_event_at = restarted;
+        }
+      } else if (left) {
         delete this.meta.session_waiting;
         delete this.meta.session_waiting_user;
         delete this.meta.session_event_at;

@@ -42,6 +42,21 @@ Found reviewing the delete (`deleteUnsent` in `client/src/lib/store.ts`):
 - `whileSending` does not call `notify()`, so Unsent records keeps showing Delete during a push. Tapping it fails with a
   generic error.
 
+## Review findings, smaller
+
+- Deleting a move restores its waiting check-outs into whatever session is current, stamps the deleting user as owner,
+  and appends them rather than putting them back in place. Restore only into the session the move left.
+- Categories folded shut during one search stay shut for the next (`useFolds` in `client/src/ui/folds.ts` keeps one
+  narrowed set per history entry). Key it by query and filter.
+- `allowsBackForwardNavigationGestures` in `ios/App/App/MainViewController.swift` also allows a swipe forward from the
+  right edge. Use an edge-pan recognizer that calls `history.back()` if that is unwanted.
+- Swipe back flickers on while a draft is unsaved: `useUnsaved` unregisters then registers, and
+  `client/src/lib/swipe.ts` sends both. Send once per change.
+- The photo drop handler in `client/src/ui/Photos.tsx` listens on the document, so a file dropped on a text box becomes
+  a photo. Skip editable targets and open dialogs.
+- `client/src/ui/noRequirementIds.test.ts` scans `client/src/ui` only; messages thrown in `client/src/lib` are not
+  checked.
+
 ## Tidy the desk inventory's filter bar
 
 The desk **Inventory** screen opens with six labelled boxes reading "Any", two checkboxes, two buttons and a row count

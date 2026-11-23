@@ -28,6 +28,8 @@ What the app does differently.
 - All items and Home's search results keep their folded categories on Back.
 - **Add QR code** on an item that already has one asks before opening the scanner.
 - All items has its Search box at the top, and it stays there while the list scrolls.
+- Deleting an unsent move puts back the waiting check-out it replaced or ended. A record that one already sent depends
+  on can't be deleted.
 - **Unsent records** can delete a record made by mistake before it is sent, if no newer record depends on it.
 - Swipe from the left edge to go back. It is off while a form has unsaved changes.
 - Retiring a generic and **Refused records** no longer show requirement codes. Refused records name the action in words.

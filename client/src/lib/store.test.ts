@@ -4,7 +4,7 @@ import type { ServerEvent } from "./api";
 import { RETENTION_MS } from "./clock";
 import { openDb } from "./db";
 import { replay, type ReplayEvent } from "./replay";
-import { Store } from "./store";
+import { type MoveSession, Store } from "./store";
 
 const T0 = 1_756_684_800_000;
 let factory: IDBFactory;
@@ -17,8 +17,8 @@ beforeEach(() => {
 
 const open = async () => Store.open(await openDb("test", factory), () => clock);
 
-const tent = (store: Store, type: string, payload: Record<string, unknown>) =>
-  store.record({ entity_type: "item", entity_id: "tent-1", type, actor_id: "alice", payload });
+const tent = (store: Store, type: string, payload: Record<string, unknown>, session?: MoveSession) =>
+  store.record({ entity_type: "item", entity_id: "tent-1", type, actor_id: "alice", payload }, session);
 
 /**
  * The fastest of several rounds of two operations, run interleaved. A GC pause or scheduler
@@ -622,4 +622,56 @@ test("a record another tab already sent is not deleted, and stays listed", async
   await expect(store.deleteUnsent(event.id)).rejects.toThrow("cannot be deleted");
   expect(store.pending.map((e) => e.id)).toEqual([event.id]);
   expect((await open()).pending).toEqual([]);
+});
+
+const alice = { id: "alice", name: "Alice", role: "user" as const, active: true };
+
+test("deleting a transfer puts the waiting check-out it replaced back on the list", async () => {
+  const store = await open();
+  await store.setMeta({ user: alice });
+  const out = await tent(store, "checked_out", {}, { waits: true });
+  const transfer = await tent(store, "checked_out", { supersedes: out.id }, { supersedes: out.id });
+  expect(store.meta.session_waiting).toEqual([transfer.id]);
+  await store.deleteUnsent(transfer.id);
+  expect(store.meta.session_waiting).toEqual([out.id]);
+  expect((await open()).meta.session_waiting).toEqual([out.id]);
+});
+
+test("deleting the check-in that ended the session starts it waiting again", async () => {
+  const store = await open();
+  await store.setMeta({ user: alice });
+  const out = await tent(store, "checked_out", {}, { waits: true });
+  const back = await tent(store, "checked_in", {}, { ends: [out.id] });
+  expect(store.meta.session_waiting).toBeUndefined();
+  await store.deleteUnsent(back.id);
+  expect(store.meta.session_waiting).toEqual([out.id]);
+  expect(store.meta.session_waiting_user).toBe("alice");
+  expect(store.meta.session_event_at).toBe(clock);
+  expect((await open()).meta.session_waiting).toEqual([out.id]);
+});
+
+test("an unsent record a sent one depends on cannot be deleted", async () => {
+  const store = await open();
+  const created = await tent(store, "item_created", { name: "Tent" });
+  clock += 1;
+  const out = await tent(store, "checked_out", {});
+  await store.pushed([out.id], [{ id: created.id, reason: "device_seq 1 is not above the last seen, 5" }]);
+  expect(store.pending.map((e) => e.id)).toEqual([created.id]);
+  expect(store.deletable(created.id)).toBe(false);
+});
+
+test("an unsent record stays deletable when only older records were sent", async () => {
+  const store = await open();
+  const created = await tent(store, "item_created", { name: "Tent" });
+  await store.pushed([created.id], []);
+  clock += 1;
+  const rename = await tent(store, "item_renamed", { name: "Big tent" });
+  expect(store.deletable(rename.id)).toBe(true);
+});
+
+test("a later record from another device does not hold an unsent delete", async () => {
+  const store = await open();
+  const rename = await tent(store, "item_renamed", { name: "Big tent" });
+  await store.receive([fromServer({ seq: 1, device_seq: 1, occurred_at: T0 + 10 })], 1);
+  expect(store.deletable(rename.id)).toBe(true);
 });
