@@ -31,6 +31,7 @@ What the app does differently.
 - **Unsent records** can delete a record made by mistake before it is sent, if no newer record depends on it.
 - Swipe from the left edge to go back. It is off while a form has unsaved changes.
 - Retiring a generic and **Refused records** no longer show requirement codes. Refused records name the action in words.
+- Deleting the last unsent check-out waiting for its event ends the session, so the next check-out asks again.
 
 ## Chores
 

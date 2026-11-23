@@ -585,7 +585,7 @@ test("a record in a push in flight cannot be deleted until the push ends", async
   expect(store.deletable(event.id)).toBe(true);
 });
 
-test("deleting a waiting check-out takes it off the session's waiting list", async () => {
+test("deleting a waiting check-out takes it off the list; the last one off ends the session, keeping its event", async () => {
   const store = await open();
   const a = await tent(store, "checked_out", {});
   const b = await store.record({
@@ -595,15 +595,23 @@ test("deleting a waiting check-out takes it off the session's waiting list", asy
     actor_id: "alice",
     payload: {},
   });
-  await store.updateMeta(["session_waiting", "session_waiting_user"], () => ({
+  await store.updateMeta(["session_waiting", "session_waiting_user", "session_event", "session_event_at"], () => ({
     session_waiting: [a.id, b.id],
     session_waiting_user: "alice",
+    session_event: "Spring camp",
+    session_event_at: clock,
   }));
   await store.deleteUnsent(b.id);
   expect(store.meta.session_waiting).toEqual([a.id]);
+  expect(store.meta.session_event_at).toBe(clock);
   await store.deleteUnsent(a.id);
   expect(store.meta.session_waiting).toBeUndefined();
   expect(store.meta.session_waiting_user).toBeUndefined();
+  expect(store.meta.session_event_at).toBeUndefined();
+  expect(store.meta.session_event).toBe("Spring camp");
+  const reopened = (await open()).meta;
+  expect(reopened.session_event_at).toBeUndefined();
+  expect(reopened.session_event).toBe("Spring camp");
 });
 
 test("a record another tab already sent is not deleted, and stays listed", async () => {

@@ -455,6 +455,7 @@ export class Store {
         else {
           metaStore.delete("session_waiting");
           metaStore.delete("session_waiting_user");
+          metaStore.delete("session_event_at");
         }
       }
       events.delete(id);
@@ -463,6 +464,7 @@ export class Store {
       else if (left) {
         delete this.meta.session_waiting;
         delete this.meta.session_waiting_user;
+        delete this.meta.session_event_at;
       }
     } catch (error) {
       this.events.set(id, target);

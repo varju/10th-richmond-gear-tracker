@@ -32,13 +32,11 @@ few seconds. A guess until the diagnostics say which.
 
 Found reviewing the delete (`deleteUnsent` in `client/src/lib/store.ts`):
 
-- Deleting the only check-out waiting for its event clears `session_waiting` but keeps `session_event_at`, so the next
-  check-out in the session window records with no event question. End the session as `afterMove` does: keep
-  `session_event`, delete `session_event_at`.
 - A second tab on the same device keeps the record in its own memory and can still push it, or write its row back.
   Re-read the stored rows before each push, or leave a tombstone the other tab honors.
 - A photo queued for an unsent item or repair that gets deleted stays queued, then the upload gets a 404 and drops it.
   Hold the record while it has a queued photo, or delete the photo with it.
+- `deletableIds` matches dependents by substring, so an unrelated record can hold a delete.
 
 ## Tidy the desk inventory's filter bar
 
@@ -151,14 +149,3 @@ falls back to its generic's), shown on the scan card, the item page and the list
 
 `client/package.json` forces glob 14 on workbox-build to patch a minimatch ReDoS. Remove it once workbox-build depends
 on glob 14 or later.
-
-## Deleting an unsent check-out leaves its session open
-
-Deleting the only unsent check-out that is waiting for its event (`deleteUnsent` in `client/src/lib/store.ts`) clears
-`session_waiting` but keeps `session_event_at`. The next check-out inside the session window then records with no event
-question.
-
-**Next:** end the session as `afterMove` does: keep `session_event`, delete `session_event_at`. Add a client test.
-
-Not yet reproduced. Lesser risks from the same review: a second tab can still push a record this tab deleted; a queued
-photo for a deleted unsent item is dropped on a 404; `deletableIds` matches dependents by substring.
