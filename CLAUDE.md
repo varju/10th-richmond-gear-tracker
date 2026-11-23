@@ -76,10 +76,8 @@ Replay exists in Python and TypeScript. A change to either means changing `vecto
 
 ## Formatting
 
-Pre-configured hooks format files automatically on write. Do not hand-align markdown tables, wrap lines to a column, or
-otherwise tidy whitespace — the hooks do it. Never reformat a file just to fix layout.
-
-This covers layout only. The House style rules above are about what you write, and still apply.
+Pre-commit formats files when you commit. Don't align tables, wrap lines or tidy whitespace by hand. The House style
+rules above still apply.
 
 ## Git
 
