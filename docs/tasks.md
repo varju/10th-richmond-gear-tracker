@@ -37,6 +37,10 @@ Found reviewing the delete (`deleteUnsent` in `client/src/lib/store.ts`):
 - A photo queued for an unsent item or repair that gets deleted stays queued, then the upload gets a 404 and drops it.
   Hold the record while it has a queued photo, or delete the photo with it.
 - `deletableIds` matches dependents by substring, so an unrelated record can hold a delete.
+- A push whose reply was lost can have reached the server. `whileSending` then releases the record, Delete removes the
+  row, and the next pull brings the server's copy back. Keep the ids held until the next successful sync.
+- `whileSending` does not call `notify()`, so Unsent records keeps showing Delete during a push. Tapping it fails with a
+  generic error.
 
 ## Tidy the desk inventory's filter bar
 
