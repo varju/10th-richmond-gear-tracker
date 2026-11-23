@@ -28,6 +28,18 @@ leaving the screen.
 **Considered:** re-run `aim()` on resume and when an interruption ends, and re-trigger focus when nothing is read for a
 few seconds. A guess until the diagnostics say which.
 
+## Deleting an unsent record, loose ends
+
+Found reviewing the delete (`deleteUnsent` in `client/src/lib/store.ts`):
+
+- Deleting the only check-out waiting for its event clears `session_waiting` but keeps `session_event_at`, so the next
+  check-out in the session window records with no event question. End the session as `afterMove` does: keep
+  `session_event`, delete `session_event_at`.
+- A second tab on the same device keeps the record in its own memory and can still push it, or write its row back.
+  Re-read the stored rows before each push, or leave a tombstone the other tab honors.
+- A photo queued for an unsent item or repair that gets deleted stays queued, then the upload gets a 404 and drops it.
+  Hold the record while it has a queued photo, or delete the photo with it.
+
 ## Tidy the desk inventory's filter bar
 
 The desk **Inventory** screen opens with six labelled boxes reading "Any", two checkboxes, two buttons and a row count
