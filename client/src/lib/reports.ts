@@ -226,8 +226,9 @@ export function orderParams({ sort, up }: OutOrder, event = ""): URLSearchParams
 
 /**
  * Reorders flattened rows for the chosen arrangement (FR-RPT-12). Ties break
- * the way whatIsOut already groups them — holder name, longest out first, then
- * item name — and keep that direction whichever way the sort itself points.
+ * by holder name, longest out first, then item name, and keep that direction
+ * whichever way the sort itself points. The Event sort breaks them by item
+ * name first (FR-RPT-20).
  */
 export function sortRows(state: State, rows: OutRow[], { sort, up }: OutOrder): OutRow[] {
   const name = (row: OutRow) => displayName(state, row.item);
@@ -249,12 +250,9 @@ export function sortRows(state: State, rows: OutRow[], { sort, up }: OutOrder): 
   return [...rows].sort((a, b) => {
     const [ak, bk] = [key(a), key(b)];
     const order = typeof ak === "number" && typeof bk === "number" ? ak - bk : compareNames(String(ak), String(bk));
-    return (
-      (up ? order : -order) ||
-      a.holderName.localeCompare(b.holderName) ||
-      b.days - a.days ||
-      name(a).localeCompare(name(b))
-    );
+    const byName = compareNames(name(a), name(b));
+    const byHolder = a.holderName.localeCompare(b.holderName) || b.days - a.days;
+    return (up ? order : -order) || (sort === "reservation" ? byName || byHolder : byHolder || byName);
   });
 }
 
@@ -262,11 +260,13 @@ export interface EventGroup extends OutEvent {
   rows: OutRow[];
 }
 
-/** Rows under a heading per event, in the Event filter's order; gear with no event last (FR-RPT-17, FR-RPT-18). */
-export function byEvent(report: OutReport): EventGroup[] {
-  const rows = outRows(report);
+/** Rows under a heading per event, in the Event filter's order; gear with no event last (FR-RPT-17, FR-RPT-18).
+ * Within an event, rows run by item name (FR-RPT-20). */
+export function byEvent(state: State, report: OutReport): EventGroup[] {
+  const all = outRows(report);
+  const rows = sortRows(state, all, { sort: "reservation", up: true });
   const under = (key: string) => rows.filter((row) => eventNameKey(row.event ?? "") === key);
-  const groups = outEvents(rows).map((e) => ({ ...e, rows: under(e.key) }));
+  const groups = outEvents(all).map((e) => ({ ...e, rows: under(e.key) }));
   const loose = under("");
   return loose.length > 0 ? [...groups, { key: "", name: "No event", rows: loose }] : groups;
 }

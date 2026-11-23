@@ -106,7 +106,7 @@ export function OutTable({ store }: { store: Store }) {
               </tr>
             </thead>
             {grouped ? (
-              byEvent(report).map((g) => (
+              byEvent(state, report).map((g) => (
                 <tbody key={g.key}>
                   <tr>
                     <th scope="rowgroup" colSpan={COLUMNS.length}>

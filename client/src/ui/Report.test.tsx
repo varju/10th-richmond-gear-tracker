@@ -75,7 +75,7 @@ test("out gear opens under a heading per event, case and spacing aside, no event
     "No event",
   ]);
   // The heading says the event, so the row says the holder instead.
-  expect(rows("Spring camp").map((b) => b.textContent)).toEqual(["Tent 1Alice · out 3 days", "AxeCarol · out 3 days"]);
+  expect(rows("Spring camp").map((b) => b.textContent)).toEqual(["AxeCarol · out 3 days", "Tent 1Alice · out 3 days"]);
   expect(rows("No event").map((b) => b.textContent)).toEqual(["StoveAlice · out 3 days"]);
 });
 

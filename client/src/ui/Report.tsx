@@ -123,7 +123,7 @@ export function Report({ store }: { store: Store }) {
             </select>
           </label>
           {byEventOrder({ sort, up }) ? (
-            byEvent(report).map((g) => (
+            byEvent(store.state, report).map((g) => (
               <section key={g.key} aria-label={g.name}>
                 <h2 className="section">{g.name}</h2>
                 <ul className="items">

@@ -106,10 +106,10 @@ test("the table's four columns, and the event-ascending default under a heading 
   expect(screen.getAllByRole("rowheader").map((h) => h.textContent)).toEqual(["Spring camp", "No event"]);
 
   const body = rows().slice(1);
-  // Within an event: holder, then longest out first (a pool has no day count, so it lands last).
-  expect(body.map((r) => cells(r)[0])).toEqual(["Tent 1", "Stove", "Axe", "Bowls"]);
+  // Within an event: by item name (FR-RPT-20).
+  expect(body.map((r) => cells(r)[0])).toEqual(["Tent 1", "Axe", "Bowls", "Stove"]);
   expect(cells(body[0]!)).toEqual(["Tent 1", "Alice", "Spring camp", "5 days"]);
-  expect(cells(body[3]!)).toEqual(["Bowls", "Carol", "", "4 out"]);
+  expect(cells(body[2]!)).toEqual(["Bowls", "Carol", "", "4 out"]);
 });
 
 test("clicking Out opens longest out first, and clicking again turns it around (FR-RPT-12)", async () => {
@@ -182,8 +182,8 @@ test("the event filter keeps a pool's count under that event, and sorting keeps 
       .slice(1)
       .map((r) => [cells(r)[0], cells(r)[3]]),
   ).toEqual([
-    ["Tent 1", "5 days"],
     ["Bowls", "2 out"],
+    ["Tent 1", "5 days"],
   ]);
 
   await user.click(screen.getByRole("button", { name: "Item" }));
