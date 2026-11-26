@@ -2,13 +2,13 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { type Api, ApiError, type AuditFilter, type ServerEvent, Offline } from "../lib/api";
 import { details, entries, EVENT_TYPES } from "../lib/audit";
 import { nameOf } from "../lib/inventory";
-import { navigate } from "../lib/router";
 import type { State } from "../lib/replay";
 import type { Store } from "../lib/store";
 import { localMinute } from "../lib/time";
 import { useStore } from "../useStore";
 import { userName } from "./labels";
 import { Page } from "./Page";
+import { RouteLink } from "./RouteLink";
 
 interface Props {
   store: Store;
@@ -49,9 +49,7 @@ function Row({ state, event, item, summary }: { state: State; event: ServerEvent
               <>
                 <dt>Item</dt>
                 <dd>
-                  <button className="link" type="button" onClick={() => navigate(`/items/${item}`)}>
-                    {nameOf(state, item)}
-                  </button>
+                  <RouteLink to={`/items/${item}`}>{nameOf(state, item)}</RouteLink>
                 </dd>
               </>
             )}
@@ -130,9 +128,7 @@ export function Audit({ store, api, item }: Props) {
       {filter.item && (
         <div className="row">
           <span>Item: {nameOf(store.state, filter.item)}</span>
-          <button className="link" type="button" onClick={() => navigate("/settings/audit")}>
-            Show every item
-          </button>
+          <RouteLink to="/settings/audit">Show every item</RouteLink>
         </div>
       )}
       <div className="row">

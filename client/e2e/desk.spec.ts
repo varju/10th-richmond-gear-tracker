@@ -16,17 +16,17 @@ async function signIn(page: Page) {
 test("the sections stay beside the screen, and home opens on what needs a person", async ({ page }) => {
   await signIn(page);
   const sections = page.getByRole("navigation", { name: "Sections" });
-  await expect(sections.getByRole("button", { name: "All items" })).toBeVisible();
-  await expect(sections.getByRole("button", { name: "Help" })).toBeVisible();
+  await expect(sections.getByRole("link", { name: "All items" })).toBeVisible();
+  await expect(sections.getByRole("link", { name: "Help" })).toBeVisible();
 
   for (const heading of ["Needs attention", "What is out", "Coming up"]) {
     await expect(page.getByRole("heading", { name: heading })).toBeVisible();
   }
 
-  await sections.getByRole("button", { name: "All items" }).click();
+  await sections.getByRole("link", { name: "All items" }).click();
   await expect(page).toHaveURL(/\/items$/);
   // Every screen keeps them.
-  await expect(sections.getByRole("button", { name: "Help" })).toBeVisible();
+  await expect(sections.getByRole("link", { name: "Help" })).toBeVisible();
 });
 
 test("the inventory is a table that sorts, with a generic's units folded under it", async ({ page }) => {
@@ -70,7 +70,7 @@ test("the inventory is a table that sorts, with a generic's units folded under i
 
 test("back from an item returns to where the table was scrolled", async ({ page }) => {
   await signIn(page);
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: "All items" }).click();
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "All items" }).click();
   await expect(page.getByRole("table")).toBeVisible();
   await page.getByRole("button", { name: "Units of Tent, 4-person" }).click();
   await page.evaluate(() => window.scrollTo(0, 400));
@@ -112,4 +112,15 @@ test("an item name in the table is a link: plain click stays, middle-click opens
   await unit.click();
   await expect(page).toHaveURL(/\/items\/./);
   expect(extra).toBe(0);
+});
+
+test("a screen link outside the items table opens in a new page too", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/");
+  const link = page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Events" });
+  const opened = page.context().waitForEvent("page");
+  await link.click({ button: "middle" });
+  const popup = await opened;
+  await expect(popup.getByRole("heading", { level: 1 })).toHaveText("Events");
+  await expect(page.getByRole("heading", { name: "Needs attention" })).toBeVisible();
 });

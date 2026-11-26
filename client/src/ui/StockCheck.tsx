@@ -30,6 +30,7 @@ import { ConfirmButton } from "./ConfirmButton";
 import { LightButton, useLight } from "./Light";
 import { useFlash } from "./MoveActions";
 import { Page } from "./Page";
+import { RouteLink } from "./RouteLink";
 
 const FLASH_MS = 2000;
 const NEW_SHELF = " new";
@@ -325,12 +326,12 @@ function Lists({ store, check, misplaced, notSeen, onSeen }: ListsProps) {
           <ul className="items">
             {misplaced.map((it) => (
               <li key={it.id} className="row">
-                <button className="item" type="button" onClick={() => navigate(`/items/${it.id}`)}>
+                <RouteLink className="item" to={`/items/${it.id}`}>
                   <span className="item-name">{displayName(state, it)}</span>
                   <span className="muted small">
                     {homeLabel(state, it) ? `Home: ${homeLabel(state, it)}` : "No home"}
                   </span>
-                </button>
+                </RouteLink>
                 {movable.includes(it) && (
                   <button
                     className="small"
@@ -368,10 +369,10 @@ function Lists({ store, check, misplaced, notSeen, onSeen }: ListsProps) {
           <ul className="items">
             {notSeen.map((it) => (
               <li key={it.id} className="row">
-                <button className="item" type="button" onClick={() => navigate(`/items/${it.id}`)}>
+                <RouteLink className="item" to={`/items/${it.id}`}>
                   <span className="item-name">{displayName(state, it)}</span>
                   <span className="muted small">{homeLabel(state, it)}</span>
-                </button>
+                </RouteLink>
                 <button
                   className="small"
                   type="button"

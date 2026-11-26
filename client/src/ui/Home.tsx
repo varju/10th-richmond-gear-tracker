@@ -9,6 +9,7 @@ import { ItemList } from "./ItemList";
 import { Page } from "./Page";
 import { datesLabel } from "./Reservations";
 import { Alerts } from "./Sections";
+import { RouteLink } from "./RouteLink";
 
 /**
  * Home at a locker: what someone came to do, and nothing else. Scan is the
@@ -34,26 +35,26 @@ export function Home({ store }: { store: Store }) {
       title="Gear Tracker"
       actions={
         <>
-          <button className="primary tall" type="button" onClick={() => navigate("/scan")}>
+          <RouteLink className="primary tall" to="/scan">
             Scan
-          </button>
+          </RouteLink>
           {packing.length > 0 && (
             <section aria-label="Ready to pack">
               <ul className="items">
                 {packing.map((r) => (
                   <li key={r.id}>
-                    <button className="item" type="button" onClick={() => navigate(`/scan?reservation=${r.id}`)}>
+                    <RouteLink className="item" to={`/scan?reservation=${r.id}`}>
                       <span className="item-name">{r.event}</span>
                       <span className="muted small">{datesLabel(r)}</span>
-                    </button>
+                    </RouteLink>
                   </li>
                 ))}
               </ul>
             </section>
           )}
-          <button type="button" onClick={() => navigate("/items/new")}>
+          <RouteLink className="" to="/items/new">
             New item
-          </button>
+          </RouteLink>
         </>
       }
     >

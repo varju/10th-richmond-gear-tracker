@@ -44,7 +44,7 @@ const withDialog = () =>
     </>,
   );
 
-const actions = () => screen.getByRole("button", { name: "Add QR code" }).closest(".actions")!;
+const actions = () => screen.getByText("Add QR code").closest(".actions")!;
 // History folds its heading into a <summary>; its count makes the name inexact.
 const section = (name: string) => {
   const heading = screen.getByRole("heading", { name: new RegExp(`^${name}(?: ·|$)`) });
@@ -280,7 +280,7 @@ test("a fault reported from the page raises a ticket, which flags the item (FR-R
     payload: { item_id: tent, description: "zipper broken" },
   });
   // The ticket is listed on the item, and opens.
-  await user.click(screen.getByRole("button", { name: /Open · zipper broken/ }));
+  await user.click(screen.getByRole("link", { name: /Open · zipper broken/ }));
   expect(location.pathname).toMatch(/^\/repairs\//);
 });
 
@@ -337,7 +337,7 @@ test("Details counts the item's QR codes (FR-TAG-20)", async () => {
 
 test("Add QR code goes straight to the scanner while the item has none, and asks once it has one (FR-TAG-21)", async () => {
   renderInShell(<ItemPage store={store} id={tent} />);
-  await user.click(screen.getByRole("button", { name: "Add QR code" }));
+  await user.click(screen.getByRole("link", { name: "Add QR code" }));
   expect(location.pathname + location.search).toBe(`/scan?for=${tent}`);
 
   navigate(`/items/${tent}`);
@@ -458,7 +458,7 @@ test("a live reservation naming the item shows under Status, each a link (FR-INV
     generics: [],
   });
   renderInShell(<ItemPage store={store} id={tent} />, () => T0);
-  const line = screen.getByRole("button", { name: "Fall Camp · 2026-10-02 – 2026-10-04" });
+  const line = screen.getByRole("link", { name: "Fall Camp · 2026-10-02 – 2026-10-04" });
   expect(line.closest("dl")).toBe(screen.getByText("Status").closest("dl"));
 
   await user.click(line);
@@ -487,13 +487,13 @@ test("the purchase date shows under Details (FR-INV-12)", async () => {
 test("an Admin opens the item's audit log; a User has no link (FR-USR-09)", async () => {
   renderInShell(<ItemPage store={store} id={tent} />);
   expect(screen.queryByRole("heading", { name: /^Changes/ })).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Open in audit log" }));
+  await user.click(screen.getByRole("link", { name: "Open in audit log" }));
   expect(location.pathname + location.search).toBe(`/settings/audit?item=${tent}`);
 
   cleanup();
   await store.setMeta({ user: { id: "carol", name: "Carol", role: "user", active: true } });
   renderInShell(<ItemPage store={store} id={tent} />);
-  expect(screen.queryByRole("button", { name: "Open in audit log" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Open in audit log" })).not.toBeInTheDocument();
 });
 
 test("an Admin merges a duplicate into the item it doubles, and lands on the survivor (FR-INV-13)", async () => {
@@ -520,7 +520,7 @@ test("a merged item's page points at the survivor and offers nothing else", asyn
   expect(screen.getByRole("note")).toHaveTextContent("Merged into Tent 1");
   expect(screen.queryByRole("button", { name: "Check out" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Tent 1" }));
+  await user.click(screen.getByRole("link", { name: "Tent 1" }));
   expect(location.pathname).toBe(`/items/${tent}`);
 });
 
@@ -535,7 +535,7 @@ test("the survivor names what was merged into it, and a user sees no merge butto
   expect(within(line).queryByRole("button", { name: "Unmerge" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /duplicate record/ })).not.toBeInTheDocument();
 
-  await user.click(within(line).getByRole("button", { name: "Tent 1 (again)" }));
+  await user.click(within(line).getByRole("link", { name: "Tent 1 (again)" }));
   expect(location.pathname).toBe(`/items/${other}`);
 });
 
@@ -975,7 +975,7 @@ test("a move linked to a reservation links to it, and Change event relinks it to
   await mv.checkOut(store, tent, { event: "Fall cmap" });
   const typo = res.reservations(store.state)[0]!;
   renderInShell(<ItemPage store={store} id={tent} />);
-  await user.click(screen.getByRole("button", { name: "Fall cmap" }));
+  await user.click(screen.getByRole("link", { name: "Fall cmap" }));
   expect(location.pathname).toBe(`/events/${typo.id}`);
 
   navigate(`/items/${tent}`);

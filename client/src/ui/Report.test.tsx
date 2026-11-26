@@ -51,7 +51,7 @@ function mount(node: React.ReactNode, daysLater = 0) {
 }
 
 const holder = (name: string) => screen.getByRole("region", { name });
-const rows = (name: string) => within(holder(name)).getAllByRole("button");
+const rows = (name: string) => within(holder(name)).getAllByRole("link");
 
 test("nothing out says so", async () => {
   mount(<Report store={store} />);
@@ -195,7 +195,7 @@ test("switching to time out reorders items across holders, no more grouping (FR-
   expect(screen.queryByRole("region")).not.toBeInTheDocument();
 
   const items = within(screen.getByRole("list"))
-    .getAllByRole("button")
+    .getAllByRole("link")
     .map((b) => b.textContent);
   // Everything went out on the same day, so the tie falls to the holder's name, then the item's.
   expect(items).toEqual([
@@ -219,13 +219,13 @@ test("switching back to event returns to the default, with its headings (FR-RPT-
 test("the reports page links to what is out, and counts it", async () => {
   navigate("/reports");
   const first = mount(<Reports store={store} />);
-  expect(screen.getByRole("button", { name: "What is out" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "What is out" })).toBeInTheDocument();
   first.unmount();
 
   await mv.checkOut(store, tent);
   await mv.checkOut(store, axe);
   mount(<Reports store={store} />);
-  await user.click(screen.getByRole("button", { name: "What is out · 2" }));
+  await user.click(screen.getByRole("link", { name: "What is out · 2" }));
   expect(location.pathname).toBe("/out");
 });
 
@@ -240,7 +240,7 @@ test("a direction the desk's table put in the URL is honoured, not ignored (FR-R
   // Holder descending: one flat list, Carol before Alice. Grouping is the default arrangement only.
   expect(screen.queryByRole("region")).not.toBeInTheDocument();
   const items = within(screen.getByRole("list"))
-    .getAllByRole("button")
+    .getAllByRole("link")
     .map((b) => b.textContent);
   expect(items).toEqual([
     "Axe" + "Carol · out 3 days",

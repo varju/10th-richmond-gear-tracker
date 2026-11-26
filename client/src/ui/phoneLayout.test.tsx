@@ -54,7 +54,7 @@ test("a unit's generic link sits inside the line, not as a full-width button", a
   navigate(`/items/${unit}`);
   renderInShell(<ItemPage store={store} id={unit} />);
 
-  const link = screen.getByRole("button", { name: "Tent, 4-person" });
+  const link = screen.getByRole("link", { name: "Tent, 4-person" });
   expect(link.closest("dd")).toHaveTextContent("Tent, 4-person · #1");
   expect(getComputedStyle(link).width).toBe("auto");
 });

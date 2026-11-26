@@ -78,9 +78,9 @@ test("signing in bootstraps and shows the inventory", async () => {
       "Scan a code to check gear out, return it, or look it up. Search by name for gear with no sticker.",
     ),
   ).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Scan" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Scan" })).toBeInTheDocument();
   await user.type(screen.getByLabelText("Search"), "tent");
-  expect(screen.getByRole("button", { name: /Tent/ })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /Tent/ })).toBeInTheDocument();
   expect(calls).toEqual(["/auth/sign-in", "/auth/sign-in", "/sync/bootstrap"]);
   expect(store.meta.cursor).toBe(2);
 });
@@ -128,7 +128,7 @@ test("signing out keeps the waiting check-outs, and the next person signed in is
   await user.type(await screen.findByLabelText("Email"), "alice@example.org");
   await user.type(screen.getByLabelText("Password"), "pw");
   await user.click(screen.getByRole("button", { name: "Sign in" }));
-  await screen.findByRole("button", { name: "Scan" });
+  await screen.findByRole("link", { name: "Scan" });
   expect(store.meta).toMatchObject({ user: { id: "u1" }, session_waiting: ["m1"], session_waiting_user: "u9" });
   expect(awaitingAnswer(store.meta, T0)).toBe(false);
   expect(sessionEvent(store.meta, T0)).toEqual({ waits: true });
@@ -151,7 +151,7 @@ test("the banner opens the unsent records page", async () => {
   });
   navigate("/");
   mount();
-  await userEvent.setup().click(await screen.findByRole("button", { name: /1 unsent record/ }));
+  await userEvent.setup().click(await screen.findByRole("link", { name: /1 unsent record/ }));
   expect(location.pathname).toBe("/settings/unsent");
   expect(await screen.findByRole("heading", { name: "Unsent records" })).toBeInTheDocument();
 });

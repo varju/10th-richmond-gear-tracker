@@ -5,6 +5,7 @@ import { back, navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { Page } from "./Page";
+import { RouteLink } from "./RouteLink";
 
 /**
  * Where a scan and a sticker's URL both land: /g/<code>. A code on an item
@@ -44,16 +45,16 @@ export function CodeLanding({ store, code }: { store: Store; code: string }) {
         actions={
           <>
             {recentGenerics(state, 1).length > 0 && (
-              <button type="button" onClick={() => navigate(`/another/${code}`, true)}>
+              <RouteLink className="" to={`/another/${code}`} replace>
                 Add a unit of…
-              </button>
+              </RouteLink>
             )}
-            <button type="button" onClick={() => navigate(`/items/new?code=${code}`, true)}>
+            <RouteLink className="" to={`/items/new?code=${code}`} replace>
               Create a new item
-            </button>
-            <button type="button" onClick={() => navigate(`/bind/${code}`, true)}>
+            </RouteLink>
+            <RouteLink className="" to={`/bind/${code}`} replace>
               Put it on an existing item
-            </button>
+            </RouteLink>
             {scanAgain}
           </>
         }

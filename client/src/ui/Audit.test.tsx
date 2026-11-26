@@ -128,7 +128,7 @@ test("an expanded row links to its item", async () => {
     .getAllByRole("term")
     .map((dt) => dt.textContent);
   expect(lines[0]).toBe("Item");
-  await user.click(within(list).getByRole("button", { name: "Tent 1" }));
+  await user.click(within(list).getByRole("link", { name: "Tent 1" }));
   expect(location.pathname).toBe(`/items/${tent}`);
 });
 
@@ -249,7 +249,7 @@ test("opened from an item, it asks for that item, and can let go of it (FR-USR-3
   expect(await screen.findByText("Item: Tent 1")).toBeInTheDocument();
   expect(asked.at(-1)?.get("item")).toBe(tent);
 
-  await user.click(screen.getByRole("button", { name: "Show every item" }));
+  await user.click(screen.getByRole("link", { name: "Show every item" }));
   expect(location.pathname + location.search).toBe("/settings/audit");
 });
 

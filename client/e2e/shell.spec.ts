@@ -7,7 +7,7 @@ async function signIn(page: Page) {
   await page.getByLabel("Email").fill("alice@example.org");
   await page.getByLabel("Password").fill("correct horse");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("button", { name: "Scan" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Scan" })).toBeVisible();
 }
 
 test("installs its shell, then starts offline within budget", async ({ page, context }) => {
@@ -24,10 +24,10 @@ test("installs its shell, then starts offline within budget", async ({ page, con
   await context.setOffline(true);
   const started = Date.now();
   await page.reload();
-  await expect(page.getByRole("button", { name: "Scan" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Scan" })).toBeVisible();
   expect(Date.now() - started).toBeLessThan(3_000);
   await page.getByRole("button", { name: "Menu" }).click();
-  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("link", { name: "Settings" }).click();
   await expect(page.getByText(/^Offline/)).toBeVisible();
 
   await context.setOffline(false);
@@ -47,8 +47,8 @@ test("a wrong password is refused with a reason", async ({ page }) => {
 test("a printed code becomes an item", async ({ browser, page, request }) => {
   await signIn(page);
   await page.getByRole("button", { name: "Menu" }).click();
-  await page.getByRole("button", { name: "Settings" }).click();
-  await page.getByRole("button", { name: "General" }).click();
+  await page.getByRole("link", { name: "Settings" }).click();
+  await page.getByRole("link", { name: "General" }).click();
   await page.getByLabel("Group name").fill("10th Richmond");
   await page.getByLabel("Site address").fill("https://example.org/gear");
   await page.getByLabel("How to reach us").fill("gear@example.org");
@@ -70,7 +70,7 @@ test("a printed code becomes an item", async ({ browser, page, request }) => {
   await page.getByRole("button", { name: "Sync now" }).click();
 
   await page.goto(`/g/${code}`);
-  await page.getByRole("button", { name: "Create a new item" }).click();
+  await page.getByRole("link", { name: "Create a new item" }).click();
   await expect(page.getByText("This QR code will go on this item.")).toBeVisible();
   await page.getByLabel("Name").fill("Tent 1");
   await page.getByLabel("Home location").selectOption({ label: "Cold locker" });
@@ -80,7 +80,7 @@ test("a printed code becomes an item", async ({ browser, page, request }) => {
 
   await page.goto("/");
   await page.getByLabel("Search").fill("tent");
-  await page.getByRole("button", { name: /Tent 1/ }).click();
+  await page.getByRole("link", { name: /Tent 1/ }).click();
   await expect(page.getByText("Cold locker / shelf 4")).toBeVisible();
   // The code sits in the Details fold, closed until asked for.
   await page.getByText("Details", { exact: true }).click();
@@ -112,13 +112,13 @@ test("an item can be checked out and in from its page", async ({ page }) => {
 
   // The list is behind the menu.
   await page.getByRole("button", { name: "Menu" }).click();
-  await page.getByRole("button", { name: "All items" }).click();
+  await page.getByRole("link", { name: "All items" }).click();
   await expect(page).toHaveURL(/\/items$/);
   await expect(page.getByText("Filters")).toBeVisible();
   await page.getByRole("button", { name: "Back" }).click();
 
   await page.getByLabel("Search").fill("Tent 1");
-  await page.getByRole("button", { name: /Tent 1/ }).click();
+  await page.getByRole("link", { name: /Tent 1/ }).click();
   await expect(page.getByRole("heading", { name: "Tent 1" })).toBeVisible();
 
   await page.getByRole("button", { name: "Check out" }).click();

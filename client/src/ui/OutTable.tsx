@@ -23,6 +23,7 @@ import { useStore } from "../useStore";
 import { plural } from "./labels";
 import { Page } from "./Page";
 import { daysLabel, EventFilter } from "./Report";
+import { RouteLink } from "./RouteLink";
 
 const COLUMNS: { key: OutSort; label: string }[] = [
   { key: "item", label: "Item" },
@@ -35,9 +36,7 @@ function Row({ store, row }: { store: Store; row: OutRow }) {
   return (
     <tr>
       <td>
-        <button className="link" type="button" onClick={() => navigate(`/items/${row.item.id}`)}>
-          {displayName(store.state, row.item)}
-        </button>
+        <RouteLink to={`/items/${row.item.id}`}>{displayName(store.state, row.item)}</RouteLink>
         {row.overdue && <span className="badge overdue">Overdue</span>}
       </td>
       <td>{row.holderName}</td>

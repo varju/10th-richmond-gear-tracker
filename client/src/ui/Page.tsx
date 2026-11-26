@@ -1,10 +1,11 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { flushSync } from "react-dom";
 import { useWide } from "../lib/wide";
-import { guard, leave, leaveBack } from "../lib/unsaved";
+import { guard, leaveBack } from "../lib/unsaved";
 import { navigate, useRoute } from "../lib/router";
 import { useShell } from "../shell";
 import { Sections } from "./Sections";
+import { RouteLink } from "./RouteLink";
 
 interface Props {
   title: string;
@@ -45,9 +46,9 @@ export function Page({ title, back, children, actions }: Props) {
     <>
       <header>
         {menu && route.path !== "/" && (
-          <button className="home" type="button" onClick={() => leave("/")} aria-label="Home">
+          <RouteLink className="home" to="/" aria-label="Home">
             ⌂
-          </button>
+          </RouteLink>
         )}
         {back !== undefined && (
           <button className="back" type="button" onClick={() => leaveBack(back)} aria-label="Back">
@@ -56,9 +57,9 @@ export function Page({ title, back, children, actions }: Props) {
         )}
         {store ? (
           <h1>
-            <button className="title" type="button" onClick={() => leave("/")}>
+            <RouteLink className="title" to="/">
               {title}
-            </button>
+            </RouteLink>
           </h1>
         ) : (
           <h1>{title}</h1>

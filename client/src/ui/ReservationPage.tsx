@@ -26,7 +26,7 @@ import {
   todayIso,
 } from "../lib/reservations";
 import type { State } from "../lib/replay";
-import { entryState, navigate, setEntryState } from "../lib/router";
+import { entryState, setEntryState } from "../lib/router";
 import type { Store } from "../lib/store";
 import { localMinute } from "../lib/time";
 import { useWide } from "../lib/wide";
@@ -37,6 +37,7 @@ import { Switch } from "./Switch";
 import { statusLabel, userName } from "./labels";
 import { Page } from "./Page";
 import { datesLabel } from "./Reservations";
+import { RouteLink } from "./RouteLink";
 
 const MODES = [
   { value: "packing", label: "Packing" },
@@ -102,9 +103,9 @@ function PoolCheckout({ store, r, itemId, max }: { store: Store; r: Reservation;
           <p className="error" role="alert">
             {error}
           </p>
-          <button className="small" type="button" onClick={() => navigate(`/items/${itemId}`)}>
+          <RouteLink className="small" to={`/items/${itemId}`}>
             Recount
-          </button>
+          </RouteLink>
         </>
       )}
     </>
@@ -232,11 +233,6 @@ export function ReservationPage({
   const twoCol = wide && others.length > 0;
   const listed = r.items.length > 0 || r.generics.length > 0;
 
-  /** Packing takes the event and the reservation from the reservation itself; nobody types it again (FR-RES-03). */
-  function checkOut() {
-    navigate(`/scan?reservation=${id}`);
-  }
-
   /**
    * It went out before the plan did (FR-RES-17, S-RES-07). One tap corrects the
    * movement's event and puts the item on the list. Nothing moves.
@@ -296,14 +292,14 @@ export function ReservationPage({
             return (
               <Fragment key={itemId}>
                 <li className={claim ? "with-action" : undefined}>
-                  <button className="item" type="button" onClick={() => navigate(`/items/${itemId}`)}>
+                  <RouteLink className="item" to={`/items/${itemId}`}>
                     <span className="item-name">{nameOf(state, itemId)}</span>
                     {it && (
                       <span className="muted small">
                         {[packMark(itemId), homeLabel(state, it), statusLabel(state, it)].filter(Boolean).join(" · ")}
                       </span>
                     )}
-                  </button>
+                  </RouteLink>
                   {claim && (
                     <button
                       className="small"
@@ -339,12 +335,12 @@ export function ReservationPage({
             return (
               <Fragment key={g.generic.id}>
                 <li className="row">
-                  <button className="item" type="button" onClick={() => navigate(`/items/${g.generic.id}`)}>
+                  <RouteLink className="item" to={`/items/${g.generic.id}`}>
                     <span className="item-name">
                       {g.quantity} × {nameOf(state, g.generic.id)}
                     </span>
                     {detail && <span className="muted small">{detail}</span>}
-                  </button>
+                  </RouteLink>
                   {pool && !r.cancelled && !over && !returning && g.done < g.quantity && !g.generic.retired && (
                     <PoolCheckout store={store} r={r} itemId={g.generic.id} max={g.quantity - g.done} />
                   )}
@@ -406,18 +402,19 @@ export function ReservationPage({
       back="/events"
       actions={
         <>
+          {/* Packing takes the event from the reservation; nobody types it again (FR-RES-03). */}
           {!r.cancelled && (
-            <button className="primary" type="button" onClick={checkOut}>
+            <RouteLink className="primary" to={`/scan?reservation=${id}`}>
               Check out
-            </button>
+            </RouteLink>
           )}
           <div className="row">
-            <button type="button" onClick={() => navigate(`/events/${id}/edit`)}>
+            <RouteLink className="" to={`/events/${id}/edit`}>
               Edit
-            </button>
-            <button type="button" onClick={() => navigate(`/events/new?from=${id}`)}>
+            </RouteLink>
+            <RouteLink className="" to={`/events/new?from=${id}`}>
               Duplicate
-            </button>
+            </RouteLink>
           </div>
           {!r.cancelled && <ConfirmButton label="Cancel event" confirmLabel="Really cancel?" onConfirm={cancel} />}
         </>

@@ -30,6 +30,7 @@ import { MOVED_MS, MoveActions, movedText, useFlash } from "./MoveActions";
 import { LightButton, useLight } from "./Light";
 import { Page } from "./Page";
 import { WeighActions } from "./Weighing";
+import { RouteLink } from "./RouteLink";
 
 const FLASH_MS = 2000;
 /** The press that opens the diagnostics line. */
@@ -327,12 +328,12 @@ function CardButtons({ id, onSkip }: { id: string; onSkip: () => void }) {
   return (
     <>
       <div className="row">
-        <button type="button" onClick={() => guard(() => navigate(`/items/${id}`))}>
+        <RouteLink className="" to={`/items/${id}`}>
           Open item
-        </button>
-        <button type="button" onClick={() => guard(() => navigate(`/items/${id}?edit=1`))}>
+        </RouteLink>
+        <RouteLink className="" to={`/items/${id}?edit=1`}>
           Edit
-        </button>
+        </RouteLink>
       </div>
       <button type="button" onClick={() => guard(onSkip)}>
         Skip

@@ -3,15 +3,14 @@ import { type OpenConflict, openConflicts, reviewConflict } from "../lib/conflic
 import { displayName } from "../lib/inventory";
 import { checkIn } from "../lib/movement";
 import type { Movement, State } from "../lib/replay";
-import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { localMinute } from "../lib/time";
-import { guard } from "../lib/unsaved";
 import { keepLabel, weighing } from "../lib/weighing";
 import { useStore } from "../useStore";
 import { userName } from "./labels";
 import { Page } from "./Page";
 import { WeighEntry, weighHint } from "./Weighing";
+import { RouteLink } from "./RouteLink";
 
 /** Two check-outs the machine would not choose between, for a person to settle (FR-OFF-10). */
 export function Conflicts({ store }: { store: Store }) {
@@ -66,9 +65,7 @@ function ConflictCard({ store, conflict }: { store: Store; conflict: OpenConflic
 
   return (
     <section className="conflict" aria-label={displayName(state, it)}>
-      <button className="link" type="button" onClick={() => guard(() => navigate(`/items/${it.id}`))}>
-        {displayName(state, it)}
-      </button>
+      <RouteLink to={`/items/${it.id}`}>{displayName(state, it)}</RouteLink>
       <ol className="versions">
         <li>{describeVersion(state, earlier)}</li>
         <li>{describeVersion(state, later)}</li>

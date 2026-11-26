@@ -86,16 +86,16 @@ test("a report on an item since deleted says so", async () => {
 test("the item's name opens the item", async () => {
   await store.receive([reported("01000000000000000000000001", "by the gate", tent)], 1);
   render(<Found store={store} />);
-  await user.click(screen.getByRole("button", { name: "Tent 1" }));
+  await user.click(screen.getByRole("link", { name: "Tent 1" }));
   expect(location.pathname).toBe(`/items/${tent}`);
 });
 
 test("the home screen counts unresolved reports and links to them", async () => {
   navigate("/");
   render(<Home store={store} />);
-  expect(screen.queryByRole("button", { name: /Found gear/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /Found gear/ })).not.toBeInTheDocument();
 
   await store.receive([reported("01000000000000000000000001", "by the gate", tent)], 1);
-  await user.click(await screen.findByRole("button", { name: "Found gear · 1" }));
+  await user.click(await screen.findByRole("link", { name: "Found gear · 1" }));
   expect(location.pathname).toBe("/found");
 });

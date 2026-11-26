@@ -23,6 +23,7 @@ import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { plural } from "./labels";
 import { Page } from "./Page";
+import { RouteLink } from "./RouteLink";
 
 /** "today", "1 day", "40 days". */
 export function daysLabel(days: number): string {
@@ -47,13 +48,13 @@ function detail(row: OutRow, show: Show): string {
 function OutRowItem({ store, row, show }: { store: Store; row: OutRow; show: Show }) {
   return (
     <li>
-      <button className="item" type="button" onClick={() => navigate(`/items/${row.item.id}`)}>
+      <RouteLink className="item" to={`/items/${row.item.id}`}>
         <span>
           <span className="item-name">{displayName(store.state, row.item)}</span>
           {row.overdue && <span className="badge overdue">Overdue</span>}
         </span>
         <span className="muted small">{detail(row, show)}</span>
-      </button>
+      </RouteLink>
     </li>
   );
 }

@@ -91,14 +91,14 @@ test("Keep records the review and leaves the holder as they are", async () => {
 test("the home screen counts open conflicts and the item page points at the screen", async () => {
   navigate("/");
   renderInShell(<Home store={store} />);
-  await user.click(screen.getByRole("button", { name: "Conflicts · 1" }));
+  await user.click(screen.getByRole("link", { name: "Conflicts · 1" }));
   expect(location.pathname).toBe("/conflicts");
 
   navigate(`/items/${tent}`);
   renderInShell(<ItemPage store={store} id={tent} />);
   const notice = screen.getByRole("note");
   expect(notice).toHaveTextContent("Two check-outs overlapped.");
-  await user.click(within(notice).getByRole("button", { name: "Review" }));
+  await user.click(within(notice).getByRole("link", { name: "Review" }));
   expect(location.pathname).toBe("/conflicts");
 });
 

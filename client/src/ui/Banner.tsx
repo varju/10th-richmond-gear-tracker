@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import type { StoredEvent } from "../lib/store";
-import { leave } from "../lib/unsaved";
 import type { SyncOutcome } from "../lib/sync";
 import { plural } from "./labels";
+import { RouteLink } from "./RouteLink";
 
 /** A record this young is on its way; showing it as unsent would flash on every save. */
 export const GRACE_MS = 5_000;
@@ -39,13 +39,7 @@ export function Banner({ pending, busy, outcome, now, linked = true }: Props) {
   const text = `${plural(pending.length, "unsent record")}${why && ` · ${why}`}`;
   return (
     <div className="banner" role="status">
-      {linked ? (
-        <button className="link" type="button" onClick={() => leave("/settings/unsent")}>
-          {text}
-        </button>
-      ) : (
-        text
-      )}
+      {linked ? <RouteLink to="/settings/unsent">{text}</RouteLink> : text}
     </div>
   );
 }

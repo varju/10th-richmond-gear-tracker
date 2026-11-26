@@ -45,7 +45,7 @@ const user = userEvent.setup();
 const region = (name: string) => screen.getByRole("region", { name });
 const rows = (name: string) =>
   within(region(name))
-    .queryAllByRole("button")
+    .queryAllByRole("link")
     .filter((b) => b.classList.contains("item"))
     .map((b) => b.textContent);
 
@@ -235,7 +235,7 @@ test("All belong here leaves out gear a person keeps; its own button still works
   await user.click(screen.getByRole("button", { name: "All belong here" }));
   await user.click(screen.getByRole("button", { name: "Really move 2 homes here?" }));
   await waitFor(() => expect(rows("Misplaced here")).toHaveLength(1));
-  expect(screen.queryByRole("button", { name: "All belong here" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "All belong here" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Belongs here: Axe" }));
   await waitFor(() => expect(item(store.state, mine)).toMatchObject({ home_user_id: null, sub_location: "shelf 4" }));
 });

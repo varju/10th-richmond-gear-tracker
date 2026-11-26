@@ -365,7 +365,7 @@ test("a pool's container can carry a code, on the pool page's Details (FR-TAG-15
 
   await user.click(screen.getByText("Details"));
   expect(fact("QR codes")).toBe("None");
-  expect(screen.getByRole("button", { name: "Add QR code" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Add QR code" })).toBeInTheDocument();
 
   await printCodes(store, ["ABCDEFGH23"]);
   await act.bindCode(store, "ABCDEFGH23", bowls);

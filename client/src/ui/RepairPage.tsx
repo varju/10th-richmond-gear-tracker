@@ -2,16 +2,16 @@ import { useState } from "react";
 import { nameOf } from "../lib/inventory";
 import { REPAIR_STATES, canDelete, deleteTicket, repair, setRepairState, stateLabel } from "../lib/repairs";
 import type { Note } from "../lib/replay";
-import { back, navigate } from "../lib/router";
+import { back } from "../lib/router";
 import type { Store } from "../lib/store";
 import { localMinute } from "../lib/time";
-import { guard } from "../lib/unsaved";
 import { useStore } from "../useStore";
 import { ConfirmButton } from "./ConfirmButton";
 import { userName } from "./labels";
 import { AddNote, NoteList } from "./Notes";
 import { Page } from "./Page";
 import { Photos } from "./Photos";
+import { RouteLink } from "./RouteLink";
 
 interface Props {
   store: Store;
@@ -73,9 +73,7 @@ export function RepairPage({ store, id }: Props) {
         </>
       }
     >
-      <button className="link" type="button" onClick={() => guard(() => navigate(`/items/${ticket.item_id}`))}>
-        {nameOf(store.state, ticket.item_id)}
-      </button>
+      <RouteLink to={`/items/${ticket.item_id}`}>{nameOf(store.state, ticket.item_id)}</RouteLink>
       <p className="repair-state">{stateLabel(ticket.state)}</p>
       <p className="prose">{ticket.description}</p>
       <p className="muted small">{raisedBy}</p>

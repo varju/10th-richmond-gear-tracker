@@ -42,7 +42,7 @@ test("the main screens have no WCAG 2.2 AA violations", async ({ page }) => {
   else await expect(page.getByLabel("Search", { exact: true })).toBeVisible();
   await audit(page, "inventory");
 
-  await page.getByRole("button", { name: "New item" }).click();
+  await page.getByRole("link", { name: "New item" }).click();
   await expect(page.getByLabel("Name")).toBeVisible();
   await audit(page, "new item");
   await page.getByLabel("Name").fill("Audit tent");

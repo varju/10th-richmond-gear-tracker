@@ -260,8 +260,8 @@ test("a retired item cannot be moved from the card", async () => {
   await camera.scan("AAAAAAAAAA");
   expect(card()).toHaveTextContent("Retired. Cannot be checked out.");
   expect(within(card()).queryByRole("button", { name: "Check out" })).not.toBeInTheDocument();
-  expect(within(card()).getByRole("button", { name: "Open item" })).toBeInTheDocument();
-  expect(within(card()).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+  expect(within(card()).getByRole("link", { name: "Open item" })).toBeInTheDocument();
+  expect(within(card()).getByRole("link", { name: "Edit" })).toBeInTheDocument();
 });
 
 test("Skip dismisses the card; Edit opens the item's form", async () => {
@@ -274,7 +274,7 @@ test("Skip dismisses the card; Edit opens the item's form", async () => {
   await camera.scan("AAAAAAAAAA");
   // Skip does not silence the item: the same code opens the card again.
   expect(within(card()).getByRole("heading")).toHaveTextContent("Tent 1");
-  await user.click(within(card()).getByRole("button", { name: "Edit" }));
+  await user.click(within(card()).getByRole("link", { name: "Edit" }));
   expect(location.pathname + location.search).toBe(`/items/${tent}?edit=1`);
 });
 

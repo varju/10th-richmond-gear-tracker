@@ -5,7 +5,6 @@ import { displayName } from "../lib/inventory";
 import { openTickets } from "../lib/repairs";
 import { outFor, rowKey, whatIsOut } from "../lib/reports";
 import { todayIso, upcoming } from "../lib/reservations";
-import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
@@ -13,6 +12,7 @@ import { plural } from "./labels";
 import { Page } from "./Page";
 import { daysLabel } from "./Report";
 import { countLabel, datesLabel } from "./Reservations";
+import { RouteLink } from "./RouteLink";
 
 /** How far ahead "coming up" looks. A camp further off than this is planning, not packing. */
 const AHEAD_DAYS = 28;
@@ -59,9 +59,7 @@ export function Desk({ store }: { store: Store }) {
         <ul className="attention" aria-label="Needs attention">
           {attention.map((row) => (
             <li key={row.path}>
-              <button className="link" type="button" onClick={() => navigate(row.path)}>
-                {row.label}
-              </button>
+              <RouteLink to={row.path}>{row.label}</RouteLink>
             </li>
           ))}
         </ul>
@@ -89,9 +87,7 @@ export function Desk({ store }: { store: Store }) {
                 holder.items.map((entry) => (
                   <tr key={rowKey({ ...entry, holderId: holder.id, holderName: holder.name })}>
                     <td>
-                      <button className="link" type="button" onClick={() => navigate(`/items/${entry.item.id}`)}>
-                        {displayName(state, entry.item)}
-                      </button>
+                      <RouteLink to={`/items/${entry.item.id}`}>{displayName(state, entry.item)}</RouteLink>
                       {entry.overdue && <span className="badge overdue">Overdue</span>}
                     </td>
                     <td>{holder.name}</td>
@@ -112,12 +108,12 @@ export function Desk({ store }: { store: Store }) {
         <ul className="items">
           {soon.map((r) => (
             <li key={r.id}>
-              <button className="item" type="button" onClick={() => navigate(`/events/${r.id}`)}>
+              <RouteLink className="item" to={`/events/${r.id}`}>
                 <span className="item-name">{r.event}</span>
                 <span className="muted small">
                   {datesLabel(r)} · {countLabel(r)}
                 </span>
-              </button>
+              </RouteLink>
             </li>
           ))}
         </ul>

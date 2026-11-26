@@ -103,7 +103,7 @@ async function signIn(page: Page) {
   await page.getByLabel("Email").fill("alice@example.org");
   await page.getByLabel("Password").fill("correct horse");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("button", { name: "Scan" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Scan" })).toBeVisible();
 }
 
 test("a scanned sticker checks its item out and back in", async ({ request }) => {
@@ -143,7 +143,7 @@ test("a scanned sticker checks its item out and back in", async ({ request }) =>
     // Both movements are on the item.
     await page.goto("/");
     await page.getByLabel("Search").fill(ITEM);
-    await page.getByRole("button", { name: new RegExp(ITEM) }).click();
+    await page.getByRole("link", { name: new RegExp(ITEM) }).click();
     await expect(page.getByRole("heading", { name: ITEM })).toBeVisible();
     // History is folded until asked for.
     await page.getByText(/^History · /).click();

@@ -1,11 +1,11 @@
 import type { Shell } from "../shell";
 import { useAppVersion } from "../lib/appVersion";
-import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { plural, syncLabel } from "./labels";
 import { Page } from "./Page";
 import { useStore } from "../useStore";
 import { PrivacyLink } from "./PrivacyLink";
+import { RouteLink } from "./RouteLink";
 
 interface Props {
   store: Store;
@@ -32,54 +32,26 @@ export function Settings({ store, shell }: Props) {
       <nav className="links" aria-label="Settings">
         {store.admin && (
           <>
-            <button className="link" type="button" onClick={() => navigate("/settings/group")}>
-              General
-            </button>
-            <button className="link" type="button" onClick={() => navigate("/settings/mail")}>
-              Mail
-            </button>
-            <button className="link" type="button" onClick={() => navigate("/settings/calendars")}>
-              Calendars
-            </button>
-            <button className="link" type="button" onClick={() => navigate("/settings/locations")}>
-              Locations
-            </button>
-            <button className="link" type="button" onClick={() => navigate("/settings/categories")}>
-              Categories
-            </button>
-            <button className="link" type="button" onClick={() => navigate("/settings/codes")}>
-              Print QR codes
-            </button>
-            <button className="link" type="button" onClick={() => navigate("/settings/csv")}>
-              Export and import
-            </button>
-            <button className="link" type="button" onClick={() => navigate("/settings/audit")}>
-              Audit log
-            </button>
+            <RouteLink to="/settings/group">General</RouteLink>
+            <RouteLink to="/settings/mail">Mail</RouteLink>
+            <RouteLink to="/settings/calendars">Calendars</RouteLink>
+            <RouteLink to="/settings/locations">Locations</RouteLink>
+            <RouteLink to="/settings/categories">Categories</RouteLink>
+            <RouteLink to="/settings/codes">Print QR codes</RouteLink>
+            <RouteLink to="/settings/csv">Export and import</RouteLink>
+            <RouteLink to="/settings/audit">Audit log</RouteLink>
           </>
         )}
         {store.pending.length > 0 && (
-          <button className="link" type="button" onClick={() => navigate("/settings/unsent")}>
-            {plural(store.pending.length, "unsent record")}
-          </button>
+          <RouteLink to="/settings/unsent">{plural(store.pending.length, "unsent record")}</RouteLink>
         )}
         {store.rejected.length > 0 && (
-          <button className="link" type="button" onClick={() => navigate("/settings/refused")}>
-            {plural(store.rejected.length, "record")} the server refused
-          </button>
+          <RouteLink to="/settings/refused">{plural(store.rejected.length, "record")} the server refused</RouteLink>
         )}
-        <button className="link" type="button" onClick={() => navigate("/settings/devices")}>
-          Your devices
-        </button>
-        <button className="link" type="button" onClick={() => navigate("/settings/notifications")}>
-          Notifications
-        </button>
-        <button className="link" type="button" onClick={() => navigate("/settings/assistant")}>
-          AI assistant
-        </button>
-        <button className="link" type="button" onClick={() => navigate("/settings/account")}>
-          Delete my account
-        </button>
+        <RouteLink to="/settings/devices">Your devices</RouteLink>
+        <RouteLink to="/settings/notifications">Notifications</RouteLink>
+        <RouteLink to="/settings/assistant">AI assistant</RouteLink>
+        <RouteLink to="/settings/account">Delete my account</RouteLink>
       </nav>
       <PrivacyLink />
       <p className="muted small">

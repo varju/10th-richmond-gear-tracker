@@ -1,11 +1,11 @@
 import { type FoundReport, foundReports, resolveFound } from "../lib/found";
 import { displayName, item } from "../lib/inventory";
-import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { localDate } from "../lib/time";
 import { useStore } from "../useStore";
 import { Contact } from "./Contact";
 import { Page } from "./Page";
+import { RouteLink } from "./RouteLink";
 
 /** What strangers have told us, until someone marks each one dealt with (FR-PUB-03). */
 export function Found({ store }: { store: Store }) {
@@ -31,13 +31,7 @@ function ReportBlock({ store, report }: { store: Store; report: FoundReport }) {
       : "Deleted item";
   return (
     <section className="found" aria-label={name}>
-      <button
-        className="link"
-        type="button"
-        onClick={() => navigate(report.item_id ? `/items/${report.item_id}` : `/g/${report.code}`)}
-      >
-        {name}
-      </button>
+      <RouteLink to={report.item_id ? `/items/${report.item_id}` : `/g/${report.code}`}>{name}</RouteLink>
       <p className="prose">{report.note}</p>
       {report.contact && (
         <p>

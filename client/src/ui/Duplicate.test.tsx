@@ -47,7 +47,7 @@ test("an item page offers Duplicate, which opens a copy of its details", async (
   const id = await tent();
   navigate(`/items/${id}`);
   renderInShell(<ItemPage store={store} id={id} />);
-  await user.click(screen.getByRole("button", { name: "Duplicate…" }));
+  await user.click(screen.getByRole("link", { name: "Duplicate…" }));
   expect(location.pathname + location.search).toBe(`/items/new?from=${id}`);
 });
 
@@ -85,7 +85,7 @@ test("a unit has no Duplicate", async () => {
   const generic = await act.createGeneric(store, { name: "Cot" });
   const unit = await act.createUnit(store, { parent_id: generic, number: "1" });
   renderInShell(<ItemPage store={store} id={unit} />);
-  expect(screen.queryByRole("button", { name: "Duplicate…" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Duplicate…" })).not.toBeInTheDocument();
 });
 
 test("a generic copies as a generic with no units", async () => {
@@ -119,7 +119,7 @@ test("a generic's page and a pool's page offer Duplicate too", async () => {
   for (const id of [generic, bowls]) {
     navigate(`/items/${id}`);
     renderInShell(<ItemPage store={store} id={id} />);
-    await user.click(screen.getByRole("button", { name: "Duplicate…" }));
+    await user.click(screen.getByRole("link", { name: "Duplicate…" }));
     expect(location.pathname + location.search).toBe(`/items/new?from=${id}`);
     cleanup();
   }

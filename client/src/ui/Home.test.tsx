@@ -45,7 +45,7 @@ test("lists reservations under way or starting within seven days, ordered by sta
 
   mount();
   const ready = screen.getByRole("region", { name: "Ready to pack" });
-  const rows = within(ready).getAllByRole("button");
+  const rows = within(ready).getAllByRole("link");
   expect(rows.map((b) => b.textContent)).toEqual([
     `Fall Camp${in_(0)} – ${in_(2)}`,
     `Weekend Camp${in_(5)} – ${in_(6)}`,
@@ -54,7 +54,7 @@ test("lists reservations under way or starting within seven days, ordered by sta
   expect(screen.queryByText("Old Camp")).not.toBeInTheDocument();
   expect(screen.queryByText("Called Off")).not.toBeInTheDocument();
 
-  await userEvent.setup().click(within(ready).getByRole("button", { name: /Fall Camp/ }));
+  await userEvent.setup().click(within(ready).getByRole("link", { name: /Fall Camp/ }));
   expect(location.pathname + location.search).toBe(`/scan?reservation=${underWay}`);
 });
 

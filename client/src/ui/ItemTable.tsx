@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   byCategory,
   categories,
@@ -13,14 +13,14 @@ import {
 } from "../lib/inventory";
 import { filterParams, readFilter, withQuery } from "../lib/listUrl";
 import { openRepairs } from "../lib/repairs";
-import { hrefOf, navigate, restoringScroll, useRoute } from "../lib/router";
-import { NATIVE } from "../lib/server";
+import { navigate, restoringScroll, useRoute } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useStore } from "../useStore";
 import { FilterFields } from "./Filters";
 import { useFolds } from "./folds";
 import { countsLabel, leftNote, plural, statusLabel } from "./labels";
 import { Page } from "./Page";
+import { RouteLink } from "./RouteLink";
 
 type Key = "name" | "category" | "home" | "status" | "flags";
 
@@ -86,29 +86,6 @@ function sortKey(store: Store, row: Row, key: Key): string {
     case "flags":
       return rowFlags(store, row).join(" ");
   }
-}
-
-export function ItemLink({ id, children, native = NATIVE }: { id: string; children: ReactNode; native?: boolean }) {
-  if (native) {
-    return (
-      <button className="link" type="button" onClick={() => navigate(`/items/${id}`)}>
-        {children}
-      </button>
-    );
-  }
-  return (
-    <a
-      className="link"
-      href={hrefOf(`/items/${id}`)}
-      onClick={(e) => {
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-        e.preventDefault();
-        navigate(`/items/${id}`);
-      }}
-    >
-      {children}
-    </a>
-  );
 }
 
 /**
@@ -203,13 +180,13 @@ export function ItemTable({ store }: { store: Store }) {
           </label>
         )}
         <div className="table-actions">
-          <button className="primary" type="button" onClick={() => navigate("/items/new")}>
+          <RouteLink className="primary" to="/items/new">
             New item
-          </button>
+          </RouteLink>
           {camera && (
-            <button type="button" onClick={() => navigate("/scan")}>
+            <RouteLink className="" to="/scan">
               Scan
-            </button>
+            </RouteLink>
           )}
         </div>
       </div>
@@ -309,7 +286,7 @@ function ItemRows({ store, row, showCategory, open, onToggle }: RowProps) {
                 onToggle={(all) => onToggle(row.item.id, open, all)}
               />
             )}
-            <ItemLink id={row.item.id}>{row.name}</ItemLink>
+            <RouteLink to={`/items/${row.item.id}`}>{row.name}</RouteLink>
           </div>
         </td>
         <td>{homeLabel(state, row.item)}</td>
@@ -328,7 +305,7 @@ function ItemRows({ store, row, showCategory, open, onToggle }: RowProps) {
         row.units.map((unit) => (
           <tr key={unit.id} className="unit">
             <td>
-              <ItemLink id={unit.id}>{displayName(state, unit)}</ItemLink>
+              <RouteLink to={`/items/${unit.id}`}>{displayName(state, unit)}</RouteLink>
             </td>
             <td>{homeLabel(state, unit)}</td>
             <td>{withLeft(store, unit)}</td>

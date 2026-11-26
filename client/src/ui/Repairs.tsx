@@ -3,13 +3,13 @@ import { DAY_MS } from "../lib/clock";
 import { nameOf } from "../lib/inventory";
 import { useTypeRecord } from "../lib/record";
 import { openTickets, type Repair, repairHistory, stateLabel } from "../lib/repairs";
-import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { localDate, localMinute } from "../lib/time";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
 import { plural, userName } from "./labels";
 import { Page } from "./Page";
+import { RouteLink } from "./RouteLink";
 
 /** What still needs fixing: every open or in-progress ticket, newest first (FR-REP-05). Then the history (FR-RPT-02). */
 export function Repairs({ store }: { store: Store }) {
@@ -35,10 +35,10 @@ function TicketList({ store, tickets, detail }: { store: Store; tickets: Repair[
     <ul className="items">
       {tickets.map((r) => (
         <li key={r.id}>
-          <button className="item" type="button" onClick={() => navigate(`/repairs/${r.id}`)}>
+          <RouteLink className="item" to={`/repairs/${r.id}`}>
             <span className="item-name">{nameOf(store.state, r.item_id)}</span>
             <span className="muted small">{detail(r)}</span>
-          </button>
+          </RouteLink>
         </li>
       ))}
     </ul>

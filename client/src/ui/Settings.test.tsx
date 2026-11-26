@@ -33,7 +33,7 @@ const mount = (over: Partial<typeof shell> = {}) => render(<Settings store={stor
 
 test("an Admin sees every section, in order", () => {
   mount();
-  const links = within(screen.getByRole("navigation", { name: "Settings" })).getAllByRole("button");
+  const links = within(screen.getByRole("navigation", { name: "Settings" })).getAllByRole("link");
   expect(links.map((b) => b.textContent)).toEqual([
     "General",
     "Mail",
@@ -52,25 +52,25 @@ test("an Admin sees every section, in order", () => {
 
 test("the unsent link shows only while something is pending", async () => {
   mount();
-  expect(screen.queryByRole("button", { name: /unsent record/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /unsent record/ })).not.toBeInTheDocument();
   cleanup();
 
   await act.createItem(store, { name: "Tent 1" });
   mount();
-  await userEvent.setup().click(screen.getByRole("button", { name: "1 unsent record" }));
+  await userEvent.setup().click(screen.getByRole("link", { name: "1 unsent record" }));
   expect(location.pathname).toBe("/settings/unsent");
 });
 
 test("a link opens its own page", async () => {
   mount();
-  await userEvent.setup().click(screen.getByRole("button", { name: "General" }));
+  await userEvent.setup().click(screen.getByRole("link", { name: "General" }));
   expect(location.pathname).toBe("/settings/group");
 });
 
 test("a User has no admin sections, only their own", async () => {
   await store.setMeta({ user: { id: "bea", name: "Bea", role: "user", active: true } });
   mount();
-  const links = within(screen.getByRole("navigation", { name: "Settings" })).getAllByRole("button");
+  const links = within(screen.getByRole("navigation", { name: "Settings" })).getAllByRole("link");
   expect(links.map((b) => b.textContent)).toEqual([
     "Your devices",
     "Notifications",
@@ -90,12 +90,12 @@ test("a refused record shows a count above Your devices, and opens the list", as
   await store.pushed([], [{ id: event.id, reason: "not today" }]);
   mount();
 
-  const links = within(screen.getByRole("navigation", { name: "Settings" })).getAllByRole("button");
+  const links = within(screen.getByRole("navigation", { name: "Settings" })).getAllByRole("link");
   const names = links.map((b) => b.textContent);
   expect(names).toContain("1 record the server refused");
   expect(names.indexOf("1 record the server refused")).toBeLessThan(names.indexOf("Your devices"));
 
-  await userEvent.setup().click(screen.getByRole("button", { name: "1 record the server refused" }));
+  await userEvent.setup().click(screen.getByRole("link", { name: "1 record the server refused" }));
   expect(location.pathname).toBe("/settings/refused");
 });
 
@@ -153,7 +153,7 @@ test("a role dropped on the server takes the admin sections away on the next syn
     1,
   );
   mount();
-  const links = within(screen.getByRole("navigation", { name: "Settings" })).getAllByRole("button");
+  const links = within(screen.getByRole("navigation", { name: "Settings" })).getAllByRole("link");
   expect(links.map((b) => b.textContent)).toEqual([
     "Your devices",
     "Notifications",

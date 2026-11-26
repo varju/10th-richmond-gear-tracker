@@ -42,8 +42,18 @@ Found reviewing the delete (`deleteUnsent` in `client/src/lib/store.ts`):
 - `whileSending` does not call `notify()`, so Unsent records keeps showing Delete during a push. Tapping it fails with a
   generic error.
 
+## A second tab shows stale gear
+
+A tab reads the stored records only when it opens (`Store.open` in `client/src/lib/store.ts`), and any link can now open
+another. Offline, check an item out in the new tab and the first still shows it in, so it can go out twice.
+
+**Considered:** reload the stored rows when another tab writes (`BroadcastChannel`) and before each push. That also
+covers the second-tab case under deleting an unsent record.
+
 ## Review findings, smaller
 
+- On a phone, opening the menu unmounts the screen and drops some drafts without asking (a fault report, a note).
+- On a phone, the menu link for the current screen leaves the menu open.
 - Deleting a move restores its waiting check-outs into whatever session is current, stamps the deleting user as owner,
   and appends them rather than putting them back in place. Restore only into the session the move left.
 - Categories folded shut during one search stay shut for the next (`useFolds` in `client/src/ui/folds.ts` keeps one

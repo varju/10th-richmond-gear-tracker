@@ -114,7 +114,7 @@ test("a spent invite says the account exists, and offers sign in", async () => {
 
   expect(await screen.findByText(/already have an account/)).toBeInTheDocument();
   expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  await user.click(screen.getByRole("link", { name: "Sign in" }));
   expect(location.pathname).toBe("/");
 });
 
@@ -172,7 +172,7 @@ test("in the app, staying signed in goes home", async () => {
   await store.setMeta({ token: "t", user: ALICE });
   navigate("/join?token=GOOD");
   const signOut = mountInApp();
-  await user.click(screen.getByRole("button", { name: "Stay signed in" }));
+  await user.click(screen.getByRole("link", { name: "Stay signed in" }));
   expect(location.pathname).toBe("/");
   expect(signOut).not.toHaveBeenCalled();
   expect(store.meta.token).toBe("t");
@@ -231,7 +231,7 @@ test("an email already in use shows the message with a Sign in button", async ()
 
   expect(await screen.findByText(/already have an account/)).toBeInTheDocument();
   expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  await user.click(screen.getByRole("link", { name: "Sign in" }));
   expect(location.pathname).toBe("/");
 });
 
@@ -249,7 +249,7 @@ test("a spent or made-up standing link shows the server's reason, not the confli
 test("a standing link offers a subtle way to log in instead, for a member without an account form", async () => {
   navigate("/join?link=GOOD");
   mount();
-  await user.click(screen.getByRole("button", { name: "Log in" }));
+  await user.click(screen.getByRole("link", { name: "Log in" }));
   expect(location.pathname).toBe("/");
 });
 

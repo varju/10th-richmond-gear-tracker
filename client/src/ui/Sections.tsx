@@ -5,10 +5,10 @@ import type { State } from "../lib/replay";
 import { openTickets } from "../lib/repairs";
 import { outCount } from "../lib/reports";
 import { upcoming } from "../lib/reservations";
-import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
+import { RouteLink } from "./RouteLink";
 
 interface Props {
   store: Store;
@@ -23,9 +23,9 @@ export interface Link {
 
 function Links({ links }: { links: Link[] }) {
   return links.map((l) => (
-    <button key={l.path} className="link" type="button" onClick={() => navigate(l.path)}>
+    <RouteLink key={l.path} to={l.path}>
       {l.label}
-    </button>
+    </RouteLink>
   ));
 }
 

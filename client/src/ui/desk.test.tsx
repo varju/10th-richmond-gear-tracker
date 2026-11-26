@@ -1,4 +1,4 @@
-import { act as reactAct, fireEvent, render, screen, within } from "@testing-library/react";
+import { act as reactAct, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, expect, test } from "vitest";
@@ -14,7 +14,6 @@ import { createReservation, todayIso } from "../lib/reservations";
 import { back, BASE, navigate } from "../lib/router";
 import { Store } from "../lib/store";
 import { localDate } from "../lib/time";
-import { ItemLink } from "./ItemTable";
 import { desk, PHONE, setWidth } from "./widthTestKit";
 
 // The desk layout (NFR-USE-10): a sidebar, a home that opens on exceptions,
@@ -86,7 +85,7 @@ function found(id: string, note: string, item_id: string): ServerEvent {
 const mount = (now = T0) =>
   render(<App store={store} api={createApi({ fetch: offline, token: () => store.meta.token })} now={() => now} />);
 
-const sidebar = () => within(screen.getByRole("navigation", { name: "Sections" })).getAllByRole("button");
+const sidebar = () => [...screen.getByRole("navigation", { name: "Sections" }).querySelectorAll("a, button")];
 const cells = (row: HTMLElement) =>
   within(row)
     .getAllByRole("cell")
@@ -107,7 +106,7 @@ test("the sidebar carries every section, no counts", async () => {
     "Sign out",
   ]);
 
-  await userEvent.setup().click(screen.getByRole("button", { name: "All items" }));
+  await userEvent.setup().click(screen.getByRole("link", { name: "All items" }));
   expect(location.pathname).toBe("/items");
   // Every desk screen keeps the sections beside it.
   expect(sidebar()).not.toHaveLength(0);
@@ -130,7 +129,7 @@ test("the desk home opens on what needs a person, then what is out", async () =>
   mount();
 
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Gear Tracker");
-  const attention = within(screen.getByRole("list", { name: "Needs attention" })).getAllByRole("button");
+  const attention = within(screen.getByRole("list", { name: "Needs attention" })).getAllByRole("link");
   expect(attention.map((b) => b.textContent)).toEqual([
     "Found gear · 1",
     "Needs repair · 1",
@@ -151,7 +150,7 @@ test("the desk home opens on what needs a person, then what is out", async () =>
 test("the unsent records entry opens the unsent page", async () => {
   await fixture();
   mount();
-  await userEvent.setup().click(screen.getByRole("button", { name: /^Unsent records · / }));
+  await userEvent.setup().click(screen.getByRole("link", { name: /^Unsent records · / }));
   expect(location.pathname).toBe(`${BASE}/settings/unsent`);
 });
 
@@ -171,7 +170,7 @@ test("gear out past the group's period is counted as overdue (FR-OUT-14)", async
   await checkOut(store, f.tent);
   // A minute past a whole day, because the check-out is a moment after T0.
   mount(T0 + DAY_MS + 60_000);
-  expect(screen.getByRole("button", { name: "Overdue · 1" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Overdue · 1" })).toBeInTheDocument();
   expect(within(screen.getByRole("table")).getByText("1 day")).toBeInTheDocument();
 });
 
@@ -187,8 +186,8 @@ test("a reservation in the next few weeks is coming up", async () => {
     generics: [],
   });
   mount();
-  expect(screen.getByRole("button", { name: /Spring camp/ })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /Summer camp/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /Spring camp/ })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /Summer camp/ })).not.toBeInTheDocument();
   expect(todayIso(T0)).toBe(localDate(T0));
 });
 
@@ -235,45 +234,6 @@ test("sorted by name, the table lists name matches above description matches (FR
   expect(names()).toEqual(["Tent 1", "Stove"]);
   await user.click(screen.getByRole("button", { name: /^Name/ }));
   expect(names()).toEqual(["Tent 1", "Stove"]);
-});
-
-test("an item name in the table is a link, and a modified click is left to the browser", async () => {
-  const f = await fixture();
-  navigate("/items");
-  mount();
-  const user = userEvent.setup();
-  const link = within(screen.getByRole("table")).getByRole("link", { name: "Stove" });
-  expect(link).toHaveAttribute("href", `${BASE}/items/${f.stove}`);
-
-  // The test document follows an unhandled link, so stop it after the app has had its say.
-  const left: boolean[] = [];
-  const watch = (e: Event) => {
-    left.push(!e.defaultPrevented);
-    e.preventDefault();
-  };
-  document.addEventListener("click", watch);
-  for (const key of ["ctrlKey", "metaKey", "shiftKey", "altKey"]) fireEvent.click(link, { [key]: true });
-  document.removeEventListener("click", watch);
-  expect(left).toEqual([true, true, true, true]);
-  expect(location.pathname).toBe("/items");
-
-  await user.click(link);
-  expect(location.pathname).toBe(`/items/${f.stove}`);
-});
-
-test("in the app an item name stays a button", async () => {
-  const f = await fixture();
-  navigate("/items");
-  render(
-    <ItemLink id={f.stove} native>
-      Stove
-    </ItemLink>,
-  );
-  expect(screen.queryByRole("link")).not.toBeInTheDocument();
-  const button = screen.getByRole("button", { name: "Stove" });
-  expect(button).not.toHaveAttribute("href");
-  await userEvent.setup().click(button);
-  expect(location.pathname).toBe(`/items/${f.stove}`);
 });
 
 test("a Category column appears once one exists, and sorts (FR-SET-07)", async () => {
@@ -409,8 +369,8 @@ test("no camera, no Scan button", async () => {
   await fixture();
   navigate("/items");
   mount();
-  expect(screen.getByRole("button", { name: "New item" })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Scan" })).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "New item" })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Scan" })).not.toBeInTheDocument();
 });
 
 test("an item page puts its facts beside its history", async () => {
@@ -434,8 +394,8 @@ test("the phone list shows a generic's counts, and missing only when there are s
   setWidth(PHONE);
   mount();
   reactAct(() => navigate("/items"));
-  expect(screen.getByRole("button", { name: /3x3 tarp/ })).toHaveTextContent("1 in · 1 out · 1 missing");
-  expect(screen.getByRole("button", { name: /Cups/ })).toHaveTextContent(/^Cups1 in · 0 out$/);
+  expect(screen.getByRole("link", { name: /3x3 tarp/ })).toHaveTextContent("1 in · 1 out · 1 missing");
+  expect(screen.getByRole("link", { name: /Cups/ })).toHaveTextContent(/^Cups1 in · 0 out$/);
 });
 
 test("the phone list shows a pool's missing count only when it has some", async () => {
@@ -445,11 +405,11 @@ test("the phone list shows a pool's missing count only when it has some", async 
   setWidth(PHONE);
   mount();
   reactAct(() => navigate("/items"));
-  expect(screen.getByRole("button", { name: /Bowls/ })).toHaveTextContent(/^Bowls7 in · 3 out$/);
+  expect(screen.getByRole("link", { name: /Bowls/ })).toHaveTextContent(/^Bowls7 in · 3 out$/);
   await reactAct(async () => {
     await mv.markPoolMissing(store, bowls, { count: 2 });
   });
-  expect(screen.getByRole("button", { name: /Bowls/ })).toHaveTextContent("7 in · 1 out · 2 missing");
+  expect(screen.getByRole("link", { name: /Bowls/ })).toHaveTextContent("7 in · 1 out · 2 missing");
 });
 
 test("sorting by Status compares the counts as numbers", async () => {
@@ -475,12 +435,12 @@ test("a phone keeps the list at /items, and has no sidebar", async () => {
   mount();
   // Home holds the sections behind the menu, not a sidebar, and shows no list until asked.
   expect(screen.queryByRole("navigation", { name: "Sections" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /Tent 1/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /Tent 1/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
 
   reactAct(() => navigate("/items"));
-  expect(screen.getByRole("button", { name: /Tent 1/ })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Scan" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /Tent 1/ })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Scan" })).toBeInTheDocument();
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
 });
 

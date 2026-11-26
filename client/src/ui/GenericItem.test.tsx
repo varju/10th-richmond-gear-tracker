@@ -133,7 +133,7 @@ test("a generic lists its units, adds one, and is retired only once they all are
   renderInShell(<ItemPage store={store} id={tents} />);
   expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("4-person tent");
   expect(screen.getByText("1 unit · 1 in")).toBeInTheDocument();
-  expect(within(section("Units")).getByRole("button", { name: /4-person tent #1/ })).toBeInTheDocument();
+  expect(within(section("Units")).getByRole("link", { name: /4-person tent #1/ })).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Add a unit" }));
   await waitFor(() => expect(inv.unitsOf(store.state, tents)).toHaveLength(2));
@@ -161,7 +161,7 @@ test("a unit points at its generic and can be filed under another (FR-INV-28)", 
   navigate(`/items/${unit}`);
   renderInShell(<ItemPage store={store} id={unit} />);
   expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("4-person tent #1");
-  expect(screen.getByRole("button", { name: "4-person tent" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "4-person tent" })).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Move to another generic…" }));
   await user.click(screen.getByRole("button", { name: /3x3 tarp/ }));

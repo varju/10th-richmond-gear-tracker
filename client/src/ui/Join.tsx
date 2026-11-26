@@ -4,6 +4,7 @@ import { navigate, useRoute } from "../lib/router";
 import { NATIVE } from "../lib/server";
 import type { Store } from "../lib/store";
 import { useKeyboardForm } from "./keyboardForm";
+import { RouteLink } from "./RouteLink";
 
 interface Props {
   store: Store;
@@ -119,9 +120,9 @@ export function Join({ store, api, onJoined, onSignOut, native = NATIVE }: Props
                 >
                   Sign out and use the link
                 </button>
-                <button type="button" onClick={() => navigate("/", true)}>
+                <RouteLink className="" to="/" replace>
                   Stay signed in
-                </button>
+                </RouteLink>
               </div>
               {pending > 0 && <p className="muted small">Sign out after your unsent records are sent.</p>}
             </>
@@ -131,9 +132,9 @@ export function Join({ store, api, onJoined, onSignOut, native = NATIVE }: Props
         ) : blocked === "invite" || blocked === "exists" ? (
           <>
             <p>You already have an account. Sign in instead.</p>
-            <button type="button" onClick={() => navigate("/", true)}>
+            <RouteLink className="" to="/" replace>
               Sign in
-            </button>
+            </RouteLink>
           </>
         ) : blocked === "reset" ? (
           <p role="alert">This reset link has already been used. Ask an Admin for a new one.</p>
@@ -207,9 +208,9 @@ export function Join({ store, api, onJoined, onSignOut, native = NATIVE }: Props
             {standing && (
               <p className="muted small">
                 Already have an account?{" "}
-                <button className="link" type="button" onClick={() => navigate("/", true)}>
+                <RouteLink to="/" replace>
                   Log in
-                </button>
+                </RouteLink>
               </p>
             )}
           </>

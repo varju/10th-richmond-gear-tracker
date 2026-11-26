@@ -7,6 +7,7 @@ import { Filters } from "./Filters";
 import { ItemList } from "./ItemList";
 import { plural, syncLabel } from "./labels";
 import { Page } from "./Page";
+import { RouteLink } from "./RouteLink";
 
 interface Props {
   store: Store;
@@ -32,12 +33,12 @@ export function Inventory({ store }: Props) {
       back="/"
       actions={
         <div className="row">
-          <button className="primary" type="button" onClick={() => navigate("/scan")}>
+          <RouteLink className="primary" to="/scan">
             Scan
-          </button>
-          <button type="button" onClick={() => navigate("/items/new")}>
+          </RouteLink>
+          <RouteLink className="" to="/items/new">
             New item
-          </button>
+          </RouteLink>
         </div>
       }
     >

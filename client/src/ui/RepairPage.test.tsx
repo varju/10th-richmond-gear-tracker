@@ -36,7 +36,7 @@ test("the ticket shows what is wrong, where it stands, and who raised it", async
   expect(screen.getByText("Open")).toBeInTheDocument();
   expect(screen.getByText("Raised by Alice · 2025-08-31 17:00")).toBeInTheDocument();
 
-  await user.click(screen.getByRole("button", { name: "Tent 1" }));
+  await user.click(screen.getByRole("link", { name: "Tent 1" }));
   expect(location.pathname).toBe(`/items/${tent}`);
 });
 
@@ -124,11 +124,11 @@ test("the repairs list holds what is still open, newest first, and opens a ticke
   const open = screen.getAllByRole("list")[0]!;
   const rows = within(open)
     .getAllByRole("listitem")
-    .map((li) => within(li).getByRole("button").textContent);
+    .map((li) => within(li).getByRole("link").textContent);
   expect(rows).toEqual(["StoveIn progress · valve leaks", "Tent 1Open · zipper broken"]);
   expect(screen.getByText("2 tickets")).toBeInTheDocument();
 
-  await user.click(screen.getByRole("button", { name: /Stove/ }));
+  await user.click(screen.getByRole("link", { name: /Stove/ }));
   expect(location.pathname).toBe(`/repairs/${later}`);
 });
 
@@ -148,7 +148,7 @@ test("the repairs screen lists open tickets, then the history over a date range 
   // Open first, unchanged.
   expect(screen.getByText("1 ticket")).toBeInTheDocument();
   const history = screen.getByRole("region", { name: "History" });
-  expect(screen.getAllByRole("button", { name: /Tent 1/ })).toHaveLength(3);
+  expect(screen.getAllByRole("link", { name: /Tent 1/ })).toHaveLength(3);
   const rows = [...history.querySelectorAll("li")].map((li) => li.textContent);
   expect(rows).toEqual([
     "Tent 1Open · Raised by Alice · 2025-08-31 17:00",
@@ -162,7 +162,7 @@ test("the repairs screen lists open tickets, then the history over a date range 
 
   await user.clear(screen.getByLabelText("To"));
   await user.type(screen.getByLabelText("To"), "2025-09-01");
-  await user.click(within(history).getByRole("button", { name: /Open · Raised/ }));
+  await user.click(within(history).getByRole("link", { name: /Open · Raised/ }));
   expect(location.pathname).toBe(`/repairs/${other}`);
 });
 

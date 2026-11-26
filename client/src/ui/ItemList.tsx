@@ -1,9 +1,9 @@
 import { byCategory, categories, displayName, homeLabel, type Row } from "../lib/inventory";
 import { openRepairs } from "../lib/repairs";
-import { navigate } from "../lib/router";
 import type { Store } from "../lib/store";
 import { useFolds } from "./folds";
 import { countsLabel, leftNote, statusLabel } from "./labels";
+import { RouteLink } from "./RouteLink";
 
 /**
  * The phone's list of gear: one tappable row each, name and home. The home
@@ -69,7 +69,7 @@ function ItemRow({ store, row, showUnits }: { store: Store; row: Row; showUnits?
   const state = store.state;
   return (
     <li>
-      <button className="item" type="button" onClick={() => navigate(`/items/${row.item.id}`)}>
+      <RouteLink className="item" to={`/items/${row.item.id}`}>
         <span>
           <span className="item-name">{row.name}</span>
           {row.kind === "single" && openRepairs(state, row.item.id).length > 0 && <span className="badge">Repair</span>}
@@ -86,17 +86,17 @@ function ItemRow({ store, row, showUnits }: { store: Store; row: Row; showUnits?
                 .filter(Boolean)
                 .join(" · ")}
         </span>
-      </button>
+      </RouteLink>
       {showUnits && row.kind === "generic" && (
         <ul className="items nested">
           {row.units.map((u) => (
             <li key={u.id}>
-              <button className="item" type="button" onClick={() => navigate(`/items/${u.id}`)}>
+              <RouteLink className="item" to={`/items/${u.id}`}>
                 <span className="item-name">{displayName(state, u)}</span>
                 <span className="muted small">
                   {[homeLabel(state, u), leftNote(state, u)].filter(Boolean).join(" · ")}
                 </span>
-              </button>
+              </RouteLink>
             </li>
           ))}
         </ul>

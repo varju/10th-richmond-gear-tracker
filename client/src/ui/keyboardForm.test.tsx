@@ -209,7 +209,7 @@ test("Go with the button disabled moves to the first empty required field", asyn
 
 test("Return on a button in the form is left to the button", async () => {
   const [name] = await mountJoin();
-  const logIn = screen.getByRole("button", { name: "Log in" });
+  const logIn = screen.getByRole("link", { name: "Log in" });
   logIn.focus();
   expect(fireEvent.keyDown(logIn, { key: "Enter" })).toBe(true);
   expect(logIn).toHaveFocus();

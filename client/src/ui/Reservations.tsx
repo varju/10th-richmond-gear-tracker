@@ -20,6 +20,7 @@ import { useStore } from "../useStore";
 import { EventPicker } from "./EventChoice";
 import { plural } from "./labels";
 import { Page } from "./Page";
+import { RouteLink } from "./RouteLink";
 
 /** "2026-10-02 – 2026-10-04", or one day. */
 export function datesLabel(r: Pick<Reservation, "starts" | "ends">): string {
@@ -37,12 +38,12 @@ function Rows({ list, counts }: { list: Reservation[]; counts: Map<string, strin
     <ul className="items">
       {list.map((r) => (
         <li key={r.id}>
-          <button className="item" type="button" onClick={() => navigate(`/events/${r.id}`)}>
+          <RouteLink className="item" to={`/events/${r.id}`}>
             <span className="item-name">{r.event}</span>
             <span className="muted small">
               {[datesLabel(r), countLabel(r), ...(counts.get(r.id) ?? [])].join(" · ")}
             </span>
-          </button>
+          </RouteLink>
         </li>
       ))}
     </ul>
@@ -209,9 +210,9 @@ export function Reservations({ store }: { store: Store }) {
       title="Events"
       back="/"
       actions={
-        <button className="primary" type="button" onClick={newEvent}>
+        <RouteLink className="primary" to="/events/new" go={newEvent}>
           New event
-        </button>
+        </RouteLink>
       }
     >
       <CurrentEvent event={event} waiting={awaitingAnswer(store.meta, now())} />

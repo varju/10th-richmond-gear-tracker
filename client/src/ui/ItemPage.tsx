@@ -71,7 +71,7 @@ import { back, entryState, navigate, setEntryState, useRoute } from "../lib/rout
 import { timeline, type TimelineEntry } from "../lib/timeline";
 import type { Store } from "../lib/store";
 import { localDate, localMinute } from "../lib/time";
-import { guard, useUnsaved } from "../lib/unsaved";
+import { guard, leave, useUnsaved } from "../lib/unsaved";
 import { eventAsked, type Session, sessionEvent } from "../lib/session";
 import { useShell } from "../shell";
 import { useStore } from "../useStore";
@@ -89,6 +89,7 @@ import { NoteLine, NoteList } from "./Notes";
 import { Page } from "./Page";
 import { Photos, useBlockFileDrop } from "./Photos";
 import { datesLabel } from "./Reservations";
+import { RouteLink } from "./RouteLink";
 
 interface Props {
   store: Store;
@@ -228,9 +229,9 @@ export function ItemPage({ store, id }: Props) {
         </h2>
         <p className="notice" role="note">
           Merged into{" "}
-          <button className="link" type="button" onClick={() => navigate(`/items/${it.merged_into}`)}>
+          <RouteLink to={`/items/${it.merged_into}`}>
             {survivor ? displayName(state, survivor) : "(unknown item)"}
-          </button>
+          </RouteLink>
         </p>
         <HistorySection store={store} id={id} record={record} />
         <AuditLink store={store} id={id} />
@@ -340,9 +341,9 @@ export function ItemPage({ store, id }: Props) {
           {hasOpenConflict(state, id) && (
             <p className="notice notice-row" role="note">
               <span>Two check-outs overlapped.</span>
-              <button type="button" className="minor" onClick={() => guard(() => navigate("/conflicts"))}>
+              <RouteLink className="minor" to="/conflicts">
                 Review
-              </button>
+              </RouteLink>
             </p>
           )}
           {foundFor(state, id).map((r) => (
@@ -383,9 +384,9 @@ export function ItemPage({ store, id }: Props) {
                 {/* One line per camp, each a tap away, so packing for it starts from here (FR-INV-37). */}
                 {reserved.map((r) => (
                   <dd key={r.id}>
-                    <button className="link" type="button" onClick={() => guard(() => navigate(`/events/${r.id}`))}>
+                    <RouteLink to={`/events/${r.id}`}>
                       {r.event} · {datesLabel(r)}
-                    </button>
+                    </RouteLink>
                   </dd>
                 ))}
               </>
@@ -408,13 +409,7 @@ export function ItemPage({ store, id }: Props) {
               <>
                 <dt>One of</dt>
                 <dd className="one-of">
-                  <button
-                    className="link"
-                    type="button"
-                    onClick={() => guard(() => navigate(`/items/${it.parent_id}`))}
-                  >
-                    {parentOf(state, it)?.name ?? "(unknown item)"}
-                  </button>
+                  <RouteLink to={`/items/${it.parent_id}`}>{parentOf(state, it)?.name ?? "(unknown item)"}</RouteLink>
                   {` · #${numberOf(it) || "?"}`}
                   {it.nickname ? ` · ${it.nickname}` : ""}
                 </dd>
@@ -430,9 +425,7 @@ export function ItemPage({ store, id }: Props) {
                 {/* One line each, so the record it came from is a tap away and an Admin can put it back. */}
                 {mergedFrom.map((a) => (
                   <dd key={a} className="merged-line">
-                    <button className="link" type="button" onClick={() => guard(() => navigate(`/items/${a}`))}>
-                      {nameOf(state, a)}
-                    </button>
+                    <RouteLink to={`/items/${a}`}>{nameOf(state, a)}</RouteLink>
                     {admin && (
                       <button type="button" className="minor" onClick={() => void unmergeItem(store, a)}>
                         Unmerge
@@ -566,9 +559,7 @@ function OutEvent({ store, it }: { store: Store; it: Item }) {
     const id = m.reservation_id;
     return (
       <>
-        <button className="link" type="button" onClick={() => guard(() => navigate(`/events/${id}`))}>
-          {event ?? linked?.event ?? "Event"}
-        </button>{" "}
+        <RouteLink to={`/events/${id}`}>{event ?? linked?.event ?? "Event"}</RouteLink>{" "}
         <button type="button" className="minor" onClick={() => guard(() => navigate(`/items/${it.id}?change=1`))}>
           Change event
         </button>
@@ -621,23 +612,25 @@ function ChangeOutEvent({ store, it }: { store: Store; it: Item }) {
 
 /** A second code is usually a mistake (FR-TAG-21), so an item that has one asks first. */
 function AddQrCode({ id, has }: { id: string; has: boolean }) {
-  const go = () => navigate(`/scan?for=${id}`);
+  const to = `/scan?for=${id}`;
   if (!has) {
     return (
-      <button type="button" onClick={go}>
+      <RouteLink className="" to={to}>
         Add QR code
-      </button>
+      </RouteLink>
     );
   }
-  return <ConfirmButton label="Add QR code" confirmLabel="Already has a QR code. Add another?" onConfirm={go} />;
+  return (
+    <ConfirmButton label="Add QR code" confirmLabel="Already has a QR code. Add another?" onConfirm={() => leave(to)} />
+  );
 }
 
 /** Opens New item filled from this one; nothing is saved until Save (FR-INV-55). */
 function DuplicateButton({ id }: { id: string }) {
   return (
-    <button type="button" onClick={() => guard(() => navigate(`/items/new?from=${id}`))}>
+    <RouteLink className="" to={`/items/new?from=${id}`}>
       Duplicate…
-    </button>
+    </RouteLink>
   );
 }
 
@@ -823,9 +816,9 @@ function Repairs({ store, id }: Props) {
         <ul className="items">
           {tickets.map((r) => (
             <li key={r.id}>
-              <button className="item" type="button" onClick={() => guard(() => navigate(`/repairs/${r.id}`))}>
+              <RouteLink className="item" to={`/repairs/${r.id}`}>
                 <span className="item-name">{describeRepair(r)}</span>
-              </button>
+              </RouteLink>
             </li>
           ))}
         </ul>
@@ -946,9 +939,7 @@ function AuditLink({ store, id }: { store: Store; id: string }) {
   if (!store.admin) return null;
   return (
     <div>
-      <button className="link" type="button" onClick={() => navigate(`/settings/audit?item=${encodeURIComponent(id)}`)}>
-        Open in audit log
-      </button>
+      <RouteLink to={`/settings/audit?item=${encodeURIComponent(id)}`}>Open in audit log</RouteLink>
     </div>
   );
 }
@@ -2149,7 +2140,7 @@ function GenericPage({
         <ul className="items">
           {units.map((u) => (
             <li key={u.id}>
-              <button className="item" type="button" onClick={() => guard(() => navigate(`/items/${u.id}`))}>
+              <RouteLink className="item" to={`/items/${u.id}`}>
                 <span>
                   <span className="item-name">{displayName(state, u)}</span>
                   {openRepairs(state, u.id).length > 0 && <span className="badge">Repair</span>}
@@ -2157,7 +2148,7 @@ function GenericPage({
                   {u.retired && <span className="badge">Retired</span>}
                 </span>
                 <span className="muted small">{statusLabel(state, u)}</span>
-              </button>
+              </RouteLink>
             </li>
           ))}
         </ul>

@@ -39,10 +39,10 @@ test("an unassigned code offers create or bind (FR-TAG-07)", async () => {
   expect(screen.getByRole("heading", { name: "New code" })).toBeInTheDocument();
   expect(screen.queryByText(/CCCCCCCCCC/)).not.toBeInTheDocument(); // FR-TAG-17
 
-  await user.click(screen.getByRole("button", { name: "Put it on an existing item" }));
+  await user.click(screen.getByRole("link", { name: "Put it on an existing item" }));
   expect(location.pathname).toBe("/bind/CCCCCCCCCC");
 
-  await user.click(screen.getByRole("button", { name: "Create a new item" }));
+  await user.click(screen.getByRole("link", { name: "Create a new item" }));
   expect(location.pathname + location.search).toBe("/items/new?code=CCCCCCCCCC");
 });
 
@@ -74,12 +74,11 @@ test("an unassigned code offers to add a unit of something we have several of (F
   navigate("/scan");
   navigate("/g/CCCCCCCCCC");
   render(<CodeLanding store={store} code="CCCCCCCCCC" />);
-  const names = screen
-    .getAllByRole("button")
+  const names = [...document.querySelectorAll("a, button")]
     .filter((b) => !b.closest("header"))
     .map((b) => b.textContent);
   expect(names).toEqual(["Add a unit of…", "Create a new item", "Put it on an existing item", "Scan again"]);
-  await user.click(screen.getByRole("button", { name: "Add a unit of…" }));
+  await user.click(screen.getByRole("link", { name: "Add a unit of…" }));
   expect(location.pathname).toBe("/another/CCCCCCCCCC");
 });
 
@@ -87,8 +86,8 @@ test("an unassigned code does not offer to add a unit when there is nothing to a
   await act.createPool(store, { name: "Pegs" }, 20);
   navigate("/g/CCCCCCCCCC");
   render(<CodeLanding store={store} code="CCCCCCCCCC" />);
-  expect(screen.getByRole("button", { name: "Create a new item" })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Add a unit of…" })).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Create a new item" })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Add a unit of…" })).not.toBeInTheDocument();
 });
 
 test("the code screen steps aside, so back from what it opens returns to the scanner", async () => {
@@ -97,13 +96,13 @@ test("the code screen steps aside, so back from what it opens returns to the sca
   navigate("/g/CCCCCCCCCC");
   render(<CodeLanding store={store} code="CCCCCCCCCC" />);
 
-  await user.click(screen.getByRole("button", { name: "Create a new item" }));
+  await user.click(screen.getByRole("link", { name: "Create a new item" }));
   expect(location.pathname + location.search).toBe("/items/new?code=CCCCCCCCCC");
   back("/");
   expect(location.pathname).toBe("/scan");
 
   navigate("/g/CCCCCCCCCC");
-  await user.click(screen.getByRole("button", { name: "Put it on an existing item" }));
+  await user.click(screen.getByRole("link", { name: "Put it on an existing item" }));
   expect(location.pathname).toBe("/bind/CCCCCCCCCC");
   back("/");
   expect(location.pathname).toBe("/scan");

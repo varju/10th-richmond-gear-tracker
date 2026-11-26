@@ -323,8 +323,8 @@ test("the list shows what is left beside the home, and nothing for gear never we
   await act.createItem(store, { name: "Tent" });
   await mv.weigh(store, tank, { value: 26, unit: "lb" });
   renderInShell(<ItemList store={store} list={rows(store.state, {})} narrowed={false} />);
-  expect(screen.getByRole("button", { name: /Propane/ })).toHaveTextContent("About 8 lb left (40%)");
-  expect(screen.getByRole("button", { name: /Tent/ })).not.toHaveTextContent("left");
+  expect(screen.getByRole("link", { name: /Propane/ })).toHaveTextContent("About 8 lb left (40%)");
+  expect(screen.getByRole("link", { name: /Tent/ })).not.toHaveTextContent("left");
 });
 
 test("text that is not a number holds Save and says so; only a blank box clears", async () => {

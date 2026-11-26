@@ -72,7 +72,7 @@ async function fixture() {
 const mount = (fetchFn: typeof fetch = offline, base = "") =>
   render(<App store={store} api={createApi({ fetch: fetchFn, base, token: () => store.meta.token })} now={() => T0} />);
 
-const rows = () => screen.getAllByRole("listitem").map((li) => within(li).getByRole("button").textContent);
+const rows = () => screen.getAllByRole("listitem").map((li) => within(li).getByRole("link").textContent);
 
 // Categories starts folded; open it before ticking a box or reaching New category.
 const openCategories = (user: ReturnType<typeof userEvent.setup>) => user.click(screen.getByText(/^Categories ·/));
@@ -105,11 +105,11 @@ test("an open ticket badges the row and counts on the home screen (FR-REP-05)", 
 
   await user.click(screen.getByRole("button", { name: "Back" }));
   await user.click(screen.getByRole("button", { name: "Menu" }));
-  await user.click(screen.getByRole("button", { name: "Reports" }));
-  await user.click(screen.getByRole("button", { name: "Needs repair · 1" }));
+  await user.click(screen.getByRole("link", { name: "Reports" }));
+  await user.click(screen.getByRole("link", { name: "Needs repair · 1" }));
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Needs repair");
   // The ticket is in the open list and again in the history below it.
-  expect(screen.getAllByRole("button", { name: /Tent 1/ })[0]).toHaveTextContent("Open · zipper broken");
+  expect(screen.getAllByRole("link", { name: /Tent 1/ })[0]).toHaveTextContent("Open · zipper broken");
 });
 
 test("editing an item records the change and shows it", async () => {
@@ -117,7 +117,7 @@ test("editing an item records the change and shows it", async () => {
   navigate("/items");
   mount();
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: /Tent 1/ }));
+  await user.click(screen.getByRole("link", { name: /Tent 1/ }));
   expect(location.pathname).toBe(`/items/${f.t1}`);
   expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Tent 1");
 
@@ -138,7 +138,7 @@ test("retiring hides an item until retired items are asked for", async () => {
   navigate("/items");
   mount();
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: /Stove/ }));
+  await user.click(screen.getByRole("link", { name: /Stove/ }));
   await user.click(screen.getByRole("button", { name: "Edit" }));
   await user.click(screen.getByLabelText("Retired"));
   await user.click(screen.getByRole("button", { name: "Save" }));
@@ -150,7 +150,7 @@ test("retiring hides an item until retired items are asked for", async () => {
   expect(rows()).toEqual(["StoveWarm locker"]);
 
   // The same checkbox brings it back.
-  await user.click(screen.getByRole("button", { name: /Stove/ }));
+  await user.click(screen.getByRole("link", { name: /Stove/ }));
   await user.click(screen.getByRole("button", { name: "Edit" }));
   await user.click(screen.getByLabelText("Retired"));
   await user.click(screen.getByRole("button", { name: "Save" }));
@@ -684,7 +684,7 @@ test("the menu reaches every section, users included", async () => {
   mount();
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Menu" }));
-  const sections = within(screen.getByRole("navigation", { name: "Menu" })).getAllByRole("button");
+  const sections = [...screen.getByRole("navigation", { name: "Menu" }).querySelectorAll("a, button")];
   expect(sections.map((b) => b.textContent)).toEqual([
     "All items",
     "Events",
@@ -696,12 +696,12 @@ test("the menu reaches every section, users included", async () => {
     "Sign out",
   ]);
 
-  await user.click(screen.getByRole("button", { name: "Users" }));
+  await user.click(screen.getByRole("link", { name: "Users" }));
   expect(location.pathname).toBe("/settings/users");
 
   reactAct(() => navigate("/"));
   await user.click(screen.getByRole("button", { name: "Menu" }));
-  await user.click(screen.getByRole("button", { name: "All items" }));
+  await user.click(screen.getByRole("link", { name: "All items" }));
   expect(location.pathname).toBe("/items");
 });
 
@@ -711,7 +711,7 @@ test("the menu opens from any screen, and a link from it lands with the menu clo
   mount();
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Menu" }));
-  await user.click(screen.getByRole("button", { name: "Reports" }));
+  await user.click(screen.getByRole("link", { name: "Reports" }));
   expect(location.pathname).toBe("/reports");
   expect(screen.queryByRole("navigation", { name: "Menu" })).not.toBeInTheDocument();
 });
@@ -720,9 +720,9 @@ test("the phone header has a house that goes home, on every screen but Home", as
   await fixture();
   navigate("/repairs");
   mount();
-  await userEvent.setup().click(screen.getByRole("button", { name: "Home" }));
+  await userEvent.setup().click(screen.getByRole("link", { name: "Home" }));
   expect(location.pathname).toBe("/");
-  expect(screen.queryByRole("button", { name: "Home" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Home" })).not.toBeInTheDocument();
 });
 
 test("the phone header has a search that goes Home with the search box focused, off Home only", async () => {
@@ -741,7 +741,7 @@ test("the house and the search ask before dropping an unsaved draft", async () =
   mount();
   const user = userEvent.setup();
   unsaved.register("draft", {});
-  await user.click(screen.getByRole("button", { name: "Home" }));
+  await user.click(screen.getByRole("link", { name: "Home" }));
   expect(location.pathname).toBe("/repairs");
   unsaved.cancel();
   await user.click(screen.getByRole("button", { name: "Search all gear" }));
@@ -763,7 +763,7 @@ test("the title is a link home, on every screen", async () => {
   navigate("/repairs");
   mount();
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Needs repair");
-  await userEvent.setup().click(screen.getByRole("button", { name: "Needs repair" }));
+  await userEvent.setup().click(screen.getByRole("link", { name: "Needs repair" }));
   expect(location.pathname).toBe("/");
 });
 
@@ -811,15 +811,15 @@ test("the search box sits in main, and the menu takes over the screen while open
 
   await user.click(screen.getByRole("button", { name: "Menu" }));
   const menu = within(screen.getByRole("navigation", { name: "Menu" }));
-  expect(menu.getByRole("button", { name: "All items" })).toBeInTheDocument();
-  expect(menu.getByRole("button", { name: "Reports" })).toBeInTheDocument();
-  expect(menu.getByRole("button", { name: "Settings" })).toBeInTheDocument();
-  expect(menu.getByRole("button", { name: "Help" })).toBeInTheDocument();
+  expect(menu.getByRole("link", { name: "All items" })).toBeInTheDocument();
+  expect(menu.getByRole("link", { name: "Reports" })).toBeInTheDocument();
+  expect(menu.getByRole("link", { name: "Settings" })).toBeInTheDocument();
+  expect(menu.getByRole("link", { name: "Help" })).toBeInTheDocument();
   expect(menu.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Scan" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Scan" })).not.toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Close menu" }));
-  expect(screen.getByRole("button", { name: "Scan" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Scan" })).toBeInTheDocument();
 });
 
 test("the phone's /items is the whole list, counted and filtered", async () => {
@@ -883,7 +883,7 @@ test("a category folded on the phone's list stays folded on Back, and a search o
 
   await user.click(await screen.findByRole("heading", { name: "Camp kitchen" }));
   await waitFor(async () => expect((await fold("Camp kitchen")).open).toBe(false));
-  await user.click(screen.getByRole("button", { name: /Tent 1/ }));
+  await user.click(screen.getByRole("link", { name: /Tent 1/ }));
   expect(location.pathname).toBe(`/items/${f.t1}`);
 
   await user.click(screen.getByRole("button", { name: "Back" }));
@@ -905,7 +905,7 @@ test("a category folded in Home's search results stays folded on Back", async ()
   await user.click(await screen.findByRole("heading", { name: "Camp kitchen" }));
   const fold = () => screen.getByRole("heading", { name: "Camp kitchen" }).closest("details") as HTMLDetailsElement;
   await waitFor(() => expect(fold().open).toBe(false));
-  await user.click(screen.getByRole("button", { name: /Stove/ }));
+  await user.click(screen.getByRole("link", { name: /Stove/ }));
   await user.click(screen.getByRole("button", { name: "Back" }));
   expect(fold().open).toBe(false);
 });
@@ -962,9 +962,9 @@ test("Needs lists the units that match under their generic, and a tap opens one 
   navigate("/items?needs=code");
   mount();
   const user = userEvent.setup();
-  expect(screen.getByRole("button", { name: /^Tarp #2/ })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /^Tarp #1/ })).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: /^Tarp #2/ }));
+  expect(screen.getByRole("link", { name: /^Tarp #2/ })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /^Tarp #1/ })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("link", { name: /^Tarp #2/ }));
   expect(location.pathname).toBe(`/items/${bare}`);
 });
 
@@ -973,7 +973,7 @@ test("a User has no Users link", async () => {
   await fixture();
   mount();
   await userEvent.setup().click(screen.getByRole("button", { name: "Menu" }));
-  const sections = within(screen.getByRole("navigation", { name: "Menu" })).getAllByRole("button");
+  const sections = [...screen.getByRole("navigation", { name: "Menu" }).querySelectorAll("a, button")];
   expect(sections.map((b) => b.textContent)).not.toContain("Users");
 });
 
@@ -1087,7 +1087,7 @@ test("the list keeps its search in the URL, and back brings the list back as it 
   expect(location.pathname + location.search).toBe("/?q=tent");
   expect(rows()).toEqual(["Tent 1Cold locker / shelf 4"]);
 
-  await user.click(screen.getByRole("button", { name: /Tent 1/ }));
+  await user.click(screen.getByRole("link", { name: /Tent 1/ }));
   expect(location.pathname).toBe(`/items/${f.t1}`);
 
   // One step back, whatever was typed to get here.
@@ -1101,7 +1101,7 @@ test("back from an item returns to the list it was opened from", async () => {
   navigate("/items");
   mount();
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: /Tent 1/ }));
+  await user.click(screen.getByRole("link", { name: /Tent 1/ }));
   expect(location.pathname).toBe(`/items/${f.t1}`);
 
   await user.click(screen.getByRole("button", { name: "Back" }));
@@ -1115,7 +1115,7 @@ test("back from an item returns to the what-is-out report", async () => {
   navigate("/out");
   mount();
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: /Tent 1/ }));
+  await user.click(screen.getByRole("link", { name: /Tent 1/ }));
   expect(location.pathname).toBe(`/items/${f.t1}`);
 
   await user.click(screen.getByRole("button", { name: "Back" }));
@@ -1130,12 +1130,12 @@ test("the scanner walk: an unassigned code, a new item, and back to where it sta
   mount();
   const user = userEvent.setup();
 
-  await user.click(screen.getByRole("button", { name: "Scan" }));
+  await user.click(screen.getByRole("link", { name: "Scan" }));
   await read("ABCDEFGH23");
   await waitFor(() => expect(location.pathname).toBe("/g/ABCDEFGH23"));
 
   // The code screen is a junction, so it steps aside for the form.
-  await user.click(await screen.findByRole("button", { name: "Create a new item" }));
+  await user.click(await screen.findByRole("link", { name: "Create a new item" }));
   expect(location.pathname + location.search).toBe("/items/new?code=ABCDEFGH23");
 
   await user.type(screen.getByLabelText("Name"), "Tarp");
@@ -1156,9 +1156,9 @@ test("a replacement sticker: back from the item goes home, not through the scann
   const user = userEvent.setup();
 
   await user.type(screen.getByLabelText("Search"), "Tent 1");
-  await user.click(screen.getByRole("button", { name: /Tent 1/ }));
+  await user.click(screen.getByRole("link", { name: /Tent 1/ }));
   const atItem = depth();
-  await user.click(screen.getByRole("button", { name: "Add QR code" }));
+  await user.click(screen.getByRole("link", { name: "Add QR code" }));
   expect(location.pathname + location.search).toBe(`/scan?for=${f.t1}`);
 
   await read("ABCDEFGH23");
@@ -1182,7 +1182,7 @@ test("adding a QR code to a new unit: back shows the unit once, with its code, t
   await user.click(screen.getByRole("button", { name: "Add a unit" }));
   await waitFor(() => expect(location.pathname).not.toBe(`/items/${tents}`));
   const unit = location.pathname;
-  await user.click(screen.getByRole("button", { name: "Add QR code" }));
+  await user.click(screen.getByRole("link", { name: "Add QR code" }));
   await read("ABCDEFGH23");
   await waitFor(() => expect(location.pathname).toBe(unit));
   // The page behind is drawn from the store, so it already shows the new code.
@@ -1206,7 +1206,7 @@ test("saving an edited event goes back to the event page, once", async () => {
   mount();
   const user = userEvent.setup();
 
-  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.click(screen.getByRole("link", { name: "Edit" }));
   expect(location.pathname).toBe(`/events/${fall}/edit`);
   await user.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(location.pathname).toBe(`/events/${fall}`));
@@ -1232,7 +1232,7 @@ test("Cancel on the edit form goes back to the event page, once", async () => {
   mount();
   const user = userEvent.setup();
 
-  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.click(screen.getByRole("link", { name: "Edit" }));
   await user.click(screen.getByRole("button", { name: "Cancel" }));
   expect(location.pathname).toBe(`/events/${fall}`);
   await user.click(screen.getByRole("button", { name: "Back" }));
@@ -1247,7 +1247,7 @@ test("Cancel on the edit form, then Save in the dialog, lands on the event page,
   mount();
   const user = userEvent.setup();
 
-  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.click(screen.getByRole("link", { name: "Edit" }));
   await user.clear(screen.getByLabelText("Event"));
   await user.type(screen.getByLabelText("Event"), "Winter Camp");
   await user.click(screen.getByRole("button", { name: "Cancel" }));

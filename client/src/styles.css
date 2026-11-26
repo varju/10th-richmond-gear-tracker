@@ -54,7 +54,8 @@ header h1 {
 }
 
 /* The title, styled as the h1 it sits in; tapping it goes home. */
-button.title {
+button.title,
+a:where(.btn).title {
   min-height: 44px;
   padding: 0;
   border: 0;
@@ -77,7 +78,20 @@ main {
   border-top: 1px solid var(--rule);
 }
 
+/* A link that does a button's job (RouteLink) starts from what a button gets for free. */
+a:where(.btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 6px;
+  letter-spacing: normal;
+  text-align: center;
+  text-transform: none;
+  text-decoration: none;
+}
+
 button,
+a:where(.btn),
 input {
   font: inherit;
   width: 100%;
@@ -85,7 +99,8 @@ input {
   border-radius: 12px;
 }
 
-button {
+button,
+a:where(.btn) {
   font-size: 20px;
   font-weight: 600;
   border: 2px solid var(--ink);
@@ -93,7 +108,8 @@ button {
   color: var(--ink);
 }
 
-button.primary {
+button.primary,
+a:where(.btn).primary {
   background: var(--ink);
   color: var(--navy);
 }
@@ -136,7 +152,8 @@ label span {
   text-align: center;
 }
 
-.banner button.link {
+.banner button.link,
+.banner a:where(.btn).link {
   min-height: 0;
   padding: 0;
   color: inherit;
@@ -165,7 +182,8 @@ label span {
   border-radius: 12px;
 }
 
-.notice button {
+.notice button,
+.notice a:where(.btn) {
   margin-top: 12px;
   min-height: 44px;
 }
@@ -219,7 +237,8 @@ header {
 }
 
 button.back,
-button.home {
+button.home,
+a:where(.btn).home {
   position: absolute;
   left: 8px;
   top: 50%;
@@ -232,11 +251,13 @@ button.home {
 }
 
 /* The house sits at the edge; back, when there is one, follows it. */
-button.home {
+button.home,
+a:where(.btn).home {
   font-size: 22px;
 }
 
-button.home + button.back {
+button.home + button.back,
+a:where(.btn).home + button.back {
   left: 52px;
 }
 
@@ -366,7 +387,8 @@ html.native-scan .viewfinder video {
 }
 
 .rows .row,
-.rows li > button {
+.rows li > button,
+.rows li > a:where(.btn) {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
@@ -467,7 +489,8 @@ label.tight.search {
   color: var(--navy);
 }
 
-button.small {
+button.small,
+a:where(.btn).small {
   width: auto;
   min-height: 44px;
   padding: 0 14px;
@@ -519,7 +542,8 @@ button.primary.warn {
   margin-left: 16px;
 }
 
-button.item {
+button.item,
+a:where(.btn).item {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -540,7 +564,8 @@ button.item {
 }
 
 /* A row that also offers an action: the action sits under it, indented to the row. */
-.items li > button.small {
+.items li > button.small,
+.items li > a:where(.btn).small {
   margin: 8px 0 12px 12px;
 }
 
@@ -553,12 +578,14 @@ button.item {
     border-bottom: 1px solid var(--rule);
   }
 
-  .items li.with-action > button.item {
+  .items li.with-action > button.item,
+  .items li.with-action > a:where(.btn).item {
     flex: 1;
     border-bottom: 0;
   }
 
-  .items li.with-action > button.small {
+  .items li.with-action > button.small,
+  .items li.with-action > a:where(.btn).small {
     margin: 0 12px 0 0;
   }
 }
@@ -599,7 +626,8 @@ button.item {
 }
 
 /* Scan is what someone came to do, so it is the tallest thing on the home screen. */
-.actions button.tall {
+.actions button.tall,
+.actions a:where(.btn).tall {
   min-height: 72px;
 }
 
@@ -648,7 +676,7 @@ label.check span {
 
 /* A link, or a button that looks like one: no border, still a 44 px target. */
 button.link,
-a.link {
+a:where(.btn).link {
   min-height: 44px;
   padding: 0;
   border: 0;
@@ -662,24 +690,23 @@ a.link {
 
 /* In a line of text, nothing else marks the link. */
 p button.link,
+p a:where(.btn).link,
 .banner button.link,
+.banner a:where(.btn).link,
 .update-banner button.link,
 .facts .one-of button.link,
-.history .facts dd > button.link {
+.facts .one-of a:where(.btn).link,
+.history .facts dd > button.link,
+.history .facts dd > a:where(.btn).link {
   text-decoration: underline;
 }
 
 @media (hover: hover) {
   button.link:hover,
-  a.link:hover,
+  a:where(.btn).link:hover,
   .filters summary:hover {
     text-decoration: underline;
   }
-}
-
-a.link {
-  display: inline-flex;
-  align-items: center;
 }
 
 /* The report on paper: white page, dark ink, no controls (FR-SET-01). */
@@ -690,6 +717,7 @@ a.link {
   }
 
   header button,
+  header a:where(.btn),
   .actions,
   .banner,
   .update-banner {
@@ -700,7 +728,8 @@ a.link {
     color: #444;
   }
 
-  button.item {
+  button.item,
+  a:where(.btn).item {
     color: #000;
     border-bottom-color: #ccc;
   }
@@ -723,7 +752,9 @@ a.link {
 
 /* "Tent · #2 · Blue": a name that is a link inside the line, as wide as its text, not a full-width button. */
 .facts .one-of button.link,
-.history .facts dd > button.link {
+.facts .one-of a:where(.btn).link,
+.history .facts dd > button.link,
+.history .facts dd > a:where(.btn).link {
   width: auto;
   min-height: 44px;
   /* Still a 44 px target, without making the line taller than its neighbours. */
@@ -750,7 +781,8 @@ a.link {
   gap: 12px;
 }
 
-.facts .merged-line button.minor {
+.facts .merged-line button.minor,
+.facts .merged-line a:where(.btn).minor {
   width: auto;
   margin: 0;
   padding: 0 12px;
@@ -771,7 +803,8 @@ a.link {
   align-items: center;
 }
 
-.names li.row > button.item {
+.names li.row > button.item,
+.names li.row > a:where(.btn).item {
   flex: 1;
   border-bottom: 0;
 }
@@ -823,7 +856,8 @@ a {
 /* --- M7: movement ------------------------------------------------------------------------ */
 
 /* Smaller buttons for secondary things: note toggles, the session event. Still 44 px tall. */
-button.minor {
+button.minor,
+a:where(.btn).minor {
   min-height: 44px;
   font-size: 16px;
   font-weight: 500;
@@ -1154,7 +1188,8 @@ h3.section {
   flex: 1;
 }
 
-.found-notice button {
+.found-notice button,
+.found-notice a:where(.btn) {
   width: auto;
   margin: 0;
   padding: 0 16px;
@@ -1173,7 +1208,8 @@ h3.section {
   flex: 1;
 }
 
-.notice-row button {
+.notice-row button,
+.notice-row a:where(.btn) {
   width: auto;
   margin: 0;
   padding: 0 16px;
@@ -1400,7 +1436,8 @@ h3.section.small {
     gap: 12px;
   }
 
-  .actions button {
+  .actions button,
+  .actions a:where(.btn) {
     width: auto;
     min-width: 160px;
     padding: 0 24px;
@@ -1479,16 +1516,20 @@ h3.section.small {
   border-right: 1px solid var(--rule);
 }
 
-.sidebar button.link {
+.sidebar button.link,
+.sidebar a:where(.btn).link {
+  justify-content: flex-start;
   text-align: left;
 }
 
 /* Every list of links reads like a settings list: one row per line, ruled apart. */
-.links button.link {
+.links button.link,
+.links a:where(.btn).link {
   width: 100%;
   padding: 10px 0;
   border-bottom: 1px solid var(--rule);
   border-radius: 0;
+  justify-content: flex-start;
   text-align: left;
 }
 
@@ -1561,17 +1602,16 @@ h3.section.small {
 }
 
 /* A cell is not a row: a link in one takes the width of its words. */
-.grid button.link {
+.grid button.link,
+.grid a:where(.btn).link {
   width: auto;
+  justify-content: flex-start;
   text-align: left;
   vertical-align: middle;
 }
 
-.grid a.link {
-  vertical-align: middle;
-}
-
-.grid th button.link {
+.grid th button.link,
+.grid th a:where(.btn).link {
   color: var(--muted);
 }
 
@@ -1643,7 +1683,8 @@ button.unit-fold:focus-visible > span {
   margin-left: auto;
 }
 
-.table-actions button {
+.table-actions button,
+.table-actions a:where(.btn) {
   width: auto;
   min-width: 140px;
   padding: 0 20px;
@@ -1812,10 +1853,13 @@ button.unit-fold:focus-visible > span {
   }
 
   button.link,
-  a.link,
+  a:where(.btn).link,
   p button.link,
+  p a:where(.btn).link,
   .facts button.link,
-  .grid th button.link {
+  .facts a:where(.btn).link,
+  .grid th button.link,
+  .grid th a:where(.btn).link {
     color: #000;
     text-decoration: none;
   }
